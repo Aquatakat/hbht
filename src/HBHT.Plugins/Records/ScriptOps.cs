@@ -15,6 +15,8 @@ public enum OpUse
     Effect = 0x4,
     /// <summary>A trigger's <c>do</c>.</summary>
     Trigger = 0x8,
+    /// <summary>A trigger's <c>if</c> alone: a condition on what the event is about, which a script node has none of.</summary>
+    EventCondition = 0x10,
 }
 
 /// <summary>
@@ -59,6 +61,7 @@ public enum OpUse
 [JsonDerivedType(typeof(CheckStat), "check.stat")]
 [JsonDerivedType(typeof(CheckPartySize), "check.partySize")]
 [JsonDerivedType(typeof(CheckGold), "check.gold")]
+[JsonDerivedType(typeof(CheckSubjectKind), "check.subjectKind")]
 // Effects.
 [JsonDerivedType(typeof(FlagSet), "flag.set")]
 [JsonDerivedType(typeof(FlagClear), "flag.clear")]
@@ -90,6 +93,7 @@ public enum OpUse
 [JsonDerivedType(typeof(CreditsRoll), "credits.roll")]
 [JsonDerivedType(typeof(GameOver), "game.over")]
 [JsonDerivedType(typeof(PartyLearnTrueName), "party.learnTrueName")]
+[JsonDerivedType(typeof(MessageShow), "message.show")]
 // Reserved.
 [JsonDerivedType(typeof(Lua), "lua")]
 public record ScriptOp
@@ -238,6 +242,15 @@ public record ScriptOp
 
     /// <summary>The party's gold, truncated to 16 bits (31).</summary>
     public sealed record CheckGold : Check;
+
+    /// <summary>
+    /// 1 if the event is about an item of this kind, such as the potion <c>item.gained</c> is about. A trigger's alone: a script
+    /// node's condition has no event.
+    /// </summary>
+    public sealed record CheckSubjectKind(ItemKind Kind) : Check
+    {
+        protected override OpUse Places() => OpUse.EventCondition;
+    }
 
     // ---- Effects -----------------------------------------------------------------------------------------------------------
 
@@ -423,6 +436,15 @@ public record ScriptOp
 
     /// <summary>The party member who is <paramref name="Member"/> knows his True Name (as Roog's cinematic gives Alaron his).</summary>
     public sealed record PartyLearnTrueName(RecordId Member) : ScriptOp
+    {
+        protected override OpUse Places() => OpUse.Trigger;
+    }
+
+    /// <summary>
+    /// Shows <paramref name="Text"/> where the event was fired: over a menu, as its help on the parchment, which A, B or Start
+    /// closes; in trek, in the message box. An event fired where nothing can be shown passes over it, and says so.
+    /// </summary>
+    public sealed record MessageShow(string Text) : ScriptOp
     {
         protected override OpUse Places() => OpUse.Trigger;
     }

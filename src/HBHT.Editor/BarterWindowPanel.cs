@@ -51,14 +51,14 @@ public partial class BarterWindowPanel : MenuWindowPanel
     {
         var party = game.Game.Party;
         party.Gold += (uint)gold;
-        var barter = BarterMenu.ForLoot(plugins, party, loot, gold, game.Game.Flags, game.Game.Random.World);
+        var barter = BarterMenu.ForLoot(plugins, party, loot, gold, game.Events, game.Game.Random.World);
         return new BarterWindowPanel(plugins, barter,
             $"{what}, in the loot window against {Against(game)}: its gold is the party's already, and what's taken or dropped stays in the game.");
     }
 
     /// <summary>A shop's window on the game's party, which opening it costs the barterer's Stamina.</summary>
     public static BarterWindowPanel ForShop(PluginSet plugins, EditorGame game, Shop shop) =>
-        new(plugins, BarterMenu.ForShop(plugins, shop, game.Game.Random.World),
+        new(plugins, BarterMenu.ForShop(plugins, shop, game.Game.Random.World, fire: game.Events),
             $"The shop's window against {Against(game)}: what's bought or sold stays in the game.");
 
     private static string Against(EditorGame game) => game.IsNewGame ? "a new game" : game.Name;

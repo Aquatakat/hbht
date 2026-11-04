@@ -92,6 +92,11 @@ public enum CodeTable
     ScriptEndings,
     /// <summary>The death scene scripts. Only the first is used (<c>Gameover_func</c>).</summary>
     GameOverScenes,
+    /// <summary>
+    /// What trek says of a new journal entry, "A new journal entry has been added." (<c>0x800CE28C</c> in 1.0,
+    /// <c>NewJournalEntryPopup</c>), a C string.
+    /// </summary>
+    JournalNotice,
     /// <summary>Flag, Borg8 image, x and y of each world map piece (<c>WorldMapPieces</c>).</summary>
     WorldMapPieces,
     /// <summary>Borg8 image, x and y of each town's name on the world map (<c>0x800d0b20</c> in 1.0).</summary>

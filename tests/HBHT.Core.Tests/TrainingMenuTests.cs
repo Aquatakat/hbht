@@ -1,4 +1,5 @@
 using HBHT.Core.Characters;
+using HBHT.Core.Events;
 using CharacterParty = HBHT.Core.Characters.Party;
 using HBHT.Core.Flags;
 using HBHT.Core.Ui;
@@ -22,6 +23,9 @@ public class TrainingMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlug
 
     private static string Line(int line) => $"L{line}";
 
+    /// <summary>The events the window fired, about what.</summary>
+    private readonly List<(string Name, RecordId? Subject)> _fired = [];
+
     private (TrainingMenu Menu, CharacterParty Party, Character Alaron, FlagNetwork Flags) Open(SkillLevels? teaches = null, RecordId? keeper = null,
         KnownSpell[]? spells = null, uint exp = 100_000, uint gold = 1000, Action<Character>? edit = null)
     {
@@ -33,7 +37,11 @@ public class TrainingMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlug
         party.Gold = gold;
         var trainer = Trainer.From(Characters.Trainer(keeper ?? Keeper, teaches ?? new SkillLevels(Alchemist: 2, Warrior: 5), spells),
             Characters.Rules, id => id == Spark.Id ? Spark : Characters.Fireball);
-        return (TrainingMenu.For(_plugins, party, trainer, flags), party, alaron, flags);
+        return (TrainingMenu.For(_plugins, party, trainer, (name, subject, show) =>
+        {
+            _fired.Add((name, subject));
+            show($"{name} {subject}");
+        }), party, alaron, flags);
     }
 
     private static void Select(TrainingMenu menu, SkillId skill) => menu.Point(menu.Skills.Rows.ToList().FindIndex(r => r.Skill == skill));
@@ -178,9 +186,9 @@ public class TrainingMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlug
     }
 
     [Fact]
-    public void TheStickSwitchesBothListsToSpellsAndTheFirstSpellShowsHelp()
+    public void TheStickSwitchesBothListsToSpellsAndANewSpellFiresSpellTrainedButRaisingItDoesnt()
     {
-        var (menu, _, alaron, flags) = Open(spells: [new KnownSpell(Spark.Id, 4)]);
+        var (menu, _, alaron, _) = Open(spells: [new KnownSpell(Spark.Id, 4)]);
 
         menu.Switch();
 
@@ -196,8 +204,9 @@ public class TrainingMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlug
         menu.Accept();
 
         Assert.Equal(1, alaron.FindSpell(Spark.Id)?.Level);
-        Assert.Equal(Line(MenuText.FirstSpell), menu.Help);
-        Assert.True(flags.Get(Characters.FirstSpellFlag));
+        // The first spell's help is the base plugin's trigger on the event (2.10), which TrainingCheckpointTests plays.
+        Assert.Equal((GameEvents.SpellTrained, (RecordId?)Spark.Id), Assert.Single(_fired));
+        Assert.Equal($"{GameEvents.SpellTrained} {Spark.Id}", menu.Help);
         Assert.True(menu.Followed);
         menu.Accept();
         Assert.Null(menu.Help);
@@ -206,6 +215,7 @@ public class TrainingMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlug
         menu.Accept();
         Assert.Equal(2, alaron.FindSpell(Spark.Id)?.Level);
         Assert.Null(menu.Help);
+        Assert.Single(_fired);
     }
 
     [Fact]

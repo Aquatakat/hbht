@@ -43,6 +43,7 @@ The actor in force is the node's speaker in 1.0; the importer writes it (see [sp
 | `check.stat` | `member`, `stat` | condition | 29 CheckSpeakerStat (the speaker) |
 | `check.partySize` | | condition | 30 CheckPartySize |
 | `check.gold` | | condition | 31 CheckGold |
+| `check.subjectKind` | `kind` | a trigger's `if` | (engine code: the item the event is about, [events](events.md)) |
 | `flag.set`, `flag.clear` | `flag` | effect, trigger | 32 SetFlag, 33 ClearFlag |
 | `script.end` | | effect | 34 EndDialogue |
 | `screen.dip` | | effect | 35 FadeOut |
@@ -67,6 +68,7 @@ The actor in force is the node's speaker in 1.0; the importer writes it (see [sp
 | `credits.roll` | `ending`? | trigger | (engine code) |
 | `game.over` | | trigger | (engine code) |
 | `party.learnTrueName` | `member` | trigger | (engine code) |
+| `message.show` | `text` | trigger | (engine code: the windows' help and trek's journal notice) |
 | `lua` | `file`, `handler` | any | reserved |
 
 Not written: 3 SetSpeaker (the node's `speaker`), 1, 2, 19, 55 and 59 (never read), 53 (counts as its node's effect and does nothing; all 212 are their node's only effect, so no effect is the same), and 49 (crashes the original; no script has it). A CheckItem of 0x04AE, a DB ID with no record (script 1796 node 35), always gives 0, as no condition does, so that node has none. The four second effects 1.0 never runs are left out: script 1076 node 33's `script.wait` (after a walk), 1901 node 88's `flag.set` of 3691 (after `party.addExp`), 1906 node 78's `script.wait` (after a `flag.set`) and 3626 node 78's `script.wait` (after an animation).

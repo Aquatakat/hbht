@@ -191,7 +191,7 @@ public abstract record Transition
         if (entity is null || Shop.For(plugins.All<ShopRecord>(RecordTypes.Shop), entity.Id) is not { } record)
             return new Say($"{entity?.Name ?? keeper?.ToString() ?? "No one"} keeps no shop.");
         var party = game.Party;
-        return new OpenShop(Shop.Open(record, entity, party, party.Inventory.Catalog, game.Flags));
+        return new OpenShop(Shop.Open(record, entity, party, party.Inventory.Catalog));
     }
 
     /// <summary>

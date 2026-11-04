@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Text.Json;
 using HBHT.Core.Characters;
+using HBHT.Core.Events;
 using CharacterParty = HBHT.Core.Characters.Party;
 using HBHT.Core.Flags;
 using HBHT.Core.Items;
@@ -48,8 +49,18 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
 
     private static string Line(int line) => $"L{line}";
 
+    /// <summary>The events the window fired, about what.</summary>
+    private readonly List<(string Name, RecordId? Subject)> _fired = [];
+
+    /// <summary>Notes each event, and shows its name and subject as a trigger's <c>message.show</c> would.</summary>
+    private void Fire(string name, RecordId? subject, Action<string> show)
+    {
+        _fired.Add((name, subject));
+        show($"{name} {subject}");
+    }
+
     private (BarterMenu Menu, CharacterParty Party, ItemPile Loot, FlagNetwork Flags) Open(Action<ItemPile>? fill = null,
-        Action<CharacterParty>? stock = null, int generalSlots = 8, ItemRecord[]? more = null, int gold = 0)
+        Action<CharacterParty>? stock = null, int generalSlots = 8, ItemRecord[]? more = null, int gold = 0, FireEvent? fire = null)
     {
         var catalog = TradeData.Catalog(generalSlots, more ?? []);
         var flags = ItemData.Flags();
@@ -57,7 +68,7 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         stock?.Invoke(party);
         var loot = new ItemPile(catalog);
         fill?.Invoke(loot);
-        return (BarterMenu.ForLoot(_plugins, party, loot, gold, flags), party, loot, flags);
+        return (BarterMenu.ForLoot(_plugins, party, loot, gold, fire), party, loot, flags);
     }
 
     private static int PartyRow(BarterMenu menu, RecordId item) =>
@@ -260,51 +271,52 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     }
 
     [Fact]
-    public void TakingTheFirstPotionWithTheFlagClearShowsHelpAndSetsTheFlagButASecondDoesnt()
+    public void EachStackTakenFiresItemGainedAboutItsItemAndItsTriggersMessageIsTheHelp()
     {
-        var second = TradeData.Priced(30, 40, ItemKind.Potion);
-        var (menu, _, _, flags) = Open(fill: p =>
+        // The first potion's help is the base plugin's trigger on the event (2.10), which BarterMenuRomTests plays.
+        var (menu, _, _, _) = Open(fill: p =>
         {
             p.Add(TradeData.Potion.Id);
-            p.Add(second.Id);
-        }, more: [second]);
-        Assert.False(flags.Get(TradeData.PotionFlag));
+            p.Add(TradeData.Trinket.Id);
+        }, fire: Fire);
+        var first = menu.Pile.Current!.Item.Id;
 
         menu.Accept();
 
-        Assert.Equal(Line(MenuText.FirstPotion), menu.Help);
-        Assert.True(flags.Get(TradeData.PotionFlag));
-
+        Assert.Equal((GameEvents.ItemGained, (RecordId?)first), Assert.Single(_fired));
+        Assert.Equal($"{GameEvents.ItemGained} {first}", menu.Help);
         menu.Accept();
         Assert.Null(menu.Help);
+        var second = menu.Pile.Current!.Item.Id;
         menu.Accept();
 
-        Assert.Null(menu.Help);
+        Assert.Equal([first, second], _fired.Select(f => f.Subject));
         Assert.Empty(menu.Pile.Rows);
     }
 
     [Fact]
-    public void TakingSomethingThatIsNotAPotionShowsNoHelpAndLeavesTheFlagClear()
+    public void ARefusedTakeFiresNothing()
     {
-        var (menu, _, _, flags) = Open(fill: p => p.Add(TradeData.Trinket.Id));
+        var (menu, _, _, _) = Open(
+            fill: p => p.Add(TradeData.Potion.Id),
+            stock: party => party.Inventory.Add(TradeData.Potion.Id, 99),
+            fire: Fire);
 
         menu.Accept();
 
         Assert.Null(menu.Help);
-        Assert.False(flags.Get(TradeData.PotionFlag));
+        Assert.Empty(_fired);
     }
 
     [Fact]
-    public void ARefusedPotionShowsNoHelp()
+    public void WithNothingToFireOnTakingAPotionShowsNoHelp()
     {
-        var (menu, _, _, flags) = Open(
-            fill: p => p.Add(TradeData.Potion.Id),
-            stock: party => party.Inventory.Add(TradeData.Potion.Id, 99));
+        var (menu, _, _, _) = Open(fill: p => p.Add(TradeData.Potion.Id));
 
         menu.Accept();
 
         Assert.Null(menu.Help);
-        Assert.False(flags.Get(TradeData.PotionFlag));
+        Assert.False(menu.HasPopup);
     }
 
     [Theory]
@@ -664,7 +676,7 @@ public class BarterMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     [Fact]
     public void TheHelpClosesOnAOrB()
     {
-        var (menu, _, _, _) = Open(fill: p => p.Add(TradeData.Potion.Id, 2));
+        var (menu, _, _, _) = Open(fill: p => p.Add(TradeData.Potion.Id, 2), fire: Fire);
         menu.Accept();
         Assert.NotNull(menu.Help);
         Assert.True(menu.HasPopup);

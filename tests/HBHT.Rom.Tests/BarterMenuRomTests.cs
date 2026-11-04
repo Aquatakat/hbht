@@ -5,6 +5,7 @@ using HBHT.Core.Rng;
 using HBHT.Core.Ui;
 using HBHT.Plugins;
 using HBHT.Plugins.Records;
+using HBHT.Rom.Import;
 
 namespace HBHT.Rom.Tests;
 
@@ -44,7 +45,7 @@ public sealed class BarterMenuRomTests(Na10Import fixture)
         Starts(MenuText.LeaveItems, "There are still items that you have not picked up!");
         Is(MenuText.LeaveItemsNo, "No, I changed my mind.");
         Is(MenuText.LeaveItemsYes, "Yes, leave them.");
-        Starts(MenuText.FirstPotion, "You've acquired a potion!");
+        Starts(TriggerImporter.FirstPotionHelp, "You've acquired a potion!");
         Is(MenuText.NothingThere, "Nothing there.");
         Is(MenuText.StackFull, "You cannot hold any more of that item.");
         Is(MenuText.InventoryFull, "The party's inventory is full.");
@@ -131,9 +132,9 @@ public sealed class BarterMenuRomTests(Na10Import fixture)
     public void ANewGamesStartChestOpensALootWindowOfFourHealingPotions()
     {
         var (game, loot, gold) = OpenTheStartChest();
-        Assert.False(game.Flags.Get(game.Items.Rules.FirstPotionFlag));
+        Assert.False(game.Flags.Get(Flag(3612)));
 
-        var menu = BarterMenu.ForLoot(Set, game.Party, loot, gold, game.Flags);
+        var menu = BarterMenu.ForLoot(Set, game.Party, loot, gold, null);
 
         var row = Assert.Single(menu.Pile.Rows);
         Assert.Equal((RecordId.Hex(RecordTypes.Item, 0x1004), 4), (row.Item.Id, row.Quantity));
@@ -149,7 +150,8 @@ public sealed class BarterMenuRomTests(Na10Import fixture)
     public void TakingTheStartChestsPotionsGivesHelpEmptiesThePileAndTheBackButtonThenClosesTheWindow()
     {
         var (game, loot, gold) = OpenTheStartChest();
-        var menu = BarterMenu.ForLoot(Set, game.Party, loot, gold, game.Flags);
+        var warnings = new List<string>();
+        var menu = BarterMenu.ForLoot(Set, game.Party, loot, gold, game.Triggers.InPlace(game, warnings.Add));
         var healing = RecordId.Hex(RecordTypes.Item, 0x1004);
 
         menu.Accept();
@@ -157,9 +159,11 @@ public sealed class BarterMenuRomTests(Na10Import fixture)
         Assert.Equal(4, game.Party.Inventory.Count(healing));
         Assert.Empty(menu.Pile.Rows);
         Assert.False(menu.OnPile);
-        Assert.Equal(MenuText.From(Set)[MenuText.FirstPotion], menu.Help);
+        // The base plugin's trigger on item.gained shows the Common table's line, as WidgetMenuPrompt did.
+        Assert.Equal(MenuText.From(Set)[TriggerImporter.FirstPotionHelp], menu.Help);
         Assert.StartsWith("You've acquired a potion!", TestRoms.Plain(menu.Help!), StringComparison.Ordinal);
-        Assert.True(game.Flags.Get(game.Items.Rules.FirstPotionFlag));
+        Assert.True(game.Flags.Get(Flag(3612)));
+        Assert.Empty(warnings);
 
         // The help takes B first, then B closes the window as nothing is left.
         Assert.True(menu.Back());

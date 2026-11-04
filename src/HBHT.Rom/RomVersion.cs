@@ -76,6 +76,7 @@ public static class RomVersions
         new(CodeTable.AlwaysAnimated,             20,     0x00CE650, 0x00D9AC0),
         new(CodeTable.SkyGradients,               0x24,   0x00CEB50, 0x00DA6A0),
         new(CodeTable.GameOverScenes,             0xC,    0x00CEDE0, 0x00DAAA0),
+        new(CodeTable.JournalNotice,              36,     0x00CEE8C, 0x00DABCC),
         new(CodeTable.OverworldMusicScenes,       0x4C,   0x00CF31C, 0x00DB384),
         new(CodeTable.JundarMusicScenes,          0x10,   0x00CF368, 0x00DB3D0),
         new(CodeTable.BattleMusic,                0x14,   0x00CF378, 0x00DB3E0),

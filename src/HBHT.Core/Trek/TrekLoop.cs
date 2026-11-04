@@ -5,6 +5,7 @@ using HBHT.Core.Calendar;
 using HBHT.Core.Cameras;
 using HBHT.Core.Chunks;
 using HBHT.Core.Combat;
+using HBHT.Core.Events;
 using HBHT.Core.Items;
 using HBHT.Core.MapObjects;
 using HBHT.Core.Movement;
@@ -275,9 +276,6 @@ public sealed partial class TrekLoop : IMapObjectHost
         Hud.Arrive(Game.Terrain(chunk.Terrain)?.SkyDrawn ?? true);
     }
 
-    /// <summary>What's said when a journal entry is added: a literal in the code (<c>0x800ce28c</c> in 1.0).</summary>
-    public const string NewJournalEntry = "A new journal entry has been added.";
-
     /// <summary>
     /// One 60 Hz tick of trek, as the original orders it: the fades, the clock, the map objects the player
     /// touches, the camera, the player, the wanderers' decisions and then their bodies, a conversation's
@@ -308,7 +306,7 @@ public sealed partial class TrekLoop : IMapObjectHost
         var talking = Conversation is not null;
         // NewJournalEntryPopup: with nothing else up, a new entry is told once, and its flag cleared. The port brings the network
         // up to date first, the user's choice: 1.0 tells an entry only once something happens to read a derived flag, so some
-        // waited for a chest, a door or a border (docs/systems/flags.md).
+        // waited for a chest, a door or a border (docs/systems/flags.md). What's said is the base plugin's trigger on the event.
         var newEntry = Game.Flags.Handle(Game.StateFlagsRecord.NewJournalEntry);
         if (!fading && Use.Popup is null && !talking)
         {
@@ -317,7 +315,7 @@ public sealed partial class TrekLoop : IMapObjectHost
             if (Game.Flags.Peek(newEntry))
             {
                 Game.Flags.Set(newEntry, false);
-                Use.Tell(NewJournalEntry);
+                Game.Triggers.Fire(Game, GameEvents.JournalAdded, Game.Flags.NewestJournalEntry, _host.Warn, _host, Use.Tell);
             }
         }
         // HandleZoneEngineFrame's weather (RenderSky's lightning and ProcessWeather), whatever stops the clock; then TickGameTime.

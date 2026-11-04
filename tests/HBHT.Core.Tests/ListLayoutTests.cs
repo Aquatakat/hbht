@@ -72,7 +72,7 @@ public class ListLayoutTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         var loot = new ItemPile(catalog);
         foreach (var item in more)
             loot.Add(item.Id, 1);
-        var barter = BarterMenu.ForLoot(fixture.Plugins, party, loot, 0, flags);
+        var barter = BarterMenu.ForLoot(fixture.Plugins, party, loot, 0, null);
 
         Assert.Equal(6, barter.Pile.Visible);
         Assert.Equal(6, BarterMenu.PileLayout.Visible);

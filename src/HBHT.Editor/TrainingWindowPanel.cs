@@ -13,7 +13,7 @@ public partial class TrainingWindowPanel : MenuWindowPanel
     private readonly TrainingMenu _training;
 
     public TrainingWindowPanel(PluginSet plugins, EditorGame game, Trainer trainer)
-        : this(plugins, game, TrainingMenu.For(plugins, game.Game.Party, trainer, game.Game.Flags, game.Game.Random.World))
+        : this(plugins, game, TrainingMenu.For(plugins, game.Game.Party, trainer, game.Events, game.Game.Random.World))
     {
     }
 

@@ -359,7 +359,7 @@ public partial class ShopPanel : PagePanel
         foreach (var child in _window.GetChildren())
             child.QueueFree();
         var party = _game.Game.Party;
-        var shop = Shop.Open(_record, _shopkeeper, party, party.Inventory.Catalog, _game.Game.Flags);
+        var shop = Shop.Open(_record, _shopkeeper, party, party.Inventory.Catalog);
         _window.AddChild(BarterWindowPanel.ForShop(Plugins, _game, shop));
     }
 

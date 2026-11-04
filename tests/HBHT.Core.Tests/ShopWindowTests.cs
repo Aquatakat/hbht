@@ -1,4 +1,5 @@
 using HBHT.Core.Characters;
+using HBHT.Core.Events;
 using CharacterParty = HBHT.Core.Characters.Party;
 using HBHT.Core.Flags;
 using HBHT.Core.Items;
@@ -19,6 +20,9 @@ public class ShopWindowTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
 
     private static string Line(int line) => $"L{line}";
 
+    /// <summary>The events the window fired, about what.</summary>
+    private readonly List<(string Name, RecordId? Subject)> _fired = [];
+
     private (BarterMenu Menu, CharacterParty Party, FlagNetwork Flags) Open(Action<CharacterParty>? stock = null, uint gold = 1000,
         int generalSlots = 8, ItemRecord[]? more = null)
     {
@@ -29,8 +33,13 @@ public class ShopWindowTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         stock?.Invoke(party);
         var keeper = TradeData.Keeper(3);
         var shop = Shop.Open(TradeData.ShopOf(keeper, new ShopStock(TradeData.Trinket.Id), new ShopStock(TradeData.Potion.Id)), keeper, party,
-            catalog, flags);
-        return (BarterMenu.ForShop(_plugins, shop), party, flags);
+            catalog);
+        return (BarterMenu.ForShop(_plugins, shop, fire: (name, subject, show) =>
+        {
+            _fired.Add((name, subject));
+            if (subject == TradeData.Potion.Id)
+                show("potion");
+        }), party, flags);
     }
 
     private static int StockRow(BarterMenu menu, RecordId item) => menu.Pile.Rows.ToList().FindIndex(r => r.Item.Id == item);
@@ -106,18 +115,20 @@ public class ShopWindowTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     }
 
     [Fact]
-    public void TheFirstPotionBoughtShowsTheHelp()
+    public void WhatsBoughtFiresItemGainedAboutItAndItsTriggersMessageIsTheHelp()
     {
-        var (menu, _, flags) = Open();
+        var (menu, _, _) = Open();
         menu.Point(pile: true, StockRow(menu, TradeData.Potion.Id));
 
         menu.Accept();
 
-        Assert.Equal(Line(MenuText.FirstPotion), menu.Help);
-        Assert.True(flags.Get(TradeData.PotionFlag));
+        Assert.Equal((GameEvents.ItemGained, (RecordId?)TradeData.Potion.Id), Assert.Single(_fired));
+        Assert.Equal("potion", menu.Help);
         menu.Accept();
         Assert.Null(menu.Help);
+        menu.Point(pile: true, StockRow(menu, TradeData.Trinket.Id));
         menu.Accept();
+        Assert.Equal(TradeData.Trinket.Id, _fired[^1].Subject);
         Assert.Null(menu.Help);
     }
 

@@ -1,5 +1,5 @@
 using HBHT.Core.Characters;
-using HBHT.Core.Flags;
+using HBHT.Core.Events;
 using HBHT.Core.Rng;
 using HBHT.Plugins;
 using HBHT.Plugins.Records;
@@ -39,13 +39,13 @@ public sealed class TrainingMenu : IPartyWindow
     /// <summary>The choice's Yes and No (common lines 31 and 32).</summary>
     public const int YesLine = 31, NoLine = 32;
 
-    private readonly FlagNetwork? _flags;
+    private readonly FireEvent? _fire;
 
-    private TrainingMenu(PartyMenu party, Trainer trainer, FlagNetwork? flags)
+    private TrainingMenu(PartyMenu party, Trainer trainer, FireEvent? fire)
     {
         Party = party;
         Trainer = trainer;
-        _flags = flags;
+        _fire = fire;
         Skills = Layout.List<SkillRow>([.. trainer.SkillsOffered.Select(s => new SkillRow(s, party.Shown!.Rules[s].Name,
             s.IsSkill ? party.Shown.Rules[s].Icon : null, trainer.Skills.Base(s), trainer.Skills.Modified(s) - trainer.Skills.Base(s)))]);
         Spells = Layout.List<SpellRow>([.. trainer.Spells.Select(s => new SpellRow(new LearnedSpell(s.Spell, s.Level),
@@ -55,11 +55,11 @@ public sealed class TrainingMenu : IPartyWindow
     }
 
     /// <summary>The training window on the party, at a trainer (<c>init_skill_trainer</c>).</summary>
-    /// <param name="flags">The flags the first spell learnt sets.</param>
+    /// <param name="fire">Where it fires <see cref="GameEvents.SpellTrained"/>, whose triggers show the first spell's help; none fires nothing.</param>
     /// <param name="random">The stream skill checks draw from; a fresh one if none.</param>
     /// <param name="member">The member it opens on, the one the menu last showed (<see cref="PauseMenu.Member"/>).</param>
-    public static TrainingMenu For(PluginSet plugins, Party party, Trainer trainer, FlagNetwork? flags, IRandom? random = null, int member = 0) =>
-        new(PartyMenu.From(plugins, party, member, random), trainer, flags);
+    public static TrainingMenu For(PluginSet plugins, Party party, Trainer trainer, FireEvent? fire, IRandom? random = null, int member = 0) =>
+        new(PartyMenu.From(plugins, party, member, random), trainer, fire);
 
     /// <summary>The header and the member's lists.</summary>
     public PartyMenu Party { get; }
@@ -332,12 +332,9 @@ public sealed class TrainingMenu : IPartyWindow
         else if (CurrentSpell is { } row)
         {
             trained = Training.TrainSpell(student, row.Spell.Spell, Trainer, ref gold, out var learnt).Allowed;
-            var flag = student.Rules.Training.FirstSpellFlag;
-            if (learnt && flag is { } f && _flags is not null && !_flags.IsSet(f))
-            {
-                _flags.TrySet(f, true);
-                Overlay.ShowHelp(Party.Text[MenuText.FirstSpell]);
-            }
+            // The first spell's help (WidgetSpellTrain::Purchase's flag and prompt) is the base plugin's trigger on this.
+            if (learnt)
+                _fire?.Invoke(GameEvents.SpellTrained, row.Spell.Spell.Id, Overlay.ShowHelp);
         }
         Party.Party.Gold = gold;
         Party.Refresh();

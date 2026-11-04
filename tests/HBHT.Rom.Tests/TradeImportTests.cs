@@ -30,7 +30,7 @@ public sealed class TradeImportTests(Na10Import fixture)
         foreach (var record in Set.All<ShopRecord>(RecordTypes.Shop))
         {
             var shopkeeper = Set.Get<EntityRecord>(record.Shopkeeper);
-            var shop = Shop.Open(record, shopkeeper, NewParty(items, flags), items, flags);
+            var shop = Shop.Open(record, shopkeeper, NewParty(items, flags), items);
             Assert.Equal(record.Stock.Select(s => s.Item).Distinct().Count(), shop.Stock.Stacks.Count);
             foreach (var slot in record.Stock.Where(s => record.Stock.Count(o => o.Item == s.Item) == 1))
                 Assert.Equal((ushort)(uint)(items[slot.Item].Price * slot.PriceMultiplier), shop.Stock.Find(slot.Item)!.Instance.Price);

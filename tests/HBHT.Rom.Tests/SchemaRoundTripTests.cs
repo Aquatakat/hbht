@@ -61,7 +61,9 @@ public sealed class SchemaRoundTripTests(Na10Import fixture)
     public void TheSchemaRefusesWhatStrictReadingRefuses()
     {
         var set = fixture.Data.Set;
-        var map = (JsonObject)set.GetJson(set.Ids.First(i => i.Type == RecordTypes.Chunk))!.DeepClone();
+        // A chunk with objects: some the import made hold only scenery.
+        var map = (JsonObject)set.Ids.Where(i => i.Type == RecordTypes.Chunk).Select(i => set.GetJson(i)!)
+            .First(c => c["objects"] is JsonArray { Count: > 0 }).DeepClone();
         var schema = Schema(typeof(Plugins.Records.ChunkRecord));
         Assert.True(schema.Evaluate(Element(map), Options).IsValid);
 

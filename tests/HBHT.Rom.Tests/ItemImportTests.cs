@@ -629,7 +629,6 @@ public sealed class ItemImportTests(Na10Import fixture)
         Assert.Equal("Cyclops Club", Weapon(db.Weapons[32].Id.Value).Name);
         Assert.Equal([(ItemRecordId(0x100B), ItemRecordId(0x1004))], AllItems.Where(i => i.Becomes is not null).Select(i => (i.Id, i.Becomes!.Value)));
         Assert.Equal([ItemKind.Body, ItemKind.Shield], inventory.SkillBonusesApplyUnlearnt);
-        Assert.Equal(RecordId.Decimal(RecordTypes.Flag, 3612), inventory.FirstPotionFlag);
         Assert.Equal(["Spice", "Herb", "Gemstone"], new[] { inventory.Spice, inventory.Herb, inventory.Gemstone }.Select(i => Set.Get<ItemRecord>(i).Name));
         var messages = MenuTables.Read(Rom).Messages;
         Assert.Equal(new InventoryMessages(messages.PotionNotNow, messages.PotionNotInTrek, messages.ScrollNoSpell), inventory.Messages);
@@ -704,7 +703,7 @@ public sealed class ItemImportTests(Na10Import fixture)
         }
         var inventory = Set.Get<InventoryRecord>(RecordId.Decimal(RecordTypes.Inventory, 0));
         Image("the inventory", inventory.DefaultIcon);
-        references.AddRange(new[] { inventory.Spice, inventory.Herb, inventory.Gemstone, inventory.FirstPotionFlag }.Select(x => ("the inventory", x)));
+        references.AddRange(new[] { inventory.Spice, inventory.Herb, inventory.Gemstone }.Select(x => ("the inventory", x)));
         references.AddRange(AllItems.Where(i => i.Becomes is not null).Select(i => ($"{i.Id}", i.Becomes!.Value)));
         foreach (var s in Enumerable.Range(0, 12).Select(n => Set.Get<SkillRecord>(SkillId(n))))
             Image($"{s.Id}", s.Icon!.Value);

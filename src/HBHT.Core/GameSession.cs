@@ -151,7 +151,7 @@ public sealed class GameSession
         _savesFolder = savesFolder ?? DataPaths.Saves;
         Trek = new TrekLoop(game, new Relay(this, host), zone, player, camera);
         zone.Sky.Warn = host.Warn;
-        Menu = new PauseMenu(game, _playerSettings, _savesFolder, Where, _menuHost, Stick);
+        Menu = new PauseMenu(game, _playerSettings, _savesFolder, Where, _menuHost, Stick, FireInPlace);
         _settings = playing ?? SessionSettings.Original;
         Apply();
     }
@@ -294,7 +294,7 @@ public sealed class GameSession
     /// <summary>Loads the triggers, and notes what's wrong with them for whoever's watching the log, as the game's own problems are noted.</summary>
     private Triggers LoadTriggers()
     {
-        var triggers = new Triggers(Game.Plugins);
+        var triggers = Game.Triggers;
         foreach (var problem in triggers.Problems)
             _host.Warn(problem);
         return triggers;
@@ -1191,6 +1191,13 @@ public sealed class GameSession
         _host.Warn($"A trigger on {name} asks for {effect}, which no plugin has.");
         return false;
     }
+
+    /// <summary>
+    /// Fires an event where nothing can take over (<see cref="GameEvents.InPlace"/>), as the pause menu's windows and trek's
+    /// journal notice do: the ops' sounds to the host, a message to <paramref name="show"/>.
+    /// </summary>
+    internal void FireInPlace(string name, RecordId? subject, Action<string> show) =>
+        Triggers.Fire(Game, name, subject, _host.Warn, _host, show);
 
     /// <summary>
     /// Starts the script a script object starts, at once and in place of trek: a cut-scene on the object's stage from its

@@ -341,7 +341,6 @@ public sealed record Ingredient(RecordId Item, int Count);
 /// is 0: body armor and shields, whose Stealth the original adds whatever the wearer's (<c>Skills.AddModifiedNotify</c>,
 /// <c>0x8007A6EC</c>), where it adds any other item's skill bonus only to a skill above 0 (<c>Entity.ApplyItem</c>, <c>0x8006F2A8</c>).
 /// </param>
-/// <param name="FirstPotionFlag">Set when the party first gains a potion in a shop or loot, which shows help (a trigger, 2.10).</param>
 /// <param name="Messages">What the pause menu says when a potion or scroll can't be used, which the original has in code.</param>
 public sealed record InventoryRecord(
     RecordId Id,
@@ -354,7 +353,6 @@ public sealed record InventoryRecord(
     float MerchantStep,
     float SellShare,
     IReadOnlyList<ItemKind> SkillBonusesApplyUnlearnt,
-    RecordId FirstPotionFlag,
     InventoryMessages? Messages = null);
 
 /// <param name="PotionNotNow">A potion that would do nothing now: one that heals at full health, and so on (<c>Entity::CanUsePotion</c>).</param>

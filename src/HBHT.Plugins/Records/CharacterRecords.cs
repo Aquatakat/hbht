@@ -365,9 +365,7 @@ public sealed record ProgressionRecord(RecordId Id, IReadOnlyList<int> Levels, f
 /// <param name="GoldPerLevel">A trainer's price for raising level <c>n</c> is (n + 1) × this.</param>
 /// <param name="TrainerExp">A trainer's experience price is the full price times this, truncated.</param>
 /// <param name="SpellMaxLevel">A spell can't be raised past this (<c>TempSpell::IsMaxRank</c>).</param>
-/// <param name="FirstSpellFlag">Set when a character first learns a spell at a trainer, which shows help (<c>WidgetSpellTrain::Purchase</c>).</param>
-public sealed record TrainingPrices(int FirstLevelGold, int GoldPerLevel, float TrainerExp, int SpellMaxLevel,
-    RecordId? FirstSpellFlag = null);
+public sealed record TrainingPrices(int FirstLevelGold, int GoldPerLevel, float TrainerExp, int SpellMaxLevel);
 
 /// <summary>A spell (<c>aidyn:spell/0x…</c>), from the spell DB (<c>SpellDB</c>, <c>TempSpell::Init</c>).</summary>
 /// <param name="School">A character can learn it if its school is the same, the spell is unschooled or the character is Chaos.</param>

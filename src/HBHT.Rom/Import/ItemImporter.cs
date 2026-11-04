@@ -48,9 +48,6 @@ internal static class ItemImporter
     /// <summary>What <c>Party::Barter</c> multiplies the Merchant difference by, and the share of the price selling pays.</summary>
     private const float MerchantStep = 0.05f, SellShare = 0.5f;
 
-    /// <summary>Set the first time the party gains a potion in a shop or loot (<c>WidgetBarter::AFunc</c>).</summary>
-    private const int FirstPotionFlag = 3612;
-
     /// <summary>The Alchemist's and Mechanic's skill numbers.</summary>
     private const int Alchemist = 0, Mechanic = 4;
 
@@ -233,7 +230,7 @@ internal static class ItemImporter
         var (spice, herb, gemstone) = Reagents(db);
         return new InventoryRecord(RecordId.Decimal(RecordTypes.Inventory, 0), StackLimit, GeneralSlots, spice, herb, gemstone,
             Image(ItemTables.DefaultIcon), MerchantStep, SellShare, [ItemKind.Body, ItemKind.Shield],
-            DbRecordIds.Flag(FirstPotionFlag), new InventoryMessages(m.PotionNotNow, m.PotionNotInTrek, m.ScrollNoSpell));
+            new InventoryMessages(m.PotionNotNow, m.PotionNotInTrek, m.ScrollNoSpell));
     }
 
     internal static (RecordId Spice, RecordId Herb, RecordId Gemstone) Reagents(GameDb db) =>

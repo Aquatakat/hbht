@@ -135,7 +135,7 @@ public sealed class MenuText(IReadOnlyList<string> common)
     /// too low, the wrong school, too little experience and gold or experience alone) and questions; the
     /// lines under the trainer's list; the skills' refusals and questions; and the spells' most.
     /// </summary>
-    public const int FirstSpell = 497, OnlyWizardsTrain = 498, SpellCantTeach = 499, SpellWizardTooLow = 500, SpellWrongSchool = 501,
+    public const int OnlyWizardsTrain = 498, SpellCantTeach = 499, SpellWizardTooLow = 500, SpellWrongSchool = 501,
         SpellNeeds = 502, SpellNeedsXp = 503, TrainSpellFor = 504, TrainSpellForXp = 505, XpCostMax = 493, XpCost = 494,
         XpRemainingLine = 495, SkillCantLearn = 513, SkillCantTeach = 514, SkillAtMost = 515, SkillNeeds = 516, SkillNeedsXp = 517,
         TrainSkillFor = 518, TrainSkillForXp = 519, GoldCost = 520, SpellAtMost = 552;
@@ -183,7 +183,7 @@ public sealed class MenuText(IReadOnlyList<string> common)
     /// shop's price, and the must-take item's hint.
     /// </summary>
     public const int SellConfirm = 471, DropConfirm = 472, SellNo = 473, DropNo = 474, SellYes = 475, DropYes = 476, SellSome = 477,
-        DropSome = 478, SellAll = 479, DropAll = 480, LeaveItems = 485, LeaveItemsNo = 486, LeaveItemsYes = 487, FirstPotion = 521,
+        DropSome = 478, SellAll = 479, DropAll = 480, LeaveItems = 485, LeaveItemsNo = 486, LeaveItemsYes = 487,
         NothingThere = 522, CantAfford = 523, StackFull = 524, InventoryFull = 525, MerchantRefuses = 526, CantDrop = 527,
         UnequipToSell = 528, UnequipToDrop = 529, FoundGold = 530, Value = 531, MustTake = 532;
 

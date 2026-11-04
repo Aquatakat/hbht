@@ -3,6 +3,7 @@ using HBHT.Core.Characters;
 using HBHT.Core.Ui;
 using HBHT.Plugins;
 using HBHT.Plugins.Records;
+using HBHT.Rom.Import;
 using HBHT.Rom.Rig;
 
 namespace HBHT.Rom.Tests;
@@ -37,7 +38,7 @@ public sealed class TrainingCheckpointTests(Na10Import fixture)
                 TrainingMenu.YesLine, TrainingMenu.NoLine,
             }.Select(line => TestRoms.Plain(text[line])));
         Assert.StartsWith("Are you sure you wish to train this for %ld XP and %ld gold?", TestRoms.Plain(text[MenuText.TrainSkillFor]));
-        Assert.StartsWith("You've learned a new spell!", TestRoms.Plain(text[MenuText.FirstSpell]));
+        Assert.StartsWith("You've learned a new spell!", TestRoms.Plain(text[TriggerImporter.FirstSpellHelp]));
     }
 
     [Fact]
@@ -45,7 +46,7 @@ public sealed class TrainingCheckpointTests(Na10Import fixture)
     {
         var game = GameState.Load(Set, CheckpointSave.Convert(TestRoms.Checkpoint(Checkpoint), Set, CheckpointSave.Label(Checkpoint)));
         var keeper = Set.Get<EntityRecord>(RecordId.Hex(RecordTypes.Entity, 0x0280));
-        var menu = TrainingMenu.For(Set, game.Party, Trainer.From(keeper, game.Rules, Set.Get<SpellRecord>), game.Flags);
+        var menu = TrainingMenu.For(Set, game.Party, Trainer.From(keeper, game.Rules, Set.Get<SpellRecord>), null);
 
         Assert.Equal(18, menu.Skills.Rows.Count);
         Assert.Equal(["Pole", "Sword", "Thrown", "Shield"], menu.Skills.Rows.Skip(14).Select(r => r.Name));

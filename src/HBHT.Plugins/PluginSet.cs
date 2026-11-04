@@ -309,7 +309,7 @@ public sealed class PluginSet
             case TriggerRecord trigger:
                 for (var i = 0; i < (trigger.If?.Count ?? 0); i++)
                 {
-                    foreach (var problem in OpRules(trigger.If![i], OpUse.Condition, "a trigger's if"))
+                    foreach (var problem in OpRules(trigger.If![i], OpUse.Condition | OpUse.EventCondition, "a trigger's if"))
                         yield return ($"if[{i}]", problem);
                 }
                 for (var i = 0; i < trigger.Do.Count; i++)

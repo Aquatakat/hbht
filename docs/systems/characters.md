@@ -12,7 +12,7 @@ They port the original's `CharStats` (`stats.cpp`), `CharSkills` (`skills.cpp`),
 - **Spells** (`aidyn:spell/0x…`) carry the spell DB's fields. Their training cost is the ROM's byte × 50 (`TempSpell::Init`).
 - **Stats** (`aidyn:stat/0`–`6`): Intelligence, Willpower, Dexterity, Endurance, Strength, Stamina and Level, with their names and descriptions from the string tables, their base caps (`base_stat_cap`), caps (`modded_stat_cap`) and training costs (`stat_multiplier`). The Level has no description or cost: only experience raises it.
 - **Skills** (`aidyn:skill/0`–`11`) and **weapon skills** (`aidyn:weaponskill/0`–`10` by weapon class, and `11` the shield; ADR 0033 dropped the `WeaponClass` enum, so a weapon names its weapon skill), with names, descriptions, training costs and the caps 10 and 15 (`SKILLMAXBASE`, `SKILLMAXMOD`). Merchant costs 750 and Ranger 1000. The six monster weapon classes cost nothing and have no description; the shield's name and cost (500) are literals in code.
-- **Progression** (`aidyn:progression/0`): the experience each level starts at (`EXP_TNL`, levels 0–40), the award multiplier (1.5), the training prices and the flag the first spell learnt at a trainer sets (3611).
+- **Progression** (`aidyn:progression/0`): the experience each level starts at (`EXP_TNL`, levels 0–40), the award multiplier (1.5) and the training prices. The first spell's help is a trigger (below).
 - **Schools** (`aidyn:school/0`–`5`, ADR 0033): Chaos, Elemental, Naming, Necromancy, the unschooled (4) and Star, with their icons (`Spell.SchoolIcons`, `0x800DEFC0`), `learnsEverySchool` (Chaos: a Chaos character learns any school's spells) and `dispellable` (not the unschooled: `Entity.Dispel`, `0x80071CD8`, returns at once for school 4). The names are the port's; the game never shows one.
 
 The tables are read from the code segment for each ROM version, and the literals are carried as facts from the code.
@@ -46,7 +46,7 @@ Base values read capped at the base cap, and modified ones at the cap and at lea
 - **At a trainer**, the character raises what the trainer teaches: the trainer's skills above 0, and spells, up to the trainer's own level of each. Experience costs 80% (in single precision, truncated), and gold (n + 1) × 40 for raising level *n*, or 200 from level 0 or for a new spell. Oriana charges no gold (`trainsFree`). Attributes aren't offered.
 - **Prices in experience** are (n + 1)² × the cost for raising level *n*, for stats, skills and spells alike.
 - **The window** at a trainer is in [ui](pause-menu.md#training), with what its lines show.
-- **Spells.** A character whose Wizard can never be learnt can't learn spells. A new spell needs the character's base Wizard at least the spell's, and the same school, an unschooled spell, or a Chaos character. Spells stop at level 10. The first spell learnt sets flag 3611 and shows help, which the training window does; `TrainSpell` says whether the spell is new.
+- **Spells.** A character whose Wizard can never be learnt can't learn spells. A new spell needs the character's base Wizard at least the spell's, and the same school, an unschooled spell, or a Chaos character. Spells stop at level 10. The first spell learnt sets flag 3611 and shows help: `TrainSpell` says whether the spell is new, the training window fires `spell.trained` about it if it is, and the base plugin's trigger on that does both while 3611 is clear ([events](events.md#the-base-plugins)).
 
 ## The party
 

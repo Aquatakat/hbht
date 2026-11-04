@@ -1,5 +1,4 @@
 using HBHT.Core.Characters;
-using HBHT.Core.Flags;
 using HBHT.Plugins;
 using HBHT.Plugins.Records;
 
@@ -37,25 +36,20 @@ public sealed class Shop
 {
     private readonly Party _party;
     private readonly ItemCatalog _items;
-    private readonly FlagNetwork? _flags;
 
-    private Shop(ShopRecord record, ItemPile stock, float barter, Party party, ItemCatalog items, FlagNetwork? flags)
+    private Shop(ShopRecord record, ItemPile stock, float barter, Party party, ItemCatalog items)
     {
         Record = record;
         Stock = stock;
         Barter = barter;
         _party = party;
         _items = items;
-        _flags = flags;
     }
 
     public ShopRecord Record { get; }
 
     /// <summary>The party it was opened for.</summary>
     public Party Party => _party;
-
-    /// <summary>The flags the first potion bought sets.</summary>
-    public FlagNetwork? Flags => _flags;
 
     /// <summary>What it sells, each stack's instance at the shop's price.</summary>
     public ItemPile Stock { get; }
@@ -71,8 +65,7 @@ public sealed class Shop
     /// Stamina.
     /// </summary>
     /// <param name="shopkeeper">Whose shop: their record's Merchant level counts, as the ROM has it.</param>
-    /// <param name="flags">The flags the first potion bought sets.</param>
-    public static Shop Open(ShopRecord record, EntityRecord shopkeeper, Party party, ItemCatalog items, FlagNetwork? flags = null)
+    public static Shop Open(ShopRecord record, EntityRecord shopkeeper, Party party, ItemCatalog items)
     {
         var stock = new ItemPile(items);
         foreach (var slot in record.Stock)
@@ -86,7 +79,7 @@ public sealed class Shop
                 stack.Instance.Price = (ushort)(uint)(price * slot.PriceMultiplier);
             }
         }
-        return new Shop(record, stock, BarterFactor(party, shopkeeper.Sheet?.SkillLevel(new SkillId((int)Skill.Merchant).Record) ?? 0xFF, items.Rules.MerchantStep), party, items, flags);
+        return new Shop(record, stock, BarterFactor(party, shopkeeper.Sheet?.SkillLevel(new SkillId((int)Skill.Merchant).Record) ?? 0xFF, items.Rules.MerchantStep), party, items);
     }
 
     /// <summary>The barter factor, taking its Stamina from the member who barters (<c>Party::Barter</c>).</summary>
@@ -144,7 +137,6 @@ public sealed class Shop
         if (!_party.Inventory.Add(item))
             return TradeResult.InventoryFull;
         _party.Gold -= (uint)price;
-        Trade.NoteFirstPotion(stack.Item, _items, _flags);
         return TradeResult.Done;
     }
 
@@ -201,15 +193,13 @@ public sealed class LootWindow
 {
     private readonly Party _party;
     private readonly ItemCatalog _items;
-    private readonly FlagNetwork? _flags;
 
-    private LootWindow(ItemPile loot, int gold, Party party, ItemCatalog items, FlagNetwork? flags)
+    private LootWindow(ItemPile loot, int gold, Party party, ItemCatalog items)
     {
         Loot = loot;
         Gold = gold;
         _party = party;
         _items = items;
-        _flags = flags;
     }
 
     public ItemPile Loot { get; }
@@ -218,15 +208,15 @@ public sealed class LootWindow
     public int Gold { get; }
 
     /// <summary>Opens the window, giving the party the gold.</summary>
-    public static LootWindow Open(ItemPile loot, int gold, Party party, ItemCatalog items, FlagNetwork? flags = null)
+    public static LootWindow Open(ItemPile loot, int gold, Party party, ItemCatalog items)
     {
         party.Gold += (uint)gold;
-        return Showing(loot, gold, party, items, flags);
+        return Showing(loot, gold, party, items);
     }
 
     /// <summary>Opens the window on gold the party already has, as a container gives it before the window opens.</summary>
-    public static LootWindow Showing(ItemPile loot, int gold, Party party, ItemCatalog items, FlagNetwork? flags = null) =>
-        new(loot, gold, party, items, flags);
+    public static LootWindow Showing(ItemPile loot, int gold, Party party, ItemCatalog items) =>
+        new(loot, gold, party, items);
 
     /// <summary>Takes a whole stack, or as many as the party's stack has room for (<c>WidgetBarter::AFunc</c>).</summary>
     public TradeResult Take(RecordId item)
@@ -240,7 +230,6 @@ public sealed class LootWindow
         if (!_party.Inventory.Add(item, quantity, stack.Instance))
             return TradeResult.InventoryFull;
         Loot.Take(item, quantity);
-        Trade.NoteFirstPotion(stack.Item, _items, _flags);
         return TradeResult.Done;
     }
 
@@ -266,18 +255,4 @@ public sealed class LootWindow
 
     /// <summary>Whether the window can close with items left: not while it holds one that must be taken.</summary>
     public bool CanLeave => Loot.CanLeave;
-}
-
-/// <summary>Rules the shop and loot windows share.</summary>
-internal static class Trade
-{
-    /// <summary>
-    /// Sets the first-potion flag when the party first gains a potion in a shop or loot. Its help shows on
-    /// the flag (a trigger, 2.10).
-    /// </summary>
-    public static void NoteFirstPotion(Item item, ItemCatalog items, FlagNetwork? flags)
-    {
-        if (item.Kind == ItemKind.Potion && flags is not null && !flags.IsSet(items.Rules.FirstPotionFlag))
-            flags.TrySet(items.Rules.FirstPotionFlag, true);
-    }
 }

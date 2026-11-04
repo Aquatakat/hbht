@@ -33,11 +33,20 @@ Each node now names its speaker, which the importer works out from the links int
 
 ### The data format's fifth slice: saves (format 2)
 
-- **A save of yours from before the overhaul** ([saves](systems/saves.md#older-formats)): run `hbht import` first (the base plugin is at importer 66), then load a save the game wrote before it, from the System tab or with `--save`. It should load with no message, at the place it was made, the party wearing its weapons, armor and shields, the inventory and the World tab's minimap pieces as they were. Save it and load the new save: the same again. `hbht save show <save>` on the old one says `Format 1, read as 2` and should list nothing left out.
+- **A save of yours from before the overhaul** ([saves](systems/saves.md#older-formats)): run `hbht import` first (the base plugin is now at importer 71), then load a save the game wrote before it, from the System tab or with `--save`. It should load with no message, at the place it was made, the party wearing its weapons, armor and shields, the inventory and the World tab's minimap pieces as they were. Save it and load the new save: the same again. `hbht save show <save>` on the old one says `Format 1, read as 2` and should list nothing left out.
+
+### The help and the journal notice on triggers (importer 71)
+
+The first spell's and first potion's help and the new journal entry's notice are the base plugin's triggers now, on `spell.trained`, `item.gained` and `journal.added` ([events](systems/events.md#the-base-plugins)). They should read and come as before, once each:
+
+- **The first potion:** in a new game, take the four Healing Potions from the chest at the start: the potion help shows on the parchment and A closes it; a second potion later shows none.
+- **The first spell:** at a trainer who teaches spells, train one a member doesn't know: the spell help shows; raising it, or learning another, shows none.
+- **A new journal entry:** "A new journal entry has been added." comes in trek's message box as before, as after the opening's first entry.
+- **In the editor:** the record list shows a chunk's Borg9 in its Borg column (`aidyn:chunk/0/I08`, for one).
 
 ### What changed on Nov 3, 2026, by eye
 
-Not yet looked at in the runtime or the editor. Run `hbht import` first: the base plugin is at importer 66.
+Not yet looked at in the runtime or the editor. Run `hbht import` first: the base plugin is now at importer 71.
 
 - **The half-alpha bodies** ([combat](systems/combat.md)): a Spirit Wolf in battle is drawn at half alpha, body and shadow, and fades from there to nothing after its fall, with no jump to opaque. `--battle aidyn:mapobject/0/G13/5` fights one on the Overworld. The seven Chaos lieutenants (Ksathra, Shatrevar, Mehrdad, Golnar, Nasim, Behrooz, Assim) are the same.
 - **What a cut-scene shows in a hand takes the scenery's tint** ([combat-actions](systems/combat-actions.md#what-the-bodies-hold)): with `--cutscene aidyn:script/0x04F1 --time 22` (or 0x0393, 0x0495, 0x04DB), the item is as dim as the hand holding it, not bright white.

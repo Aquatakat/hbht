@@ -26,7 +26,7 @@ The original's files these port: `item.cpp`, `generic.cpp`, `armor.cpp`, `weapon
 - **Loot tables** (`aidyn:loot/0x08…`): gold, the chances an enemy drops its armor, shield and weapons, a reagent roll, and `drops`, a list of `{ item, chance, min?, max? }` rolled in order: a percent chance, then a count from `min` (1 if not given) to `max` (`min` if not given), which draws nothing from the random numbers when they're one number. 1.0 has six drops a table, of which only the first two have a count of their own and the rest give one (`Combat.RollChestItem`, `get_chest_loot`); the importer writes those counts where they aren't 1 and leaves out the empty drops, whose chance is 0 in every table, so they never roll. The gold rolled is multiplied by the combat record's `lootGoldMultiplier`, 2 ([combat](combat.md#rewards)).
 - **Shops** (`aidyn:shop/n`, by position in the shop DB): the shopkeeper, and the stock, each with a price multiplier. A priced slot is stocked only when its third byte is nonzero; the three extra slots sell at the base price.
 - **Recipes** (`aidyn:recipe/0`–`19`): the Alchemist's 15 potions, then the Mechanic's 5 pieces of armor, with the skill, product, ingredients, the level needed and the least step of the check. The Mechanic's table names hides and armor by DB position, not ID.
-- **The inventory's rules** (`aidyn:inventory/0`): the stack limit (99), the general slots (128), the three reagents, the default icon, the Merchant step and sell share, `skillBonusesApplyUnlearnt` (below), and the first-potion help flag (3612).
+- **The inventory's rules** (`aidyn:inventory/0`): the stack limit (99), the general slots (128), the three reagents, the default icon, the Merchant step and sell share, and `skillBonusesApplyUnlearnt` (below).
 - **Skills** have their icons.
 
 The reserved slot table in code lists 80 IDs: scroll `0x110E` twice, and scrolls `0x1106` and `0x110B`, which the item DB doesn't have.
@@ -90,7 +90,7 @@ Both are worked in single precision and truncated to 16 bits (`WidgetInvShop::Ge
 
 **Appraisal** (C-up on the shop's stock, `Party::ApraisePrice`): the member best at it, dead or not, judges by Intelligence + Merchant × 6 (x), as (−0.0186603x² + 2.366025x + 50) / 100. The code clamps it to 125 after dividing by 100, so the bound is never reached. The item's base price × that × 3 / the asking price, rounded, picks one of Common's lines 384–390 (counting from 0), from "This is highway robbery!" up, past 6 the last.
 
-Buying or taking the first potion sets flag 3612 (`Trade.NoteFirstPotion`), and the window shows the potion help; moving that onto a trigger is open ([events](events.md#what-else-could-move-onto-triggers)).
+Buying or taking the first potion sets flag 3612 and shows the potion help (`Trade.NoteFirstPotion`): the barter window fires `item.gained` about each stack it gives the party, and the base plugin's trigger on that, for a potion while 3612 is clear, does both ([events](events.md#the-base-plugins)).
 
 The shop's window is in [ui](pause-menu.md#the-shop).
 

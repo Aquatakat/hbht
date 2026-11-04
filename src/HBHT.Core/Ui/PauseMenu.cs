@@ -1,6 +1,7 @@
 using HBHT.Core.Audio;
 using HBHT.Core.Characters;
 using HBHT.Core.Combat;
+using HBHT.Core.Events;
 using HBHT.Core.Items;
 using HBHT.Plugins;
 using HBHT.Plugins.Records;
@@ -44,6 +45,7 @@ public sealed class PauseMenu
     private readonly string _savesFolder;
     private readonly Func<(RecordId? Place, bool Outdoors)> _where;
     private readonly IPauseMenuHost _host;
+    private readonly FireEvent? _fire;
     private readonly StickRepeat _stick;
     private readonly FrameGate _frame = new(Cadence.MenuFrameTicks);
     private TextLayout? _mainFont;
@@ -73,9 +75,11 @@ public sealed class PauseMenu
     /// <param name="where">The chunk the player is in, and whether it's outdoors, which the World tab's map and Camp read.</param>
     /// <param name="host">What plays the menu's sounds, steps its scroll and writes saves.</param>
     /// <param name="stick">The held directions, which a volume and the journal step by, and which opening and closing forget.</param>
+    /// <param name="fire">Where the training and barter windows fire their events (2.10); none fires nothing.</param>
     public PauseMenu(GameState game, Settings settings, string savesFolder, Func<(RecordId? Place, bool Outdoors)> where, IPauseMenuHost host,
-        StickRepeat stick)
+        StickRepeat stick, FireEvent? fire = null)
     {
+        _fire = fire;
         _game = game;
         _settings = settings;
         _savesFolder = savesFolder;
@@ -208,7 +212,7 @@ public sealed class PauseMenu
     {
         _combat = null;
         Open(PauseTab.Party, tabsLocked: true, brightens: false);
-        Window = BarterMenu.ForLoot(_game.Plugins, _game.Party, loot, gold, _game.Flags, _game.Random.World, Member);
+        Window = BarterMenu.ForLoot(_game.Plugins, _game.Party, loot, gold, _fire, _game.Random.World, Member);
         if (gold > 0)
             _onBuilt.Add(CoinsSound);
     }
@@ -218,7 +222,7 @@ public sealed class PauseMenu
     {
         _combat = null;
         Open(PauseTab.Party, tabsLocked: true, brightens: false);
-        Window = BarterMenu.ForShop(_game.Plugins, shop, _game.Random.World, Member);
+        Window = BarterMenu.ForShop(_game.Plugins, shop, _game.Random.World, Member, _fire);
     }
 
     /// <summary>Opens the menu in its training state at a trainer (<c>init_skill_trainer</c>). Training acts on the game.</summary>
@@ -226,7 +230,7 @@ public sealed class PauseMenu
     {
         _combat = null;
         Open(PauseTab.Party, tabsLocked: true);
-        Window = TrainingMenu.For(_game.Plugins, _game.Party, trainer, _game.Flags, _game.Random.World, Member);
+        Window = TrainingMenu.For(_game.Plugins, _game.Party, trainer, _fire, _game.Random.World, Member);
     }
 
     /// <summary>
@@ -377,7 +381,7 @@ public sealed class PauseMenu
             _windowAlpha -= WindowFadeStep;
             if (_windowAlpha <= WindowFadeStep)
             {
-                Window = BarterMenu.ForLoot(_game.Plugins, _game.Party, _spoils!.Loot, _spoils.Gold, _game.Flags, _game.Random.World, Member);
+                Window = BarterMenu.ForLoot(_game.Plugins, _game.Party, _spoils!.Loot, _spoils.Gold, _fire, _game.Random.World, Member);
                 if (_spoils.Gold > 0)
                     _host.Cue(new MenuSoundCue(CoinsSound));
                 _windowAlpha = WindowFadeStep;

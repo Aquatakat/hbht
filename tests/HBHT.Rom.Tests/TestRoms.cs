@@ -70,6 +70,9 @@ public static class TestRoms
     }
 
     /// <summary>A line as the user reads it: without the button glyphs, and trimmed.</summary>
+    /// <summary>What trek says of a new journal entry, the base plugin's trigger's message, from 1.0's code.</summary>
+    public const string JournalNotice = "A new journal entry has been added.";
+
     public static string Plain(string line) => new string([.. line.Where(c => c is < '\u0080' or > '\u009F')]).Trim();
 
     /// <summary>The record of the item a checkpoint's 16-bit item ID names: a weapon, armor or other item, by its high byte.</summary>

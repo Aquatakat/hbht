@@ -24,7 +24,7 @@ public class PartyWindowTests(BarterPlugins fixture) : IClassFixture<BarterPlugi
         party = PartyOfTwo(catalog);
         var loot = new Core.Items.ItemPile(catalog);
         loot.Add(TradeData.Spice.Id, 1);
-        return BarterMenu.ForLoot(fixture.Plugins, party, loot, 0, ItemData.Flags());
+        return BarterMenu.ForLoot(fixture.Plugins, party, loot, 0, null);
     }
 
     private TrainingMenu Training()
@@ -33,7 +33,7 @@ public class PartyWindowTests(BarterPlugins fixture) : IClassFixture<BarterPlugi
         var party = PartyOfTwo(catalog);
         var trainer = Trainer.From(Characters.Trainer(RecordId.Hex(RecordTypes.Entity, 0x02D8), new SkillLevels(Alchemist: 2, Warrior: 5)),
             Characters.Rules, _ => Characters.Fireball);
-        return TrainingMenu.For(fixture.Plugins, party, trainer, ItemData.Flags());
+        return TrainingMenu.For(fixture.Plugins, party, trainer, null);
     }
 
     /// <summary>The tab is its own header; the loot and training windows are built on one.</summary>

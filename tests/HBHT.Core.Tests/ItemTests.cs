@@ -81,7 +81,7 @@ internal static class ItemData
 
     public static InventoryRecord Rules(int generalSlots = 8) => new(
         RecordId.Decimal(RecordTypes.Inventory, 0), 99, generalSlots, ThingId(900), ThingId(901), ThingId(902), Icon, 0.1f, 0.5f,
-        [ItemKind.Body, ItemKind.Shield], Flag(0));
+        [ItemKind.Body, ItemKind.Shield]);
 
     /// <summary>A catalog of the records, whose loot gold is doubled as the base game's combat record has it.</summary>
     public static ItemCatalog CatalogWith(InventoryRecord rules, params ItemRecord[] records) =>

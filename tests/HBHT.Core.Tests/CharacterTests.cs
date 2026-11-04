@@ -23,16 +23,12 @@ internal static class Characters
             .Select((s, i) => new StatRecord(RecordId.Decimal(RecordTypes.Stat, i), ((Stat)i).ToString(), null, s.BaseCap, s.Cap, s.Cost))],
         [.. new[] { 1500, 500, 1000, 750, 500, 750, 1000, 500, 1000, 1000, 1000, 1500, 0, 0, 0, 400, 600, 400, 0, 0, 600, 400, 0, 500 }
             .Select((cost, i) => new SkillRecord(new SkillId(i).Record, new SkillId(i).ToString(), null, cost, 10, 15))],
-        new ProgressionRecord(RecordId.Decimal(RecordTypes.Progression, 0), Levels, 1.5f, new TrainingPrices(200, 40, 0.8f, 10,
-            FirstSpellFlag)))
+        new ProgressionRecord(RecordId.Decimal(RecordTypes.Progression, 0), Levels, 1.5f, new TrainingPrices(200, 40, 0.8f, 10)))
     {
         Magic = MagicData.Rules,
         Schools = Kinds.Schools,
         Elements = Kinds.Elements,
     };
-
-    /// <summary>Set when a character first learns a spell at a trainer; one of <see cref="ItemData.Flags"/>.</summary>
-    public static RecordId FirstSpellFlag => RecordId.Decimal(RecordTypes.Flag, 12);
 
     public static readonly SpellRecord Fireball = Spell(0x0305, Magic.Schools.Elemental, wizard: 3, cost: 200);
 

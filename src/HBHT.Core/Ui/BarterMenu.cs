@@ -1,5 +1,5 @@
 using HBHT.Core.Characters;
-using HBHT.Core.Flags;
+using HBHT.Core.Events;
 using HBHT.Core.Items;
 using HBHT.Core.Rng;
 using HBHT.Plugins;
@@ -68,14 +68,14 @@ public sealed class BarterMenu : IPartyWindow
     /// <summary>The pile's list: <see cref="ClassicPile"/> with its rows 13 apart, so six show.</summary>
     public static readonly ListLayout PileLayout = new(ClassicPile, 13);
 
-    private readonly FlagNetwork? _flags;
+    private readonly FireEvent? _fire;
 
-    private BarterMenu(PartyMenu party, LootWindow? loot, Shop? shop, FlagNetwork? flags)
+    private BarterMenu(PartyMenu party, LootWindow? loot, Shop? shop, FireEvent? fire)
     {
         Party = party;
         Loot = loot;
         Shop = shop;
-        _flags = flags;
+        _fire = fire;
         Pile = PileLayout.List(PileRows());
         OnPile = Pile.Rows.Count > 0;
     }
@@ -83,11 +83,11 @@ public sealed class BarterMenu : IPartyWindow
     /// <summary>
     /// The loot window on a container's items (<c>build_loot_menu</c>), whose gold the party already has.
     /// </summary>
-    /// <param name="flags">The flags the first potion taken sets.</param>
+    /// <param name="fire">Where it fires <see cref="GameEvents.ItemGained"/>, whose triggers show the first potion's help; none fires nothing.</param>
     /// <param name="random">The stream skill checks draw from; a fresh one if none.</param>
     /// <param name="member">The member the header shows, the one the menu last showed (<see cref="PauseMenu.Member"/>).</param>
-    public static BarterMenu ForLoot(PluginSet plugins, Party party, ItemPile loot, int gold, FlagNetwork? flags, IRandom? random = null, int member = 0) =>
-        new(PartyMenu.From(plugins, party, member, random), LootWindow.Showing(loot, gold, party, party.Inventory.Catalog, flags), null, flags);
+    public static BarterMenu ForLoot(PluginSet plugins, Party party, ItemPile loot, int gold, FireEvent? fire, IRandom? random = null, int member = 0) =>
+        new(PartyMenu.From(plugins, party, member, random), LootWindow.Showing(loot, gold, party, party.Inventory.Catalog), null, fire);
 
     /// <summary>
     /// A shop's window (<c>InitShop</c>, <c>build_loot_menu</c> with a shopkeeper), on the shop as
@@ -95,8 +95,9 @@ public sealed class BarterMenu : IPartyWindow
     /// </summary>
     /// <param name="random">The stream skill checks draw from; a fresh one if none.</param>
     /// <param name="member">The member the header shows, the one the menu last showed (<see cref="PauseMenu.Member"/>).</param>
-    public static BarterMenu ForShop(PluginSet plugins, Shop shop, IRandom? random = null, int member = 0) =>
-        new(PartyMenu.From(plugins, shop.Party, member, random), null, shop, shop.Flags);
+    /// <param name="fire">Where it fires <see cref="GameEvents.ItemGained"/>, whose triggers show the first potion's help; none fires nothing.</param>
+    public static BarterMenu ForShop(PluginSet plugins, Shop shop, IRandom? random = null, int member = 0, FireEvent? fire = null) =>
+        new(PartyMenu.From(plugins, shop.Party, member, random), null, shop, fire);
 
     /// <summary>The header and the party's inventory list.</summary>
     public PartyMenu Party { get; }
@@ -303,7 +304,6 @@ public sealed class BarterMenu : IPartyWindow
             return;
         }
         var item = row.Item;
-        var firstPotion = item.Kind == ItemKind.Potion && _flags is not null && !_flags.IsSet(Party.Party.Inventory.Catalog.Rules.FirstPotionFlag);
         switch (Shop is { } shop ? shop.Buy(item.Id) : Loot!.Take(item.Id))
         {
             case TradeResult.CantAfford:
@@ -321,8 +321,8 @@ public sealed class BarterMenu : IPartyWindow
         if (Party.Inventory.Rows.Select((r, i) => (r, i)).FirstOrDefault(e => e.r.Wearer is null && e.r.Item.Id == item.Id) is { r: not null } taken)
             Party.Inventory.Point(taken.i);
         Pile.Replace(PileRows(), resetPastEnd: false);
-        if (firstPotion)
-            Overlay.ShowHelp(Party.Text[MenuText.FirstPotion]);
+        // The first potion's help (Trade.NoteFirstPotion's flag, then WidgetMenuPrompt) is the base plugin's trigger on this.
+        _fire?.Invoke(GameEvents.ItemGained, item.Id, Overlay.ShowHelp);
         if (Pile.Rows.Count == 0)
             OnPile = false;
     }

@@ -32,6 +32,12 @@ public sealed class EditorGame
     public GameState Game { get; private set; }
 
     /// <summary>
+    /// Where the editor's windows fire their events on the game's triggers (2.10), as the pause menu's do: the first spell's
+    /// and first potion's help show there too. What can't be done goes to Godot's warnings.
+    /// </summary>
+    public Core.Events.FireEvent Events => Game.Triggers.InPlace(Game, Godot.GD.PushWarning);
+
+    /// <summary>
     /// The sky over where the game stands, at its time of day, which lights the previews' lit display lists as the RSP does
     /// (<see cref="Views.N64Material.SetSkyLight"/>), as trek's sky lights the runtime's.
     /// </summary>

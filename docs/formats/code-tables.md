@@ -31,7 +31,7 @@ Code tables name entities, dialogue entities, spells, armor, weapons and items b
 | Sholeh's died flag (622) whenever she dies in battle, as an ally too | `Combatant.Death` `0x80062080` | Fact | entity `Member`, `combat.fightsForParty` |
 | Cinematics' done flags (3, 569, 590, 601) | `Cinematics` `0xE1380` (`Cinematic::EndCase`) | `Cinematics` | cinematic |
 | Alaron's True Name while 590 is set: entity DB position 153 | `CharExp::Init` (`entityInfo.cpp`) | Fact | entity `trueNameFlag` |
-| First spell learned (3611), first potion bought (3612) | `WidgetSpellTrain`, `WidgetBarterControl` | Fact | progression `Training.FirstSpellFlag`, inventory `FirstPotionFlag` |
+| First spell learned (3611), first potion bought (3612), and their help (the Common string table's lines 497 and 521) | `WidgetSpellTrain`, `WidgetBarterControl` | Fact | triggers 9 and 10 ([events](../systems/events.md#the-base-plugins)) |
 | New journal entry waiting (3617), and the derived flags that add journal entries (5556 on, each its entry's flag counted above 0) | `set_journalentry_flag`, `GameStateFunnel.Write` `0x800cb33c` | Fact | state flags; each entry's own flag's `journal` (the 71 derived flags aren't imported) |
 | Calendar, weather, terrain and best-party-stat flags (the stat and skill ones are never written: their setters' lookup always fails) | `gameStateFunnel.cpp` | Fact | state flags |
 | Camp dialogue check (4240, set while it runs) | `Camp.cpp` | Fact | camping `Checking` |
@@ -79,6 +79,7 @@ Which events the base plugin's triggers carry, with the call sites, is [events](
 | The flask held's danger (Inferno 7, Fire 5, Sleep Gas or Acid 4) | `Combat.PartyPotionTier` `0x8005C750` | Fact | item `aiSpread` |
 | The area spell the AI centres on its opponents (Fireball, kind 8) | `EnemyAI.AreaCentre`, `EnemyAI.AimAreaSpell` | Fact, checked at kind 8 | spell `targeting.blast` ([ADR 0021](../adr/0021-instant-effects-land-in-one-place.md)) |
 | The combat menu's C strings: the skill rows (Lay On Hands, Heal With Herbs, Perform) and the empty lists' words | `CombatLayOnHands` `0xD5480`, `CombatHealWithHerbs` `0xD5490`, `CombatPerform` `0xD54A0`, `CombatNoSpells` `0xD5458`, `CombatNoItems` `0xD5434` | `CombatImporter.ReadText` | combat `text` |
+| Trek's notice of a new journal entry, "A new journal entry has been added." (`NewJournalEntryPopup`, `0x80020eb0`) | `JournalNotice` `0xCEE8C` | `TriggerImporter` | trigger 11's `message.show` ([events](../systems/events.md#the-base-plugins)) |
 | Sense Aura's lines (some printf formats): follower, leader, hit points, level, armor, and a resistance's Immune at 0 or less, Resistant below 2.0, Vulnerable from 2.0; the element name is Common's line 241 + the element byte (`Entity.ElementNames`, `0x800e0c00`, set at `0x80083620`) | `AuraFollower` `0xD3E50` to `AuraProtection` `0xD3E84`, `AuraImmune` `0xD3E14` to `AuraVulnerable` `0xD3E34`, the float `0xD3E48` (`Entity.SenseAura` `0x80070070`, `Entity.AppendResistanceLine` `0x8006FFB0`) | `CombatImporter.ReadText` | combat `text` |
 | The Goblin Ambush's and the Shadow's rules | [hardcoded content](../hardcoded-content.md#bespoke-behaviours) | Facts (`CombatImporter`) | `battleRules` on script `0x0365` and its npcs; combat `shadow` |
 

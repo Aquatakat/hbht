@@ -3,7 +3,7 @@
 The content the port's code still holds that should come out into the plugins, so a mod can change it without changing code: where the port has it, where 1.0 does, and what it needs to come out, by [ADR 0008](adr/0008-content-logic-layers.md)'s layers. What the importer already carries from 1.0's code, its tables and the switches and literals it holds as facts, is [code tables](formats/code-tables.md).
 
 - **1:** a record, or a field on an existing one.
-- **2:** a trigger on an event the core fires (`game.started`, `script.ended`, `cinematic.ended`).
+- **2:** a trigger on an event the core fires (`game.started`, `script.ended`, `cinematic.ended`, `spell.trained`, `item.gained`, `journal.added`).
 - **2+:** an event or flag that has to be designed first ([events](systems/events.md#what-else-could-move-onto-triggers)).
 - **3:** an engine feature configured by fields, which needs designing.
 - **4:** Lua, waiting for the script host.
@@ -225,15 +225,11 @@ One shape runs through them all: the best member (or the living pooled) rolls a 
 | Thunder's lifetimes, 240, 360, 420, 360, by place | `WeatherSounds.ThunderTicks` | `RenderSky` `0x8001d840` | 1: beside each sound on `aidyn:sounds/0` |
 | A trapped container's fires, burst and lights: counts, lives, sizes, colours, the lights' radii ([map objects](systems/map-objects.md#containers)) | `Explosion`, `DynamicLights.FireLight`, `BurstLight` | `Containers.Explode` `0x8000ffe4`, `Explosion.Fire` `0x800174f8`, `Explosion.Burst` `0x80016c00` | 1: on `aidyn:explosion/0`, which holds only the texture |
 | The rest of the look: rain's spread, heights and splashes beyond the weather record, the sky's colour constants and fog start | `WeatherParticles`, `SkyColors`, `SkyState.ChangeTicks` | `ProcessWeather`, `Sky::SetColors` `0x8001cee0` | 3, if mods want another look. Low |
-| The journal notice, "A new journal entry has been added." | `TrekLoop` | C string `0x800ce28c` | 2+ with `journal.added` |
 
 ## Events still in code
 
 Each is *on event, if, do*, but its event isn't fired yet ([events](systems/events.md#what-else-could-move-onto-triggers)): layer 2+.
 
-- **`spell.learned`:** the first spell learned sets 3611 and shows its help (`TrainingMenu`, the flag on the progression record's `Training.FirstSpellFlag`).
-- **`item.bought`:** the first potion bought sets 3612 and shows its help (`Trade.NoteFirstPotion`, `BarterMenu`, the flag on the inventory record's `FirstPotionFlag`).
-- **`journal.added`:** the notice while 3617 holds (`TrekLoop`).
 - **`camp.started`:** the camp scenes and the Campsite's script (`TrekLoop.Camp`), on the camping record.
 - **`battle.ended`** with its outcome: the Shadow's cinematic after a merge and the Goblin Ambush's end (`GameSession.EndBattle`), on the combat record.
 - **A conversation's end:** its shop, training or battle (`Transition.AfterScript`).
@@ -252,7 +248,7 @@ Not ported (`NameEntry`). In 1.0, cheats are typed as Alaron's name, in the titl
 | `!crawdaddy`, `!fatboy`, `!tweety` | The player's model becomes the chaos trooper, ogre or gryphon, or Alaron again if it already is | 3: the player's model |
 | `!cheater` | Once (flag 3693): 500,000 XP to each member | 2+: add XP |
 | `!bingo` | Once (flag 3694): 100,000 gold | 2+: add gold |
-| `Keepbusy`, `Imadoofus` | Each says to enter the other | 2+: show a message |
+| `Keepbusy`, `Imadoofus` | Each says to enter the other | 2+: `message.show` on `cheat.entered`, once the name entry can show one |
 | `!version` | Shows the version, compile time and code size, and turns on the coordinate display | 3: a debug option |
 | `!gene`, `!gotmilk` | Strings with no effect | none |
 

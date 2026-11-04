@@ -22,7 +22,7 @@ public sealed partial class GameSessionTests
         Assert.True(flags.Peek(flags.Handle(session.Game.StateFlagsRecord.NewJournalEntry)));
         // The next tick tells it, on the approach.
         Tick(session);
-        Assert.Equal(TrekLoop.NewJournalEntry, trek.Use.Popup?.Body?.Text);
+        Assert.Equal(TestRoms.JournalNotice, trek.Use.Popup?.Body?.Text);
         for (var i = 0; i < 10; i++)
             Tick(session);
 

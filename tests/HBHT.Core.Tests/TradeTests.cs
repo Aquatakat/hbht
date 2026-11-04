@@ -35,11 +35,8 @@ internal static class TradeData
     public static readonly ItemRecord Quest = ItemData.NewItem(5, traits: new ItemTraits(MustTake: true));
     public static readonly ItemRecord Leather = ItemData.NewArmor(1, protection: 3);
 
-    /// <summary>Flags 0 and 1 are the constants false and true, which can't be set.</summary>
-    public static readonly RecordId PotionFlag = ItemData.Flag(5);
-
     /// <summary>The item rules, with a Merchant step of a quarter so prices come out exact.</summary>
-    public static InventoryRecord Rules(int generalSlots = 8) => ItemData.Rules(generalSlots) with { MerchantStep = 0.25f, FirstPotionFlag = PotionFlag };
+    public static InventoryRecord Rules(int generalSlots = 8) => ItemData.Rules(generalSlots) with { MerchantStep = 0.25f };
 
     public static ItemCatalog Catalog(int generalSlots = 8, params ItemRecord[] more) =>
         ItemData.CatalogWith(Rules(generalSlots), [Spice, Herb, Gem, Trinket, Cheap, Potion, Hide, Quest, Leather, .. more]);
@@ -121,10 +118,10 @@ public class ShopTests
 
     private static ShopStock Sells(ItemRecord item, float multiplier = 1) => new(item.Id, multiplier);
 
-    private static Shop OpenShop(int? keeperMerchant, CharacterParty party, ItemCatalog catalog, FlagNetwork? flags, params ShopStock[] stock)
+    private static Shop OpenShop(int? keeperMerchant, CharacterParty party, ItemCatalog catalog, params ShopStock[] stock)
     {
         var keeper = TradeData.Keeper(keeperMerchant);
-        return Shop.Open(TradeData.ShopOf(keeper, stock), keeper, party, catalog, flags);
+        return Shop.Open(TradeData.ShopOf(keeper, stock), keeper, party, catalog);
     }
 
     // The stock's own multipliers apply to base prices of 100; a Merchant of 3 against none gives a factor of 0.75.
@@ -134,7 +131,7 @@ public class ShopTests
         var flags = ItemData.Flags();
         var party = TradeData.PartyOf(catalog, flags, TradeData.Member());
         party.Gold = gold;
-        var shop = OpenShop(keeper, party, catalog, flags, stock.Length == 0 ? [Sells(TradeData.Trinket), Sells(TradeData.Cheap), Sells(TradeData.Potion)] : stock);
+        var shop = OpenShop(keeper, party, catalog, stock.Length == 0 ? [Sells(TradeData.Trinket), Sells(TradeData.Cheap), Sells(TradeData.Potion)] : stock);
         return (shop, party, catalog, flags);
     }
 
@@ -155,7 +152,7 @@ public class ShopTests
         var catalog = TradeData.Catalog(more: pricey);
         var party = TradeData.PartyOf(catalog, null, TradeData.Member());
 
-        var shop = OpenShop(3, party, catalog, null, Sells(pricey, 2));
+        var shop = OpenShop(3, party, catalog, Sells(pricey, 2));
 
         Assert.Equal(80000 % 65536, shop.Stock.Find(pricey.Id)!.Instance.Price);
     }
@@ -188,7 +185,7 @@ public class ShopTests
         var other = TradeData.Member(1);
         var party = TradeData.PartyOf(catalog, null, haggler, other);
 
-        var shop = OpenShop(6, party, catalog, null);
+        var shop = OpenShop(6, party, catalog);
 
         Assert.Equal((6 - 4) * 0.25f, shop.Barter);
         Assert.Equal(30 - (15 - 4), haggler.Stats.Modified(Stat.Stamina));
@@ -203,7 +200,7 @@ public class ShopTests
         var second = TradeData.Member(1, Merchant(3));
         var party = TradeData.PartyOf(catalog, null, first, second);
 
-        var shop = OpenShop(6, party, catalog, null);
+        var shop = OpenShop(6, party, catalog);
 
         Assert.Equal((6 - 5) * 0.25f, shop.Barter);
         Assert.Equal(30 - 10, first.Stats.Modified(Stat.Stamina));
@@ -218,7 +215,7 @@ public class ShopTests
         var second = TradeData.Member(1, Merchant(4));
         var party = TradeData.PartyOf(catalog, null, first, second);
 
-        var shop = OpenShop(6, party, catalog, null);
+        var shop = OpenShop(6, party, catalog);
 
         Assert.Equal(0.5f, shop.Barter);
         Assert.Equal(30, first.Stats.Modified(Stat.Stamina));
@@ -233,7 +230,7 @@ public class ShopTests
         var tired = TradeData.Member(0, Merchant(1), stamina: 10);
         var party = TradeData.PartyOf(catalog, null, tired);
 
-        var shop = OpenShop(6, party, catalog, null);
+        var shop = OpenShop(6, party, catalog);
 
         Assert.Equal(6 * 0.25f, shop.Barter);
         Assert.Equal(10, tired.Stats.Modified(Stat.Stamina));
@@ -247,7 +244,7 @@ public class ShopTests
         var spent = TradeData.Member(0, Merchant(1), stamina: 14);
         var party = TradeData.PartyOf(catalog, null, spent);
 
-        var shop = OpenShop(6, party, catalog, null);
+        var shop = OpenShop(6, party, catalog);
 
         Assert.Equal(5 * 0.25f, shop.Barter);
         Assert.Equal(0, spent.Stats.Modified(Stat.Stamina));
@@ -260,9 +257,9 @@ public class ShopTests
         var plain = TradeData.Member(0, Merchant(0));
         var party = TradeData.PartyOf(catalog, null, plain);
 
-        Assert.Equal(3 * 0.25f, OpenShop(3, party, catalog, null).Barter);
+        Assert.Equal(3 * 0.25f, OpenShop(3, party, catalog).Barter);
         Assert.Equal(30, plain.Stats.Modified(Stat.Stamina));
-        Assert.Equal(3 * 0.25f, OpenShop(3, TradeData.PartyOf(catalog, null), catalog, null).Barter);
+        Assert.Equal(3 * 0.25f, OpenShop(3, TradeData.PartyOf(catalog, null), catalog).Barter);
     }
 
     [Fact]
@@ -273,7 +270,7 @@ public class ShopTests
         var alive = TradeData.Member(1, Merchant(2));
         var party = TradeData.PartyOf(catalog, null, dead, alive);
 
-        var shop = OpenShop(5, party, catalog, null);
+        var shop = OpenShop(5, party, catalog);
 
         Assert.Equal((5 - 2) * 0.25f, shop.Barter);
         Assert.Equal(30 - 13, alive.Stats.Modified(Stat.Stamina));
@@ -286,8 +283,8 @@ public class ShopTests
         var plain = TradeData.Member(0, Merchant(0));
         var skilled = TradeData.Member(1, Merchant(3));
 
-        Assert.Equal(255 * 0.25f, OpenShop(null, TradeData.PartyOf(catalog, null, plain), catalog, null).Barter);
-        Assert.Equal((255 - 3) * 0.25f, OpenShop(null, TradeData.PartyOf(catalog, null, skilled), catalog, null).Barter);
+        Assert.Equal(255 * 0.25f, OpenShop(null, TradeData.PartyOf(catalog, null, plain), catalog).Barter);
+        Assert.Equal((255 - 3) * 0.25f, OpenShop(null, TradeData.PartyOf(catalog, null, skilled), catalog).Barter);
     }
 
     [Fact]
@@ -321,7 +318,7 @@ public class ShopTests
     {
         var catalog = TradeData.Catalog();
         var party = TradeData.PartyOf(catalog, null, TradeData.Member(0, Merchant(4)));
-        var shop = OpenShop(3, party, catalog, null, Sells(TradeData.Trinket));
+        var shop = OpenShop(3, party, catalog, Sells(TradeData.Trinket));
         var trinket = shop.Stock.Find(TradeData.Trinket.Id)!.Instance;
 
         Assert.Equal(-0.25f, shop.Barter);
@@ -411,30 +408,6 @@ public class ShopTests
     }
 
     [Fact]
-    public void BuyingAPotionSetsTheFirstPotionFlagAndBuyingAnythingElseDoesnt()
-    {
-        var (shop, _, _, flags) = Standard();
-        var flag = TradeData.PotionFlag;
-
-        shop.Buy(TradeData.Trinket.Id);
-        Assert.False(flags.Get(flag));
-
-        Assert.Equal(TradeResult.Done, shop.Buy(TradeData.Potion.Id));
-        Assert.True(flags.Get(flag));
-    }
-
-    [Fact]
-    public void AShopOpenedWithoutFlagsSellsPotionsAllTheSame()
-    {
-        var catalog = TradeData.Catalog();
-        var party = TradeData.PartyOf(catalog, null, TradeData.Member());
-        party.Gold = 1000;
-        var shop = OpenShop(3, party, catalog, null, Sells(TradeData.Potion));
-
-        Assert.Equal(TradeResult.Done, shop.Buy(TradeData.Potion.Id));
-    }
-
-    [Fact]
     public void SellingTakesTheQuantityAndPaysThePriceTimesItWithoutAddingToTheStock()
     {
         // The shop pays 12 for a thing priced 100, and doesn't stock the trinket here.
@@ -496,7 +469,7 @@ public class ShopTests
 
     // Keeper Merchant 2 against a party's best of 2 makes the factor 0, so buying costs the stock's price.
     private static Shop Appraiser(CharacterParty party, ItemCatalog catalog, int keeper, params ShopStock[] stock) =>
-        OpenShop(keeper, party, catalog, null, stock);
+        OpenShop(keeper, party, catalog, stock);
 
     [Fact]
     public void AppraisingGradesTheBaseWorthAgainstThePriceByTheBestMembersJudgement()
@@ -555,7 +528,7 @@ public class LootWindowTests
         var party = TradeData.PartyOf(catalog, flags, TradeData.Member());
         var loot = new ItemPile(catalog);
         fill?.Invoke(loot);
-        return (LootWindow.Open(loot, gold, party, catalog, flags), loot, party, flags);
+        return (LootWindow.Open(loot, gold, party, catalog), loot, party, flags);
     }
 
     [Fact]
@@ -623,22 +596,6 @@ public class LootWindowTests
 
         Assert.Equal(5, loot.Find(TradeData.Trinket.Id)?.Quantity);
         Assert.False(party.Inventory.Has(TradeData.Trinket.Id));
-    }
-
-    [Fact]
-    public void TakingAPotionSetsTheFirstPotionFlagAndTakingAnythingElseDoesnt()
-    {
-        var (window, _, _, flags) = Open(fill: p =>
-        {
-            p.Add(TradeData.Trinket.Id);
-            p.Add(TradeData.Potion.Id);
-        });
-
-        window.Take(TradeData.Trinket.Id);
-        Assert.False(flags.Get(TradeData.PotionFlag));
-
-        window.Take(TradeData.Potion.Id);
-        Assert.True(flags.Get(TradeData.PotionFlag));
     }
 
     [Fact]

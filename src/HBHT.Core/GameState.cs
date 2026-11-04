@@ -44,6 +44,11 @@ public sealed class GameState : IScriptWorld
 
     public PluginSet Plugins { get; }
 
+    /// <summary>The installed plugins' triggers (roadmap 2.10), read on first use.</summary>
+    public Events.Triggers Triggers => _triggers ??= new Events.Triggers(Plugins);
+
+    private Events.Triggers? _triggers;
+
     public CharacterRules Rules { get; }
 
     public ItemCatalog Items { get; }

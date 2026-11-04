@@ -33,8 +33,7 @@ public sealed partial class GameSessionTests
     {
         var triggers = new Triggers(Data.Set);
         Assert.Empty(triggers.Problems);
-        Assert.Equal([GameEvents.GameStarted, GameEvents.CinematicEnded, GameEvents.ScriptEnded],
-            Data.Set.All<TriggerRecord>(RecordTypes.Trigger).Select(t => t.On).Distinct());
+        Assert.Equal(GameEvents.All.Order(), Data.Set.All<TriggerRecord>(RecordTypes.Trigger).Select(t => t.On).Distinct().Order());
     }
 
     [Fact]

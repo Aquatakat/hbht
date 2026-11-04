@@ -25,7 +25,7 @@ internal static class MagicData
     /// <summary>The inventory's record, with the reagents' items.</summary>
     public static readonly InventoryRecord Inventory = new(RecordId.Decimal(RecordTypes.Inventory, 0), StackLimit: 99, GeneralSlots: 20,
         Spice: RecordId.Hex(RecordTypes.Item, 0x1101), Herb: RecordId.Hex(RecordTypes.Item, 0x1102), Gemstone: RecordId.Hex(RecordTypes.Item, 0x1103),
-        DefaultIcon: RecordId.Hex(RecordTypes.Image, 0), MerchantStep: 0.1f, SellShare: 0.5f, SkillBonusesApplyUnlearnt: [ItemKind.Body, ItemKind.Shield], FirstPotionFlag: Flag(1));
+        DefaultIcon: RecordId.Hex(RecordTypes.Image, 0), MerchantStep: 0.1f, SellShare: 0.5f, SkillBonusesApplyUnlearnt: [ItemKind.Body, ItemKind.Shield]);
 
     public static SpellRecord Spell(int id, string name, RecordId school, IReadOnlyList<Effect> effects, EffectDuration? duration = null,
         SpellTargetType type = SpellTargetType.Party, SpellTargetCount count = SpellTargetCount.ByLevel, Resisted resisted = Resisted.Never,

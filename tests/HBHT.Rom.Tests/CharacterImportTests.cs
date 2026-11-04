@@ -410,7 +410,6 @@ public sealed class CharacterImportTests(Na10Import fixture)
         Assert.Equal(41, progression.Levels.Count);
         Assert.Equal(1.5f, progression.ExpAward);
         Assert.Equal((200, 40, 0.8f, 10), (progression.Training.FirstLevelGold, progression.Training.GoldPerLevel, progression.Training.TrainerExp, progression.Training.SpellMaxLevel));
-        Assert.Equal(RecordId.Decimal(RecordTypes.Flag, 3611), progression.Training.FirstSpellFlag);
 
         var oriana = Assert.Single(Set.All<EntityRecord>(RecordTypes.Entity), e => e.TrainsFree);
         Assert.Equal(RecordId.Hex(RecordTypes.Entity, 0x0236), oriana.Id);

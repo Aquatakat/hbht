@@ -468,7 +468,7 @@ public sealed partial class GameSessionTests
         Assert.True(game.AddMember(RecordId.Hex(RecordTypes.Entity, 0x0240)));
         Tick(session);
         // Her joining's journal entry is told on the next trek tick (the user's choice), which A closes.
-        Assert.Equal(TrekLoop.NewJournalEntry, session.Trek.Use.Popup?.Body?.Text);
+        Assert.Equal(TestRoms.JournalNotice, session.Trek.Use.Popup?.Body?.Text);
         session.Trek.Use.Accept();
         var menu = session.Menu;
         Assert.Equal(0, menu.Member);

@@ -137,8 +137,11 @@ public static class BasePlugin
     /// their chunk (<c>aidyn:mapobject/8/C05/17</c>); references to a cell as chunk IDs, arenas among them; the minimap on its map set;
     /// monster parties as <c>npc</c> and <c>encounter</c>, an npc's stand-in enemies dropped and its <c>stage</c>; and a battle's own
     /// rules (<c>battleRules</c>) on the script, npc or encounter that starts it.
+    /// 71 puts the first spell's and first potion's help and the new journal entry's notice on triggers (<c>spell.trained</c>,
+    /// <c>item.gained</c>, <c>journal.added</c>), with <c>message.show</c> and <c>check.subjectKind</c>, and drops the
+    /// progression record's <c>firstSpellFlag</c> and the inventory record's <c>firstPotionFlag</c>.
     /// </summary>
-    public const int ImporterVersion = 70;
+    public const int ImporterVersion = 71;
 
     /// <summary>
     /// What's wrong with the imported base plugin under <paramref name="pluginsDirectory"/>, worded for the player, or null if

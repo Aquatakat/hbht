@@ -39,7 +39,7 @@ public sealed partial class GameSessionTests
         for (var i = 1; i <= most; i++)
         {
             Hear(session);
-            if (session.Trek.Use.Popup?.Body?.Text == TrekLoop.NewJournalEntry)
+            if (session.Trek.Use.Popup?.Body?.Text == TestRoms.JournalNotice)
                 return i;
         }
         return -1;
@@ -227,7 +227,7 @@ public sealed partial class GameSessionTests
 
         // 1.0 tells it once the birdsong stops, within a second or two of the end, as the user's cartridge longplay shows; the port
         // tells it on the tick the conversation ends, as it tells every entry (the user's choice).
-        Assert.Equal(TrekLoop.NewJournalEntry, trek.Use.Popup?.Body?.Text);
+        Assert.Equal(TestRoms.JournalNotice, trek.Use.Popup?.Body?.Text);
     }
 
     [Fact]

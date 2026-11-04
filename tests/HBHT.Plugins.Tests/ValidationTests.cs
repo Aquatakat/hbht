@@ -126,6 +126,28 @@ public sealed class ValidationTests : IDisposable
     }
 
     [Fact]
+    public void ACheckOfWhatTheEventIsAboutRunsOnlyInATriggersIf()
+    {
+        var set = PluginSet.Load([Base(), Plugin("mymod", ["aidyn"], ("triggers.json", """
+            [
+              { "id": "mymod:trigger/0", "on": "item.gained",
+                "if": [{ "op": "check.subjectKind", "kind": "Potion" }],
+                "do": [{ "op": "message.show", "text": "A potion!" }] },
+              { "id": "mymod:trigger/1", "on": "item.gained",
+                "do": [{ "op": "check.subjectKind", "kind": "Potion" }] }
+            ]
+            """))]);
+
+        var problem = Assert.Single(set.Validate().Problems);
+
+        Assert.Equal(("mymod:trigger/1", "do[0]"), (problem.Record.ToString(), problem.Path));
+        Assert.Contains("check.subjectKind can't run in a trigger's do", problem.Message, StringComparison.Ordinal);
+        var shown = set.Get<TriggerRecord>(RecordId.Parse("mymod:trigger/0"));
+        Assert.Equal(new ScriptOp.CheckSubjectKind(ItemKind.Potion), Assert.Single(shown.If!));
+        Assert.Equal(new ScriptOp.MessageShow("A potion!"), Assert.Single(shown.Do));
+    }
+
+    [Fact]
     public void LoadInstalledCheckedRefusesASetWithProblems()
     {
         var baseDir = Path.Combine(_temp.Root, BasePlugin.Folder);
