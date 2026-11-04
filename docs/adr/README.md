@@ -37,5 +37,6 @@ These are the Phase 0 decisions from the [roadmap](../roadmap.md) (task 0.5). Ea
 | [0031](0031-one-item-type.md) | One item type: weapons and armor are items with a kind, their weapon-only fields grouped, requirements and bonuses keyed by stat, skill and element, and the lists about one item fields on it | Accepted |
 | [0032](0032-one-entity-type.md) | One entity type: a character sheet is optional, dialogue entities are entities, the sheet's skills and stats are keyed by ID, the weapon slots are named, and the lists about one entity fields on it | Accepted |
 | [0033](0033-closed-enums-become-records.md) | Closed enums become records: schools, elements, weapon skills (in place of weapon classes) and animation requests, keyed by the original's numbers | Accepted |
+| [0034](0034-scripts-as-typed-ops-with-a-node-speaker.md) | Scripts as typed ops with a node speaker: `dialogue` becomes `script`, one file per script, the speaker on the node, ops polymorphic on `op` with named parameters and their actor, one condition and one effect, and the same ops in triggers | Accepted |
 
 Statuses: **Proposed** means drafted and waiting for review. **Accepted** means agreed. **Superseded** means replaced by a later record, which it links to.
