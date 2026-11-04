@@ -8,7 +8,7 @@ These are the Phase 0 decisions from the [roadmap](../roadmap.md) (task 0.5). Ea
 | [0002](0002-godot-and-csharp.md) | Engine: Godot 4 with C# (.NET) | Accepted, added to by [0022](0022-views-library.md) |
 | [0003](0003-headless-rules-core.md) | Game rules live in a headless C# library | Accepted, partly superseded by [0015](0015-the-port-no-longer-reads-the-decomp.md) and [0018](0018-the-port-fixes-bugs-and-sets-enhancements.md) |
 | [0004](0004-record-ids.md) | Record ID scheme | Accepted |
-| [0005](0005-plugin-format.md) | Plugin format: JSON with comments, field-level overrides | Accepted, partly superseded by [0016](0016-sequences-keep-the-originals-events.md) |
+| [0005](0005-plugin-format.md) | Plugin format: JSON with comments, field-level overrides | Accepted, partly superseded by [0016](0016-sequences-keep-the-originals-events.md) and [0036](0036-lazy-loading-by-file-layout.md) |
 | [0006](0006-tick-model-and-rng.md) | Tick model and RNG | Accepted, partly superseded by [0017](0017-the-core-steps-every-tick.md) |
 | [0007](0007-rom-versions.md) | ROM version support | Accepted, partly superseded by [0018](0018-the-port-fixes-bugs-and-sets-enhancements.md) |
 | [0008](0008-content-logic-layers.md) | Content logic: records, triggers, engine features, then Lua scripts | Accepted |
@@ -38,5 +38,7 @@ These are the Phase 0 decisions from the [roadmap](../roadmap.md) (task 0.5). Ea
 | [0032](0032-one-entity-type.md) | One entity type: a character sheet is optional, dialogue entities are entities, the sheet's skills and stats are keyed by ID, the weapon slots are named, and the lists about one entity fields on it | Accepted |
 | [0033](0033-closed-enums-become-records.md) | Closed enums become records: schools, elements, weapon skills (in place of weapon classes) and animation requests, keyed by the original's numbers | Accepted |
 | [0034](0034-scripts-as-typed-ops-with-a-node-speaker.md) | Scripts as typed ops with a node speaker: `dialogue` becomes `script`, one file per script, the speaker on the node, ops polymorphic on `op` with named parameters and their actor, one condition and one effect, and the same ops in triggers | Accepted |
+| [0035](0035-chunks-as-records.md) | Chunks as records: one `chunk` record per cell, keyed by its map set and the original's name for it, holding its map objects, which are keyed by their chunk; references to a cell are chunk IDs, monster parties are npcs or encounters, and a battle's own rules are on what starts it | Accepted |
+| [0036](0036-lazy-loading-by-file-layout.md) | Lazy loading by file layout: the base plugin's chunks and scripts are a file each, indexed by path and read on first use; mods load eagerly; the compiled cache of 0005 becomes an optimisation | Accepted |
 
 Statuses: **Proposed** means drafted and waiting for review. **Accepted** means agreed. **Superseded** means replaced by a later record, which it links to.
