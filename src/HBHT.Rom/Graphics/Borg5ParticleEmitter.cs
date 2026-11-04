@@ -75,6 +75,12 @@ public sealed record Borg5ParticleEmitter(
     Vector4 FadeColor,
     float Unknown40)
 {
+    /// <summary>
+    /// Flag 0x40, set on two emitters, which nothing in 1.0 reads. The importer leaves it out of the plugin, as it does
+    /// <see cref="Unknown40"/>.
+    /// </summary>
+    public const ParticleEmitterFlags UnreadFlag = (ParticleEmitterFlags)0x40;
+
     public const int Size = 0xC0;
 
     // Every emitter ends with these 20 bytes.

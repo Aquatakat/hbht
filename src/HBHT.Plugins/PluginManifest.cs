@@ -116,8 +116,13 @@ public static class BasePlugin
     /// 66 takes out of the Overworld's chunk scenes what they drew over other chunks' cells: a copy of a chunk is dropped for the chunk
     /// (<c>shows</c>), and the rest moves into the chunk of the cell it's over (<c>fill</c>, <c>aidyn:fill/n</c>), made where there was none;
     /// and marks the chunks Draw Distance's Extended draws the 5×5 round (<c>extended</c>).
+    /// 67 cuts the format's noise (the data format overhaul's first slice): no gate that always holds, no <c>pak</c> and none of the four
+    /// objects only there without the Expansion Pak, none of the unread fields; the spell's <c>targeting</c>, <c>reagent</c> as an item,
+    /// <c>appeal</c> and <c>presentation</c> with its sound; the camera object's <c>ticks</c>, <c>pitch</c> and <c>distance</c>; the scene
+    /// object's <c>opened</c> and <c>destroyed</c>; the <c>tripwire</c>; loot's drops as a list with counts; the combat record's
+    /// <c>lootGoldMultiplier</c>; and each journal entry listed by its own flag, without the derived flags 5556 on.
     /// </summary>
-    public const int ImporterVersion = 66;
+    public const int ImporterVersion = 67;
 
     /// <summary>
     /// What's wrong with the imported base plugin under <paramref name="pluginsDirectory"/>, worded for the player, or null if

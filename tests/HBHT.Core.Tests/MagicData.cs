@@ -30,9 +30,10 @@ internal static class MagicData
 
     public static SpellRecord Spell(int id, string name, MagicSchool school, IReadOnlyList<Effect> effects, EffectDuration? duration = null,
         SpellTargetType type = SpellTargetType.Party, SpellTargetCount count = SpellTargetCount.ByLevel, Resisted resisted = Resisted.Never,
-        int stamina = 6, Reagent reagent = Reagent.Spice, int? ai = null, int position = 0, SpellSpecial special = SpellSpecial.None) =>
-        new(RecordId.Hex(RecordTypes.Spell, id), name, school, 0, stamina, count, type, 1, special, 3, reagent, 100, 0,
-            Effects: effects, Duration: duration, Resisted: resisted, AiValue: ai, Position: position);
+        int stamina = 6, bool noReagent = false, int? ai = null, int position = 0, SpellSpecial special = SpellSpecial.None) =>
+        new(RecordId.Hex(RecordTypes.Spell, id), name, school, stamina, new SpellTargeting(type, count), 1, special, 3,
+            noReagent ? null : Inventory.Spice, 100,
+            Effects: effects, Duration: duration, Resisted: resisted, Appeal: ai, Position: position);
 
     public static readonly SpellRecord Endurance = Spell(0x0310, "Endurance", MagicSchool.Naming,
         [new StatEffect(Stat(HBHT.Core.Characters.Stat.Endurance), Magnitude.Per(2))], Cast, ai: 52, position: 19);

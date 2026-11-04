@@ -23,7 +23,7 @@ public static class MapObjects
         [typeof(TeleporterObject)] = Color.FromHtml("#00e5c0"),
         [typeof(CameraObject)] = Color.FromHtml("#ff9f43"),
         [typeof(DialogueObject)] = Color.FromHtml("#ff7ad9"),
-        [typeof(TriggerObject)] = Color.FromHtml("#7f8cff"),
+        [typeof(TripwireObject)] = Color.FromHtml("#7f8cff"),
         [typeof(SavePointObject)] = Color.FromHtml("#ffffff"),
     };
 

@@ -32,7 +32,7 @@ public sealed class SpellStrikeTests(Na10Import fixture)
     {
         Assert.Equal(1f, Get(0x0312).Strike);
         Assert.Equal(1f, Get(0x0332).Strike);
-        Assert.All(Plugins.All<SpellRecord>(RecordTypes.Spell).Where(s => s.Visuals?.Target is null && s.Visuals?.Caster is null),
+        Assert.All(Plugins.All<SpellRecord>(RecordTypes.Spell).Where(s => s.Presentation?.Target is null && s.Presentation?.Caster is null),
             s => Assert.Equal(1f, s.Strike));
     }
 
@@ -46,7 +46,7 @@ public sealed class SpellStrikeTests(Na10Import fixture)
         var checkedSpells = 0;
         foreach (var spell in Plugins.All<SpellRecord>(RecordTypes.Spell))
         {
-            if ((spell.Visuals?.Target ?? spell.Visuals?.Caster) is not { } actorId)
+            if ((spell.Presentation?.Target ?? spell.Presentation?.Caster) is not { } actorId)
                 continue;
             var length = CastLength(Plugins.Get<ActorRecord>(actorId));
             var lands = (int)(spell.Strike * length);

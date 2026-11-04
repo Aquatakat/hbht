@@ -2,6 +2,7 @@ using System.Globalization;
 using HBHT.Plugins;
 using HBHT.Plugins.Records;
 using HBHT.Rom.Borg;
+using HBHT.Rom.Db;
 using HBHT.Rom.Dialogue;
 using HBHT.Rom.Engine;
 using HBHT.Rom.Maps;
@@ -15,21 +16,24 @@ public sealed class QuestIndexRealDataTests(Na10Import fixture)
 {
     private Na10Import.Loaded Data => fixture.Data;
 
-    /// <summary>Each journal entry has a derived flag that turns on with the entry's own flag.</summary>
+    /// <summary>
+    /// Each journal entry is listed by its own flag, the one the ROM's journal table names, which the original's journal triggers
+    /// (derived flags 5556 on, left out) counted. Entry 32's is derived, 5017; the rest are plain.
+    /// </summary>
     [Fact]
-    public void JournalTriggersFollowTheirEntries()
+    public void EachJournalEntryIsListedByItsOwnFlag()
     {
         var flags = Data.Set.All<FlagRecord>(RecordTypes.Flag).OrderBy(f => Number(f.Id)).ToList();
         var journal = Data.Set.All<JournalRecord>(RecordTypes.Journal).OrderBy(j => Number(j.Id)).ToList();
+        var db = GameDb.Read(TestRoms.Get(RomVersionId.Na10));
 
-        Assert.Equal(flags.Count, EngineFlags.JournalTriggers + journal.Count);
+        Assert.Equal(EngineFlags.JournalTriggers, flags.Count);
         for (var i = 0; i < journal.Count; i++)
         {
-            var trigger = flags[EngineFlags.JournalTriggers + i];
-            Assert.Equal((FlagFormulaKind.Count, FlagOperation.Greater, 0), (trigger.Formula!.Kind, trigger.Formula.Op, trigger.Formula.Operand));
-            Assert.Equal([journal[i].Flag], trigger.Formula.Inputs);
-            Assert.Equal(journal[i].Id, trigger.Journal);
-            Assert.Contains(new FlagUse(journal[i].Flag, journal[i].Id, FlagAccess.Read, FlagRole.JournalListed), Data.Index.UsesOf(journal[i].Flag));
+            var listing = Assert.Single(flags, f => f.Journal == journal[i].Id);
+            Assert.Equal(db.Journal[i].Flag, Number(listing.Id));
+            Assert.Equal(Number(listing.Id) == 5017, listing.Formula is not null);
+            Assert.Contains(new FlagUse(listing.Id, journal[i].Id, FlagAccess.Read, FlagRole.JournalListed), Data.Index.UsesOf(listing.Id));
         }
     }
 
@@ -42,8 +46,9 @@ public sealed class QuestIndexRealDataTests(Na10Import fixture)
         Assert.Equal(720, counts[FlagRole.ScriptOp]);
         Assert.Equal(290, counts[FlagRole.ScriptDone]);
         Assert.Equal(2, counts[FlagRole.ScriptBattle]);
-        Assert.Equal(1708, counts[FlagRole.DerivedInput]);
-        Assert.Equal(257, counts[FlagRole.TriggerSets]);
+        // Without the 71 journal triggers' inputs.
+        Assert.Equal(1637, counts[FlagRole.DerivedInput]);
+        Assert.Equal(257, counts[FlagRole.TripwireSets]);
         Assert.Equal(22, counts[FlagRole.SecretFound]);
         Assert.Equal(1212, counts[FlagRole.PartyBeaten]);
         Assert.Equal(11, counts[FlagRole.BossFlag]);
@@ -110,7 +115,7 @@ public sealed class QuestIndexRealDataTests(Na10Import fixture)
         var flags = new[] { minimaps.Ehud, minimaps.RoogEntrance, minimaps.Barrows }.SelectMany(l => l).Select(m => (int)m.Flag).ToList();
 
         Assert.Equal([.. Enumerable.Range(4222, 16), .. Enumerable.Range(4286, 9)], flags.Order());
-        Assert.All(flags, f => Assert.Contains(Data.Index.UsesOf(Flag(f)), u => u.Role == FlagRole.TriggerSets));
+        Assert.All(flags, f => Assert.Contains(Data.Index.UsesOf(Flag(f)), u => u.Role == FlagRole.TripwireSets));
     }
 
     /// <summary>Winning a battle with a boss sets its flag (<c>Combat.SetKillFlags</c>): Kitarak's 154 and Pochanargat's 3204.</summary>

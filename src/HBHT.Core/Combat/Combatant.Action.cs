@@ -79,11 +79,11 @@ public sealed partial class Combatant
         else if (Action != CombatAction.None && Sheet.Equipment.Weapon?.Item.Weapon is { } weapon)
         {
             // Combatant.WeaponIsBowKind (0x80066908): the weapons that fly as the arrow.
-            if (rules?.Missiles?.FirstOrDefault(m => m.Weapon == weapon.Id) is { Scene: { } arrow })
+            if (rules?.Missiles.FirstOrDefault(m => m.Weapon == weapon.Id) is { Scene: { } arrow })
             {
                 hand = arrow;
                 arm = weapon.Model;
-                var other = rules.OtherHand?.Contains(Entity) == true;
+                var other = rules.OtherHand.Contains(Entity);
                 armLocator = other ? 0 : 1;
                 handLocator = other ? 1 : 0;
             }
@@ -94,7 +94,7 @@ public sealed partial class Combatant
         }
         if (arm is { } a)
             _held[ArmSlot] = new HeldModel(a, armLocator);
-        if (hand is { } h && rules?.UndrawnWeapons?.Contains(Entity) != true)
+        if (hand is { } h && rules?.UndrawnWeapons.Contains(Entity) != true)
             _held[HandSlot] = new HeldModel(h, handLocator);
         HandLocator = handLocator;
     }
@@ -209,11 +209,11 @@ public sealed partial class Combatant
         }
         if (weapon.Range == 0)
             Action = CombatAction.Melee;
-        else if (weapon.Class is WeaponClass.Breath or WeaponClass.Spit || rules?.CloseRange?.Contains(weapon.Id) == true)
+        else if (weapon.Class is WeaponClass.Breath or WeaponClass.Spit || rules?.CloseRange.Contains(weapon.Id) == true)
             Action = CombatAction.MeleeOrRanged;
         else
             Action = CombatAction.Ranged;
-        Drawn = rules?.Missiles?.Any(m => m.Weapon == weapon.Id) == true;
+        Drawn = rules?.Missiles.Any(m => m.Weapon == weapon.Id) == true;
         EquipVisuals(rules);
     }
 }

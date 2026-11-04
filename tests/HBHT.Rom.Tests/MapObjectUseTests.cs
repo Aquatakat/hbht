@@ -165,7 +165,7 @@ public sealed class MapObjectUseTests(Na10Import fixture)
         var missed = new List<string>();
         foreach (var map in Data.Maps)
         {
-            foreach (var o in map.Objects.Where(o => !o.Tangible && o is ContainerObject or TeleporterObject or DialogueObject or TriggerObject))
+            foreach (var o in map.Objects.Where(o => !o.Tangible && o is ContainerObject or TeleporterObject or DialogueObject or TripwireObject))
             {
                 var reach = o is ContainerObject c ? c.Reach + PlayerRadius : o.Radius;
                 if (Disc(o.Position, reach).Any(p => OnGrid(map.Grid!, p) && !map.Grid!.At(p).Contains(o.Index)))
@@ -239,8 +239,8 @@ public sealed class MapObjectUseTests(Na10Import fixture)
         {
             var ids = Collision(map).Where(t => t.Role == CollisionRole.Toggle).Select(t => t.Target).ToHashSet();
             toggles += Collision(map).Count(t => t.Role == CollisionRole.Toggle);
-            var triggered = map.Objects.OfType<TriggerObject>().Where(t => t.Kind == TriggerKind.ChangeCollision)
-                .Select(t => t.Toggle!.Value).ToHashSet();
+            var triggered = map.Objects.OfType<TripwireObject>().Select(t => t.Does).OfType<ChangeCollisionAction>()
+                .Select(t => t.Toggle).ToHashSet();
             foreach (var id in ids.Except(triggered))
                 failures.Add($"{map.Id}: toggle {id} has no trigger");
             foreach (var id in triggered.Except(ids))
@@ -258,7 +258,7 @@ public sealed class MapObjectUseTests(Na10Import fixture)
         var play = NewGame();
         var map = I08;
         var loaded = Load(play, map);
-        var held = map.Objects.OfType<ContainerObject>().Where(c => IsChest(c) && HoldsSomething(c) && c.Pak != PakVariant.Without).ToList();
+        var held = map.Objects.OfType<ContainerObject>().Where(c => IsChest(c) && HoldsSomething(c)).ToList();
         Assert.Equal(7, held.Count);
         foreach (var c in held)
         {
@@ -713,8 +713,10 @@ public sealed class MapObjectUseTests(Na10Import fixture)
 
     // ChangeCollision triggers.
 
-    private IEnumerable<(MapRecord Map, TriggerObject Trigger)> ChangeCollisionTriggers() =>
-        Data.Of<TriggerObject>().Where(t => t.Object.Kind == TriggerKind.ChangeCollision).Select(t => (t.Map, t.Object));
+    private IEnumerable<(MapRecord Map, TripwireObject Trigger)> ChangeCollisionTriggers() =>
+        Data.Of<TripwireObject>().Where(t => t.Object.Does is ChangeCollisionAction).Select(t => (t.Map, t.Object));
+
+    private static ChangeCollisionAction Change(TripwireObject tripwire) => (ChangeCollisionAction)tripwire.Does;
 
     /// <summary>Four of the nine are in the Barrows, which the others' maps work the same as.</summary>
     [Fact]
@@ -728,9 +730,9 @@ public sealed class MapObjectUseTests(Na10Import fixture)
             var (set, chunk) = Placed(map);
             var origin = set.Origin(chunk.Row, chunk.Column);
             var triangles = Collision(map).Where(t => !IsSliver(t)).ToList();
-            var keep = trigger.KeepFlags!.Value;
-            var add = trigger.AddFlags!.Value;
-            var toggled = triangles.Where(t => t.Role == CollisionRole.Toggle && t.Target == trigger.Toggle).ToList();
+            var keep = Change(trigger).KeepFlags;
+            var add = Change(trigger).AddFlags;
+            var toggled = triangles.Where(t => t.Role == CollisionRole.Toggle && t.Target == Change(trigger).Toggle).ToList();
             Assert.NotEmpty(toggled);
             Assert.Contains(toggled, t => !t.Flags.HasFlag(CollisionFlags.Passable));
             // The trigger's flags are 0xFFFF and 1: it only makes the way passable.
@@ -741,13 +743,13 @@ public sealed class MapObjectUseTests(Na10Import fixture)
             var world = new CollisionWorld();
             world.Add(loaded.Key, triangles, origin);
             play.Use.World = world;
-            var otherIds = triangles.Where(t => t.Role == CollisionRole.Toggle && t.Target != trigger.Toggle).Select(t => t.Target).Distinct().ToList();
+            var otherIds = triangles.Where(t => t.Role == CollisionRole.Toggle && t.Target != Change(trigger).Toggle).Select(t => t.Target).Distinct().ToList();
             int NotPassable(int id) => triangles.Count(t => t.Role == CollisionRole.Toggle && t.Target == id && !t.Flags.HasFlag(CollisionFlags.Passable));
 
-            play.Use.Trigger(loaded, trigger);
+            play.Use.Trip(loaded, trigger);
 
             // What's left to make passable: nothing of this toggle's, and all of the others'.
-            Assert.Equal(0, world.ChangeToggles(loaded.Key, trigger.Toggle!.Value, keep, add));
+            Assert.Equal(0, world.ChangeToggles(loaded.Key, Change(trigger).Toggle, keep, add));
             foreach (var other in otherIds)
                 Assert.Equal(NotPassable(other), world.ChangeToggles(loaded.Key, other, keep, add));
 
@@ -758,9 +760,9 @@ public sealed class MapObjectUseTests(Na10Import fixture)
                 var only = new CollisionWorld();
                 only.Add(loaded.Key, [t], origin);
                 alone.Use.World = only;
-                Assert.True(Blocks(only, t, origin), $"{map.Id} toggle {trigger.Toggle} blocks before");
-                alone.Use.Trigger(loaded, trigger);
-                Assert.False(Blocks(only, t, origin), $"{map.Id} toggle {trigger.Toggle} lets through after");
+                Assert.True(Blocks(only, t, origin), $"{map.Id} toggle {Change(trigger).Toggle} blocks before");
+                alone.Use.Trip(loaded, trigger);
+                Assert.False(Blocks(only, t, origin), $"{map.Id} toggle {Change(trigger).Toggle} lets through after");
             }
         }
     }
@@ -784,7 +786,7 @@ public sealed class MapObjectUseTests(Na10Import fixture)
             foreach (var near in around)
                 world.Add(ChunkKey.Of(set, near), Collision(Data.Set.Get<MapRecord>(near.Map)), set.Origin(near.Row, near.Column));
             var origin = set.Origin(chunk.Row, chunk.Column);
-            var toggled = Collision(map).Where(t => !IsSliver(t) && t.Role == CollisionRole.Toggle && t.Target == trigger.Toggle).ToList();
+            var toggled = Collision(map).Where(t => !IsSliver(t) && t.Role == CollisionRole.Toggle && t.Target == Change(trigger).Toggle).ToList();
             var play = NewGame();
             var loaded = LoadedMap.Activate(map, key, play.Game.Flags, play.Game.Memory, play.Game.Party, new Lcg(), origin);
             play.Use.World = world;
@@ -794,11 +796,11 @@ public sealed class MapObjectUseTests(Na10Import fixture)
             // toggle does.
             var alone = new CollisionWorld();
             alone.Add(key, Collision(map), origin);
-            alone.ChangeToggles(key, trigger.Toggle!.Value, trigger.KeepFlags!.Value, trigger.AddFlags!.Value);
+            alone.ChangeToggles(key, Change(trigger).Toggle, Change(trigger).KeepFlags, Change(trigger).AddFlags);
             var stopping = toggled.Where(t => Stops(world, t, origin) && !Stops(alone, t, origin)).ToList();
             Assert.InRange(stopping.Count, (toggled.Count + 1) / 2, toggled.Count);
-            play.Use.Trigger(loaded, trigger);
-            Assert.All(stopping, t => Assert.False(Stops(world, t, origin), $"{map.Id} toggle {trigger.Toggle} lets a body through after"));
+            play.Use.Trip(loaded, trigger);
+            Assert.All(stopping, t => Assert.False(Stops(world, t, origin), $"{map.Id} toggle {Change(trigger).Toggle} lets a body through after"));
 
             // The neighbours that hold copies: loaded afresh, theirs stop him again until the trigger goes off once more.
             foreach (var near in around.Where(c => c != chunk))
@@ -811,8 +813,8 @@ public sealed class MapObjectUseTests(Na10Import fixture)
                     continue;
                 Assert.False(stopped);
                 copied.Add($"{set.Label} {near.Name}");
-                play.Use.Trigger(loaded, trigger);
-                Assert.All(stopping, t => Assert.False(Stops(world, t, origin), $"{map.Id} toggle {trigger.Toggle}'s copy in {near.Name} follows it"));
+                play.Use.Trip(loaded, trigger);
+                Assert.All(stopping, t => Assert.False(Stops(world, t, origin), $"{map.Id} toggle {Change(trigger).Toggle}'s copy in {near.Name} follows it"));
             }
         }
         Assert.Equal(["Overworld O24"], copied);

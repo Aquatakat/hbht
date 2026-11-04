@@ -204,16 +204,6 @@ public sealed record ObjectGrid(Vector2 Origin, Vector2 CellSize, int Columns, i
     }
 }
 
-/// <summary>Which Expansion Pak setting a map object exists under.</summary>
-public enum PakVariant
-{
-    Any,
-    /// <summary>Only with the Expansion Pak. The runtime always plays as if one is present.</summary>
-    With,
-    /// <summary>Only without it, so the runtime leaves these out.</summary>
-    Without,
-}
-
 /// <summary>A condition on an event flag: true when the flag's value differs from <see cref="Invert"/>.</summary>
 public sealed record FlagGate(RecordId Flag, bool Invert = false);
 
@@ -245,9 +235,9 @@ public sealed record ChunkRef(RecordId MapSet, int Row, int Column);
 /// </param>
 /// <param name="Visible">
 /// Whether it's there at all, as the chunk loads (flag C). Scenes, lights, sounds, wander nodes,
-/// reference points, teleporters, cameras, triggers, and herb, spice, gem and custom containers
+/// reference points, teleporters, cameras, tripwires, and herb, spice, gem and custom containers
 /// have one. Monster parties, dialogues and save points are always there, but for their
-/// <see cref="Enabled"/>.
+/// <see cref="Enabled"/>. Null means always, as the importer writes the original's flag 0 inverted.
 /// </param>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type", IgnoreUnrecognizedTypeDiscriminators = true)]
 [JsonDerivedType(typeof(SceneObject), "scene")]
@@ -260,31 +250,30 @@ public sealed record ChunkRef(RecordId MapSet, int Row, int Column);
 [JsonDerivedType(typeof(TeleporterObject), "teleporter")]
 [JsonDerivedType(typeof(CameraObject), "camera")]
 [JsonDerivedType(typeof(DialogueObject), "dialogue")]
-[JsonDerivedType(typeof(TriggerObject), "trigger")]
+[JsonDerivedType(typeof(TripwireObject), "tripwire")]
 [JsonDerivedType(typeof(SavePointObject), "savePoint")]
 public record MapObject(
     [property: JsonPropertyOrder(-2)] int Index,
     [property: JsonPropertyOrder(-2)] Vector3 Position,
     [property: JsonPropertyOrder(-2)] float Radius,
-    [property: JsonPropertyOrder(-2)] PakVariant Pak,
     [property: JsonPropertyOrder(-2)] FlagGate? Visible)
 {
     /// <summary>
-    /// Whether it works (flag A): whether a teleporter, trigger, dialogue or herb, spice, gem or
-    /// custom container can be used, and whether a monster party is there at all.
+    /// Whether it works (flag A): whether a teleporter, tripwire, dialogue or herb, spice, gem or
+    /// custom container can be used, and whether a monster party is there at all. Null means always.
     /// </summary>
     [JsonPropertyOrder(-1)]
     public FlagGate? Enabled { get; init; }
 
     /// <summary>
-    /// What using it writes (flag B): opening a container, setting off a trigger, or talking to or
+    /// What using it writes (flag B): opening a container, setting off a tripwire, or talking to or
     /// beating a monster party. Left out where it would write flag 0, which the game ignores.
     /// </summary>
     [JsonPropertyOrder(-1)]
     public FlagWrite? Used { get; init; }
 
     /// <summary>
-    /// A teleporter, trigger or dialogue that goes off when the player walks within its radius,
+    /// A teleporter, tripwire or dialogue that goes off when the player walks within its radius,
     /// rather than when the player uses it. A tangible teleporter skips its lock, trap and secret.
     /// </summary>
     [JsonPropertyOrder(-1)]
@@ -298,7 +287,7 @@ public record MapObject(
 
     /// <summary>
     /// Another object in the same map it works with. To find a container's model or the actor a
-    /// trigger animates, the game follows links from object to object until it reaches one of the
+    /// tripwire animates, the game follows links from object to object until it reaches one of the
     /// type it wants (<c>GetVoxelObjectFromLink</c>, checked in 1.0's code).
     /// </summary>
     [JsonPropertyOrder(1)]
@@ -317,7 +306,6 @@ public enum SceneObjectFlags
     Solid = 0x1,
     /// <summary>Drawn within half its draw distance even when out of view.</summary>
     DrawWhenNear = 0x4,
-    Unknown8 = 0x8,
     /// <summary>
     /// Tinted: unless the tint is all zero, its colour is averaged with the scenery's
     /// (<c>SetSceneColors</c>). Its alpha isn't used.
@@ -346,10 +334,7 @@ public sealed record SceneModel(RecordId Model, float DrawDistance)
 /// <summary>
 /// A model placed in the chunk: scaled, then rotated, then moved to <see cref="MapObject.Position"/>.
 /// </summary>
-/// <param name="Models">
-/// The first <see cref="Lods"/> are levels of detail, nearest first. A container's model has one,
-/// followed by the models it shows once opened and once destroyed.
-/// </param>
+/// <param name="Models">Its levels of detail, nearest first. A container's model has one.</param>
 /// <param name="Rotation">
 /// In radians: roll about X, then pitch about Y, then heading about Z (libultra's
 /// <c>guRotateRPYF</c>). Most objects only turn about Y, the vertical.
@@ -358,14 +343,12 @@ public sealed record SceneObject(
     int Index,
     Vector3 Position,
     float Radius,
-    PakVariant Pak,
-    FlagGate Visible,
+    FlagGate? Visible,
     IReadOnlyList<SceneModel> Models,
-    int Lods,
     Vector3 Rotation,
     Vector3 Scale,
     Rgba Tint,
-    SceneObjectFlags Flags) : MapObject(Index, Position, Radius, Pak, Visible)
+    SceneObjectFlags Flags) : MapObject(Index, Position, Radius, Visible)
 {
     /// <summary>
     /// It goes out once the player reaches it: when its first level of detail is drawn and its second isn't, it
@@ -375,6 +358,22 @@ public sealed record SceneObject(
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool GoesOut { get; init; }
+
+    /// <summary>
+    /// For a container's model, what its nearest level shows once the container is opened (<c>replace_container_voxel</c>).
+    /// The 370 scene objects containers link to all have one, and only they do.
+    /// </summary>
+    public SceneModel? Opened { get; init; }
+
+    /// <summary>For a container's model, what its nearest level shows once the container's trap destroys it.</summary>
+    public SceneModel? Destroyed { get; init; }
+
+    /// <summary>
+    /// What its nearest level shows: its first model, or once the container linked to it is opened or destroyed,
+    /// <see cref="Opened"/> or <see cref="Destroyed"/> where it has one.
+    /// </summary>
+    public SceneModel Nearest(bool opened, bool destroyed) =>
+        (opened ? Opened : destroyed ? Destroyed : null) ?? Models[0];
 
     /// <summary><see cref="Rotation"/> as a quaternion.</summary>
     public Quaternion Orientation() => Quaternion.Normalize(Quaternion.CreateFromRotationMatrix(
@@ -422,7 +421,6 @@ public sealed record ContainerObject(
     int Index,
     Vector3 Position,
     float Radius,
-    PakVariant Pak,
     FlagGate? Visible,
     ContainerKind Kind,
     RecordId? Opened,
@@ -432,7 +430,7 @@ public sealed record ContainerObject(
     RecordId? Loot,
     int Gold,
     RecordId? Item,
-    float Reach = 2) : MapObject(Index, Position, Radius, Pak, Visible);
+    float Reach = 2) : MapObject(Index, Position, Radius, Visible);
 
 /// <summary>How a light's colour changes (the original's <c>LightTypes</c>).</summary>
 public enum LightKind
@@ -458,14 +456,13 @@ public sealed record LightObject(
     int Index,
     Vector3 Position,
     float Radius,
-    PakVariant Pak,
     FlagGate? Visible,
     Rgba From,
     Rgba To,
     LightKind Kind,
     float Speed,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Occludable,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool FacesCamera = false) : MapObject(Index, Position, Radius, Pak, Visible);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool FacesCamera = false) : MapObject(Index, Position, Radius, Visible);
 
 /// <summary>How a sound plays (the original's <c>VoxAudioFlags</c>).</summary>
 [Flags]
@@ -489,13 +486,12 @@ public sealed record SoundObject(
     int Index,
     Vector3 Position,
     float Radius,
-    PakVariant Pak,
     FlagGate? Visible,
     RecordId Sound,
     float Volume,
     float MinWait,
     float MaxWait,
-    SoundFlags Flags) : MapObject(Index, Position, Radius, Pak, Visible);
+    SoundFlags Flags) : MapObject(Index, Position, Radius, Visible);
 
 /// <summary>What wanderers do at a node (the original's <c>nodeflags</c>).</summary>
 [Flags]
@@ -518,14 +514,13 @@ public sealed record WanderNodeObject(
     int Index,
     Vector3 Position,
     float Radius,
-    PakVariant Pak,
     FlagGate? Visible,
     float WanderRadius,
     float Scatter,
     float Chance,
     int Wait,
     WanderFlags Flags,
-    IReadOnlyList<RecordId> Next) : MapObject(Index, Position, Radius, Pak, Visible);
+    IReadOnlyList<RecordId> Next) : MapObject(Index, Position, Radius, Visible);
 
 /// <summary>One kind of enemy in a monster party.</summary>
 /// <param name="Min">How many a battle always has.</param>
@@ -569,7 +564,6 @@ public sealed record MonsterPartyObject(
     int Index,
     Vector3 Position,
     float Radius,
-    PakVariant Pak,
     FlagGate? Visible,
     IReadOnlyList<PartyEnemy> Enemies,
     RecordId Entity,
@@ -579,7 +573,7 @@ public sealed record MonsterPartyObject(
     RecordId? Home,
     PartyFlags Flags,
     RecordId? Dialogue,
-    RecordId? BattleFlag) : MapObject(Index, Position, Radius, Pak, Visible);
+    RecordId? BattleFlag) : MapObject(Index, Position, Radius, Visible);
 
 /// <summary>A named point that teleporters, cameras and scripts refer to. Most sit in clusters where cut-scenes place their cameras.</summary>
 /// <param name="Id">What scripts name it by, counting from their dialogue object's <see cref="DialogueObject.RefPointBase"/>.</param>
@@ -589,11 +583,10 @@ public sealed record ReferencePointObject(
     int Index,
     Vector3 Position,
     float Radius,
-    PakVariant Pak,
     FlagGate? Visible,
     int Id,
     string Name,
-    Vector3? Facing) : MapObject(Index, Position, Radius, Pak, Visible);
+    Vector3? Facing) : MapObject(Index, Position, Radius, Visible);
 
 /// <summary>A door, ladder or portal to another chunk or map set.</summary>
 /// <param name="Arrival">
@@ -622,7 +615,6 @@ public sealed record TeleporterObject(
     int Index,
     Vector3 Position,
     float Radius,
-    PakVariant Pak,
     FlagGate? Visible,
     ChunkRef Destination,
     RecordId? Arrival,
@@ -635,7 +627,7 @@ public sealed record TeleporterObject(
     RecordId? DisarmFlag,
     RecordId? SecretFlag,
     int SecretLevel,
-    string Name) : MapObject(Index, Position, Radius, Pak, Visible);
+    string Name) : MapObject(Index, Position, Radius, Visible);
 
 /// <summary>How a camera object moves the camera (the original's <c>CamObjFlags</c>).</summary>
 [Flags]
@@ -644,17 +636,17 @@ public enum CameraFlags
     None = 0,
     /// <summary>Jumps straight there.</summary>
     Cut = 0x1,
-    /// <summary>Moves there at a steady speed over <see cref="CameraObject.Duration"/> ticks.</summary>
+    /// <summary>Moves there at a steady speed over <see cref="CameraObject.Ticks"/> ticks.</summary>
     Pan = 0x2,
-    /// <summary>Eases there over <see cref="CameraObject.Duration"/> ticks.</summary>
+    /// <summary>Eases there over <see cref="CameraObject.Ticks"/> ticks.</summary>
     Sine = 0x4,
-    /// <summary>Eases in there, slow then fast (1 − cos), over <see cref="CameraObject.Duration"/> ticks.</summary>
+    /// <summary>Eases in there, slow then fast (1 − cos), over <see cref="CameraObject.Ticks"/> ticks.</summary>
     EaseIn = 0x8,
-    /// <summary>Eases out there, fast then slow (sin), over <see cref="CameraObject.Duration"/> ticks.</summary>
+    /// <summary>Eases out there, fast then slow (sin), over <see cref="CameraObject.Ticks"/> ticks.</summary>
     EaseOut = 0x10,
-    /// <summary>Has the outdoor camera follow <see cref="CameraObject.Values"/>.Y behind, but no nearer than 3.</summary>
+    /// <summary>Has the outdoor camera follow <see cref="CameraObject.Distance"/> behind, but no nearer than 3.</summary>
     Distance = 0x100,
-    /// <summary>Has the outdoor camera follow <see cref="CameraObject.Values"/>.X degrees up.</summary>
+    /// <summary>Has the outdoor camera follow <see cref="CameraObject.Pitch"/> degrees up.</summary>
     Pitch = 0x200,
     /// <summary>Keeps the camera aimed at the player.</summary>
     Track = 0x2000,
@@ -666,20 +658,19 @@ public enum CameraFlags
 
 /// <summary>Takes over the camera while the player is within its radius, or walks on a trigger triangle that names it.</summary>
 /// <param name="RefPoint">The reference point in the same map to move to. Without one, just above the player.</param>
-/// <param name="Values">Z is <see cref="Duration"/>; X is the pitch for <see cref="CameraFlags.Pitch"/> and Y the distance for <see cref="CameraFlags.Distance"/>.</param>
+/// <param name="Ticks">How long a pan, sine, ease in or ease out takes (the original's values' Z). 0 if not given.</param>
+/// <param name="Pitch">Degrees up the outdoor camera follows at, for <see cref="CameraFlags.Pitch"/> (X). 0 if not given.</param>
+/// <param name="Distance">How far behind the outdoor camera follows, for <see cref="CameraFlags.Distance"/> (Y). 0 if not given.</param>
 public sealed record CameraObject(
     int Index,
     Vector3 Position,
     float Radius,
-    PakVariant Pak,
     FlagGate? Visible,
     RecordId? RefPoint,
     CameraFlags Flags,
-    Vector3 Values) : MapObject(Index, Position, Radius, Pak, Visible)
-{
-    [JsonIgnore]
-    public float Duration => Values.Z;
-}
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] float Ticks = 0,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] float Pitch = 0,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] float Distance = 0) : MapObject(Index, Position, Radius, Visible);
 
 /// <summary>
 /// Starts a script while <see cref="MapObject.Enabled"/> holds: when the player uses it, walks
@@ -693,47 +684,48 @@ public sealed record DialogueObject(
     int Index,
     Vector3 Position,
     float Radius,
-    PakVariant Pak,
     FlagGate? Visible,
     RecordId Script,
     ChunkRef? Stage,
     int RefPointBase,
-    string Name) : MapObject(Index, Position, Radius, Pak, Visible);
-
-/// <summary>What a trigger does (the original's <c>VObject_Triggers</c>).</summary>
-public enum TriggerKind
-{
-    Nothing0,
-    /// <summary>Sets <see cref="TriggerObject.Flag"/>.</summary>
-    SetFlag,
-    /// <summary>Asks its linked model, an actor, for animation <see cref="TriggerObject.Request"/>.</summary>
-    Animate,
-    Nothing3,
-    /// <summary>
-    /// Changes the collision flags of the map's toggle triangles with id <see cref="TriggerObject.Toggle"/>:
-    /// ANDs them with <see cref="TriggerObject.KeepFlags"/>, then ORs in <see cref="TriggerObject.AddFlags"/>.
-    /// </summary>
-    ChangeCollision,
-    Nothing5,
-}
+    string Name) : MapObject(Index, Position, Radius, Visible);
 
 /// <summary>
 /// Goes off while <see cref="MapObject.Enabled"/> holds, when the player walks within its radius if
-/// it's tangible, or walks on a trigger triangle that names it, and writes <see cref="MapObject.Used"/>.
+/// it's tangible, or walks on a trigger triangle that names it: it does <see cref="Does"/> and writes
+/// <see cref="MapObject.Used"/>. The original calls it a trigger (<c>VObject_Triggers</c>); the port says tripwire, since
+/// trigger records (<see cref="TriggerRecord"/>) are something else.
 /// </summary>
-public sealed record TriggerObject(
+/// <param name="Does">What it does when it goes off.</param>
+public sealed record TripwireObject(
     int Index,
     Vector3 Position,
     float Radius,
-    PakVariant Pak,
     FlagGate? Visible,
-    TriggerKind Kind,
-    RecordId? Flag = null,
-    int? Request = null,
-    int? Toggle = null,
-    int? KeepFlags = null,
-    int? AddFlags = null) : MapObject(Index, Position, Radius, Pak, Visible);
+    TripwireAction Does) : MapObject(Index, Position, Radius, Visible);
+
+/// <summary>
+/// What a tripwire does, written with its <c>type</c>: the original's kinds 1, 2 and 4 (<c>VObject_Triggers</c>). Its kinds 0, 3
+/// and 5 do nothing, and no object has one. A type no build knows loads as a plain <see cref="TripwireAction"/>, which does nothing.
+/// </summary>
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "type", IgnoreUnrecognizedTypeDiscriminators = true)]
+[JsonDerivedType(typeof(SetFlagAction), "setFlag")]
+[JsonDerivedType(typeof(AnimateAction), "animate")]
+[JsonDerivedType(typeof(ChangeCollisionAction), "changeCollision")]
+public record TripwireAction;
+
+/// <summary>Sets a flag.</summary>
+public sealed record SetFlagAction(RecordId Flag) : TripwireAction;
+
+/// <summary>Asks the tripwire's linked model, an actor, for an animation request.</summary>
+public sealed record AnimateAction(int Request) : TripwireAction;
+
+/// <summary>
+/// Changes the collision flags of the map's toggle triangles with id <see cref="Toggle"/>: ANDs them with <see cref="KeepFlags"/>,
+/// then ORs in <see cref="AddFlags"/>.
+/// </summary>
+public sealed record ChangeCollisionAction(int Toggle, int KeepFlags, int AddFlags) : TripwireAction;
 
 /// <summary>A save point. The game saves anywhere, and does nothing with them; there are three.</summary>
-public sealed record SavePointObject(int Index, Vector3 Position, float Radius, PakVariant Pak, FlagGate? Visible)
-    : MapObject(Index, Position, Radius, Pak, Visible);
+public sealed record SavePointObject(int Index, Vector3 Position, float Radius, FlagGate? Visible)
+    : MapObject(Index, Position, Radius, Visible);

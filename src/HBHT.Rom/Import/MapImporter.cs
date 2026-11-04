@@ -77,10 +77,13 @@ internal static class MapImporter
     /// </summary>
     internal const int OrianaLight = 0x374A;
 
-    /// <summary>A Borg9's grid as its cells list objects, without the code objects, which the records leave out.</summary>
+    /// <summary>
+    /// A Borg9's grid as its cells list objects, without the code objects and those only there without the Expansion Pak, which
+    /// the records leave out.
+    /// </summary>
     private static ObjectGrid Grid(Borg9Map map)
     {
-        var code = map.Objects.Where(o => o.Type == VoxelType.Code).Select(o => o.Index).ToHashSet();
+        var code = map.Objects.Where(o => o.Type == VoxelType.Code || o.Flags.HasFlag(VoxelFlags.NoExpansionPak)).Select(o => o.Index).ToHashSet();
         return new ObjectGrid(new System.Numerics.Vector2(map.Origin.X, map.Origin.Z), map.CellSize, map.Columns, map.Rows,
             [.. map.Cells.Select(c => (IReadOnlyList<int>)[.. c.Objects.Where(i => !code.Contains(i))])]);
     }
@@ -120,48 +123,50 @@ internal static class MapImporter
         RecordId? RefPoint(int map, int refPoint) =>
             maps[map].FirstOrDefault(o => o.Data is ReferencePointData r && r.Id == refPoint) is { } found ? Voxel(map, found.Index) : null;
 
+        SceneModel Model(SceneData scene, int i) => new(
+            scene.SceneFlags.HasFlag(RomSceneObjectFlags.Actor) && types.GetValueOrDefault(scene.Models[i].Borg) == BorgType.Actor
+                ? RecordId.Hex(RecordTypes.Actor, scene.Models[i].Borg) : RecordId.Hex(RecordTypes.Scene, scene.Models[i].Borg),
+            scene.Models[i].DrawDistance) { Empty = empty(scene.Models[i].Borg) };
+
         var records = new List<MapObject>();
         foreach (var o in objects)
         {
-            if (o.Type == VoxelType.Code)
+            // The port always plays as with the Expansion Pak, so the four objects only there without it (a sound in 0x0E96 and
+            // three scenes in 0x11AF, which nothing links to) are left out.
+            if (o.Type == VoxelType.Code || o.Flags.HasFlag(VoxelFlags.NoExpansionPak))
                 continue;
-            var pak = o.Flags.HasFlag(VoxelFlags.ExpansionPak) ? PakVariant.With
-                : o.Flags.HasFlag(VoxelFlags.NoExpansionPak) ? PakVariant.Without
-                : PakVariant.Any;
             var visible = Gate(o.Visible);
             var enabled = Gate(o.Enabled);
             var used = o.FlagB == 0 ? null : new FlagWrite(DbRecordIds.Flag(o.FlagB), o.Flags.HasFlag(VoxelFlags.ClearFlagBOnUse));
             MapObject record = o.Data switch
             {
-                SceneData scene => new SceneObject(o.Index, o.Position, o.Radius, pak, visible,
-                    [
-                        .. scene.Models.Select(m => new SceneModel(
-                            scene.SceneFlags.HasFlag(RomSceneObjectFlags.Actor) && types.GetValueOrDefault(m.Borg) == BorgType.Actor
-                                ? RecordId.Hex(RecordTypes.Actor, m.Borg) : RecordId.Hex(RecordTypes.Scene, m.Borg),
-                            m.DrawDistance) { Empty = empty(m.Borg) }),
-                    ],
-                    scene.Lods, scene.Rotation, scene.Scale, scene.Tint,
-                    (SceneObjectFlags)((int)scene.SceneFlags & ~(int)RomSceneObjectFlags.Actor))
+                SceneData scene => new SceneObject(o.Index, o.Position, o.Radius, visible,
+                    [.. Enumerable.Range(0, Math.Min(scene.Lods, scene.Models.Count)).Select(i => Model(scene, i))],
+                    scene.Rotation, scene.Scale, scene.Tint,
+                    (SceneObjectFlags)((int)scene.SceneFlags & ~(int)(RomSceneObjectFlags.Actor | RomSceneObjectFlags.Unknown8)))
                 {
                     GoesOut = scene.Models.Count > 1 && scene.Models[1].Borg == OrianaLight,
+                    // A container's model: one level of detail, then what it shows opened and destroyed.
+                    Opened = scene.Models.Count > scene.Lods ? Model(scene, scene.Lods) : null,
+                    Destroyed = scene.Models.Count > scene.Lods + 1 ? Model(scene, scene.Lods + 1) : null,
                 },
-                // Herb, spice, gem and custom containers are gated as triggers are.
+                // Herb, spice, gem and custom containers are gated as tripwires are.
                 ContainerData c => c.Kind > (int)ContainerKind.Custom
                     ? throw new InvalidDataException($"Borg9 {index}: container {o.Index} is kind {c.Kind}.")
-                    : new ContainerObject(o.Index, o.Position, o.Radius, pak, c.Kind >= (int)ContainerKind.Herb ? visible : null,
+                    : new ContainerObject(o.Index, o.Position, o.Radius, c.Kind >= (int)ContainerKind.Herb ? visible : null,
                         (ContainerKind)c.Kind, OptionalFlag(c.OpenFlag), OptionalFlag(c.ExplodeFlag), c.LockLevel, c.TrapLevel,
                         Loot(c.Loot), c.Gold, OptionalDb(c.Item), c.Reach)
                     {
                         Enabled = c.Kind >= (int)ContainerKind.Herb ? enabled : null,
                         Used = used,
                     },
-                LightData l => new LightObject(o.Index, o.Position, o.Radius, pak, visible, l.From, l.To,
+                LightData l => new LightObject(o.Index, o.Position, o.Radius, visible, l.From, l.To,
                     l.Kind, l.Speed, o.Flags.HasFlag(VoxelFlags.Occludable), o.Flags.HasFlag(VoxelFlags.FacesCamera)),
-                AudioData a => new SoundObject(o.Index, o.Position, o.Radius, pak, visible, Borg(BorgType.Sequence, a.Sequence, RecordTypes.Sequence),
+                AudioData a => new SoundObject(o.Index, o.Position, o.Radius, visible, Borg(BorgType.Sequence, a.Sequence, RecordTypes.Sequence),
                     a.Volume, a.MinWait, a.MaxWait, a.AudioFlags),
-                WanderNodeData w => new WanderNodeObject(o.Index, o.Position, o.Radius, pak, visible, w.Radius, w.Scatter, w.Chance, w.Wait,
+                WanderNodeData w => new WanderNodeObject(o.Index, o.Position, o.Radius, visible, w.Radius, w.Scatter, w.Chance, w.Wait,
                     w.WanderFlags, [.. w.Next.Select(n => Own(n, VoxelType.WanderNode, "wander node"))]),
-                MonsterPartyData m => new MonsterPartyObject(o.Index, o.Position, o.Radius, pak, null,
+                MonsterPartyData m => new MonsterPartyObject(o.Index, o.Position, o.Radius, null,
                     [.. m.Enemies.Select(e => new PartyEnemy(Db(e.Enemy), e.Min, e.Max))], Db(m.Entity), OptionalDb(m.Loot),
                     m.MinSize, m.MaxSize, Own(m.WanderNode, VoxelType.WanderNode, "home node"), m.PartyFlags,
                     m.Dialogue == 0 ? null : Borg(BorgType.Dialogue, m.Dialogue, RecordTypes.Dialogue),
@@ -171,9 +176,9 @@ internal static class MapImporter
                     // Talking to it or beating it always sets the flag.
                     Used = used is null ? null : used with { Clear = false },
                 },
-                ReferencePointData r => new ReferencePointObject(o.Index, o.Position, o.Radius, pak, visible, r.Id, r.Name,
+                ReferencePointData r => new ReferencePointObject(o.Index, o.Position, o.Radius, visible, r.Id, r.Name,
                     r.Facing == System.Numerics.Vector3.Zero ? null : r.Facing),
-                TeleporterData t => new TeleporterObject(o.Index, o.Position, o.Radius, pak, visible, Chunk(t.Destination),
+                TeleporterData t => new TeleporterObject(o.Index, o.Position, o.Radius, visible, Chunk(t.Destination),
                     t.RefPoint == TeleporterData.OwnPosition ? null : RefPoint(ChunkMap(t.Destination), t.RefPoint),
                     t.CameraRefPoint == 0 ? null : RefPoint(ChunkMap(t.Destination), t.CameraRefPoint),
                     t.LockLevel, OptionalFlag(t.LockFlag), OptionalFlag(t.UnlockFlag), t.TrapLevel, OptionalFlag(t.TrapFlag),
@@ -182,28 +187,28 @@ internal static class MapImporter
                     Enabled = enabled,
                     Tangible = o.Flags.HasFlag(VoxelFlags.Tangible),
                 },
-                CameraData c => new CameraObject(o.Index, o.Position, o.Radius, pak, visible,
-                    c.RefPoint == 0 ? null : RefPoint(index, c.RefPoint), c.CameraFlags, c.Values),
-                DialogueData d => new DialogueObject(o.Index, o.Position, o.Radius, pak, null,
+                CameraData c => new CameraObject(o.Index, o.Position, o.Radius, visible,
+                    c.RefPoint == 0 ? null : RefPoint(index, c.RefPoint), c.CameraFlags, Ticks: c.Values.Z, Pitch: c.Values.X, Distance: c.Values.Y),
+                DialogueData d => new DialogueObject(o.Index, o.Position, o.Radius, null,
                     Borg(BorgType.Dialogue, d.Script, RecordTypes.Dialogue), d.Map.Row == 0 ? null : Chunk(d.Map), d.RefPoint, d.Name)
                 {
                     Enabled = enabled,
                     Tangible = o.Flags.HasFlag(VoxelFlags.Tangible),
                 },
-                TriggerData t => t.Kind switch
+                TriggerData t => new TripwireObject(o.Index, o.Position, o.Radius, visible, t.Kind switch
                 {
-                    TriggerKind.SetFlag => new TriggerObject(o.Index, o.Position, o.Radius, pak, visible, TriggerKind.SetFlag, Flag: DbRecordIds.Flag(t.A)),
-                    TriggerKind.Animate => new TriggerObject(o.Index, o.Position, o.Radius, pak, visible, TriggerKind.Animate, Request: t.A),
-                    TriggerKind.ChangeCollision => new TriggerObject(o.Index, o.Position, o.Radius, pak, visible, TriggerKind.ChangeCollision,
-                        Toggle: t.A, KeepFlags: t.B, AddFlags: t.C),
-                    _ => new TriggerObject(o.Index, o.Position, o.Radius, pak, visible, t.Kind),
-                } with
+                    TriggerKind.SetFlag => new SetFlagAction(DbRecordIds.Flag(t.A)),
+                    TriggerKind.Animate => new AnimateAction(t.A),
+                    TriggerKind.ChangeCollision => new ChangeCollisionAction(t.A, t.B, t.C),
+                    // Kinds 0, 3 and 5 do nothing in 1.0, and no object has one.
+                    _ => throw new InvalidDataException($"Borg9 {index}: trigger {o.Index} is kind {t.Kind}, which does nothing."),
+                }) with
                 {
                     Enabled = enabled,
                     Used = used,
                     Tangible = o.Flags.HasFlag(VoxelFlags.Tangible),
                 },
-                null when o.Type == VoxelType.SavePoint => new SavePointObject(o.Index, o.Position, o.Radius, pak, null),
+                null when o.Type == VoxelType.SavePoint => new SavePointObject(o.Index, o.Position, o.Radius, null),
                 _ => throw new InvalidDataException($"Borg9 {index}: object {o.Index} is a {o.Type} with no data."),
             };
             // Both link slots are always the same, and the game only follows the first.
@@ -219,5 +224,7 @@ internal static class MapImporter
         return new MapRecord(id, records);
     }
 
-    private static FlagGate Gate(RomFlagGate gate) => new(DbRecordIds.Flag(gate.Flag), gate.Inverted);
+    /// <summary>A gate, or none where it's flag 0 inverted, which always holds (flag 0 always reads clear).</summary>
+    private static FlagGate? Gate(RomFlagGate gate) =>
+        gate is { Flag: 0, Inverted: true } ? null : new(DbRecordIds.Flag(gate.Flag), gate.Inverted);
 }

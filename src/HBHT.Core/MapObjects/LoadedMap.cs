@@ -107,7 +107,7 @@ public sealed class LoadedMap
             var point = camera.RefPoint is { } id && MapRecord.MapOf(id) == Record.Id && this[MapRecord.IndexOf(id)] is ReferencePointObject reference
                 ? Origin + reference.Position
                 : (Vector3?)null;
-            _cameraMoves[camera.Index] = move = new CameraMove(camera.Flags, point, camera.Values);
+            _cameraMoves[camera.Index] = move = new CameraMove(camera.Flags, point, new Vector3(camera.Pitch, camera.Distance, camera.Ticks));
         }
         return move;
     }
@@ -116,6 +116,17 @@ public sealed class LoadedMap
     public ContainerLook Look(int sceneIndex) => _looks.GetValueOrDefault(sceneIndex);
 
     internal void SetLook(int sceneIndex, ContainerLook look) => _looks[sceneIndex] = look;
+
+    /// <summary>What a scene object's nearest level shows: its own model, or a container's opened or destroyed one.</summary>
+    public SceneModel Nearest(SceneObject o) => Nearest(o, Look(o.Index));
+
+    /// <summary>What a scene object's nearest level shows with a container's look.</summary>
+    public static SceneModel Nearest(SceneObject o, ContainerLook look) => look switch
+    {
+        ContainerLook.Opened => o.Nearest(opened: true, destroyed: false),
+        ContainerLook.Destroyed => o.Nearest(opened: false, destroyed: true),
+        _ => o.Models[0],
+    };
 
     /// <summary>
     /// The object of type <typeparamref name="T"/> an object works with, following links from object to
@@ -210,8 +221,6 @@ public sealed class LoadedMap
 
         foreach (var o in record.Objects)
         {
-            if (o.Pak == PakVariant.Without)
-                continue;
             var active = o switch
             {
                 ContainerObject container => map.ActivateContainer(container, isSet, memory),
@@ -225,7 +234,7 @@ public sealed class LoadedMap
         // render_container: a chest's model is always there; a herb source's while the source is.
         foreach (var container in record.Objects.OfType<ContainerObject>())
         {
-            if (map.Linked<SceneObject>(container) is { } scene && scene.Pak != PakVariant.Without)
+            if (map.Linked<SceneObject>(container) is { } scene)
                 map.SetActive(scene.Index, container.Kind < ContainerKind.Herb || map.IsActive(container.Index));
         }
         return map;
@@ -242,7 +251,7 @@ public sealed class LoadedMap
         var changed = false;
         foreach (var scene in Record.Objects.OfType<SceneObject>())
         {
-            if (scene.Pak == PakVariant.Without || models.Contains(scene.Index))
+            if (models.Contains(scene.Index))
                 continue;
             var there = MapObjectPresence.There(scene, flags.IsSet) && !Remembered(memory, scene);
             if (there == IsActive(scene.Index))

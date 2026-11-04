@@ -25,17 +25,21 @@ namespace HBHT.Plugins.Records;
 /// <param name="Snow">Precipitation here is snow rather than rain.</param>
 /// <param name="Arenas">
 /// Which of the Battle arenas (<c>aidyn:mapset/16</c>, by chunk) a battle here takes: a roll over a range, or with two,
-/// one of them half the time, the first if the roll says so (<c>BattleSetup.ChooseArena</c>). Empty, or none in plugins
-/// imported before it, keeps the last battle's arena.
+/// one of them half the time, the first if the roll says so (<c>BattleSetup.ChooseArena</c>). Empty, as it is if not given,
+/// keeps the last battle's arena.
 /// </param>
 /// <param name="Ambushes">
 /// Who ambushes the party as it camps here, by the party's level: five tiers, for an average level of up to
 /// <see cref="CampingRecord.AmbushLevels"/>' first, then each after, and the last for any above (the camp encounters,
-/// <c>CampEncounters.Load</c>). Null with none, or in plugins imported before them.
+/// <c>CampEncounters.Load</c>). Empty if not given: no ambush comes.
 /// </param>
 public sealed record TerrainRecord(RecordId Id, RecordId Sky, bool SkyDrawn, float Camp = 0, int Precipitation = 0,
     float PrecipitationScale = 0, bool Snow = false, IReadOnlyList<ArenaRange>? Arenas = null, IReadOnlyList<CampAmbush>? Ambushes = null)
 {
+    public IReadOnlyList<ArenaRange> Arenas { get; init; } = Arenas ?? [];
+
+    public IReadOnlyList<CampAmbush> Ambushes { get; init; } = Ambushes ?? [];
+
     /// <summary>The terrain a chunk carries (<see cref="ChunkEntry.Terrain"/>), if a plugin has its record.</summary>
     public static TerrainRecord? Find(PluginSet plugins, int terrain) =>
         plugins.TryGet<TerrainRecord>(RecordId.Decimal(RecordTypes.Terrain, terrain));

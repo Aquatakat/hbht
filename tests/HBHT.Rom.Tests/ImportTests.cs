@@ -72,7 +72,7 @@ public sealed class ImportTests(Na10Import fixture)
         Assert.Equal(145, samples.Count);
         var sounds = mapSets.SelectMany(m => m.Chunks).Select(c => c.Map).Distinct()
             .SelectMany(m => set.Get<MapRecord>(m).Objects.OfType<SoundObject>()).ToList();
-        Assert.Equal(1038, sounds.Count);
+        Assert.Equal(1037, sounds.Count);
         Assert.All(sounds, o => Assert.NotNull(set.TryGet<SequenceRecord>(o.Sound)));
         Assert.Equal(Audio.Borg11Sample.Parse(archive.Read(0x559)).Samples, samples[RecordId.Hex(RecordTypes.Sample, 0x559)]);
 
@@ -111,20 +111,22 @@ public sealed class ImportTests(Na10Import fixture)
         // Every flag, and a network that runs on them. 5423 ("5 set, 9 and 47 clear") enables the Shadow
         // after the Kendall cut-scene sets 5.
         var flags = set.All<FlagRecord>(RecordTypes.Flag).ToList();
-        Assert.Equal((5627, 626), (flags.Count, flags.Count(f => f.Formula is not null)));
+        // The funnel's 5627 less the 71 journal triggers, which the network keeps as its entries' flags.
+        Assert.Equal((5556, 555), (flags.Count, flags.Count(f => f.Formula is not null)));
         Assert.Contains(flags, f => f.Label == "Brenna is in the party");
         var network = Core.Flags.FlagNetwork.Load(set);
         Assert.False(network.Get(5423));
         network.Set(5, true);
         Assert.True(network.Get(5423));
 
-        // Journal entry i is added by flag 5556 + i, which turns on with the entry's own flag.
+        // Each journal entry is listed by its own flag; the original's derived flags 5556 on, which only added them, are left out.
         var journal = set.All<JournalRecord>(RecordTypes.Journal).ToList();
         Assert.Equal(71, journal.Count);
-        var first = set.Get<FlagRecord>(RecordId.Parse("aidyn:flag/5556"));
-        Assert.Equal((RecordId.Parse("aidyn:journal/0"), journal.Single(j => j.Id.Key == "0").Flag), (first.Journal, first.Formula!.Inputs.Single()));
-        network.Set(journal[0].Flag, true);
-        Assert.True(network.Get(5556));
+        Assert.Equal(5556, set.All<FlagRecord>(RecordTypes.Flag).Count());
+        var first = set.All<FlagRecord>(RecordTypes.Flag).Single(f => f.Journal == RecordId.Parse("aidyn:journal/0"));
+        network.Set(first.Id, true);
+        Assert.False(network.Get(3617));
+        network.Process();
         Assert.Equal((RecordId.Parse("aidyn:journal/0"), true), (network.NewestJournalEntry, network.Get(3617)));
         var state = set.Get<StateFlagsRecord>(RecordId.Parse("aidyn:stateflags/0"));
         Assert.Equal(RecordId.Parse("aidyn:flag/2301"), state.TimeOfDay[0]);
@@ -167,7 +169,7 @@ public sealed class ImportTests(Na10Import fixture)
         Assert.Equal((65500, 2, "0x0649"), (grass.Frac, grass.Request, grass.Sounds.Select(s => s.Key).Order().First()));
         Assert.Null(engineSounds.Kinds[0]);
         Assert.Contains(set.All<WeaponRecord>(RecordTypes.Weapon), w => w.Sounds is [_, _]);
-        Assert.Equal(59, set.All<SpellRecord>(RecordTypes.Spell).Count(s => s.Cast is not null));
+        Assert.Equal(59, set.All<SpellRecord>(RecordTypes.Spell).Count(s => s.Presentation?.Sound is not null));
 
         // The scenes' particle emitters, each drawn with a texture of the engine's particle list, and Oriana's orb
         // (scene 11211) started by request 5 and drawn with slot 13.
@@ -235,7 +237,7 @@ public sealed class ImportTests(Na10Import fixture)
         Assert.Equal("12×37", catalog.Find(RecordId.Hex(RecordTypes.Image, 0x19F))!.Summary);
         Assert.Contains(catalog.ReferencesTo(RecordId.Hex(RecordTypes.Image, 0x19F)), r => r.From.Type == RecordTypes.Terrain);
         Assert.All(textures, l => Assert.NotNull(catalog.Find(RecordId.Hex(RecordTypes.Texture, l.Index))));
-        Assert.Equal("derived: how many of 1 set > 0, journal entry 0", catalog.Find(first.Id)!.Summary);
+        Assert.Equal("journal entry 0", catalog.Find(first.Id)!.Summary);
         Assert.Contains(catalog.ReferencesTo(RecordId.Parse("aidyn:flag/5")), r => r.From == RecordId.Parse("aidyn:flag/5423"));
 
         // Every script, and the entry a conversation makes in the catalog.

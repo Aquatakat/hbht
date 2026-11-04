@@ -282,6 +282,20 @@ public sealed record ReferencePointData(ushort Id, string Name, Vector3 Facing) 
 public sealed record DialogueData(int Script, (MapSet Set, int Row, int Column) Map, ushort RefPoint, string Name)
     : VoxelData;
 
+/// <summary>What a trigger object does (the original's <c>VObject_Triggers</c>), which the importer writes as a tripwire's action.</summary>
+public enum TriggerKind
+{
+    Nothing0,
+    /// <summary>Sets flag A.</summary>
+    SetFlag,
+    /// <summary>Asks its linked model, an actor, for animation request A.</summary>
+    Animate,
+    Nothing3,
+    /// <summary>ANDs the collision flags of the toggle triangles with id A with B, then ORs in C.</summary>
+    ChangeCollision,
+    Nothing5,
+}
+
 public sealed record TriggerData(TriggerKind Kind, ushort A, ushort B, ushort C) : VoxelData;
 
 /// <summary>Reads the map objects of a Borg9. <see cref="Borg9Map"/> reads the rest.</summary>

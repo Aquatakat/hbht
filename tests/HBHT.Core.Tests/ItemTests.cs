@@ -26,7 +26,7 @@ internal static class ItemData
 
     public static ArmorRecord NewArmor(int n, ArmorSlot slot = ArmorSlot.Body, int protection = 0, int defense = 0, int dexterity = 0,
         int stealth = 0, GearBonuses? bonuses = null) => new(ArmorId(n), $"Armor {n}", Icon, 100, slot, defense, protection, dexterity,
-        stealth, 0, 0, bonuses ?? new GearBonuses());
+        stealth, 0, bonuses ?? new GearBonuses());
 
     public static ItemRecord NewItem(int n, ItemKind kind = ItemKind.Misc, int protection = 0, int damage = 0, int strength = 0,
         int intelligence = 0, GearBonuses? bonuses = null, ItemTraits? traits = null, KeyItemFlags? key = null) => new(ThingId(n), $"Item {n}",
@@ -47,8 +47,9 @@ internal static class ItemData
         RecordId.Decimal(RecordTypes.Inventory, 0), 99, generalSlots, ThingId(900), ThingId(901), ThingId(902), Icon, 0.1f, 0.5f,
         refused ?? [], replaced ?? [], Flag(0));
 
+    /// <summary>A catalog of the records, whose loot gold is doubled as the base game's combat record has it.</summary>
     public static ItemCatalog CatalogWith(InventoryRecord rules, params object[] records) =>
-        new(records.OfType<WeaponRecord>(), records.OfType<ArmorRecord>(), records.OfType<ItemRecord>(), rules);
+        new(records.OfType<WeaponRecord>(), records.OfType<ArmorRecord>(), records.OfType<ItemRecord>(), rules) { LootGoldMultiplier = 2 };
 
     public static ItemCatalog Catalog(params object[] records) => CatalogWith(Rules(), records);
 

@@ -6,10 +6,17 @@ namespace HBHT.Plugins.Records;
 /// </summary>
 /// <param name="Class">Its weapon skill: equipping it needs that skill above 0 (<c>Entity::canEquipWeapon</c>).</param>
 /// <param name="RequiredStrength">Equipping it needs at least this base Strength.</param>
-/// <param name="Hit">Combat reads it (2.5).</param>
+/// <param name="Hit">
+/// Added to its wielder's melee and ranged hit chances (<c>Combat.RangedChance</c>, <c>0x80062F50</c>, and the melee one;
+/// <c>Battle.MeleeChance</c>, <c>RangedChance</c>).
+/// </param>
 /// <param name="Range">Its reach in combat, the ROM's byte × 5 / 3 up to 255 (<c>WeaponDB::Load</c>).</param>
 /// <param name="Animation">Which attack animation it uses.</param>
-/// <param name="ExpModifier">0x20 on the Lodin sword. What reads it isn't known.</param>
+/// <param name="ExpModifier">
+/// The experience it's worth as loot: when a battle's rewards give it, this goes on the experience pool every living member is given
+/// (<c>Combat.RollEquipmentDrops</c>, <c>0x8005DC78</c>, and <c>Combat.RollChestItem</c>, <c>0x8005DF38</c>; <c>Battle.ExperienceValue</c>).
+/// 0x20 on the Lodin sword.
+/// </param>
 /// <param name="DamageType">The element of its damage.</param>
 /// <param name="Fixed">
 /// Once equipped, it can't be taken off (<c>Party::RemoveWeaponsFrom</c>): the Archmage Staff, which
@@ -43,12 +50,14 @@ public sealed record WeaponRecord(
 /// Body armor or a shield (<c>aidyn:armor/0x05…</c> and <c>0x06…</c>), from the armor DB
 /// (<c>ArmorDB::Load</c>, <c>make_temp_armor_3</c>).
 /// </summary>
-/// <param name="Defense">A shield's defense, which combat reads (2.5). 0 on body armor.</param>
+/// <param name="Defense">
+/// A shield's defense: times the wearer's shield skill, plus Warrior, it's taken off a melee or ranged hit chance against them
+/// (<c>Combatant.ShieldDefence</c>, <c>0x8005F6B0</c>; <c>Battle.ShieldDefence</c>). 0 on body armor.
+/// </param>
 /// <param name="Protection">What wearing it adds to protection from damage (<c>Entity::GetArmorProtect</c>).</param>
 /// <param name="Dexterity">What wearing it adds to modified Dexterity: a penalty, or 0.</param>
 /// <param name="Stealth">What wearing it adds to modified Stealth.</param>
-/// <param name="Unk1D">Read into RAM with the rest, but nothing reads it there.</param>
-/// <param name="ExpBonus">Read into RAM; what reads it isn't known.</param>
+/// <param name="ExpBonus">The experience it's worth as loot, as a weapon's <see cref="WeaponRecord.ExpModifier"/> is.</param>
 /// <param name="Model">
 /// The Borg5 scene (<c>aidyn:scene/0x…</c>) the original draws for it in a body's hand or on its arm
 /// (<c>get_item_borg5</c>), or null when it has none.
@@ -63,7 +72,6 @@ public sealed record ArmorRecord(
     int Protection,
     int Dexterity,
     int Stealth,
-    int Unk1D,
     int ExpBonus,
     GearBonuses Bonuses,
     ItemTraits? Traits = null,
@@ -76,7 +84,10 @@ public sealed record ArmorRecord(
 /// (<c>ItemInstance::InitPotion</c>).
 /// </summary>
 /// <param name="Kind">What it is, which decides where it's worn. The original takes it from the ID's high byte.</param>
-/// <param name="ExpMultiplier">Read into RAM; what reads it isn't known.</param>
+/// <param name="ExpMultiplier">
+/// The experience it's worth as loot, as a weapon's <see cref="WeaponRecord.ExpModifier"/> is, for each one looted; a potion's
+/// is worth nothing.
+/// </param>
 /// <param name="Damage">What wearing it adds to the wearer's damage (<c>CharExp::damage</c>).</param>
 /// <param name="Protection">What wearing it adds to the wearer's protection (<c>CharExp::protection</c>).</param>
 /// <param name="RequiredStrength">Wearing it needs at least this base Strength (<c>Entity::GearMinStatCheck</c>).</param>
@@ -95,7 +106,7 @@ public sealed record ArmorRecord(
 /// The Borg5 scene (<c>aidyn:scene/0x…</c>) the original draws for it in a body's hand or on its arm
 /// (<c>get_item_borg5</c>), or null when it has none.
 /// </param>
-/// <param name="Visuals">What a potion shows in a battle as it's drunk, or a flask at each one its blast hurts; its caster's actor is never used.</param>
+/// <param name="Presentation">What a potion shows in a battle as it's drunk, or a flask at each one its blast hurts; its caster's actor and its sound are never used.</param>
 /// <param name="Use">
 /// How a potion is used (ADR 0021): drunk from the pause menu in trek, drunk from C-up's menu in a battle, or thrown in a battle as a
 /// flask, its effects landing where it does. With none, it can't be. Its effects decide whether drinking it does anything now.
@@ -118,7 +129,7 @@ public sealed record ItemRecord(
     RecordId? Model = null,
     IReadOnlyList<Effect>? Effects = null,
     EffectDuration? Duration = null,
-    MagicVisuals? Visuals = null,
+    MagicPresentation? Presentation = null,
     PotionUse? Use = null);
 
 /// <summary>
@@ -200,9 +211,12 @@ public enum WeaponClass
 /// <param name="Spell">A spell its wearer can cast from it.</param>
 /// <param name="Enchantment">
 /// A spell that's on the wearer while armor or a worn item is (<c>Entity::ApplyEquipEffect</c>), such
-/// as the Haste Amulet's. A weapon's is cast when it strikes. Spell effects come with combat (2.5).
+/// as the Haste Amulet's. A weapon's is cast when it strikes.
 /// </param>
-/// <param name="Resistance">An element whose damage is multiplied for the wearer. Combat reads it (2.5).</param>
+/// <param name="Resistance">
+/// An element whose damage is multiplied for the wearer, with their own resistances (<c>Combatant.ApplyResistance</c>,
+/// <c>0x80062704</c>; <c>Battle.ApplyResistance</c>): a weapon's, armor's, a shield's or worn gear's.
+/// </param>
 public sealed record GearBonuses(
     Aspect Aspect = Aspect.None,
     StatBonus? Stat = null,
@@ -251,15 +265,18 @@ public sealed record KeyItemFlags(RecordId Held, RecordId? Region = null);
 /// A loot table (<c>aidyn:loot/0x08…</c>, the original's <c>ChestDB</c>): what a container gives
 /// when opened, and what beaten enemies drop. See <c>get_chest_loot</c>.
 /// </summary>
-/// <param name="GoldMin">Gold is rolled from here to <paramref name="GoldMax"/> and doubled.</param>
+/// <param name="GoldMin">
+/// Gold is rolled from here to <paramref name="GoldMax"/>, then multiplied by <see cref="CombatRecord.LootGoldMultiplier"/>: a
+/// container's at once, a battle's once its chests are all rolled.
+/// </param>
 /// <param name="ArmorChance">
 /// Percent chance that a beaten enemy drops its body armor; <paramref name="ShieldChance"/> its shield,
 /// and <paramref name="WeaponChances"/> its three weapons. Combat's rewards read them (2.5).
 /// </param>
 /// <param name="ReagentChance">Percent chance of a reagent, picked from spice, herb and gemstone, between the two counts.</param>
 /// <param name="Drops">
-/// Six rolls, each a percent chance of an item. Only the first two give a count between their bounds;
-/// the rest give one. An empty roll still rolls its chance.
+/// Rolls in order, each a percent chance of an item and then its count. The original has six, of which only the first two have a
+/// count of their own; the importer leaves out its empty ones, whose chance is always 0, so they never roll.
 /// </param>
 public sealed record LootRecord(
     RecordId Id,
@@ -274,8 +291,20 @@ public sealed record LootRecord(
     int ReagentMax,
     IReadOnlyList<LootDrop> Drops);
 
-/// <param name="Item">Null for an empty roll.</param>
-public sealed record LootDrop(RecordId? Item, int Chance, int Min = 1, int Max = 1);
+/// <summary>One of a loot table's rolls: a percent chance of an item, then how many, from <see cref="Min"/> to <see cref="Max"/>.</summary>
+/// <param name="Chance">Percent; 0 never rolls.</param>
+/// <param name="Min">The fewest it gives, 1 if not given.</param>
+/// <param name="Max">The most it gives, <see cref="Min"/> if not given. A count of one number draws nothing from the random numbers.</param>
+public sealed record LootDrop(RecordId Item, int Chance, int? Min = null, int? Max = null)
+{
+    /// <summary>The fewest it gives.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int Least => Min ?? 1;
+
+    /// <summary>The most it gives.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int Most => Max ?? Least;
+}
 
 /// <summary>
 /// A shop (<c>aidyn:shop/&lt;n&gt;</c>, by its position in the original's <c>ShopDB</c>): what a
@@ -303,15 +332,13 @@ public sealed record ShopStock(RecordId Item, float PriceMultiplier = 1);
 /// level (<c>WidgetPotionCraft</c>, <c>CanMakeArmor</c>).
 /// </param>
 /// <param name="Step">The least step of the skill's check that makes it (see <c>gSkillCheck</c>). 0 for every potion.</param>
-/// <param name="Unk5">A potion recipe's sixth byte, 1 to 10. Nothing reads it.</param>
 public sealed record RecipeRecord(
     RecordId Id,
     RecordId Skill,
     RecordId Product,
     [property: KeyedList(nameof(Ingredient.Item))] IReadOnlyList<Ingredient> Ingredients,
     int Level,
-    int Step,
-    int? Unk5 = null);
+    int Step);
 
 public sealed record Ingredient(RecordId Item, int Count);
 

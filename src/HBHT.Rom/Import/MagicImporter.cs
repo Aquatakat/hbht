@@ -41,7 +41,7 @@ internal static class MagicImporter
     /// </summary>
     internal static MagicRecord BuildMagic(CastingFactors factors) => new(
         RecordId.Decimal(RecordTypes.Magic, 0),
-        new CastChance(4, 6, 1, 5, factors.ByPartOfDay, factors.ByMoon),
+        new CastChance(Intelligence: 4, Level: 6, CasterLevel: 1, Minimum: 5, factors.ByPartOfDay, factors.ByMoon),
         new ResistRoll(3, 1, 1, factors.SameAspect, factors.OtherAspect),
         RoundTicks: 600,
         MostDisabled: 2,
@@ -83,9 +83,10 @@ internal static class MagicImporter
                 return s;
             return s with
             {
-                Visuals = new MagicVisuals(
-                    caster, target, tables.TargetAtHead.Contains(kind), aura,
-                    caster is null ? 0 : tables.Caster[kind].Memory, target is null ? 0 : tables.Target[kind].Memory),
+                Presentation = (s.Presentation ?? new MagicPresentation()) with
+                {
+                    Caster = caster, Target = target, TargetAtHead = tables.TargetAtHead.Contains(kind), Aura = aura,
+                },
                 Strike = target is not null ? SpellStrike.Share(SpellStrike.CastLength(archive, tables.Target[kind].Borg))
                     : caster is not null ? SpellStrike.Share(SpellStrike.CastLength(archive, tables.Caster[kind].Borg))
                     : SpellRecord.DefaultStrike,
@@ -94,7 +95,7 @@ internal static class MagicImporter
     ];
 
     /// <summary>
-    /// Gives each potion what drinking it (or a flask's blast) shows: its actor, which asks for its memory, and its aura. The potions are
+    /// Gives each potion what drinking it (or a flask's blast) shows: its actor and its aura. The potions are
     /// <paramref name="items"/>' of kind <see cref="ItemKind.Potion"/>, in the order of their index.
     /// </summary>
     public static List<ItemRecord> WithPotionVisuals(List<ItemRecord> items, SpellVisualTables tables, BorgArchive archive)
@@ -109,7 +110,7 @@ internal static class MagicImporter
             var aura = Aura(archive, tables.PotionAura, kind, "Potion");
             return actor is null && aura is null
                 ? item
-                : item with { Visuals = new MagicVisuals(null, actor, false, aura, 0, actor is null ? 0 : tables.Potion[kind].Memory) };
+                : item with { Presentation = new MagicPresentation(Target: actor, Aura: aura) };
         })];
     }
 
@@ -247,9 +248,7 @@ internal static class MagicImporter
     }
 
     /// <summary>
-    /// Gives every spell its facts, and its aspect and placed area from the ROM's <c>unk1E</c> bits (1 Lunar and 2 Solar, which feed
-    /// <c>Combatant.ResistRoll</c> and <c>SpellResistanceApplies</c>; 0x10 a placed area, which <c>CanCast</c>,
-    /// <c>BeginSpellTargeting</c> and <c>IsResistable</c> read). The facts and the ROM's spells must name each other exactly.
+    /// Gives every spell its facts. The facts and the ROM's spells must name each other exactly.
     /// </summary>
     public static List<SpellRecord> WithEffects(List<SpellRecord> spells, EngineTables tables)
     {
@@ -265,20 +264,17 @@ internal static class MagicImporter
                 throw new InvalidDataException($"The fact for {s.Id} is for {fact.Name}, but the ROM's spell is {s.Name}.");
             if (fact.Area && s.Position != AreaKind)
                 throw new InvalidDataException($"{s.Id} ({s.Name}) is an area, but the code keys the area by kind {AreaKind}, not {s.Position}.");
-            var aspect = (s.Unk1E & 3) switch { 0 => Aspect.None, 1 => Aspect.Lunar, 2 => Aspect.Solar, _ => throw new InvalidDataException($"{s.Id} is both Lunar and Solar.") };
             return s with
             {
-                Effects = fact.Effects, Duration = fact.Duration, Aspect = aspect, Placed = (s.Unk1E & PlacedBit) != 0, Resisted = fact.Resisted,
-                NotResistedBy = fact.NotResistedBy, Filter = fact.Filter, AiValue = fact.Ai, Area = fact.Area,
+                Effects = fact.Effects, Duration = fact.Duration, Resisted = fact.Resisted,
+                NotResistedBy = fact.NotResistedBy, Filter = fact.Filter, Appeal = fact.Ai,
+                Targeting = s.Targeting with { Blast = fact.Area },
             };
         })];
     }
 
     /// <summary>The spell kind the AI's area code keys by (Fireball's, the byte at <c>0x800E2B48</c> or'd with <c>0x300</c>).</summary>
     private const int AreaKind = 8;
-
-    /// <summary><c>unk1E</c> bit 0x10: the caster places the area.</summary>
-    private const int PlacedBit = 0x10;
 
     /// <summary>
     /// How a potion is used, by its index (ADR 0021): the four flasks are thrown (<c>Combatant.ThrowFlask</c>, <c>0x80065600</c>, and

@@ -209,19 +209,8 @@ public static class MenuDetailsBuilder
         new([new DetailText(label, TextColor)],
             [new DetailText(Num(now), TextColor), new DetailText($"({Num(withIt)})", withIt > now ? Gain : withIt < now ? Loss : TextColor)]);
 
-    private static (RecordId Icon, string Name)? Reagent(Reagent reagent, ItemCatalog? items)
-    {
-        if (items is null)
-            return null;
-        RecordId? id = reagent switch
-        {
-            Plugins.Records.Reagent.Spice => items.Rules.Spice,
-            Plugins.Records.Reagent.Herb => items.Rules.Herb,
-            Plugins.Records.Reagent.Gemstone => items.Rules.Gemstone,
-            _ => null,
-        };
-        return id is { } i && items.TryGet(i) is { } item ? (item.Icon, item.Name) : null;
-    }
+    private static (RecordId Icon, string Name)? Reagent(RecordId? reagent, ItemCatalog? items) =>
+        reagent is { } i && items?.TryGet(i) is { } item ? (item.Icon, item.Name) : null;
 
     private static RecordId WeaponSkill(WeaponClass weapon) => RecordId.Decimal(RecordTypes.WeaponSkill, (int)weapon);
 

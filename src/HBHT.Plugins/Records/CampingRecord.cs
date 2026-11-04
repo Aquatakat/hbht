@@ -20,7 +20,7 @@ namespace HBHT.Plugins.Records;
 /// <param name="Campsite">With no camp scene, this map's first dialogue object starts.</param>
 /// <param name="AmbushLevels">
 /// The highest average party level of each of the ambush's tiers but the last (<see cref="TerrainRecord.Ambushes"/>): 5, 10,
-/// 15 and 20 (<c>CampEncounters.Load</c>). Null in plugins imported before them.
+/// 15 and 20 (<c>CampEncounters.Load</c>).
 /// </param>
 public sealed record CampingRecord(
     RecordId Id,
@@ -34,4 +34,4 @@ public sealed record CampingRecord(
     RecordId Checking,
     IReadOnlyList<RecordId> Scenes,
     RecordId Campsite,
-    IReadOnlyList<int>? AmbushLevels = null);
+    IReadOnlyList<int> AmbushLevels);

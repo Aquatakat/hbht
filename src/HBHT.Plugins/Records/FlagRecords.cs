@@ -11,12 +11,18 @@ namespace HBHT.Plugins.Records;
 /// flags in that order, which the original's results depend on.
 /// </remarks>
 /// <param name="Label">What the flag means, where engine code says. Most flags have none.</param>
-/// <param name="Initial">Whether a plain flag starts a new game set.</param>
+/// <param name="Initial">Whether a plain flag starts a new game set. Written only where it does; one base flag does.</param>
 /// <param name="Journal">
-/// The journal entry this derived flag adds when it turns on: the game raises the new-entry flag
-/// (<see cref="StateFlagsRecord.NewJournalEntry"/>) and opens the journal at it.
+/// The journal entry this flag lists. The journal shows the entry while the flag is set, and when the flag turns on the game raises
+/// the new-entry flag (<see cref="StateFlagsRecord.NewJournalEntry"/>) and opens the journal at it, as the derived flags next come up
+/// to date (docs/systems/flags.md). The original keeps a derived flag a journal entry, <c>count(entry's flag) &gt; 0</c>, whose
+/// writes do it (<c>GameStateFunnel.Write</c>, <c>0x800cb33c</c>: flags from 5556 on); the importer leaves those out.
 /// </param>
-public sealed record FlagRecord(RecordId Id, string? Label = null, bool Initial = false, FlagFormula? Formula = null,
+public sealed record FlagRecord(
+    RecordId Id,
+    string? Label = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] bool Initial = false,
+    FlagFormula? Formula = null,
     RecordId? Journal = null);
 
 /// <summary>How a derived flag's inputs are combined (the original's <c>event_flag_typeA</c>).</summary>
@@ -80,10 +86,10 @@ public sealed record FlagFormula(FlagFormulaKind Kind, FlagOperation Op, int Ope
 }
 
 /// <summary>
-/// A journal entry (<c>aidyn:journal/n</c>). The journal lists the entries whose flag is set, and a
-/// derived flag names the entry it adds (<see cref="FlagRecord.Journal"/>).
+/// A journal entry (<c>aidyn:journal/n</c>). The flag that lists it names it (<see cref="FlagRecord.Journal"/>): the journal shows
+/// it while that flag is set.
 /// </summary>
-public sealed record JournalRecord(RecordId Id, RecordId Flag, string Text);
+public sealed record JournalRecord(RecordId Id, string Text);
 
 /// <summary>
 /// The flags the engine writes its own state into, so that content can read it, and the flags it

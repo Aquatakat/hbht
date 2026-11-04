@@ -103,25 +103,28 @@ public sealed class SpellVisualTests(Na10Import fixture)
     {
         var set = fixture.Data.Set;
         // Endurance (kind 19) shows an actor at the caster and a lasting aura on the target.
-        Assert.Equal(new MagicVisuals(Actor(0x1C8E), null, false, Scene(0x1C76), 0x11C00, 0), set.Get<SpellRecord>(Spell(0x0310)).Visuals);
+        Assert.Equal(new MagicPresentation(Actor(0x1C8E), null, false, Scene(0x1C76)), set.Get<SpellRecord>(Spell(0x0310)).Presentation! with { Sound = null });
         // Fireball (kind 8) an actor at the target; Banishing (15) both, sharing Escape's; Crushing Death (28) lifts its actor to the head.
-        Assert.Equal(new MagicVisuals(null, Actor(0x1CC9), false, null, 0, 0x5000), set.Get<SpellRecord>(Spell(0x0305)).Visuals);
-        Assert.Equal(new MagicVisuals(Actor(0x1B37), Actor(0x1C9F), false, null, 0x4C00, 0x4800), set.Get<SpellRecord>(Spell(0x030A)).Visuals);
-        Assert.Equal(new MagicVisuals(null, Actor(0x1BBC), true, null, 0, 0xC400), set.Get<SpellRecord>(Spell(0x0315)).Visuals);
+        Assert.Equal(new MagicPresentation(null, Actor(0x1CC9), false, null), set.Get<SpellRecord>(Spell(0x0305)).Presentation! with { Sound = null });
+        Assert.Equal(new MagicPresentation(Actor(0x1B37), Actor(0x1C9F), false, null), set.Get<SpellRecord>(Spell(0x030A)).Presentation! with { Sound = null });
+        Assert.Equal(new MagicPresentation(null, Actor(0x1BBC), true, null), set.Get<SpellRecord>(Spell(0x0315)).Presentation! with { Sound = null });
     }
 
     [Fact]
-    public void TheSpellsThatShowNothingHaveNoVisuals()
+    public void TheSpellsThatShowNothingHaveASoundAlone()
     {
         var spells = fixture.Data.Set.All<SpellRecord>(RecordTypes.Spell);
-        Assert.Equal(59 - 5, spells.Count(s => s.Visuals is not null));
-        Assert.Equal([18, 36, 49, 50, 55], spells.Where(s => s.Visuals is null).Select(s => s.Position!.Value).Order());
+        static bool Shows(SpellRecord s) => s.Presentation is { } p && (p.Caster ?? p.Target ?? p.Aura) is not null;
+        Assert.Equal(59 - 5, spells.Count(Shows));
+        Assert.Equal([18, 36, 49, 50, 55], spells.Where(s => !Shows(s)).Select(s => s.Position!.Value).Order());
+        // Those five still play their cast's sound.
+        Assert.All(spells.Where(s => !Shows(s)), s => Assert.NotNull(s.Presentation?.Sound));
         // Every spell's visuals are the tables' by its place in the list.
         var tables = SpellVisualTables.Read(TestRoms.Get(RomVersionId.Na10));
-        Assert.All(spells.Where(s => s.Visuals is not null), s =>
+        Assert.All(spells.Where(Shows), s =>
         {
             var kind = s.Position!.Value;
-            var v = s.Visuals!;
+            var v = s.Presentation!;
             Assert.Equal(tables.Caster.TryGetValue(kind, out var c) ? Actor(c.Borg) : (RecordId?)null, v.Caster);
             Assert.Equal(tables.Target.TryGetValue(kind, out var t) ? Actor(t.Borg) : (RecordId?)null, v.Target);
             Assert.Equal(tables.Aura.TryGetValue(kind, out var a) ? Scene(a.Borg) : (RecordId?)null, v.Aura);
@@ -134,14 +137,14 @@ public sealed class SpellVisualTests(Na10Import fixture)
     {
         var set = fixture.Data.Set;
         // The Strength Potion's actor is the Strength spell's, with its own aura; the Healing Potion has an actor alone.
-        Assert.Equal(new MagicVisuals(null, Actor(0x1AB9), false, Scene(0x1AA1), 0, 0x12000), set.Get<ItemRecord>(PotionItem(9)).Visuals);
-        Assert.Equal(new MagicVisuals(null, Actor(0x1A65), false, null, 0, 0x4000), set.Get<ItemRecord>(PotionItem(4)).Visuals);
-        Assert.Equal(Scene(0x1A14), set.Get<ItemRecord>(PotionItem(15)).Visuals!.Aura);
+        Assert.Equal(new MagicPresentation(null, Actor(0x1AB9), false, Scene(0x1AA1)), set.Get<ItemRecord>(PotionItem(9)).Presentation);
+        Assert.Equal(new MagicPresentation(null, Actor(0x1A65), false, null), set.Get<ItemRecord>(PotionItem(4)).Presentation);
+        Assert.Equal(Scene(0x1A14), set.Get<ItemRecord>(PotionItem(15)).Presentation!.Aura);
         // The two placeholders, Clarity, Charisma and Stealth show nothing.
-        Assert.All(new[] { 11, 12, 13, 14, 16 }, n => Assert.Null(set.Get<ItemRecord>(PotionItem(n)).Visuals));
-        Assert.Equal(12, Enumerable.Range(0, 17).Count(n => set.Get<ItemRecord>(PotionItem(n)).Visuals is not null));
+        Assert.All(new[] { 11, 12, 13, 14, 16 }, n => Assert.Null(set.Get<ItemRecord>(PotionItem(n)).Presentation));
+        Assert.Equal(12, Enumerable.Range(0, 17).Count(n => set.Get<ItemRecord>(PotionItem(n)).Presentation is not null));
         // Nothing else has visuals.
-        Assert.All(set.All<ItemRecord>(RecordTypes.Item).Where(i => i.Kind != ItemKind.Potion), i => Assert.Null(i.Visuals));
+        Assert.All(set.All<ItemRecord>(RecordTypes.Item).Where(i => i.Kind != ItemKind.Potion), i => Assert.Null(i.Presentation));
     }
 
     [Fact]
@@ -165,11 +168,11 @@ public sealed class SpellVisualTests(Na10Import fixture)
         var actors = new[]
         {
             magic.Refused!.Value, magic.Resisted!.Value,
-            spells.Single(s => s.Name == "Dragon Flames").Visuals!.Target!.Value,
-            spells.Single(s => s.Name == "Banishing").Visuals!.Target!.Value,
-            spells.Single(s => s.Name == "vs. Star").Visuals!.Caster!.Value,
-            spells.Single(s => s.Name == "Wraith Touch").Visuals!.Caster!.Value,
-            set.Get<ItemRecord>(PotionItem(0)).Visuals!.Target!.Value,
+            spells.Single(s => s.Name == "Dragon Flames").Presentation!.Target!.Value,
+            spells.Single(s => s.Name == "Banishing").Presentation!.Target!.Value,
+            spells.Single(s => s.Name == "vs. Star").Presentation!.Caster!.Value,
+            spells.Single(s => s.Name == "Wraith Touch").Presentation!.Caster!.Value,
+            set.Get<ItemRecord>(PotionItem(0)).Presentation!.Target!.Value,
         };
         Assert.Equal([Actor(0x1CAA), Actor(0x37F1), Actor(0x1C55), Actor(0x1C9F), Actor(0x1E9D), Actor(0x1EF7), Actor(0x1A56)], actors);
         Assert.All(actors, id =>

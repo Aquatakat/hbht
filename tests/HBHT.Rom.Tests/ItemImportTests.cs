@@ -455,13 +455,13 @@ public sealed class ItemImportTests(Na10Import fixture)
         Assert.Equal(db.Loot.Count, loot.Count);
         Assert.All(loot, l =>
         {
-            Assert.Equal(6, l.Drops.Count);
+            Assert.InRange(l.Drops.Count, 0, 6);
             Assert.Equal(3, l.WeaponChances.Count);
-            Assert.All(l.Drops.Skip(2), d => Assert.Equal((1, 1), (d.Min, d.Max)));
+            Assert.All(l.Drops, d => Assert.NotEqual(0, d.Chance));
         });
-        Assert.Contains(loot, l => l.Drops.Take(2).Any(d => d.Max > 1));
-        Assert.Contains(loot, l => l.Drops.Any(d => d.Item is null));
-        Assert.Contains(loot, l => l.Drops.Any(d => d.Item is not null));
+        Assert.Contains(loot, l => l.Drops.Any(d => d.Most > 1));
+        // The empty drops, whose chance is always 0, are left out: 89 of the 378 slots hold an item.
+        Assert.Equal(89, loot.Sum(l => l.Drops.Count));
     }
 
     [Fact]
@@ -477,9 +477,11 @@ public sealed class ItemImportTests(Na10Import fixture)
             Assert.Equal((rom.GoldMin, rom.GoldMax, rom.ArmorChance, rom.ShieldChance), (l.GoldMin, l.GoldMax, l.ArmorChance, l.ShieldChance));
             Assert.Equal(rom.WeaponChances.Select(c => (int)c), l.WeaponChances);
             Assert.Equal((rom.ReagentChance, rom.ReagentMin, rom.ReagentMax), (l.ReagentChance, l.ReagentMin, l.ReagentMax));
-            Assert.Equal(rom.Drops.Select(d => d.Item.IsNone ? (RecordId?)null : DbRecordIds.For(d.Item)), l.Drops.Select(d => d.Item));
-            Assert.Equal(rom.Drops.Select(d => (int)d.Chance), l.Drops.Select(d => d.Chance));
-            Assert.Equal(rom.Drops.Select(d => (int)d.Min), l.Drops.Select(d => d.Min));
+            // The drops that hold an item, in order, each with its count where 1.0 rolls one: the first two slots.
+            var held = rom.Drops.Select((d, i) => (d, i)).Where(x => !x.d.Item.IsNone).ToList();
+            Assert.Equal(held.Select(x => DbRecordIds.For(x.d.Item)!.Value), l.Drops.Select(d => d.Item));
+            Assert.Equal(held.Select(x => (int)x.d.Chance), l.Drops.Select(d => d.Chance));
+            Assert.Equal(held.Select(x => x.i < 2 ? ((int)x.d.Min, (int)x.d.Max) : (1, 1)), l.Drops.Select(d => (d.Least, d.Most)));
         });
     }
 
@@ -556,7 +558,7 @@ public sealed class ItemImportTests(Na10Import fixture)
         Assert.Equal(SkillId(0), recipe.Skill);
         Assert.Equal(ItemRecordId(0x1000), recipe.Product);
         Assert.Equal([new Ingredient(ItemRecordId(0x0111), 1), new Ingredient(ItemRecordId(0x0113), 2)], recipe.Ingredients);
-        Assert.Equal((1, 0, (int?)2), (recipe.Level, recipe.Step, recipe.Unk5));
+        Assert.Equal((1, 0), (recipe.Level, recipe.Step));
     }
 
     [Fact]
@@ -572,7 +574,7 @@ public sealed class ItemImportTests(Na10Import fixture)
                 .Select(x => new Ingredient(ItemRecordId(x.Item1), x.Item2));
             Assert.Equal(expected, recipes[i].Ingredients);
             Assert.Equal(ItemRecordId(0x1000 + p.Potion), recipes[i].Product);
-            Assert.Equal((p.Alchemist, p.Step, (int?)p.Unk5), (recipes[i].Level, recipes[i].Step, recipes[i].Unk5));
+            Assert.Equal((p.Alchemist, p.Step), (recipes[i].Level, recipes[i].Step));
         }
     }
 
@@ -586,7 +588,7 @@ public sealed class ItemImportTests(Na10Import fixture)
         Assert.Equal(SkillId(4), hellhound.Skill);
         Assert.Equal(RecordId.Hex(RecordTypes.Armor, 0x051F), hellhound.Product);
         Assert.Equal([new Ingredient(ItemRecordId(0x0121), 1)], hellhound.Ingredients);
-        Assert.Equal((5, 7, (int?)null), (hellhound.Level, hellhound.Step, hellhound.Unk5));
+        Assert.Equal((5, 7), (hellhound.Level, hellhound.Step));
 
         Assert.Equal(RecordId.Hex(RecordTypes.Armor, 0x061D), scorpion.Product);
         Assert.Equal([new Ingredient(ItemRecordId(0x0124), 1)], scorpion.Ingredients);
@@ -670,7 +672,7 @@ public sealed class ItemImportTests(Na10Import fixture)
             }
         }
         foreach (var l in Set.All<LootRecord>(RecordTypes.Loot))
-            references.AddRange(l.Drops.Where(d => d.Item is not null).Select(d => ($"{l.Id}", d.Item!.Value)));
+            references.AddRange(l.Drops.Select(d => ($"{l.Id}", d.Item)));
         foreach (var s in Shops)
         {
             references.Add(($"{s.Id}", s.Shopkeeper));

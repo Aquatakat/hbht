@@ -100,7 +100,7 @@ internal static class ItemImporter
 
         var armor = db.Armor.Select((a, i) => new ArmorRecord(
             DbRecordIds.Required(a.Id), a.Name, Icon(a.Id), a.Price, a.Slot == 0 ? ArmorSlot.Body : ArmorSlot.Shield, a.Defense, a.Protection,
-            a.Dexterity, a.Stealth, a.Unk1D, a.ExpBonus, Bonuses(a.Bonuses, a.Bonuses.SpellLevel), Traits(a.Id),
+            a.Dexterity, a.Stealth, a.ExpBonus, Bonuses(a.Bonuses, a.Bonuses.SpellLevel), Traits(a.Id),
             Model(ItemTables.ShieldModels, i)));
 
         var gear = db.Gear.Select((g, i) =>
@@ -145,7 +145,18 @@ internal static class ItemImporter
     public static List<LootRecord> BuildLoot(GameDb db) => Sorted(db.Loot.Select(l => new LootRecord(
         DbRecordIds.Required(l.Id), l.Name, l.GoldMin, l.GoldMax, l.ArmorChance, l.ShieldChance, [.. l.WeaponChances.Select(c => (int)c)],
         l.ReagentChance, l.ReagentMin, l.ReagentMax,
-        [.. l.Drops.Select(d => new LootDrop(d.Item.IsNone ? null : DbRecordIds.Required(d.Item), d.Chance, d.Min, d.Max))])), l => l.Id);
+        [.. l.Drops.Select((d, i) => (d, i)).Where(x => Drop(l.Id, x.d)).Select(x => new LootDrop(DbRecordIds.Required(x.d.Item), x.d.Chance,
+            // 1.0 rolls a count for its first two drops alone (Combat.RollChestItem, 0x8005DF38; get_chest_loot); the rest give one.
+            x.i < 2 && (x.d.Min, x.d.Max) != (1, 1) ? x.d.Min : null, x.i < 2 && (x.d.Min, x.d.Max) != (1, 1) ? x.d.Max : null))])), l => l.Id);
+
+    /// <summary>
+    /// Whether a ROM drop is written: not an empty one, which never rolls, its chance being 0 in every table. An empty one with a
+    /// chance would draw from the random numbers, which the records couldn't say, so it's an error.
+    /// </summary>
+    private static bool Drop(ItemId table, RomLootDrop d) =>
+        !d.Item.IsNone ? true
+            : d.Chance == 0 ? false
+            : throw new InvalidDataException($"Loot table {table} has an empty drop with a chance of {d.Chance}.");
 
     /// <summary>
     /// Each shop's stock (<c>InitShop</c>): a priced slot is stocked only when its third byte is
@@ -167,14 +178,14 @@ internal static class ItemImporter
             Product: DbRecordIds.Required(ItemId.Of(DbType.Potion, (byte)p.Potion)),
             Ingredients: new[] { new Ingredient(spice, p.Spice), new Ingredient(herb, p.Herb), new Ingredient(gemstone, p.Gemstone) }
                 .Where(x => x.Count > 0).ToList(),
-            Level: p.Alchemist, p.Step, Unk5: (int?)p.Unk5))
+            Level: p.Alchemist, p.Step))
             .Concat(tables.ArmorRecipes.Select(a => (
                 Skill: Mechanic,
                 Product: DbRecordIds.Required(db.Armor[a.Armor].Id),
                 Ingredients: new List<Ingredient> { new(DbRecordIds.Required(db.Gear[a.Hide].Id), 1) },
-                Level: a.Mechanic, a.Step, Unk5: (int?)null)));
+                Level: a.Mechanic, a.Step)));
         return [.. recipes.Select((r, i) => new RecipeRecord(RecordId.Decimal(RecordTypes.Recipe, i),
-            RecordId.Decimal(RecordTypes.Skill, r.Skill), r.Product, r.Ingredients, r.Level, r.Step, r.Unk5))];
+            RecordId.Decimal(RecordTypes.Skill, r.Skill), r.Product, r.Ingredients, r.Level, r.Step))];
     }
 
     public static InventoryRecord BuildInventory(GameDb db, MenuTables menuTables)
@@ -188,7 +199,7 @@ internal static class ItemImporter
             DbRecordIds.Flag(FirstPotionFlag), new InventoryMessages(m.PotionNotNow, m.PotionNotInTrek, m.ScrollNoSpell));
     }
 
-    private static (RecordId Spice, RecordId Herb, RecordId Gemstone) Reagents(GameDb db) =>
+    internal static (RecordId Spice, RecordId Herb, RecordId Gemstone) Reagents(GameDb db) =>
         (DbRecordIds.Required(db.Gear[SpicePosition].Id), DbRecordIds.Required(db.Gear[HerbPosition].Id), DbRecordIds.Required(db.Gear[GemstonePosition].Id));
 
     /// <param name="spellLevel">A weapon's is its own field; armor's and gear's is in the bonuses.</param>

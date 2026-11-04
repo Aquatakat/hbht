@@ -13,8 +13,8 @@ public sealed class ValidationTests : IDisposable
 
     private const string Map = """
         [{ "id": "aidyn:map/0x0E87", "objects": [
-          { "type": "savePoint", "index": 0, "position": [1, 0, 1], "radius": 1, "pak": "With" },
-          { "type": "savePoint", "index": 1, "position": [2, 0, 2], "radius": 1, "pak": "With" },
+          { "type": "savePoint", "index": 0, "position": [1, 0, 1], "radius": 1 },
+          { "type": "savePoint", "index": 1, "position": [2, 0, 2], "radius": 1 },
         ] }]
         """;
 
@@ -54,7 +54,7 @@ public sealed class ValidationTests : IDisposable
     {
         var set = PluginSet.Load([
             Base(),
-            Plugin("mymod", ["aidyn"], ("map.json", """{ "patch": "aidyn:map/0x0E87", "objects": [{ "type": "chest", "index": 5, "position": [1, 0, 1], "radius": 1, "pak": "With" }] }""")),
+            Plugin("mymod", ["aidyn"], ("map.json", """{ "patch": "aidyn:map/0x0E87", "objects": [{ "type": "chest", "index": 5, "position": [1, 0, 1], "radius": 1 }] }""")),
         ]);
         var problem = Assert.Single(set.Validate().Problems);
         Assert.Equal("objects[5]", problem.Path);
@@ -81,7 +81,7 @@ public sealed class ValidationTests : IDisposable
         var set = PluginSet.Load([
             Base(),
             Plugin("mymod", ["aidyn"],
-                ("map.json", """{ "id": "mymod:map/short", "objects": [{ "type": "savePoint", "index": 0, "position": [1, 0, 1], "pak": "With" }] }"""),
+                ("map.json", """{ "id": "mymod:map/short", "objects": [{ "type": "savePoint", "index": 0, "position": [1, 0, 1] }] }"""),
                 ("shop.json", """{ "id": "mymod:shop/twice", "shopkeeper": null, "stock": [{ "item": "aidyn:item/0x0801" }, { "item": "aidyn:item/0x0801" }] }""")),
         ]);
         var problems = set.Validate().Problems;
@@ -105,9 +105,9 @@ public sealed class ValidationTests : IDisposable
         var set = PluginSet.Load([
             Base(),
             Plugin("mymod", ["aidyn"],
-                ("map.json", """{ "patch": "aidyn:map/0x0E87", "objects": [{ "index": 9, "position": [1, 0, 1], "radius": 1, "pak": "With" }] }"""),
+                ("map.json", """{ "patch": "aidyn:map/0x0E87", "objects": [{ "index": 9, "position": [1, 0, 1], "radius": 1 }] }"""),
                 ("spell.json", """
-                    { "id": "mymod:spell/zap", "name": "Zap", "school": "Star", "symbol": 0, "level": 1, "stamina": 1, "range": 1, "aiValue": 1,
+                    { "id": "mymod:spell/zap", "name": "Zap", "school": "Star", "symbol": 0, "level": 1, "stamina": 1, "range": 1, "appeal": 1,
                       "effects": [{ "type": "stamina", "amount": { "flat": 1 } }, { "amount": { "flat": 2 } }] }
                     """)),
         ]);

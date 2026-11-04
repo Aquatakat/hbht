@@ -23,28 +23,31 @@ public sealed class MapObjectImportTests(Na10Import fixture)
         Assert.Equal(new Dictionary<string, int>
         {
             [nameof(ReferencePointObject)] = 8792,
-            [nameof(SceneObject)] = 8317,
+            // Without the 3 scenes in 0x11AF and the sound in 0x0E96 the original has only without the Expansion Pak.
+            [nameof(SceneObject)] = 8314,
             [nameof(WanderNodeObject)] = 2052,
             [nameof(MonsterPartyObject)] = 1079,
-            [nameof(SoundObject)] = 1038,
+            [nameof(SoundObject)] = 1037,
             [nameof(TeleporterObject)] = 894,
             [nameof(LightObject)] = 777,
             [nameof(ContainerObject)] = 370,
             [nameof(DialogueObject)] = 364,
-            [nameof(TriggerObject)] = 302,
+            [nameof(TripwireObject)] = 302,
             [nameof(CameraObject)] = 244,
             [nameof(SavePointObject)] = 3,
         }, counts);
-        Assert.Equal(24232, maps.Sum(m => m.Objects.Count));
+        Assert.Equal(24228, maps.Sum(m => m.Objects.Count));
 
         // Code objects are left out, so indices can skip, but never repeat or go backwards.
         foreach (var map in maps)
             Assert.Equal(map.Objects.Select(o => o.Index).Order().Distinct(), map.Objects.Select(o => o.Index));
 
-        // Every object of a chunk's Borg9 that isn't a code object is there, with the ROM's own index.
+        // Every object of a chunk's Borg9 that isn't a code object, or there only without the Expansion Pak, is there, with
+        // the ROM's own index.
         foreach (var (borg, romObjects) in Data.RomObjects)
         {
-            var expected = romObjects.Where(o => o.Type != Maps.VoxelType.Code).Select(o => o.Index);
+            var expected = romObjects.Where(o => o.Type != Maps.VoxelType.Code && !o.Flags.HasFlag(Maps.VoxelFlags.NoExpansionPak))
+                .Select(o => o.Index);
             Assert.Equal(expected, Data.Map($"aidyn:map/0x{borg:X4}").Objects.Select(o => o.Index));
         }
     }
@@ -81,7 +84,7 @@ public sealed class MapObjectImportTests(Na10Import fixture)
         }
         Assert.Empty(failures);
 
-        var animated = Data.Of<TriggerObject>().Where(t => t.Object.Kind == TriggerKind.Animate).ToList();
+        var animated = Data.Of<TripwireObject>().Where(t => t.Object.Does is AnimateAction).ToList();
         Assert.NotEmpty(animated);
         foreach (var (id, _, _) in animated)
         {
@@ -254,20 +257,21 @@ public sealed class MapObjectImportTests(Na10Import fixture)
             var crate = kind is ContainerKind.Chest or ContainerKind.Sack or ContainerKind.Crate or ContainerKind.Barrel;
 
             // Parties, dialogues and save points are always there, and so are the plain containers until they're opened.
+            // A gate that always holds, flag 0 inverted, is written as none.
             var alwaysThere = o is MonsterPartyObject or DialogueObject or SavePointObject || crate;
-            if ((o.Visible is null) != alwaysThere)
+            if (o.Visible is not null && alwaysThere || o.Visible is { Invert: true } v && Number(v.Flag) == 0)
                 failures.Add($"{where}: a {o.GetType().Name} {kind} has visible gate {o.Visible}");
 
-            var works = o is TeleporterObject or TriggerObject or DialogueObject or MonsterPartyObject || (kind is not null && !crate);
-            if ((o.Enabled is not null) != works)
+            var works = o is TeleporterObject or TripwireObject or DialogueObject or MonsterPartyObject || (kind is not null && !crate);
+            if (o.Enabled is not null && !works || o.Enabled is { Invert: true } e && Number(e.Flag) == 0)
                 failures.Add($"{where}: a {o.GetType().Name} {kind} has enabled gate {o.Enabled}");
 
-            if (o.Used is not null && o is not (ContainerObject or TriggerObject or MonsterPartyObject))
+            if (o.Used is not null && o is not (ContainerObject or TripwireObject or MonsterPartyObject))
                 failures.Add($"{where}: a {o.GetType().Name} writes {o.Used}");
             if (o is MonsterPartyObject && o.Used is { Clear: true })
                 failures.Add($"{where}: a party clears {o.Used.Flag}");
 
-            if (o.Tangible && o is not (TeleporterObject or TriggerObject or DialogueObject))
+            if (o.Tangible && o is not (TeleporterObject or TripwireObject or DialogueObject))
                 failures.Add($"{where}: a {o.GetType().Name} is tangible");
         }
         Assert.Empty(failures);
@@ -462,7 +466,7 @@ public sealed class MapObjectImportTests(Na10Import fixture)
         Assert.All(lights, l =>
         {
             Assert.Equal([RecordId.Hex(RecordTypes.Scene, 0x1910), RecordId.Hex(RecordTypes.Scene, 0x374A)], l.Object.Models.Select(m => m.Model));
-            Assert.Equal((2, 5f, 24f), (l.Object.Lods, l.Object.Models[0].DrawDistance, l.Object.Models[1].DrawDistance));
+            Assert.Equal((2, 5f, 24f), (l.Object.Models.Count, l.Object.Models[0].DrawDistance, l.Object.Models[1].DrawDistance));
         });
         Assert.Equal(lights.Count, Data.Of<SceneObject>().Count(o => o.Object.Models.Any(m => m.Model == RecordId.Hex(RecordTypes.Scene, 0x374A))));
     }
@@ -507,7 +511,7 @@ public sealed class MapObjectImportTests(Na10Import fixture)
         {
             var at = o.Position + new System.Numerics.Vector3(0, 0, distance);
             var view = new Core.Scenes.SceneView(at, new(at.X, at.Z + 5), new(0, -1), 5, Core.Scenes.ViewCone.Original);
-            var alphas = new byte[o.Lods];
+            var alphas = new byte[o.Models.Count];
             Core.Scenes.SceneObjectFade.Alphas(o, System.Numerics.Vector3.Zero, view, alphas, range);
             return alphas;
         }
@@ -520,7 +524,7 @@ public sealed class MapObjectImportTests(Na10Import fixture)
         Assert.Equal([0, 0], At(light, 2.5f, highest));
 
         // A tree near the lights: past its first level's distance the original draws its second, Highest still its first.
-        var tree = map.Objects.OfType<SceneObject>().First(o => o.Lods == 2 && o.Models.Take(2).All(m => !m.Empty) && !o.GoesOut);
+        var tree = map.Objects.OfType<SceneObject>().First(o => o.Models.Count == 2 && o.Models.Take(2).All(m => !m.Empty) && !o.GoesOut);
         var past = tree.Models[0].DrawDistance + 1;
         Assert.Equal([0, 255], At(tree, past, Core.Scenes.ObjectDistance.Original));
         Assert.Equal([255, 0], At(tree, past, highest));

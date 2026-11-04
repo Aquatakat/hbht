@@ -69,7 +69,7 @@ public sealed partial class Battle
             if (member.Stats.Base(Stat.Level) > level)
                 _levelled.Add(member);
         }
-        GoldPool <<= 1;
+        GoldPool *= _rules.LootGoldMultiplier;
     }
 
     /// <summary>An entity's chest byte as its loot table: the chest DB's ID <c>0x7FF</c> + the byte.</summary>
@@ -78,9 +78,9 @@ public sealed partial class Battle
     /// <summary>
     /// An enemy's chest (<c>Combat.AddChestLoot</c>, <c>0x8005E0F0</c>), rolled in this order: its gold; the enemy's own armor,
     /// shield and weapons, each by its chance (<c>Combat.RollEquipmentDrops</c>, <c>0x8005DC78</c>, not for the bonus loot's,
-    /// which has no enemy); a reagent, by its chance, then which (spice, herb or gemstone) and how many; then the six drops
-    /// (<c>Combat.RollChestItem</c>, <c>0x8005DF38</c>), the first two between their counts. What each item is worth goes on the
-    /// experience pool, a reagent's once whatever the count.
+    /// which has no enemy); a reagent, by its chance, then which (spice, herb or gemstone) and how many; then the drops
+    /// (<c>Combat.RollChestItem</c>, <c>0x8005DF38</c>), each between its counts (1.0's first two have counts, the rest one, which
+    /// draws nothing). What each item is worth goes on the experience pool, a reagent's once whatever the count.
     /// </summary>
     /// <remarks>
     /// A container's roll (<see cref="Containers.Roll"/>) is the same table, read otherwise: it picks the reagent before rolling
@@ -106,11 +106,9 @@ public sealed partial class Battle
             var drop = chest.Drops[i];
             if (drop.Chance == 0 || random.RollD(1, 100) > drop.Chance)
                 continue;
-            var count = i < 2 ? random.Range(drop.Min, drop.Max) : 1;
-            if (drop.Item is not { } item)
-                continue;
-            Add(item, count);
-            ExperiencePool += count * ExperienceValue(item);
+            var count = random.Range(drop.Least, drop.Most);
+            Add(drop.Item, count);
+            ExperiencePool += count * ExperienceValue(drop.Item);
         }
     }
 
@@ -127,7 +125,7 @@ public sealed partial class Battle
         {
             var weapon = i < entity.Weapons.Count ? entity.Weapons[i] : null;
             var chance = i < chest.WeaponChances.Count ? chest.WeaponChances[i] : 0;
-            if (weapon is { } w && Game.Plugins.TryGet<WeaponRecord>(w) is { } record && _rules.DroppedClasses?.Contains(record.Class) != true)
+            if (weapon is { } w && Game.Plugins.TryGet<WeaponRecord>(w) is { } record && !_rules.DroppedClasses.Contains(record.Class))
                 continue;
             Roll(weapon, chance);
         }
@@ -167,8 +165,7 @@ public sealed partial class Battle
     /// </summary>
     internal void SetKillFlags()
     {
-        if (_rules.Bosses is not { } bosses)
-            return;
+        var bosses = _rules.Bosses;
         foreach (var id in Enemies.Take(OnField))
         {
             if (bosses.FirstOrDefault(b => b.Entity == id) is { } boss)

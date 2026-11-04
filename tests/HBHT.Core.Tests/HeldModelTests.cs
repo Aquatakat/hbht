@@ -20,8 +20,10 @@ public sealed class HeldModelTests
     private static readonly ArmorRecord Shield = ItemData.NewArmor(4, ArmorSlot.Shield, defense: 2) with { Model = Scene(0x3534) };
 
     private static CombatRecord Rules(IReadOnlyList<RecordId>? undrawn = null, IReadOnlyList<RecordId>? otherHand = null) =>
-        new(RecordId.Decimal(RecordTypes.Combat, 0), Ids.Entity(1), [], Ids.Entity(2), [], [], [],
-            Missiles: [new Missile(Bow.Id, Arrow, 8)], UndrawnWeapons: undrawn ?? [], OtherHand: otherHand ?? []);
+        Combats.Rules(Ids.Entity(1), Ids.Entity(2)) with
+        {
+            Missiles = [new Missile(Bow.Id, Arrow, 8)], UndrawnWeapons = undrawn ?? [], OtherHand = otherHand ?? [],
+        };
 
     private static Combatant Holding(WeaponRecord? weapon, ArmorRecord? shield = null, bool shieldSkill = true)
     {

@@ -233,7 +233,7 @@ public sealed class MagicTests
     [InlineData(SpellTargetCount.ByLevel, 5, 3)]
     [InlineData(SpellTargetCount.All, 1, 9)]
     public void ASpellTakesOneAllOrHalfItsLevel(SpellTargetCount count, int level, int expected) =>
-        Assert.Equal(expected, Casting.TargetCount(MagicData.Endurance with { TargetCount = count }, level, all: 9));
+        Assert.Equal(expected, Casting.TargetCount(MagicData.Endurance with { Targeting = MagicData.Endurance.Targeting with { Count = count } }, level, all: 9));
 
     [Fact]
     public void TheCostIsTheSpellsLessALevelAtLeastOne()

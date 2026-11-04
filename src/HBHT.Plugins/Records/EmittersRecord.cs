@@ -23,8 +23,6 @@ public enum ParticleEmitterFlags
     LocatorNormal = 0x10,
     /// <summary>An actor starts the emitter when it enters a state for <see cref="ParticleEmitter.Request"/>.</summary>
     ActorRequest = 0x20,
-    /// <summary>Set on two emitters; nothing reads it.</summary>
-    Unknown40 = 0x40,
     /// <summary>The emitter itself moves from its locator away from the target, colliding with the map.</summary>
     Moves = 0x200,
     /// <summary><see cref="ParticleEmitter.Acceleration2Change"/> changes the second acceleration each tick.</summary>
@@ -59,7 +57,6 @@ public readonly record struct ParticleLocator(int Index, int Scene);
 /// <param name="Burst">How many it spawns at once after its delay.</param>
 /// <param name="Texture">What its particles are drawn with: the engine's particle texture for its slot.</param>
 /// <param name="Position">Where it starts, before its locator places it.</param>
-/// <param name="Unknown40">Between 0 and 0.8 on 20 emitters, and 0 on the rest.</param>
 public sealed record ParticleEmitter(
     ParticleLocator Locator,
     ParticleLocator Target,
@@ -93,5 +90,4 @@ public sealed record ParticleEmitter(
     float EndScale,
     Rgba MinColor,
     Rgba MaxColor,
-    Rgba FadeColor,
-    float Unknown40);
+    Rgba FadeColor);

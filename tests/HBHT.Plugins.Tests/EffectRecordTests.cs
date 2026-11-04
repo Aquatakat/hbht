@@ -16,8 +16,9 @@ public sealed class EffectRecordTests : IDisposable
     {
         var shadow = RecordId.Parse("aidyn:entity/0x0299");
         var original = new SpellRecord(
-            RecordId.Parse("aidyn:spell/0x0330"), "Test Web", MagicSchool.Star, 2, 10, SpellTargetCount.One, SpellTargetType.Enemy, 6,
-            SpellSpecial.Heavy, 1, Reagent.Herb, 400, 0x41, Position: 57,
+            RecordId.Parse("aidyn:spell/0x0330"), "Test Web", MagicSchool.Star, 10,
+            new SpellTargeting(SpellTargetType.Enemy, SpellTargetCount.One, Placed: true), 6,
+            SpellSpecial.Heavy, 1, RecordId.Parse("aidyn:item/0x1102"), 400, Position: 57,
             Effects:
             [
                 new ImmobiliseEffect(Escape: 2, Immune: [shadow]),
@@ -30,8 +31,9 @@ public sealed class EffectRecordTests : IDisposable
                 new BlastEffect(new Dice(0, 6, 15), Stamina: true),
             ],
             Duration: new EffectDuration(PerLevel: 1800),
-            Aspect: Aspect.Lunar, Placed: true, Resisted: Resisted.Always,
-            NotResistedBy: [shadow], Filter: new TargetFilter(NotCategories: [EntityCategory.Chaos]), AiValue: 43);
+            Aspect: Aspect.Lunar, Resisted: Resisted.Always,
+            NotResistedBy: [shadow], Filter: new TargetFilter(NotCategories: [EntityCategory.Chaos]), Appeal: 43,
+            Presentation: new MagicPresentation(Sound: RecordId.Parse("aidyn:sequence/0x0764")));
 
         var json = JsonSerializer.Serialize(new[] { original }, PluginJson.Options);
         Assert.Contains("\"type\": \"immobilise\"", json, StringComparison.Ordinal);
@@ -55,7 +57,12 @@ public sealed class EffectRecordTests : IDisposable
         Assert.Equal(new Dice(0, 6, 15), ((BlastEffect)read.Effects[7]).Dice);
         Assert.True(((BlastEffect)read.Effects[7]).Stamina);
         Assert.Equal(original.Duration, read.Duration);
-        Assert.Equal((Aspect.Lunar, true, Resisted.Always, 43), (read.Aspect, read.Placed, read.Resisted, read.AiValue));
+        Assert.Equal((Aspect.Lunar, true, Resisted.Always, 43), (read.Aspect, read.Targeting.Placed, read.Resisted, read.Appeal));
+        Assert.Equal(original.Targeting, read.Targeting);
+        Assert.Equal(original.Reagent, read.Reagent);
+        // A presentation with a sound and no actors, as five spells' are.
+        Assert.Equal(original.Presentation, read.Presentation);
+        Assert.DoesNotContain("\"placed\": false", json, StringComparison.Ordinal);
         Assert.Equal(original.NotResistedBy, read.NotResistedBy);
         Assert.Equal([EntityCategory.Chaos], read.Filter!.NotCategories);
     }
@@ -64,20 +71,21 @@ public sealed class EffectRecordTests : IDisposable
     public void ASpellWithoutEffectsKeepsTheDefaults()
     {
         var read = Load("spells.json", """
-            [{ "id": "aidyn:spell/0x0311", "name": "Opening", "school": "Naming", "damage": 0, "stamina": 5, "targetCount": "Self",
-               "targetType": "Field", "wizard": 4, "special": "None", "range": 1, "reagent": "Spice", "trainingCost": 200, "unk1E": 32 }]
+            [{ "id": "aidyn:spell/0x0311", "name": "Opening", "school": "Naming", "stamina": 5, "targeting": { "type": "Field", "count": "Self" },
+               "wizard": 4, "special": "None", "range": 1, "reagent": "aidyn:item/0x1101", "trainingCost": 200 }]
             """).Get<SpellRecord>(RecordId.Parse("aidyn:spell/0x0311"));
         Assert.Null(read.Effects);
         Assert.Null(read.Duration);
-        Assert.Equal((Aspect.None, false, Resisted.Never), (read.Aspect, read.Placed, read.Resisted));
+        Assert.Equal((Aspect.None, false, false, Resisted.Never), (read.Aspect, read.Targeting.Placed, read.Targeting.Blast, read.Resisted));
+        Assert.Null(read.Presentation);
     }
 
     [Fact]
     public void AnEffectTypeNoBuildKnowsLoadsAsThePlainEffectBase()
     {
         var read = Load("spells.json", """
-            [{ "id": "aidyn:spell/0x0311", "name": "Opening", "school": "Naming", "damage": 0, "stamina": 5, "targetCount": "Self",
-               "targetType": "Field", "wizard": 4, "special": "None", "range": 1, "reagent": "Spice", "trainingCost": 200, "unk1E": 32,
+            [{ "id": "aidyn:spell/0x0311", "name": "Opening", "school": "Naming", "stamina": 5, "targeting": { "type": "Field", "count": "Self" },
+               "wizard": 4, "special": "None", "range": 1, "trainingCost": 200,
                "effects": [ { "type": "fromTheFuture", "for": "allies", "power": 9 }, { "type": "charm" } ] }]
             """).Get<SpellRecord>(RecordId.Parse("aidyn:spell/0x0311"));
         Assert.Equal(2, read.Effects!.Count);

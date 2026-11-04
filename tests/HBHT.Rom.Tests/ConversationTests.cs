@@ -214,8 +214,8 @@ public sealed class ConversationTests(Na10Import fixture)
     private Scene Make(RecordId? dialogue, PartyFlags flags = PartyFlags.Walks, bool withUsed = false, float nodeRadius = 1)
     {
         var game = GameState.NewGame(Plugins);
-        var node = new WanderNodeObject(0, new Vector3(10, 0, 10), 0, PakVariant.Any, null, nodeRadius, 0, 0, 1000, WanderFlags.Move, []);
-        var party = new MonsterPartyObject(1, new Vector3(10, 0, 10), 20, PakVariant.Any, null, [], Entity, null, 0, 0, MapRecord.VoxelId(MapId, 0), flags,
+        var node = new WanderNodeObject(0, new Vector3(10, 0, 10), 0, null, nodeRadius, 0, 0, 1000, WanderFlags.Move, []);
+        var party = new MonsterPartyObject(1, new Vector3(10, 0, 10), 20, null, [], Entity, null, 0, 0, MapRecord.VoxelId(MapId, 0), flags,
             dialogue, null) { Used = withUsed ? new FlagWrite(SpareFlag(game)) : null };
         var map = LoadedMap.Activate(new MapRecord(MapId, [node, party]), Worlds.Chunk(), game.Flags, game.Memory, game.Party, new Lcg());
         var world = Worlds.Ground(-50, 80);
@@ -680,10 +680,10 @@ public sealed class ConversationTests(Na10Import fixture)
 
     private static MapObjectUse UseOver(GameState game, TalkHost host) => new(game, MenuText.From(game.Plugins), host);
 
-    private static SavePointObject Spot(int index, Vector3 at, float radius = 10) => new(index, at, radius, PakVariant.Any, null);
+    private static SavePointObject Spot(int index, Vector3 at, float radius = 10) => new(index, at, radius, null);
 
     private static MonsterPartyObject Party(Vector3 at) =>
-        new(1, at, 20, PakVariant.Any, null, [], RecordId.Hex(RecordTypes.Entity, 0x300), null, 0, 0, null, PartyFlags.None, ConversationPlugins.Talk, null);
+        new(1, at, 20, null, [], RecordId.Hex(RecordTypes.Entity, 0x300), null, 0, 0, null, PartyFlags.None, ConversationPlugins.Talk, null);
 
     private (MapObjectUse Use, LoadedMap Map, MonsterPartyObject Party, TalkHost Host) Reaching(Vector3 partyAt, params SavePointObject[] objects)
     {

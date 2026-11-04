@@ -263,7 +263,7 @@ public sealed class SpellFx
             return null;
         cast.Caster = Acquire(caster);
         cast.Target = Acquire(target);
-        var visuals = spell.Visuals;
+        var visuals = spell.Presentation;
         switch (kind)
         {
             case SpellVisualKind.Failed:
@@ -313,8 +313,8 @@ public sealed class SpellFx
             return null;
         cast.Caster = Acquire(on);
         cast.Target = Acquire(on);
-        cast.Second = Add(cast.Target, SpellFxRole.Potion, potion.Visuals?.Target, atHead: false);
-        cast.Lasting = Add(cast.Target, SpellFxRole.PotionAura, potion.Visuals?.Aura, atHead: false);
+        cast.Second = Add(cast.Target, SpellFxRole.Potion, potion.Presentation?.Target, atHead: false);
+        cast.Lasting = Add(cast.Target, SpellFxRole.PotionAura, potion.Presentation?.Aura, atHead: false);
         Attach(cast.Second, cast.Caster);
         QueueAura(cast.Target, cast.Lasting);
         cast.Live = true;

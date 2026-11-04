@@ -26,7 +26,6 @@ internal static class GraphicsImporter
 
         ctx.Report("Actors");
         var actorRecords = new List<ActorRecord>();
-        var alwaysAnimated = ActorTables.ReadAlwaysAnimated(ctx.Rom).ToHashSet();
         foreach (var index in archive.Listings.Where(l => l.Type == BorgType.Actor).Select(l => l.Index).Order())
         {
             var actor = Borg7Actor.Parse(archive.Read(index));
@@ -35,11 +34,8 @@ internal static class GraphicsImporter
                 actor.RootTransform, actor.InitialState,
                 [.. actor.States.Select(s => new ActorState(RecordId.Hex(RecordTypes.Animation, s.Animation),
                     [.. s.Branches.Select(b => new ActorBranch(b.Request, b.Chance, b.Interrupts, b.State))]))],
-                index == AlaronActor ? new ActorHead(RecordId.Hex(RecordTypes.Scene, AlaronHead), 3) : null,
-                alwaysAnimated.Contains(index)));
+                index == AlaronActor ? new ActorHead(RecordId.Hex(RecordTypes.Scene, AlaronHead), 3) : null));
         }
-        if (alwaysAnimated.Count(i => actorRecords.Any(a => a.Id == RecordId.Hex(RecordTypes.Actor, i))) != alwaysAnimated.Count)
-            throw new InvalidDataException("The code's always-animated list names an actor that isn't a Borg7 in the archive.");
         ctx.WriteRecords("actors.json", actorRecords);
 
         ctx.Report("Scenes");
@@ -111,11 +107,11 @@ internal static class GraphicsImporter
         var texture = e.Texture >= 0 && e.Texture < textures.Count && textures[e.Texture] is { } borg1 ? RecordId.Hex(RecordTypes.Texture, borg1) : (RecordId?)null;
         return new ParticleEmitter(
             new ParticleLocator(e.Locator.Index, e.Locator.Scene), new ParticleLocator(e.Target.Index, e.Target.Scene),
-            e.Flags.HasFlag(ParticleEmitterFlags.ActorRequest) ? e.Request : null, e.Flags,
+            e.Flags.HasFlag(ParticleEmitterFlags.ActorRequest) ? e.Request : null, e.Flags & ~Borg5ParticleEmitter.UnreadFlag,
             e.Lifetime, e.ParticleLifetime, e.Delay, e.Interval, e.Burst, texture, e.Texture, e.EmitterSpeed,
             e.Position, e.SpawnJitter, e.TargetPosition, e.TargetJitter, e.VelocityJitter,
             Xyz(e.Acceleration), e.Acceleration.W, Xyz(e.AccelerationChange), e.AccelerationChange.W,
             Xyz(e.Acceleration2), e.Acceleration2.W, Xyz(e.Acceleration2Change), e.Acceleration2Change.W,
-            e.Direction, e.Speed, e.MinScale, e.MaxScale, e.EndScale, Rgba(e.MinColor), Rgba(e.MaxColor), Rgba(e.FadeColor), e.Unknown40);
+            e.Direction, e.Speed, e.MinScale, e.MaxScale, e.EndScale, Rgba(e.MinColor), Rgba(e.MaxColor), Rgba(e.FadeColor));
     }
 }

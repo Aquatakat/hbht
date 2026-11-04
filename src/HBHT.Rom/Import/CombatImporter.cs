@@ -61,6 +61,7 @@ internal static class CombatImporter
                 new(DbRecordIds.Flag(5250), true),
                 new(DbRecordIds.Flag(3749), true),
             ],
+            LootGoldMultiplier: 2,
             Rooted: [At(0xAB)],
             Missiles: Missiles(db, items, Positions(bowList), Positions(thrownList)),
             CloseRange: [Weapon(db, SpikesPosition, "Spikes")],

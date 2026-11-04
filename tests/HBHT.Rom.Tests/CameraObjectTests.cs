@@ -231,7 +231,7 @@ public sealed class CameraObjectTests(Na10Import fixture)
         Assert.All(cameras, c =>
         {
             Assert.Equal(CameraFlags.Sine | CameraFlags.Track | CameraFlags.Position, c.Flags);
-            Assert.Equal(60, c.Duration);
+            Assert.Equal(60, c.Ticks);
         });
         var point = RefPoint(map, cameras[0]);
         Assert.Equal(40, point.Index);
@@ -312,6 +312,6 @@ public sealed class CameraObjectTests(Na10Import fixture)
         var camera = (CameraObject)map.Objects.Single(o => o.Index == 0);
         Assert.Equal(CameraFlags.EaseIn | CameraFlags.Track | CameraFlags.Position, camera.Flags);
         Assert.Equal(0x8 | 0x2000 | 0x8000, (int)camera.Flags);
-        Assert.Equal(30, camera.Duration);
+        Assert.Equal(30, camera.Ticks);
     }
 }

@@ -16,9 +16,9 @@ public class PathLightTests
 
     /// <summary>A light as I08's are: an empty scene to 5, the billboard to 24, radius 24.</summary>
     private static SceneObject Light(int index, Vector3 position, bool goesOut = true) =>
-        new(index, position, 24, PakVariant.Any, new FlagGate(RecordId.Decimal(RecordTypes.Flag, 0), Invert: true),
+        new(index, position, 24, null,
             [new SceneModel(RecordId.Hex(RecordTypes.Scene, 0x1910), 5), new SceneModel(RecordId.Hex(RecordTypes.Scene, 0x374A), 24)],
-            2, Vector3.Zero, Vector3.One, new Rgba(153, 236, 255, 255), SceneObjectFlags.Solid | SceneObjectFlags.Tint)
+            Vector3.Zero, Vector3.One, new Rgba(153, 236, 255, 255), SceneObjectFlags.Solid | SceneObjectFlags.Tint)
         {
             GoesOut = goesOut,
         };

@@ -25,7 +25,7 @@ public static class MapObjectKinds
         [typeof(TeleporterObject)] = "Teleporter",
         [typeof(CameraObject)] = "Camera",
         [typeof(DialogueObject)] = "Dialogue",
-        [typeof(TriggerObject)] = "Trigger",
+        [typeof(TripwireObject)] = "Tripwire",
         [typeof(SavePointObject)] = "Save point",
     };
 

@@ -77,7 +77,7 @@ internal static class TradeData
 
     public static LootRecord Table(int goldMin, int goldMax, int reagentChance, int reagentMin, int reagentMax, params LootDrop[] drops) => new(
         RecordId.Hex(RecordTypes.Loot, 0x0800), "Loot", goldMin, goldMax, 0, 0, [0, 0, 0], reagentChance, reagentMin, reagentMax,
-        [.. drops, .. Enumerable.Repeat(new LootDrop(null, 0), 6 - drops.Length)]);
+        drops);
 
     public static RecipeRecord Recipe(int n, RecordId skill, RecordId product, int level, int step, params Ingredient[] ingredients) =>
         new(RecordId.Decimal(RecordTypes.Recipe, n), skill, product, ingredients, level, step);
@@ -711,7 +711,7 @@ public class ContainerRollTests
     public void ATableDrawsGoldTheReagentKindTheReagentChanceAndCountThenEachDropInOrder()
     {
         var table = TradeData.Table(10, 20, 50, 2, 4,
-            new LootDrop(A.Id, 100, 1, 3), new LootDrop(B.Id, 30, 2, 2), new LootDrop(C.Id, 60), new LootDrop(null, 100),
+            new LootDrop(A.Id, 100, 1, 3), new LootDrop(B.Id, 30, 2, 2), new LootDrop(C.Id, 60),
             new LootDrop(D.Id, 0), new LootDrop(F.Id, 100));
         var random = new ScriptedRandom(
             RandomFor.Range(10, 20, 15),
@@ -722,11 +722,10 @@ public class ContainerRollTests
             // 31 misses a 30 percent chance, so no count follows.
             RandomFor.D(100, 31),
             RandomFor.D(100, 60),
-            RandomFor.D(100, 1),
-            // The fifth drop has no chance and rolls nothing.
+            // The fourth drop has no chance and rolls nothing.
             RandomFor.D(100, 7));
 
-        var roll = Containers.Roll(table, Rules, random);
+        var roll = Containers.Roll(table, Rules, 2, random);
 
         Assert.Equal(30, roll.Gold);
         Assert.Equal([(TradeData.Herb.Id, 3), (A.Id, 2), (C.Id, 1), (F.Id, 1)], roll.Items.Select(i => (i.Item, i.Count)));
@@ -738,7 +737,7 @@ public class ContainerRollTests
     {
         var table = TradeData.Table(0, 0, 100, 1, 1);
 
-        RecordId Reagent(int kind) => Assert.Single(Containers.Roll(table, Rules,
+        RecordId Reagent(int kind) => Assert.Single(Containers.Roll(table, Rules, 2,
             new ScriptedRandom(RandomFor.Range(0, 2, kind), RandomFor.D(100, 1))).Items).Item;
 
         Assert.Equal(TradeData.Spice.Id, Reagent(0));
@@ -751,8 +750,8 @@ public class ContainerRollTests
     {
         var table = TradeData.Table(0, 0, 20, 1, 1);
 
-        var hit = Containers.Roll(table, Rules, new ScriptedRandom(RandomFor.Range(0, 2, 0), RandomFor.D(100, 20)));
-        var miss = Containers.Roll(table, Rules, new ScriptedRandom(RandomFor.Range(0, 2, 0), RandomFor.D(100, 21)));
+        var hit = Containers.Roll(table, Rules, 2, new ScriptedRandom(RandomFor.Range(0, 2, 0), RandomFor.D(100, 20)));
+        var miss = Containers.Roll(table, Rules, 2, new ScriptedRandom(RandomFor.Range(0, 2, 0), RandomFor.D(100, 21)));
 
         Assert.Single(hit.Items);
         Assert.Empty(miss.Items);
@@ -764,7 +763,7 @@ public class ContainerRollTests
         var table = TradeData.Table(0, 0, 0, 1, 3);
         var random = new ScriptedRandom(RandomFor.Range(0, 2, 2));
 
-        var roll = Containers.Roll(table, Rules, random);
+        var roll = Containers.Roll(table, Rules, 2, random);
 
         Assert.Empty(roll.Items);
         Assert.Equal(0, random.Remaining);
@@ -776,39 +775,38 @@ public class ContainerRollTests
         var table = TradeData.Table(5, 5, 0, 0, 0);
         var random = new ScriptedRandom(RandomFor.Range(0, 2, 0));
 
-        var roll = Containers.Roll(table, Rules, random);
+        var roll = Containers.Roll(table, Rules, 2, random);
 
         Assert.Equal(10, roll.Gold);
         Assert.Equal(0, random.Remaining);
     }
 
     [Fact]
-    public void ADropWithNoItemOrACountOfZeroGivesNothingButStillRollsItsChance()
+    public void ADropWithACountOfZeroGivesNothingButStillRollsItsChance()
     {
-        var table = TradeData.Table(5, 5, 0, 0, 0, new LootDrop(null, 100, 1, 3), new LootDrop(A.Id, 100, 0, 0));
+        var table = TradeData.Table(5, 5, 0, 0, 0, new LootDrop(A.Id, 100, 0, 0));
         var random = new ScriptedRandom(
             RandomFor.Range(0, 2, 0),
-            // The empty drop draws its count and throws it away.
-            RandomFor.D(100, 10), RandomFor.Range(1, 3, 2),
-            // The second has equal bounds of 0 and draws no count.
+            // Equal bounds of 0 draw no count.
             RandomFor.D(100, 10));
 
-        var roll = Containers.Roll(table, Rules, random);
+        var roll = Containers.Roll(table, Rules, 2, random);
 
         Assert.Empty(roll.Items);
         Assert.Equal(0, random.Remaining);
     }
 
     [Fact]
-    public void OnlyTheFirstTwoDropsGiveACountAndTheRestGiveOne()
+    public void EveryDropGivesItsCountAndOneWithoutDrawsNothing()
     {
         var table = TradeData.Table(5, 5, 0, 0, 0,
-            new LootDrop(A.Id, 100, 1, 1), new LootDrop(B.Id, 100, 1, 1), new LootDrop(C.Id, 100, 3, 9));
-        var random = new ScriptedRandom(RandomFor.Range(0, 2, 0), RandomFor.D(100, 1), RandomFor.D(100, 1), RandomFor.D(100, 1));
+            new LootDrop(A.Id, 100), new LootDrop(B.Id, 100, 1, 1), new LootDrop(C.Id, 100, 3, 9));
+        var random = new ScriptedRandom(RandomFor.Range(0, 2, 0), RandomFor.D(100, 1), RandomFor.D(100, 1), RandomFor.D(100, 1),
+            RandomFor.Range(3, 9, 5));
 
-        var roll = Containers.Roll(table, Rules, random);
+        var roll = Containers.Roll(table, Rules, 2, random);
 
-        Assert.Equal([(A.Id, 1), (B.Id, 1), (C.Id, 1)], roll.Items.Select(i => (i.Item, i.Count)));
+        Assert.Equal([(A.Id, 1), (B.Id, 1), (C.Id, 5)], roll.Items.Select(i => (i.Item, i.Count)));
         Assert.Equal(0, random.Remaining);
     }
 }
@@ -1098,7 +1096,7 @@ public class ContainerTests
 
     private static ContainerObject Chest(ContainerKind kind = ContainerKind.Chest, int lockLevel = 0, int trapLevel = 0, RecordId? loot = null,
         int gold = 0, RecordId? item = null, FlagWrite? used = null, bool withFlags = true) => new(
-        0, Vector3.Zero, 1f, PakVariant.Any, null, kind, withFlags ? Opened : null, withFlags ? Exploded : null, lockLevel, trapLevel, loot, gold, item)
+        0, Vector3.Zero, 1f, null, kind, withFlags ? Opened : null, withFlags ? Exploded : null, lockLevel, trapLevel, loot, gold, item)
     {
         Used = used,
     };

@@ -49,7 +49,7 @@ public sealed class TradeImportTests(Na10Import fixture)
         {
             for (var i = 0; i < 20; i++)
             {
-                var roll = Containers.Roll(loot, items.Rules, random);
+                var roll = Containers.Roll(loot, items.Rules, items.LootGoldMultiplier, random);
                 Assert.InRange(roll.Gold, loot.GoldMin * 2, loot.GoldMax * 2);
                 Assert.All(roll.Items, x => Assert.NotNull(items.TryGet(x.Item)));
             }

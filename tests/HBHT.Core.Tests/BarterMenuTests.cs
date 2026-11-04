@@ -1018,7 +1018,7 @@ public class ContainerContentsTests
     private static readonly RecordId Table = RecordId.Hex(RecordTypes.Loot, 0x0800);
 
     private static ContainerObject Chest(ContainerKind kind = ContainerKind.Chest, RecordId? loot = null, int gold = 0, RecordId? item = null) => new(
-        0, Vector3.Zero, 1f, PakVariant.Any, null, kind, Opened, ItemData.Flag(6), 0, 0, loot, gold, item)
+        0, Vector3.Zero, 1f, null, kind, Opened, ItemData.Flag(6), 0, 0, loot, gold, item)
     {
         Used = new FlagWrite(Used),
     };

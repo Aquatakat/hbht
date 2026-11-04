@@ -38,7 +38,7 @@ public sealed class MapSounds(GameAudio audio, IRandom random, Func<MapObject, b
     {
         foreach (var o in map.Objects.OfType<SoundObject>())
         {
-            if (o.Pak == PakVariant.Without || SkipsMusic && (o.Flags & SoundFlags.Music) != 0 || _bubbles.Count(b => !b.Orphaned) >= MaxSounds)
+            if (SkipsMusic && (o.Flags & SoundFlags.Music) != 0 || _bubbles.Count(b => !b.Orphaned) >= MaxSounds)
                 continue;
             var bubble = new Bubble(map, o, map.Origin + o.Position, () => there(o));
             // Audio.FindPersistentMusic: the same music playing on from a chunk that's gone is this one's.

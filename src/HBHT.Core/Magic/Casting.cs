@@ -88,7 +88,7 @@ public static class Casting
     /// How many targets a spell takes (<c>Combatant.SpellTargetCount</c>, <c>0x80060818</c>): every one it may, one, or half
     /// the level rounded up.
     /// </summary>
-    public static int TargetCount(SpellRecord spell, int level, int all) => spell.TargetCount switch
+    public static int TargetCount(SpellRecord spell, int level, int all) => spell.Targeting.Count switch
     {
         SpellTargetCount.All => all,
         SpellTargetCount.ByLevel => (level + 1) >> 1,
@@ -99,7 +99,7 @@ public static class Casting
     /// A spell's reach in cells (<c>Combatant.CanCast</c>, <c>0x80060C38</c>): its level times its range, from the caster, or for a
     /// placed area from the point placed, which is within the level. A target's body's radius adds to it.
     /// </summary>
-    public static float Reach(SpellRecord spell, int level) => spell.Placed ? level : level * spell.Range;
+    public static float Reach(SpellRecord spell, int level) => spell.Targeting.Placed ? level : level * spell.Range;
 
     /// <summary>
     /// What a spell needs of its target (<c>Casting.Requirement</c>, <c>0x800712C0</c>): a True Name, to be no bigger than the
@@ -132,9 +132,9 @@ public static class Casting
         if (target.Flags.HasFlag(CombatantFlags.Gone) || target.Sheet.IsDead)
             return false;
         var sameSide = target.Hostile == caster.Hostile;
-        if (spell.TargetType == SpellTargetType.Party && !sameSide || spell.TargetType == SpellTargetType.Enemy && sameSide)
+        if (spell.Targeting.Type == SpellTargetType.Party && !sameSide || spell.Targeting.Type == SpellTargetType.Enemy && sameSide)
             return false;
-        if (spell.TargetCount == SpellTargetCount.Self && target != caster)
+        if (spell.Targeting.Count == SpellTargetCount.Self && target != caster)
             return false;
         if (target.Sheet.HasEffect(spell.Id))
             return false;
@@ -158,7 +158,7 @@ public static class Casting
             ? rules.ByMoon[Math.Clamp(moonPhase, 0, rules.ByMoon.Count - 1)]
             : rules.ByPartOfDay[(int)partOfDay];
         var sum = (ushort)(caster.Stats.Modified(Stat.Intelligence) * rules.Intelligence + (byte)level * rules.Level
-            + caster.Stats.Base(Stat.Level) * rules.CharacterLevel);
+            + caster.Stats.Base(Stat.Level) * rules.CasterLevel);
         var chance = TroubadourScale((short)(int)(sum * factor), troubadour, hostile);
         return (ushort)chance < rules.Minimum ? rules.Minimum : (ushort)chance;
     }

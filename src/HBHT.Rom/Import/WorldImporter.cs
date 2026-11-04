@@ -233,16 +233,16 @@ internal static class WorldImporter
 
     /// <summary>
     /// The title screen's fly-throughs, from the code's table (<see cref="TitleTables"/>): each its Borg6 and that animation's
-    /// scene, the Overworld chunk the scenery is loaded round, and the two u16s nothing reads. The one at place
-    /// <see cref="TitleTables.PakSequence"/> is passed over without the Expansion Pak (a fact, checked against 1.0's code).
+    /// scene, the Overworld chunk the scenery is loaded round, and the two u16s nothing reads. 1.0 passes over the one at
+    /// place <see cref="TitleTables.PakSequence"/> without the Expansion Pak, which the port always plays as with.
     /// </summary>
     internal static TitleRecord BuildTitle(RomImage rom, BorgArchive archive) => new(
         RecordId.Decimal(RecordTypes.Title, 0),
-        [.. TitleTables.ReadFlycams(rom).Select((f, i) =>
+        [.. TitleTables.ReadFlycams(rom).Select(f =>
         {
             var animation = Graphics.Borg6Animation.Parse(archive.Read(f.Animation));
             return new TitleFlycam(RecordId.Hex(RecordTypes.Scene, animation.Scene), RecordId.Hex(RecordTypes.Animation, f.Animation),
-                animation.Length, f.Row, f.Column, f.OriginRow, f.OriginColumn, NeedsExpansionPak: i == TitleTables.PakSequence);
+                animation.Length, f.Row, f.Column, f.OriginRow, f.OriginColumn);
         })]);
 
     /// <summary>

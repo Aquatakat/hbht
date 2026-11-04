@@ -104,7 +104,7 @@ public static class SceneObjectFade
     /// <summary>Each level of detail's alpha, 0 where it isn't drawn.</summary>
     /// <param name="o">The object.</param>
     /// <param name="origin">Its chunk's corner.</param>
-    /// <param name="alphas">One for each of the object's <see cref="SceneObject.Lods"/>.</param>
+    /// <param name="alphas">One for each of the object's levels of detail, its <see cref="SceneObject.Models"/>.</param>
     public static void Alphas(SceneObject o, Vector3 origin, in SceneView view, Span<byte> alphas, ObjectDistance? range = null)
     {
         range ??= ObjectDistance.Original;
@@ -118,7 +118,7 @@ public static class SceneObjectFade
         if (shown == 0)
             return;
 
-        var levels = Math.Min(Math.Min(o.Lods, o.Models.Count), alphas.Length);
+        var levels = Math.Min(o.Models.Count, alphas.Length);
         if (range.NearestDetail)
         {
             // The original's choice, with every level that draws something drawn as the nearest that does: where the

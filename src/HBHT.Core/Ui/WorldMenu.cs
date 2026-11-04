@@ -166,7 +166,7 @@ public sealed class WorldMenu
         // order, which is why it's taken first.
         var added = flags.JournalOrder.Where(entries.ContainsKey).ToList();
         var waiting = flags.JournalEntries.Where(id => entries.ContainsKey(id) && !added.Contains(id));
-        var shown = added.Concat(waiting).Select(id => entries[id]).Where(e => flags.IsSet(e.Flag));
+        var shown = added.Concat(waiting).Select(id => entries[id]).Where(e => flags.Lists(e.Id));
         return new JournalMenu(_font, [.. shown.Select(e => (e.Text, e.Id == newest))], _text[NoEntries]);
     }
 

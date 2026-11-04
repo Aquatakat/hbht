@@ -26,62 +26,66 @@ namespace HBHT.Plugins.Records;
 /// Encounter flags that have the last word on fleeing (<c>Combat.ApplyFleeRuleByFlag</c>, <c>0x800D26A0</c>): the Goblin
 /// Ambush's forbids it, Lugash's and the Marquis's allow it.
 /// </param>
+/// <param name="LootGoldMultiplier">
+/// What the gold a loot table rolls is multiplied by (<see cref="LootRecord.GoldMin"/>): 2, as a container doubles its roll
+/// (<c>get_chest_loot</c>, a shift left by one) and a battle the sum of its chests' (<c>Combat.AddChestLoot</c>, <c>0x8005E0F0</c>).
+/// </param>
 /// <param name="Rooted">
 /// Entities whose field of influence is 0, who never move in battle (<c>Combatant.UpdateRadius</c>, by the entity list's
-/// place in <c>0x800E28EB</c>): Pochanargat. Null in a plugin from before it.
+/// place in <c>0x800E28EB</c>): Pochanargat.
 /// </param>
 /// <param name="Missiles">
 /// The weapons that fly to their target in battle (<c>Combatant.UpdateDrawnFlag</c>, <c>0x80066A2C</c>, through the bow list
 /// <c>Combat.BowKindWeapons</c> <c>0x800E0C08</c> and the thrown list <c>Combat.ThrownKindWeapons</c> <c>0x800E0C14</c>): aimed
-/// freely rather than at a target in reach, and drawn in flight. Null in a plugin from before it.
+/// freely rather than at a target in reach, and drawn in flight.
 /// </param>
 /// <param name="CloseRange">
 /// Ranged weapons that may strike in melee too (<c>Weapon.AllowsMelee</c>, <c>0x8007B730</c>, by the weapon's place): Spikes.
-/// Null in a plugin from before it.
+///
 /// </param>
 /// <param name="Bosses">
 /// The flags a win sets for a boss among the enemy list's first four (<c>Combat.SetKillFlags</c>, <c>0x80067860</c>, by the
-/// jump table <c>0x800D2B60</c>), however the battle started and whether the boss fell or not. Null in a plugin from before it.
+/// jump table <c>0x800D2B60</c>), however the battle started and whether the boss fell or not.
 /// </param>
 /// <param name="BossStyles">
 /// Those whose AI takes the bosses' styles when they have spells (<c>EnemyAI.HasBossStyle</c>, <c>0x8005BA40</c>), 9 and 10 rather
-/// than 6 and 8. Null in a plugin from before it.
+/// than 6 and 8.
 /// </param>
 /// <param name="DroppedClasses">
 /// The weapon classes an enemy's weapons can drop as loot (<c>Combat.DropWeaponClasses</c>, <c>0x800D26C8</c>): its natural
-/// weapons never do. Null in a plugin from before it.
+/// weapons never do.
 /// </param>
 /// <param name="Encounters">
 /// The battles with rules of their own, by their encounter flag (the Goblin Ambush's 978): a loss that isn't the game's end,
-/// no victory line, and what happens after it however it ends. Null in a plugin from before it.
+/// no victory line, and what happens after it however it ends.
 /// </param>
 /// <param name="GameOver">
 /// What a lost battle plays (<c>Combat.StartGameOverScript</c>, <c>0x8001F860</c>): the script, from the first dialogue
-/// object that starts it in the map. Null in a plugin from before it.
+/// object that starts it in the map. With none, a lost battle ends the game at once.
 /// </param>
 /// <param name="Text">
-/// The combat menus' and Sense Aura's words, which the code keeps rather than a string table. Null in a plugin from before it.
+/// The combat menus' and Sense Aura's words, which the code keeps rather than a string table.
 /// </param>
 /// <param name="FlaskDanger">
 /// The flasks the party may hold, and the radius each makes the AI spread out by, the first held counting
-/// (<c>Combat.PartyPotionTier</c>, <c>0x8005C750</c>). Null in a plugin from before it.
+/// (<c>Combat.PartyPotionTier</c>, <c>0x8005C750</c>).
 /// </param>
-/// <param name="Shadow">The Shadow's rules in any battle it's in (<c>gamecombat.cpp</c>'s Shadow functions). Null in a plugin from before it.</param>
+/// <param name="Shadow">The Shadow's rules in any battle it's in (<c>gamecombat.cpp</c>'s Shadow functions). With none, no battle has them.</param>
 /// <param name="UndrawnWeapons">
 /// Entities whose weapon, arrow or flask isn't drawn in the hand, their models having their weapons already
 /// (<c>Combatant.HasNoWeaponAttachment</c>, <c>0x80066C5C</c>, the entity list's places at <c>0x800D2A0C</c>): Shamsuk, the Gorgon,
 /// the Chaos Lieutenant, the Harpy, the Marquis, the Minotaur, the Minotaur Lord and Niesen. A shield or a bow is drawn all the same.
-/// Null in a plugin from before it.
+///
 /// </param>
 /// <param name="OtherHand">
 /// Entities who hold a bow at their actor's locator 0 and its arrow at 1, the other way round from the rest (<c>EntityBody.Hand</c>,
-/// <c>0x8006C8BC</c>, a switch on the entity list's place): the bandit bosses and woodsmen, Becan and Keelin. Null in a plugin from before it.
+/// <c>0x8006C8BC</c>, a switch on the entity list's place): the bandit bosses and woodsmen, Becan and Keelin.
 /// </param>
 /// <param name="Untargetable">
 /// Entities no one can attack or cast at, and who cast nothing themselves: the Shadow. <c>Combatant.CanAttack</c> (<c>0x80060590</c>)
 /// refuses a target whose entity is the entity list's place <c>0xAC</c> (the byte at <c>0x800E28EC</c>), and <c>Combatant.CanCast</c>
 /// (<c>0x80060C38</c>) a caster or target in <c>Combat.ShadowSlot</c> (<c>0x800D94CC</c>), which <c>Combat.CreateBody</c> sets for that
-/// place; the original keeps no list. Null in a plugin from before it, which has the Shadow in <paramref name="Flee"/> alone.
+/// place; the original keeps no list.
 /// </param>
 public sealed record CombatRecord(
     RecordId Id,
@@ -91,23 +95,24 @@ public sealed record CombatRecord(
     IReadOnlyList<RecordId> NoFlee,
     IReadOnlyList<RecordId> Flee,
     [property: KeyedList(nameof(EncounterFlee.Flag))] IReadOnlyList<EncounterFlee> FleeByEncounter,
-    IReadOnlyList<RecordId>? Rooted = null,
-    [property: KeyedList(nameof(Missile.Weapon))] IReadOnlyList<Missile>? Missiles = null,
-    IReadOnlyList<RecordId>? CloseRange = null,
-    [property: KeyedList(nameof(BossFlag.Entity))] IReadOnlyList<BossFlag>? Bosses = null,
-    IReadOnlyList<RecordId>? BossStyles = null,
-    IReadOnlyList<WeaponClass>? DroppedClasses = null,
-    [property: KeyedList(nameof(EncounterRule.Flag))] IReadOnlyList<EncounterRule>? Encounters = null,
+    int LootGoldMultiplier,
+    IReadOnlyList<RecordId> Rooted,
+    [property: KeyedList(nameof(Missile.Weapon))] IReadOnlyList<Missile> Missiles,
+    IReadOnlyList<RecordId> CloseRange,
+    [property: KeyedList(nameof(BossFlag.Entity))] IReadOnlyList<BossFlag> Bosses,
+    IReadOnlyList<RecordId> BossStyles,
+    IReadOnlyList<WeaponClass> DroppedClasses,
+    [property: KeyedList(nameof(EncounterRule.Flag))] IReadOnlyList<EncounterRule> Encounters,
+    CombatText Text,
+    [property: KeyedList(nameof(Records.FlaskDanger.Item))] IReadOnlyList<FlaskDanger> FlaskDanger,
+    IReadOnlyList<RecordId> UndrawnWeapons,
+    IReadOnlyList<RecordId> OtherHand,
+    IReadOnlyList<RecordId> Untargetable,
     GameOverScene? GameOver = null,
-    CombatText? Text = null,
-    [property: KeyedList(nameof(Records.FlaskDanger.Item))] IReadOnlyList<FlaskDanger>? FlaskDanger = null,
-    ShadowRule? Shadow = null,
-    IReadOnlyList<RecordId>? UndrawnWeapons = null,
-    IReadOnlyList<RecordId>? OtherHand = null,
-    IReadOnlyList<RecordId>? Untargetable = null)
+    ShadowRule? Shadow = null)
 {
     /// <summary>The rules of the battle under encounter flag <paramref name="flag"/>, if it has any.</summary>
-    public EncounterRule? Encounter(RecordId? flag) => flag is { } f ? Encounters?.FirstOrDefault(e => e.Flag == f) : null;
+    public EncounterRule? Encounter(RecordId? flag) => flag is { } f ? Encounters.FirstOrDefault(e => e.Flag == f) : null;
 }
 
 /// <summary>

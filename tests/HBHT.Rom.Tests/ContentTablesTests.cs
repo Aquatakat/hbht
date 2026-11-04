@@ -174,18 +174,7 @@ public class ContentTablesTests
     public sealed class Imported(Na10Import fixture)
     {
         [Fact]
-        public void TheActorsCombatAlwaysAnimatesAreMarked()
-        {
-            var actors = fixture.Data.Set.All<ActorRecord>(RecordTypes.Actor);
-
-            Assert.Equal(["aidyn:actor/0x28DC", "aidyn:actor/0x28E9", "aidyn:actor/0x2BE3", "aidyn:actor/0x2D4A", "aidyn:actor/0x3094",
-                "aidyn:actor/0x30C5", "aidyn:actor/0x31FE", "aidyn:actor/0x3347", "aidyn:actor/0x3463"],
-                actors.Where(a => a.AlwaysAnimated).Select(a => a.Id.ToString()).Order(StringComparer.Ordinal));
-            Assert.False(fixture.Data.Set.Get<ActorRecord>(RecordId.Hex(RecordTypes.Actor, 0x25F9)).AlwaysAnimated);
-        }
-
-        [Fact]
-        public void TheTitleHasSixFlycamsAndTheFifthNeedsThePak()
+        public void TheTitleHasSixFlycams()
         {
             var title = fixture.Data.Set.Singleton<TitleRecord>();
 
@@ -194,7 +183,6 @@ public class ContentTablesTests
             Assert.Equal(RecordId.Hex(RecordTypes.Animation, 0x21DC), first.Animation);
             Assert.Equal((11, 9), (first.Row, first.Column));
             Assert.Equal((11, 6), (first.OriginRow, first.OriginColumn));
-            Assert.Equal([4], Enumerable.Range(0, 6).Where(i => title.Flycams[i].NeedsExpansionPak));
             Assert.All(title.Flycams, f => Assert.Equal(RecordTypes.Scene, f.Scene.Type));
             // The Borg6s' lengths, which each fly-through fades out by.
             Assert.Equal([1561, 2631, 2181, 1601, 1853, 2401], title.Flycams.Select(f => f.Length));

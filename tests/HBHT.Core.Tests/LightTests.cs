@@ -18,7 +18,7 @@ public class LightTests
     [Fact]
     public void AMapLightSitsAtItsChunksOriginPlusItsPosition()
     {
-        var o = new LightObject(0, new Vector3(1, 2, 3), 5, PakVariant.Any, null, Red, Blue, LightKind.Static, 0, true, true);
+        var o = new LightObject(0, new Vector3(1, 2, 3), 5, null, Red, Blue, LightKind.Static, 0, true, true);
         var light = PointLight.For(o, new Vector3(100, 0, 200));
         Assert.Equal(new Vector3(101, 2, 203), light.Position);
         Assert.True(light.Occludable);
@@ -153,8 +153,8 @@ public class LightTests
     [Fact]
     public void ABodyOfThePartyGetsTheLightsItsGridCellListsAndOthersOnlyDynamicOnes()
     {
-        var near = new LightObject(1, new Vector3(2, 1, 2), 5, PakVariant.Any, null, White, White, LightKind.Static, 0, false);
-        var unlisted = new LightObject(2, new Vector3(3, 1, 2), 5, PakVariant.Any, null, White, White, LightKind.Static, 0, false);
+        var near = new LightObject(1, new Vector3(2, 1, 2), 5, null, White, White, LightKind.Static, 0, false);
+        var unlisted = new LightObject(2, new Vector3(3, 1, 2), 5, null, White, White, LightKind.Static, 0, false);
         var grid = new ObjectGrid(Vector2.Zero, new Vector2(10, 10), 1, 1, [[1]]);
         var record = new MapRecord(RecordId.Hex(RecordTypes.Map, 1), [near, unlisted], grid);
         var map = LoadedMap.Activate(record, Worlds.Chunk(0), ItemData.Flags(), new MapObjectMemory(), ItemData.NewParty(), new Lcg(), new Vector3(100, 0, 0));

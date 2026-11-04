@@ -14,11 +14,11 @@ public class ContainerLookTests
     private static Func<RecordId, bool> Set(params int[] flags) => id => flags.Any(f => Flag(f) == id);
 
     private static SceneObject Scene(int index) =>
-        new(index, Vector3.Zero, 1, PakVariant.Any, new FlagGate(Flag(0)), [], 0, Vector3.Zero, Vector3.One, default, SceneObjectFlags.None);
+        new(index, Vector3.Zero, 1, new FlagGate(Flag(0)), [], Vector3.Zero, Vector3.One, default, SceneObjectFlags.None);
 
     // A container whose opened flag is 13 and exploded flag 14, linked to the scene object after it.
     private static ContainerObject Container(int index, ContainerKind kind = ContainerKind.Chest) =>
-        new(index, Vector3.Zero, 5, PakVariant.Any, null, kind, Flag(13), Flag(14), 0, 0, null, 0, null) { Link = MapRecord.VoxelId(Map, index + 1) };
+        new(index, Vector3.Zero, 5, null, kind, Flag(13), Flag(14), 0, 0, null, 0, null) { Link = MapRecord.VoxelId(Map, index + 1) };
 
     [Fact]
     public void AnOpenedFlagShowsTheOpenedModelAndAnExplodedOneTheDestroyed()

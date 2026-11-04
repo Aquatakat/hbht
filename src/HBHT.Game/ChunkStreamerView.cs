@@ -413,7 +413,7 @@ public partial class ChunkStreamerView : Node3D
     /// <summary>Builds a chunk's scenery off the main thread, by its objects as they stand now.</summary>
     private void Queue(ChunkEntry chunk, LoadedMap map, bool ring)
     {
-        var shown = map.Record.Objects.OfType<SceneObject>().ToDictionary(o => o.Index, o => (Active: map.IsActive(o.Index), Look: (int)map.Look(o.Index)));
+        var shown = map.Record.Objects.OfType<SceneObject>().ToDictionary(o => o.Index, o => (Active: map.IsActive(o.Index), Look: map.Look(o.Index)));
         var building = _building[map] = new Building(chunk, map, ring);
         var plugins = _plugins!;
         var models = _models!;
@@ -422,7 +422,7 @@ public partial class ChunkStreamerView : Node3D
         {
             try
             {
-                building.Scenery = ChunkScenery.Load(plugins, models, set, chunk, o => shown[o.Index].Active, o => shown[o.Index].Look,
+                building.Scenery = ChunkScenery.Load(plugins, models, set, chunk, o => shown[o.Index].Active, o => LoadedMap.Nearest(o, shown[o.Index].Look),
                     particles: !ring);
             }
             finally
@@ -452,7 +452,7 @@ public partial class ChunkStreamerView : Node3D
     // plays with the Expansion Pak. The ring's actors start no emitters: they share the particles' pool with
     // what's near, and are drawn only within their levels of detail, nearer than the ring.
     private ChunkScenery Scenery(ChunkEntry chunk, LoadedMap map, bool ring) =>
-        ChunkScenery.Load(_plugins!, _models!, Chunks.MapSet, chunk, o => map.IsActive(o.Index), o => (int)map.Look(o.Index), particles: !ring);
+        ChunkScenery.Load(_plugins!, _models!, Chunks.MapSet, chunk, o => map.IsActive(o.Index), map.Nearest, particles: !ring);
 
     /// <summary>A chunk's scenery building off the main thread, and once built, what it came to (null if it failed).</summary>
     private sealed class Building(ChunkEntry chunk, LoadedMap map, bool ring)

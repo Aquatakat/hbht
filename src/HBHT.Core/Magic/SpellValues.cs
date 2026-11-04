@@ -17,7 +17,7 @@ public static class SpellValues
         IEnumerable<Combatant> inPlay, PartOfDay partOfDay)
     {
         var effects = spell.Effects ?? [];
-        var value = spell.AiValue ?? (effects.Count > 0 ? Default(rules, effects[0].GetType()) : 0);
+        var value = spell.Appeal ?? (effects.Count > 0 ? Default(rules, effects[0].GetType()) : 0);
         foreach (var effect in effects)
         {
             var worth = effect switch
@@ -38,8 +38,8 @@ public static class SpellValues
 
     /// <summary>The highest value the loaded spells give a type, by their first effect, for a spell with none of its own.</summary>
     public static int Default(MagicRules rules, Type effect) =>
-        rules.Spells.Where(s => s.AiValue is not null && s.Effects is [var first, ..] && first.GetType() == effect)
-            .Select(s => s.AiValue!.Value).DefaultIfEmpty(0).Max();
+        rules.Spells.Where(s => s.Appeal is not null && s.Effects is [var first, ..] && first.GetType() == effect)
+            .Select(s => s.Appeal!.Value).DefaultIfEmpty(0).Max();
 
     // Darkness by day and Light at night: +1 for each combatant the light now hinders on the caster's side, or helps on the
     // other's, and −1 for the rest (FUN_800615B4: a Lunar one is hindered by day, a Solar one at night).

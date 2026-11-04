@@ -32,13 +32,21 @@ public class CheckpointTests
     {
         var checkpoint = TestRoms.Checkpoint(name);
         var network = Network();
-        Assert.Equal(checkpoint.Flags.Count, network.Count);
+        // The network holds every flag but the journal triggers, 5556 on, which it keeps as its entries' flags.
+        Assert.Equal(checkpoint.Flags.Count, network.Count + 71);
 
         network.Restore(h => checkpoint.Flags[h]);
 
         var wrong = Enumerable.Range(0, network.Count)
             .Where(h => network.IsDerived(h) && network.Peek(h) != checkpoint.Flags[h])
             .Select(h => $"{h} (port {network.Peek(h)}, console {checkpoint.Flags[h]})").ToList();
+        // Journal trigger 5556 + i is entry i's flag counted above 0.
+        foreach (var listing in Records.Value.Where(f => f.Journal is not null))
+        {
+            var trigger = EngineFlags.JournalTriggers + int.Parse(listing.Journal!.Value.Key, System.Globalization.CultureInfo.InvariantCulture);
+            if (network.Get(listing.Id) != checkpoint.Flags[trigger])
+                wrong.Add($"{trigger} (entry flag {listing.Id}: port {network.Get(listing.Id)}, console {checkpoint.Flags[trigger]})");
+        }
         Assert.True(wrong.Count == 0,
             $"{wrong.Count} of {Enumerable.Range(0, network.Count).Count(network.IsDerived)} derived flags differ in {name}: {string.Join(", ", wrong)}");
     }

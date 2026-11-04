@@ -646,7 +646,7 @@ public sealed partial class Battle
 
     /// <summary>Whether a weapon may strike in melee (<c>Weapon.AllowsMelee</c>, <c>0x8007B730</c>): no range, a Breath or a Spit, or Spikes.</summary>
     private bool AllowsMelee(WeaponRecord w) =>
-        w.Range == 0 || w.Class is WeaponClass.Breath or WeaponClass.Spit || _rules.CloseRange?.Contains(w.Id) == true;
+        w.Range == 0 || w.Class is WeaponClass.Breath or WeaponClass.Spit || _rules.CloseRange.Contains(w.Id);
 
     /// <summary>
     /// Trades the held weapon for the spare (<c>EnemyAI.SwapWeapon</c>, <c>0x8005A560</c>): "changes weapons", and the turn's spent
@@ -662,7 +662,7 @@ public sealed partial class Battle
         if (equipment.EquipWeapon(spare) != Items.EquipRefusal.None)
             equipment.Restore(spare);
         ai.Spare = held;
-        c.Drawn = _rules.Missiles?.Any(m => m.Weapon == spare.Id) == true;
+        c.Drawn = _rules.Missiles.Any(m => m.Weapon == spare.Id);
         Write(Line(ChangesWeaponsLine, c));
         EnterRest();
         if (spare.Item.Weapon is { } w && AllowsMelee(w) && w.Range != 0)

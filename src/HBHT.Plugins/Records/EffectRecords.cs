@@ -283,9 +283,10 @@ public sealed record MagicRecord(
     RecordId? Resisted = null);
 
 /// <summary>
-/// What a spell or potion shows in a battle (<c>combatspellvisuals.cpp</c>, the role tables of <c>CombatSpellFx.AddVisual</c>):
-/// actors that play their cast (request 5) once at the caster's and the target's feet, and a scene that shows over the
-/// target's head in turn with the battle's others while the effect lasts. Any may be missing. See docs/systems/combat.md.
+/// What a spell or potion shows and plays in a battle (<c>combatspellvisuals.cpp</c>, the role tables of <c>CombatSpellFx.AddVisual</c>):
+/// actors that play their cast (request 5) once at the caster's and the target's feet, a scene that shows over the
+/// target's head in turn with the battle's others while the effect lasts, and a spell's sound. Any may be missing. A potion's is its
+/// own, not a spell's. See docs/systems/combat.md.
 /// </summary>
 /// <param name="Caster">A spell's actor at its caster (role 0, <c>CombatSpellFx.CasterActor</c>, <c>0x8008CB40</c>).</param>
 /// <param name="Target">
@@ -300,25 +301,23 @@ public sealed record MagicRecord(
 /// The scene shown at the target's locator 3 while the effect lasts (roles 5 and 6, <c>CombatSpellFx.AuraScene</c>,
 /// <c>0x8008CE78</c>, and <c>PotionAura</c>, <c>0x8008D0FC</c>).
 /// </param>
-/// <param name="CasterMemory">
-/// The memory the caster's actor asks for, in bytes: the original skips an actor when the heap's largest free block is
-/// smaller. The port loads every actor.
+/// <param name="Sound">
+/// A spell's: what the caster plays as its cast animation (request 5) starts, a refused cast's too (<c>Player.SetCastSound</c>,
+/// <c>AudioKeys.PlaySpellCast</c>). Five spells have a sound and no actors. A potion has none in 1.0, and the port plays none for one.
 /// </param>
-/// <param name="TargetMemory">The memory the target's actor asks for.</param>
-public sealed record MagicVisuals(
+public sealed record MagicPresentation(
     RecordId? Caster = null,
     RecordId? Target = null,
-    bool TargetAtHead = false,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] bool TargetAtHead = false,
     RecordId? Aura = null,
-    int CasterMemory = 0,
-    int TargetMemory = 0);
+    RecordId? Sound = null);
 
 /// <summary>
-/// The chance to cast: (Intelligence × <c>Intelligence</c> + the cast's level × <c>Level</c> + the character's level ×
-/// <c>CharacterLevel</c>) × a factor, truncated, at least <c>Minimum</c>. A Lunar caster's factor is by the moon's phase,
+/// The chance to cast: (Intelligence × <c>Intelligence</c> + the cast's level × <c>Level</c> + the caster's level ×
+/// <c>CasterLevel</c>) × a factor, truncated, at least <c>Minimum</c>. A Lunar caster's factor is by the moon's phase,
 /// anyone else's by the part of the day.
 /// </summary>
-public sealed record CastChance(int Intelligence, int Level, int CharacterLevel, int Minimum,
+public sealed record CastChance(int Intelligence, int Level, int CasterLevel, int Minimum,
     IReadOnlyList<float> ByPartOfDay, IReadOnlyList<float> ByMoon);
 
 /// <summary>

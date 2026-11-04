@@ -62,7 +62,7 @@ public sealed partial class GameSessionTests
         // radius 5) that sets 216, "We are granted admittance to the Wizard's School."
         var school = Data.Set.Get<MapRecord>(RecordId.Hex(RecordTypes.Map, 0x1890));
         var arrival = school.Objects[68].Position;
-        var trigger = (TriggerObject)school.Objects[5];
+        var trigger = (TripwireObject)school.Objects[5];
         var (session, _) = StartIn(11, "A01", arrival.X, arrival.Z);
         var flags = session.Game.Flags;
         var admitted = RecordId.Decimal(RecordTypes.Flag, 216);

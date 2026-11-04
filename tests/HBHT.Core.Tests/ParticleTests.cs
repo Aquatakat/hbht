@@ -31,7 +31,7 @@ public class ParticleTests
         ParticleEmitterFlags flags = ParticleEmitterFlags.ActorRequest) => new(
         new ParticleLocator(0, 0), new ParticleLocator(1, 0), 5, flags, lifetime, particleLifetime, delay, interval, burst,
         RecordId.Hex(RecordTypes.Texture, 11), 13, 0, Vector3.Zero, 0, Vector3.Zero, 0, 0,
-        Vector3.Zero, 0, Vector3.Zero, 0, Vector3.Zero, 0, Vector3.Zero, 0, Vector3.Zero, 0, 1, 1, 1, White, White, White, 0);
+        Vector3.Zero, 0, Vector3.Zero, 0, Vector3.Zero, 0, Vector3.Zero, 0, Vector3.Zero, 0, 1, 1, 1, White, White, White);
 
     [Fact]
     public void ABurstWaitsOutTheDelayUndrawnThenEachParticleShowsFromItsSecondFrame()

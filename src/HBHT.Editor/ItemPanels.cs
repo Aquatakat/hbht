@@ -390,7 +390,8 @@ public partial class LootPanel : PagePanel
         var name = new Label { Text = loot.Name };
         name.AddThemeFontSizeOverride("font_size", 20);
         Body.AddChild(name);
-        Line($"Gold: {loot.GoldMin * 2:N0} to {loot.GoldMax * 2:N0}, rolled between the bounds and doubled. Opening a container that names it gives this instead of the container's own gold.");
+        var times = _items.LootGoldMultiplier;
+        Line($"Gold: {loot.GoldMin * times:N0} to {loot.GoldMax * times:N0}, {loot.GoldMin:N0} to {loot.GoldMax:N0} rolled and multiplied by {times} (the combat record's lootGoldMultiplier). Opening a container that names it gives this instead of the container's own gold.");
 
         Heading("What it gives");
         var grid = Grid(["", "Chance", "Count"]);
@@ -400,15 +401,14 @@ public partial class LootPanel : PagePanel
         for (var i = 0; i < loot.Drops.Count; i++)
         {
             var drop = loot.Drops[i];
-            if (drop.Item is { } id && _items.TryGet(id) is { } item)
-                grid.AddChild(ItemLink(id, item.Icon, item.Name));
+            if (_items.TryGet(drop.Item) is { } item)
+                grid.AddChild(ItemLink(drop.Item, item.Icon, item.Name));
             else
-                grid.AddChild(new Label { Text = drop.Item?.ToString() ?? "nothing", Modulate = Dim });
-            // Only the first two rolls give a count between their bounds.
-            Row(grid, $"{drop.Chance}%", i < 2 ? Count(drop.Min, drop.Max) : "1");
+                grid.AddChild(new Label { Text = drop.Item.ToString(), Modulate = Dim });
+            Row(grid, $"{drop.Chance}%", Count(drop.Least, drop.Most));
         }
         Body.AddChild(grid);
-        Line("A roll at 0% never hits, and an empty roll that hits gives nothing.", Dim);
+        Line("A roll at 0% never hits.", Dim);
         Line($"Beaten enemies drop their armor {loot.ArmorChance}%, shield {loot.ShieldChance}% and weapons {string.Join(", ", loot.WeaponChances.Select(c => $"{c}%"))} of the time, which combat's rewards read (2.5).", Dim);
 
         Heading("Rolls");
@@ -430,7 +430,7 @@ public partial class LootPanel : PagePanel
     /// <summary>Rolls the table, as a container that names it opens, and opens the loot window on it (<c>--roll</c>).</summary>
     public void Roll()
     {
-        var roll = Containers.Roll(_loot, _items.Rules, _random);
+        var roll = Containers.Roll(_loot, _items.Rules, _items.LootGoldMultiplier, _random);
         Show(roll);
         foreach (var child in _window.GetChildren())
             child.QueueFree();
@@ -463,7 +463,7 @@ public partial class LootPanel : PagePanel
         var given = new Dictionary<RecordId, (int Rolls, long Count)>();
         for (var n = 0; n < times; n++)
         {
-            var roll = Containers.Roll(_loot, _items.Rules, _random);
+            var roll = Containers.Roll(_loot, _items.Rules, _items.LootGoldMultiplier, _random);
             gold += roll.Gold;
             foreach (var (item, count) in roll.Items)
             {

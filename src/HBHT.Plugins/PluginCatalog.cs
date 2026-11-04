@@ -118,7 +118,13 @@ public sealed class PluginCatalog
         MonsterPartyObject m => $"Monster party: {Find(m.Entity)?.Summary ?? m.Entity.ToString()}",
         TeleporterObject t => $"Teleporter {t.Name}",
         ContainerObject c => c.Kind.ToString(),
-        TriggerObject t => $"{t.Kind} trigger",
+        TripwireObject t => t.Does switch
+        {
+            SetFlagAction => "Tripwire: sets a flag",
+            AnimateAction => "Tripwire: animates",
+            ChangeCollisionAction => "Tripwire: changes collision",
+            _ => "Tripwire",
+        },
         ReferencePointObject r => $"Reference point {r.Name}",
         SceneObject s => s.Models.Count > 0 ? $"Scene object: {s.Models[0].Model}" : "Scene object",
         { } other => MapObjectKinds.Name(other),
@@ -172,7 +178,7 @@ public sealed class PluginCatalog
                     parts.Add($"journal entry {Key(journal)}");
                 break;
             case RecordTypes.Journal when json is not null:
-                parts.Add($"flag {Key(json["flag"])}: {Truncate((string?)json["text"] ?? "", 80)}");
+                parts.Add(Truncate((string?)json["text"] ?? "", 80));
                 break;
             case RecordTypes.Dialogue when json is not null:
                 var nodes = json["nodes"] as JsonArray ?? [];

@@ -35,14 +35,15 @@ internal static class Characters
     public static readonly SpellRecord Fireball = Spell(0x0305, MagicSchool.Elemental, wizard: 3, cost: 200);
 
     public static SpellRecord Spell(int id, MagicSchool school, int wizard, int cost) => new(RecordId.Hex(RecordTypes.Spell, id),
-        $"Spell {id:X4}", school, 0, 5, SpellTargetCount.One, SpellTargetType.Enemy, wizard, SpellSpecial.None, 3, Reagent.Spice, cost, 0);
+        $"Spell {id:X4}", school, 5, new SpellTargeting(SpellTargetType.Enemy, SpellTargetCount.One), wizard, SpellSpecial.None, 3,
+        RecordId.Hex(RecordTypes.Item, 0x1101), cost);
 
     /// <summary>Alaron as the entity DB starts him.</summary>
     public static EntityRecord Alaron(int level = 1, KnownSpell[]? spells = null) => new(
         RecordId.Hex(RecordTypes.Entity, 0x023F), "Alaron", null, EntityCategory.Party, Aspect.Solar, MagicSchool.Chaos,
         TrueName: false, Heavy: true, level, new Attributes(18, 12, 15, 15, 15, 30),
         new SkillLevels(0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 3, 1), new WeaponSkillLevels(Hafted: 1, Missile: 3, Pole: 0, Sword: 3, Thrown: 0),
-        ShieldSkill: 3, spells ?? [], [null, null, null], null, null, 0, 2, 0, [], 0, 0, 0, 0, RecordId.Decimal(RecordTypes.Flag, 590));
+        ShieldSkill: 3, spells ?? [], [null, null, null], null, null, 0, 2, 0, [], 0, 0, 0, RecordId.Decimal(RecordTypes.Flag, 590));
 
     public static EntityRecord Trainer(RecordId id, SkillLevels skills, KnownSpell[]? spells = null) => Alaron() with
     {

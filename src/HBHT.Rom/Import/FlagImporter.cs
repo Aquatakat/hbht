@@ -19,7 +19,7 @@ internal static class FlagImporter
     }
 
     internal static List<JournalRecord> BuildJournal(GameDb db) =>
-        db.Journal.Select((e, i) => new JournalRecord(RecordId.Decimal(RecordTypes.Journal, i), DbRecordIds.Flag(e.Flag), e.Text)).ToList();
+        db.Journal.Select((e, i) => new JournalRecord(RecordId.Decimal(RecordTypes.Journal, i), e.Text)).ToList();
 
     /// <summary>The flags the engine writes its state into (<see cref="EngineFlags"/>).</summary>
     internal static StateFlagsRecord BuildStateFlags() => new(
@@ -32,23 +32,36 @@ internal static class FlagImporter
     private static RecordId[] Flags(EngineFlagRange range) => [.. Enumerable.Range(range.First, range.Bits).Select(DbRecordIds.Flag)];
 
     /// <summary>
-    /// Every flag of the <c>GameStateFunnel</c>, with the labels engine code gives them (<see cref="FlagLabels"/>). Derived
-    /// flags from <see cref="EngineFlags.JournalTriggers"/> on each add the journal entry of their
-    /// position after it (<c>set_journalentry_flag</c>).
+    /// Every flag of the <c>GameStateFunnel</c>, with the labels engine code gives them (<see cref="FlagLabels"/>), but the
+    /// journal's. Derived flag <see cref="EngineFlags.JournalTriggers"/> + i is <c>count(entry i's flag) &gt; 0</c>, whose
+    /// write adds entry i (<c>GameStateFunnel.Write</c>, <c>0x800cb33c</c>); nothing else reads those 71, so they're left out
+    /// and each entry's own flag names it (<see cref="FlagRecord.Journal"/>), the network doing what their writes did.
     /// </summary>
     internal static List<FlagRecord> BuildFlags(GameDb db, IReadOnlyDictionary<ushort, string> labels)
     {
         var funnel = db.GameStateFunnel;
+        var listing = new Dictionary<int, RecordId>();
+        for (var e = 0; e < db.Journal.Count; e++)
+        {
+            if (!listing.TryAdd(db.Journal[e].Flag, RecordId.Decimal(RecordTypes.Journal, e)))
+                throw new InvalidDataException($"Journal entries {listing[db.Journal[e].Flag]} and {e} have the same flag, {db.Journal[e].Flag}.");
+        }
         var records = new List<FlagRecord>(funnel.Flags.Count);
         for (var i = 0; i < funnel.Flags.Count; i++)
         {
+            if (i >= EngineFlags.JournalTriggers)
+            {
+                CheckJournalTrigger(db, i);
+                continue;
+            }
             var flag = funnel.Flags[i];
             var label = labels.GetValueOrDefault((ushort)i) ?? i switch { 0 => "Always clear", 1 => "Always set", _ => null };
             if (i < funnel.BitFlagCount)
             {
                 if (flag.Kind != Db.FlagKind.Bit)
                     throw new InvalidDataException($"Flag {i} is below the derived flags, but it's {flag.Kind}.");
-                records.Add(new FlagRecord(DbRecordIds.Flag(i), label, flag.InitialValue != 0));
+                records.Add(new FlagRecord(DbRecordIds.Flag(i), label, flag.InitialValue != 0,
+                    Journal: listing.TryGetValue(i, out var listed) ? listed : null));
                 continue;
             }
 
@@ -64,12 +77,24 @@ internal static class FlagImporter
             if (flag.Op == Db.FlagOp.Invalid || inputs.Contains((ushort)0xFFFF) || inputs.Count > 16 || flag.InitialValue != 0)
                 throw new InvalidDataException($"Derived flag {i} ({flag}) can't be written as a formula.");
             var formula = new FlagFormula(kind, (FlagOperation)flag.Op, flag.Operand, [.. inputs.Select(n => DbRecordIds.Flag(n))]);
-            var entry = i - EngineFlags.JournalTriggers;
-            RecordId? journal = entry < 0 ? null
-                : entry < db.Journal.Count ? RecordId.Decimal(RecordTypes.Journal, entry)
-                : throw new InvalidDataException($"Journal trigger {i} has no journal entry.");
-            records.Add(new FlagRecord(DbRecordIds.Flag(i), label, false, formula, journal));
+            records.Add(new FlagRecord(DbRecordIds.Flag(i), label, false, formula, listing.TryGetValue(i, out var lists) ? lists : null));
         }
+        if (listing.Keys.Any(f => f >= EngineFlags.JournalTriggers))
+            throw new InvalidDataException("A journal entry's flag is a journal trigger.");
         return records;
+    }
+
+    /// <summary>
+    /// Checks that journal trigger <paramref name="i"/> is what the network does in its place: <c>count(entry's flag) &gt; 0</c>
+    /// over its entry's own flag.
+    /// </summary>
+    private static void CheckJournalTrigger(GameDb db, int i)
+    {
+        var funnel = db.GameStateFunnel;
+        var flag = funnel.Flags[i];
+        var entry = i - EngineFlags.JournalTriggers;
+        if (entry >= db.Journal.Count || flag.Kind != Db.FlagKind.Count || flag.Op != Db.FlagOp.Greater || flag.Operand != 0
+            || flag.InputCount != 1 || funnel.Inputs[flag.InputStart] != db.Journal[entry].Flag)
+            throw new InvalidDataException($"Journal trigger {i} ({flag}) isn't its entry's flag counted above 0.");
     }
 }

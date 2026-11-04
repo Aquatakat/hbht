@@ -54,7 +54,7 @@ public sealed partial class Battle
     {
         if (source is null)
             return 0;
-        return source.Spell.TargetCount switch
+        return source.Spell.Targeting.Count switch
         {
             Plugins.Records.SpellTargetCount.All => InPlay,
             Plugins.Records.SpellTargetCount.ByLevel => (byte)((Casting.Level(c.Sheet, source) + 1) >> 1),
@@ -81,7 +81,7 @@ public sealed partial class Battle
     /// </summary>
     public bool CanCast(Combatant c, SpellSource source, Combatant t, Vector2 from, Vector2 centre)
     {
-        if (_rules.Untargetable is { } untargetable && (untargetable.Contains(t.Entity) || untargetable.Contains(c.Entity)))
+        if (_rules.Untargetable.Contains(t.Entity) || _rules.Untargetable.Contains(c.Entity))
             return false;
         var spell = source.Spell;
         if (!Casting.CanTarget(c, spell, t) || Casting.Requirement(spell, t.Sheet) != CastRefusal.None)
@@ -89,12 +89,12 @@ public sealed partial class Battle
         if (c.Controlled && !AiCanCast(c, source, t))
             return false;
         var effects = spell.Effects ?? [];
-        if (effects.Any(e => e is TeleportEffect) || spell.TargetCount == Plugins.Records.SpellTargetCount.Self)
+        if (effects.Any(e => e is TeleportEffect) || spell.Targeting.Count == Plugins.Records.SpellTargetCount.Self)
             return t == c;
         var level = Casting.Level(c.Sheet, source);
         var reach = (float)(level * spell.Range);
         var (cellX, cellZ) = (ArenaGrid.CellOf(from.X), ArenaGrid.CellOf(from.Y));
-        if (spell.Placed)
+        if (spell.Targeting.Placed)
         {
             // 0x800D2878: rounded half away from zero, as a byte.
             (cellX, cellZ) = (Rounding.HalfAwayToByte(centre.X), Rounding.HalfAwayToByte(centre.Y));
@@ -112,7 +112,7 @@ public sealed partial class Battle
         // The port's fix: the caster's own footprint doesn't block its walk. 1.0's AI scores its spells with the footprint lifted off
         // the grid (ScoreSpellCells) and acts with it on (Execute), so a 2-cell caster with its targets toward +X or +Z, whose walk
         // starts under its own footprint, scored a cast from where it stood and then rested every turn (docs/systems/combat.md).
-        var own = spell.Placed ? 0 : c.Footprint;
+        var own = spell.Targeting.Placed ? 0 : c.Footprint;
         if (Grid.WalkClear(cellX, cellZ, tx, tz, own) || (cellX, cellZ) == (tx, tz))
             return true;
         if (t.Freed)
@@ -172,8 +172,8 @@ public sealed partial class Battle
         var remembered = slot >= 0 ? cursors[slot] : -1;
         var text = _rules.Text;
         Menu = items
-            ? new CombatMenu(true, ItemRows(c), text?.NoItems, remembered)
-            : new CombatMenu(false, SpellRows(c), text?.NoSpells, remembered);
+            ? new CombatMenu(true, ItemRows(c), text.NoItems, remembered)
+            : new CombatMenu(false, SpellRows(c), text.NoSpells, remembered);
         State = items ? CombatState.MenuItems : CombatState.MenuSpells;
         return true;
     }
@@ -221,18 +221,18 @@ public sealed partial class Battle
         var text = _rules.Text;
         // Entity.CanLayOnHands (0x80071ED0) and CanHealWithHerbs (0x80071F38).
         if (healer != 0 && stamina >= Math.Max(1, 11 - healer))
-            rows.Add(new(CombatMenuChoice.LayOnHands, text?.LayOnHands ?? "", CombatMenu.HealerIcon, CombatMenu.SkillColor));
+            rows.Add(new(CombatMenuChoice.LayOnHands, text.LayOnHands, CombatMenu.HealerIcon, CombatMenu.SkillColor));
         var herb = Game.Party.Inventory.Catalog.Rules.Herb;
         if (healer != 0 && Game.Party.Inventory.Has(herb) && stamina >= Math.Max(1, 5 - healer))
-            rows.Add(new(CombatMenuChoice.HealWithHerbs, text?.HealWithHerbs ?? "", CombatMenu.HealerIcon, CombatMenu.SkillColor));
+            rows.Add(new(CombatMenuChoice.HealWithHerbs, text.HealWithHerbs, CombatMenu.HealerIcon, CombatMenu.SkillColor));
         if (sheet.Skills.Modified(Skill.Troubadour) != 0)
-            rows.Add(new(CombatMenuChoice.Perform, text?.Perform ?? "", CombatMenu.PerformIcon, CombatMenu.SkillColor));
+            rows.Add(new(CombatMenuChoice.Perform, text.Perform, CombatMenu.PerformIcon, CombatMenu.SkillColor));
         var magic = Game.Rules.Magic;
         var known = new List<(string Name, int Index, SpellRecord Spell)>();
         for (var i = 0; i < sheet.Spells.Count; i++)
         {
             var spell = sheet.Spells[i].Spell;
-            if (magic.ReagentItem(spell.Reagent) is { } reagent && !Game.Party.Inventory.Has(reagent))
+            if (spell.Reagent is { } reagent && !Game.Party.Inventory.Has(reagent))
                 continue;
             if (PartOfDay == Calendar.PartOfDay.Night && spell.Effects?.Any(e => e is HealPerRoundEffect { DayOnly: true }) == true)
                 continue;
@@ -335,7 +335,7 @@ public sealed partial class Battle
     {
         if (c.Controlled || c.CurrentSpell(this) is not { } source)
             return;
-        if (source.Spell.Placed)
+        if (source.Spell.Targeting.Placed)
         {
             State = CombatState.PlaceArea;
             FocusOn(c);
@@ -494,7 +494,7 @@ public sealed partial class Battle
         }
         Animate(a, CastRequest);
         // Player.SetCastSound: the spell's sound as the caster's request 5 plays, a refused cast's too.
-        a.Audio.Cast = source.Spell.Cast;
+        a.Audio.Cast = source.Spell.Presentation?.Sound;
         var kind = outcome.Result switch
         {
             CastResult.NotCast => SpellVisualKind.Failed,

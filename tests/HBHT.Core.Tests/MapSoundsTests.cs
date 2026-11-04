@@ -26,7 +26,7 @@ public class MapSoundsTests
     }
 
     private static SoundObject Sound(int index, SoundFlags flags, RecordId? sequence = null, float minWait = 0, float maxWait = 0) =>
-        new(index, new Vector3(0, 0, 0), 10, PakVariant.Any, null, sequence ?? Tune, 1, minWait, maxWait, flags);
+        new(index, new Vector3(0, 0, 0), 10, null, sequence ?? Tune, 1, minWait, maxWait, flags);
 
     private static LoadedMap Map(ChunkKey key, params SoundObject[] sounds) =>
         LoadedMap.Activate(new MapRecord(RecordId.Hex(RecordTypes.Map, 1), sounds), key, ItemData.Flags(), new MapObjectMemory(), ItemData.NewParty(), new Lcg());

@@ -445,25 +445,25 @@ public sealed partial class Battle
     /// </summary>
     private void ShowAura(Combatant target, int level)
     {
-        var text = _rules.Text?.Aura;
+        var text = _rules.Text.Aura;
         var lines = new List<string> { target.Sheet.Name };
         if (level >= 1)
-            lines.Add(target.Slot == LeaderSlot && !LeaderGone ? text?.Leader ?? "" : text?.Follower ?? "");
+            lines.Add(target.Slot == LeaderSlot && !LeaderGone ? text.Leader : text.Follower);
         if (level >= 3)
-            lines.Add(Printf(text?.Hitpoints ?? "", target.Sheet.MaxHp));
+            lines.Add(Printf(text.Hitpoints, target.Sheet.MaxHp));
         if (level >= 5)
-            lines.Add(Printf(text?.Level ?? "", target.Sheet.Stats.Base(Stat.Level)));
+            lines.Add(Printf(text.Level, target.Sheet.Stats.Base(Stat.Level)));
         if (level >= 7)
         {
             foreach (var resistance in target.Sheet.Record.Resistances.Take(2).Where(r => r.Element != Element.None))
             {
-                var form = resistance.Damage <= 0 ? text?.Immune : resistance.Damage < (text?.ResistantBelow ?? 2) ? text?.Resistant : text?.Vulnerable;
-                var name = text?.Elements.GetValueOrDefault(resistance.Element) ?? resistance.Element.ToString();
+                var form = resistance.Damage <= 0 ? text.Immune : resistance.Damage < text.ResistantBelow ? text.Resistant : text.Vulnerable;
+                var name = text.Elements.GetValueOrDefault(resistance.Element) ?? resistance.Element.ToString();
                 lines.Add((form ?? "").Replace("%s", name, StringComparison.Ordinal));
             }
         }
         if (level >= 9)
-            lines.Add(Printf(text?.Protection ?? "", Protection(target.Sheet, behind: false)));
+            lines.Add(Printf(text.Protection, Protection(target.Sheet, behind: false)));
         Aura = string.Join('\n', lines);
     }
 

@@ -164,7 +164,7 @@ public sealed partial class Battle
             CanFlee = rule.CanFlee;
 
         // Combat.CreateBody: each body as it's made works its radius out and is held in its field where it stands.
-        _rooted = rules.Rooted ?? [];
+        _rooted = rules.Rooted;
         foreach (var combatant in Combatants)
         {
             // 1.0 makes the bodies here, in slot order, after Combat.Setup has built the turn order (Combat.Init, 0x80022ED8), so a
@@ -243,7 +243,7 @@ public sealed partial class Battle
     private void GiveAi(Combatant c, Items.ItemInstance? spare)
     {
         c.Controlled = true;
-        c.Ai = EnemyAI.Init(c, spare, AllowsMelee, _rules.BossStyles?.Contains(c.Entity) == true);
+        c.Ai = EnemyAI.Init(c, spare, AllowsMelee, _rules.BossStyles.Contains(c.Entity));
     }
 
     /// <summary>The flee points' most: <c>flee0</c>–<c>flee7</c>.</summary>

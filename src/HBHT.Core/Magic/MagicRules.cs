@@ -45,15 +45,6 @@ public sealed class MagicRules
                     ? $"{r.Id} has a Lua effect ({lua.Script}, {lua.Handler}), which does nothing until scripts come."
                     : $"{r.Id} has an effect of a type this build doesn't know, which does nothing."));
 
-    /// <summary>The item a reagent is, or null for none (<c>0x800E29CC</c>).</summary>
-    public RecordId? ReagentItem(Reagent reagent) => reagent switch
-    {
-        Reagent.Spice => Inventory.Spice,
-        Reagent.Herb => Inventory.Herb,
-        Reagent.Gemstone => Inventory.Gemstone,
-        _ => null,
-    };
-
     /// <summary>The rules from the loaded plugins.</summary>
     public static MagicRules From(PluginSet plugins) =>
         new(plugins.Singleton<MagicRecord>(), plugins.All<SpellRecord>(RecordTypes.Spell), plugins.All<ItemRecord>(RecordTypes.Item),

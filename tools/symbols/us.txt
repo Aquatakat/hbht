@@ -688,6 +688,7 @@ Backdrop.LeaveTrek = 0x80051fd4; // coined; docs/systems/ui.md: a backdrop's and
 Sign.Start = 0x80052014; // coined; docs/systems/ui.md: a sign's start (slot 3): the player's request to idle, then StartDialog in style 3, over trek
 Sign.End = 0x80052088; // coined; docs/systems/ui.md: a sign's end (slot 0x12): frees its widgets and the script, trek staying
 Script.Running = 0x800520bc; // coined; docs/systems/map-objects.md: Game.Mode is 0xC or a script is running (Script.Current); ProcessVoxelObjects starts nothing while it holds
+Journal.ParseFlag = 0x80052120; // coined; docs/formats/quests.md: the flag number a journal text begins with, which Journal.AddEntry reads before FlagNetwork.Get
 JournalMenu.JournalMenu = 0x80052228; // JournalMenu.cs
 Journal.AddEntry = 0x8005256c; // coined; docs/systems/pause-menu.md: (journal, text): lists an entry if the flag its text begins with is set
 Journal::Load = 0x8005263c; // string 0x800dee88 (debug 0x8005b3ec), matched by tools/builds.py

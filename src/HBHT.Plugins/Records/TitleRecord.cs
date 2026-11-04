@@ -6,7 +6,8 @@ namespace HBHT.Plugins.Records;
 /// </summary>
 /// <param name="Flycams">
 /// In the order they play: the first when the title is first built, the next each time a fly-through ends and the title builds its
-/// scenery again, after the last the first. Without the Expansion Pak the one that needs it (<see cref="TitleFlycam.NeedsExpansionPak"/>) is passed over.
+/// scenery again, after the last the first. The original passes over the fifth without the Expansion Pak (<c>Memory.HasExpansionPak</c>);
+/// the port always plays as with one.
 /// </param>
 public sealed record TitleRecord(RecordId Id, IReadOnlyList<TitleFlycam> Flycams);
 
@@ -26,8 +27,4 @@ public sealed record TitleRecord(RecordId Id, IReadOnlyList<TitleFlycam> Flycams
 /// (its column at <c>0x800D90DE</c>). Every fly-through's camera runs a few units over the ground from that corner, and from no other.
 /// </param>
 /// <param name="OriginColumn">As <see cref="OriginRow"/>.</param>
-/// <param name="NeedsExpansionPak">
-/// Skipped without the Expansion Pak (<c>Memory.HasExpansionPak</c>): the one at place 4, which goes on to place 5.
-/// </param>
-public sealed record TitleFlycam(RecordId Scene, RecordId Animation, int Length, int Row, int Column, int OriginRow, int OriginColumn,
-    bool NeedsExpansionPak = false);
+public sealed record TitleFlycam(RecordId Scene, RecordId Animation, int Length, int Row, int Column, int OriginRow, int OriginColumn);

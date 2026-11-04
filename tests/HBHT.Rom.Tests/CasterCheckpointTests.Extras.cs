@@ -191,7 +191,7 @@ public sealed partial class CasterCheckpointTests
             game.Party.Inventory.Take(flask.Item, int.MaxValue);
         foreach (var flask in k.Flasks)
             Assert.True(game.Party.Inventory.Add(RecordId.Hex(RecordTypes.Item, flask)));
-        var fireball = Set.All<SpellRecord>(RecordTypes.Spell).Single(s => s.Area);
+        var fireball = Set.All<SpellRecord>(RecordTypes.Spell).Single(s => s.Targeting.Blast);
         for (var m = 0; m < k.MemberWizard.Length; m++)
             SetWizard(battle.Slots[m]!.Sheet, k.MemberWizard[m]);
         foreach (var (member, level) in k.Fireballs)

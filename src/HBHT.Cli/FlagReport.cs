@@ -42,10 +42,8 @@ internal sealed class FlagReport
         if (flag.Label is { } label)
             s.AppendLine(label);
 
-        foreach (var entry in Journal.Where(j => j.Flag == id))
-            s.AppendLine(CultureInfo.InvariantCulture, $"Journal {Number(entry.Id)}: {entry.Text.Trim()}");
-        if (flag.Journal is { } shown)
-            s.AppendLine(CultureInfo.InvariantCulture, $"Shows the new-entry notice for journal {Number(shown)}.");
+        if (flag.Journal is { } listed && Journal.FirstOrDefault(j => j.Id == listed) is { } entry)
+            s.AppendLine(CultureInfo.InvariantCulture, $"Journal {Number(entry.Id)}, listed while set, and its new-entry notice: {entry.Text.Trim()}");
 
         var uses = _index.UsesOf(id);
         var writes = uses.Where(u => u.Access != FlagAccess.Read).ToList();

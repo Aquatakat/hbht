@@ -1,6 +1,8 @@
 using HBHT.Plugins;
 using HBHT.Plugins.Records;
+using HBHT.Rom.Db;
 using HBHT.Rom.Engine;
+using HBHT.Rom.Import;
 
 namespace HBHT.Rom.Tests;
 
@@ -31,7 +33,7 @@ public sealed class MagicImportTests(Na10Import fixture)
         Assert.All(Spells, s =>
         {
             Assert.NotNull(s.Effects);
-            Assert.NotNull(s.AiValue);
+            Assert.NotNull(s.Appeal);
         });
         // The ROM's 59 IDs run 0x0300 to 0x033F with five gaps.
         Assert.All(new[] { 0x0307, 0x030B, 0x030E, 0x0325, 0x032C }, id => Assert.DoesNotContain(Spell(id), Spells.Select(s => s.Id)));
@@ -54,7 +56,7 @@ public sealed class MagicImportTests(Na10Import fixture)
         Assert.Equal(Stat(3), stat.Stat);
         Assert.Equal(Magnitude.Per(2), stat.Amount);
         Assert.Equal(new EffectDuration(PerLevel: 1800), endurance.Duration);
-        Assert.Equal(52, endurance.AiValue);
+        Assert.Equal(52, endurance.Appeal);
         Assert.Equal(Resisted.Never, endurance.Resisted);
         // The checkpoints' cast: level 4, a timer of 7200 and 8 more Endurance.
         Assert.Equal(7200u, endurance.Duration!.At(4));
@@ -65,7 +67,7 @@ public sealed class MagicImportTests(Na10Import fixture)
     public void FireballIsPlacedAndResistedByAll()
     {
         var fireball = Get(0x0305);
-        Assert.True(fireball.Placed);
+        Assert.True(fireball.Targeting.Placed);
         Assert.Equal(Resisted.Always, fireball.Resisted);
         Assert.Equal(Aspect.Solar, fireball.Aspect);
         var damage = Assert.IsType<DamageEffect>(Assert.Single(fireball.Effects!));
@@ -80,15 +82,15 @@ public sealed class MagicImportTests(Na10Import fixture)
         foreach (var id in Dispels.Append(0x033A))
         {
             var spell = Get(id);
-            Assert.True(spell.Placed, spell.Name);
+            Assert.True(spell.Targeting.Placed, spell.Name);
             Assert.Equal(Resisted.Never, spell.Resisted);
         }
         Assert.Equal(MagicSchool.Elemental, Assert.IsType<DispelEffect>(Assert.Single(Get(0x0321).Effects!)).School);
         Assert.Equal(MagicSchool.Star, Assert.IsType<DispelEffect>(Assert.Single(Get(0x0324).Effects!)).School);
-        Assert.Equal(81, Get(0x0322).AiValue);
+        Assert.Equal(81, Get(0x0322).Appeal);
         Assert.IsType<TeleportEffect>(Assert.Single(Get(0x033A).Effects!));
         // Only Fireball, Teleportation and the dispels have the placed bit.
-        Assert.Equal([0x0305, 0x0321, 0x0322, 0x0323, 0x0324, 0x033A], Spells.Where(s => s.Placed).Select(Number).Order());
+        Assert.Equal([0x0305, 0x0321, 0x0322, 0x0323, 0x0324, 0x033A], Spells.Where(s => s.Targeting.Placed).Select(Number).Order());
     }
 
     [Fact]
@@ -117,21 +119,24 @@ public sealed class MagicImportTests(Na10Import fixture)
             var id = Number(s);
             var expected = Dispels.Contains(id) || id == 0x033A ? Resisted.Never
                 : id == 0x0309 ? Resisted.Opponents
-                : s.TargetType == SpellTargetType.Enemy || s.Placed ? Resisted.Always
+                : s.Targeting.Type == SpellTargetType.Enemy || s.Targeting.Placed ? Resisted.Always
                 : Resisted.Never;
             Assert.True(expected == s.Resisted, $"{s.Name}: {s.Resisted}, the rule says {expected}.");
         }
-        Assert.All(Spells.Where(s => s.TargetType == SpellTargetType.Enemy), s => Assert.Equal(Resisted.Always, s.Resisted));
+        Assert.All(Spells.Where(s => s.Targeting.Type == SpellTargetType.Enemy), s => Assert.Equal(Resisted.Always, s.Resisted));
     }
 
     [Fact]
     public void AspectAndPlacedComeFromTheRomsBits()
     {
+        var rom = GameDb.Read(TestRoms.Get(RomVersionId.Na10)).Spells.Where(r => DbRecordIds.For(r.Id) is not null)
+            .ToDictionary(r => DbRecordIds.For(r.Id)!.Value);
         Assert.All(Spells, s =>
         {
-            Assert.Equal((s.Unk1E & 1) != 0, s.Aspect == Aspect.Lunar);
-            Assert.Equal((s.Unk1E & 2) != 0, s.Aspect == Aspect.Solar);
-            Assert.Equal((s.Unk1E & 0x10) != 0, s.Placed);
+            var unk1E = rom[s.Id].Unk1E;
+            Assert.Equal((unk1E & 1) != 0, s.Aspect == Aspect.Lunar);
+            Assert.Equal((unk1E & 2) != 0, s.Aspect == Aspect.Solar);
+            Assert.Equal((unk1E & 0x10) != 0, s.Targeting.Placed);
         });
         Assert.Equal(Aspect.Lunar, Get(0x0306).Aspect);
         Assert.Equal(Aspect.Solar, Get(0x033D).Aspect);
@@ -256,7 +261,7 @@ public sealed class MagicImportTests(Na10Import fixture)
     {
         var magic = fixture.Data.Set.Singleton<MagicRecord>();
         Assert.Equal(RecordId.Decimal(RecordTypes.Magic, 0), magic.Id);
-        Assert.Equal((4, 6, 1, 5), (magic.Chance.Intelligence, magic.Chance.Level, magic.Chance.CharacterLevel, magic.Chance.Minimum));
+        Assert.Equal((4, 6, 1, 5), (magic.Chance.Intelligence, magic.Chance.Level, magic.Chance.CasterLevel, magic.Chance.Minimum));
         Assert.Equal([0.75f, 1.25f, 1.25f, 0.75f, 0.75f], magic.Chance.ByPartOfDay);
         Assert.Equal([0.5f, 0.75f, 1.25f, 1.5f], magic.Chance.ByMoon);
         Assert.Equal((3, 1, 1, 0.75f, 1.25f), (magic.Resist.Willpower, magic.Resist.Endurance, magic.Resist.Level, magic.Resist.SameAspect, magic.Resist.OtherAspect));

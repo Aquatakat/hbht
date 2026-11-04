@@ -96,7 +96,7 @@ public sealed partial class Battle
     }
 
     /// <summary>Whether a spell is one the AI centres on the opponents and the party's area danger counts (its record's <c>area</c>): Fireball (spell kind 8).</summary>
-    private static bool IsAreaSpell(SpellSource source) => source.Spell.Area;
+    private static bool IsAreaSpell(SpellSource source) => source.Spell.Targeting.Blast;
 
     /// <summary>The AI's set B's candidates, by slot.</summary>
     private List<Combatant> SpellCandidates()
@@ -168,14 +168,14 @@ public sealed partial class Battle
     private int PartyDanger(Plugins.Records.CombatRecord rules)
     {
         var inventory = Game.Party.Inventory;
-        var danger = rules.FlaskDanger?.FirstOrDefault(f => inventory.Has(f.Item))?.Radius ?? 0;
+        var danger = rules.FlaskDanger.FirstOrDefault(f => inventory.Has(f.Item))?.Radius ?? 0;
         for (var k = 0; k < PartySize; k++)
         {
             if (_slots[k] is not { } member || member.Sheet.IsDead)
                 continue;
             foreach (var known in member.Sheet.Spells)
             {
-                if (known.Spell.Area)
+                if (known.Spell.Targeting.Blast)
                     danger = Math.Max(danger, 2 * Casting.Level(member.Sheet, SpellSource.From(known)));
             }
         }
@@ -227,5 +227,5 @@ public sealed partial class Battle
     /// Whether the selected spell is one cast at its own side (<c>Combatant.IsFriendlySpell</c>, <c>0x80061008</c>), whether or not it
     /// casts this turn: then its target's having no Stamina gives its morale nothing.
     /// </summary>
-    private bool IsFriendlySpell(Combatant c) => c.CurrentSpell(this)?.Spell.TargetType == Plugins.Records.SpellTargetType.Party;
+    private bool IsFriendlySpell(Combatant c) => c.CurrentSpell(this)?.Spell.Targeting.Type == Plugins.Records.SpellTargetType.Party;
 }

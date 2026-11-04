@@ -163,7 +163,7 @@ public sealed class CastingVectorTests(Na10Import fixture, ITestOutputHelper out
             ("tflags", (int)(t.Flags & (CombatantFlags.Active | CombatantFlags.Hostile))),
             ("morale", t.Ai?.Morale ?? -1),
             ("aiflags", t.Ai is { } ai ? (int)ai.Flags : -1),
-            ("reagents", built.Game.Rules.Magic.ReagentItem(source.Spell.Reagent) is { } reagent ? built.Game.Party.Inventory.Count(reagent) : -1),
+            ("reagents", source.Spell.Reagent is { } reagent ? built.Game.Party.Inventory.Count(reagent) : -1),
         };
         return FormulaState.Differences(v.Expect, actual);
     }

@@ -68,7 +68,7 @@ public partial class MapSetView : VBoxContainer
     private readonly CheckBox _scenery = new() { Text = "Scenery", ButtonPressed = true, TooltipText = "The models scene objects place, each at its nearest level of detail" };
     private readonly OptionButton _collision = new() { TooltipText = "Collision" };
     private readonly CheckBox _markers = new() { Text = "Objects", ButtonPressed = true, TooltipText = "A marker for each map object, by type. Click one to pick it." };
-    private readonly CheckBox _pak = new() { Text = "Expansion Pak", ButtonPressed = true, TooltipText = "Objects and triangles for playing with the Expansion Pak, as the runtime does, or without it" };
+    private readonly CheckBox _pak = new() { Text = "Expansion Pak", ButtonPressed = true, TooltipText = "Collision for playing with the Expansion Pak, as the runtime does, or without it" };
     private readonly CheckBox _gate = new()
     {
         Text = "Flags",
@@ -190,11 +190,7 @@ public partial class MapSetView : VBoxContainer
         _scenery.Toggled += _ => ApplyFilters();
         _markers.Toggled += _ => ApplyFilters();
         _gate.Toggled += _ => ApplyFilters();
-        _pak.Toggled += _ =>
-        {
-            ApplyFilters();
-            Recolour();
-        };
+        _pak.Toggled += _ => Recolour();
         _collision.ItemSelected += _ => Recolour();
         _grid.Toggled += on => _gridNode.Visible = on;
         _all.Pressed += () =>
@@ -315,7 +311,7 @@ public partial class MapSetView : VBoxContainer
     {
         var looks = ContainerLooks(plugins, chunk);
         var scenery = _chunks[(chunk.Row, chunk.Column)] = ChunkScenery.Load(plugins, models, set, chunk, _ => true,
-            o => (int)looks.GetValueOrDefault(o.Index));
+            o => LoadedMap.Nearest(o, looks.GetValueOrDefault(o.Index)));
         _looks[(chunk.Row, chunk.Column)] = looks;
         // A chunk built again has billboards to turn.
         _facedChunks = -1;
@@ -402,11 +398,9 @@ public partial class MapSetView : VBoxContainer
 
     // ---- Filters --------------------------------------------------------------------------------
 
-    /// <summary>Whether an object is there with the switches as they are: the Expansion Pak's, and the flags'.</summary>
+    /// <summary>Whether an object is there with the flags as they are, if the gate switch is on.</summary>
     private bool Shown(MapObject o)
     {
-        if (o.Pak == (_pak.ButtonPressed ? PakVariant.Without : PakVariant.With))
-            return false;
         return !_gate.ButtonPressed || _game is not { Network: var network }
             || MapObjectPresence.There(o, network.IsSet);
     }

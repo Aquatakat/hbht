@@ -110,11 +110,11 @@ public class WanderTickTests
 
     private static WanderNodeObject Node(int index, Vector3 at, WanderFlags flags = WanderFlags.Move, float radius = 1, float scatter = 0,
         float chance = 0, int wait = 1000, params int[] next) =>
-        new(index, at, 0, PakVariant.Any, null, radius, scatter, chance, wait, flags, [.. next.Select(Voxel)]);
+        new(index, at, 0, null, radius, scatter, chance, wait, flags, [.. next.Select(Voxel)]);
 
     /// <summary>A party at the origin of its chunk, whose home is node 0.</summary>
     private static MonsterPartyObject PartyAt(Vector3 at, float leash, PartyFlags flags = PartyFlags.Walks, RecordId? dialogue = null) =>
-        new(PartyIndex, at, leash, PakVariant.Any, null, [], RecordId.Hex(RecordTypes.Entity, 0x300), null, 0, 0, Voxel(0), flags, dialogue, null);
+        new(PartyIndex, at, leash, null, [], RecordId.Hex(RecordTypes.Entity, 0x300), null, 0, 0, Voxel(0), flags, dialogue, null);
 
     private sealed record Setup(Wanderer Wanderer, LoadedMap Map, CollisionWorld World)
     {
@@ -600,8 +600,8 @@ public class WanderersTickTests(WanderersFixture fixture) : IClassFixture<Wander
     [Fact]
     public void TickWeighsEveryWandererAndReturnsTheHuntersThatAmbush()
     {
-        var node = new WanderNodeObject(0, new Vector3(5, 0, 5), 0, PakVariant.Any, null, 2, 0, 0, 1000, WanderFlags.Move, []);
-        var party = new MonsterPartyObject(1, new Vector3(5, 0, 5), 20, PakVariant.Any, null, [], WanderersFixture.Entity, null, 0, 0,
+        var node = new WanderNodeObject(0, new Vector3(5, 0, 5), 0, null, 2, 0, 0, 1000, WanderFlags.Move, []);
+        var party = new MonsterPartyObject(1, new Vector3(5, 0, 5), 20, null, [], WanderersFixture.Entity, null, 0, 0,
             MapRecord.VoxelId(MapId, 0), PartyFlags.Walks, null, null);
         var map = LoadedMap.Activate(new MapRecord(MapId, [node, party]), Worlds.Chunk(0), ItemData.Flags(), new MapObjectMemory(), ItemData.NewParty(), new Lcg());
         var world = Worlds.Flat();
@@ -631,8 +631,8 @@ public class WanderersTickTests(WanderersFixture fixture) : IClassFixture<Wander
     public void TheAmbushIsWhatThePlayerWasDoingTheLastTickHeWasNoticed()
     {
         // Setup 9's seventh battle: Alaron ran at the Wolves, then sneaked as they closed, and 1.0's byte was 3 (0x8000FAD4).
-        var node = new WanderNodeObject(0, new Vector3(5, 0, 5), 0, PakVariant.Any, null, 2, 0, 0, 1000, WanderFlags.Move, []);
-        var party = new MonsterPartyObject(1, new Vector3(5, 0, 5), 20, PakVariant.Any, null, [], WanderersFixture.Entity, null, 0, 0,
+        var node = new WanderNodeObject(0, new Vector3(5, 0, 5), 0, null, 2, 0, 0, 1000, WanderFlags.Move, []);
+        var party = new MonsterPartyObject(1, new Vector3(5, 0, 5), 20, null, [], WanderersFixture.Entity, null, 0, 0,
             MapRecord.VoxelId(MapId, 0), PartyFlags.Walks, null, null);
         var map = LoadedMap.Activate(new MapRecord(MapId, [node, party]), Worlds.Chunk(0), ItemData.Flags(), new MapObjectMemory(), ItemData.NewParty(), new Lcg());
         var world = Worlds.Flat();
@@ -655,8 +655,8 @@ public class WanderersTickTests(WanderersFixture fixture) : IClassFixture<Wander
     [Fact]
     public void WanderersStepAsFarFromTheAimAsTheirReach()
     {
-        var node = new WanderNodeObject(0, new Vector3(5, 0, 5), 0, PakVariant.Any, null, 2, 0, 0, 1000, WanderFlags.Move, []);
-        var party = new MonsterPartyObject(1, new Vector3(5, 0, 5), 20, PakVariant.Any, null, [], WanderersFixture.Entity, null, 0, 0,
+        var node = new WanderNodeObject(0, new Vector3(5, 0, 5), 0, null, 2, 0, 0, 1000, WanderFlags.Move, []);
+        var party = new MonsterPartyObject(1, new Vector3(5, 0, 5), 20, null, [], WanderersFixture.Entity, null, 0, 0,
             MapRecord.VoxelId(MapId, 0), PartyFlags.Walks, null, null);
         var map = LoadedMap.Activate(new MapRecord(MapId, [node, party]), Worlds.Chunk(0), ItemData.Flags(), new MapObjectMemory(), ItemData.NewParty(), new Lcg());
         var world = Worlds.Flat();

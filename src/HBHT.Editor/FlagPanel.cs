@@ -193,7 +193,7 @@ public partial class FlagPanel : VBoxContainer
 
         if (flag.Journal is { } journal)
         {
-            Line("Turning on adds this journal entry, and raises the new-entry flag:");
+            Line("The journal lists this entry while it's set; turning on adds it, and raises the new-entry flag:");
             Link(journal, _catalog.Plugins.TryGet<JournalRecord>(journal)?.Text ?? "(no such entry)");
         }
     }
@@ -206,14 +206,14 @@ public partial class FlagPanel : VBoxContainer
             return;
         }
         Line(entry.Text);
-        Line("The journal lists it while this flag is set:", Dim);
-        _body.AddChild(Inputs([entry.Flag]));
-        var adders = _catalog.ReferencesTo(_id).Select(r => r.From).Where(f => f.Type == RecordTypes.Flag).Distinct().ToList();
-        if (adders.Count > 0)
+        var listers = _catalog.ReferencesTo(_id).Select(r => r.From).Where(f => f.Type == RecordTypes.Flag).Distinct().ToList();
+        if (listers.Count > 0)
         {
-            Line("It's added when this flag turns on:", Dim);
-            _body.AddChild(Inputs(adders));
+            Line("The journal lists it while this flag is set, and adds it when it turns on:", Dim);
+            _body.AddChild(Inputs(listers));
         }
+        else
+            Line("No flag lists it, so the journal never shows it.", Dim);
     }
 
     /// <summary>Flags with their values, each opening its page on a double-click.</summary>

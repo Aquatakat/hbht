@@ -53,11 +53,9 @@ public enum FlagRole
     /// <summary>An input of a derived flag's formula. <see cref="FlagUse.By"/> is the derived flag, which reads it.</summary>
     DerivedInput,
     /// <summary>
-    /// A flag's journal entry. <see cref="FlagUse.By"/> is the entry, which appears when the flag turns
-    /// on, so the entry reads the flag.
+    /// A journal entry's flag (<see cref="FlagRecord.Journal"/>). <see cref="FlagUse.By"/> is the entry, which the journal lists
+    /// while the flag is set and adds when it turns on, so the entry reads the flag.
     /// </summary>
-    JournalAdds,
-    /// <summary>A journal entry's flag, which the journal lists it by. <see cref="FlagUse.By"/> is the entry, which reads it.</summary>
     JournalListed,
     /// <summary>A map object's visibility gate. <see cref="FlagUse.By"/> is the object (<c>aidyn:voxel/…</c>), which reads the flag.</summary>
     ObjectVisible,
@@ -85,8 +83,8 @@ public enum FlagRole
     TrapDisarmed,
     /// <summary>A secret door's flag: it works while set, and finding it sets it.</summary>
     SecretFound,
-    /// <summary>A SetFlag trigger.</summary>
-    TriggerSets,
+    /// <summary>A tripwire that sets a flag.</summary>
+    TripwireSets,
     /// <summary>A boss's flag, which winning a battle with the entity (<see cref="FlagUse.By"/>) among the enemy list's first four sets.</summary>
     BossFlag,
     /// <summary>
@@ -232,11 +230,8 @@ public sealed class QuestIndex
             foreach (var input in flag.Formula?.Inputs ?? [])
                 uses.Add(new FlagUse(input, flag.Id, FlagAccess.Read, FlagRole.DerivedInput));
             if (flag.Journal is { } entry)
-                uses.Add(new FlagUse(flag.Id, entry, FlagAccess.Read, FlagRole.JournalAdds));
+                uses.Add(new FlagUse(flag.Id, entry, FlagAccess.Read, FlagRole.JournalListed));
         }
-
-        foreach (var entry in plugins.All<JournalRecord>(RecordTypes.Journal))
-            uses.Add(new FlagUse(entry.Flag, entry.Id, FlagAccess.Read, FlagRole.JournalListed));
 
         foreach (var map in plugins.All<MapRecord>(RecordTypes.Map))
         {
@@ -268,9 +263,9 @@ public sealed class QuestIndex
                     Use(c.Used?.Flag, voxel, used, FlagRole.ObjectUsed);
                     GiveKeyItems(KeyItemsIn(c.Item, c.Loot), voxel);
                     break;
-                case TriggerObject t:
-                    if (t.Kind == TriggerKind.SetFlag)
-                        Use(t.Flag, voxel, FlagAccess.Set, FlagRole.TriggerSets);
+                case TripwireObject t:
+                    if (t.Does is SetFlagAction set)
+                        Use(set.Flag, voxel, FlagAccess.Set, FlagRole.TripwireSets);
                     Use(t.Used?.Flag, voxel, used, FlagRole.ObjectUsed);
                     break;
                 // A silent party does nothing when the player uses it.
@@ -325,7 +320,7 @@ public sealed class QuestIndex
 
         // Winning a battle with the boss sets its flag, however the battle started.
         foreach (var combat in plugins.All<CombatRecord>(RecordTypes.Combat))
-            foreach (var boss in combat.Bosses ?? [])
+            foreach (var boss in combat.Bosses)
                 Use(boss.Flag, boss.Entity, FlagAccess.Set, FlagRole.BossFlag);
 
         foreach (var (item, key) in keyItems)

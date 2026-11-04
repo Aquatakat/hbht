@@ -18,10 +18,13 @@ public class ParallelEnumTests
         Assert.Equal(rom.OrderBy(p => p.Key), record.OrderBy(p => p.Key));
     }
 
-    /// <summary>The record leaves out <see cref="RomSceneObjectFlags.Actor"/>, which the importer folds into the model's record type.</summary>
+    /// <summary>
+    /// The record leaves out <see cref="RomSceneObjectFlags.Actor"/>, which the importer folds into the model's record type, and
+    /// <see cref="RomSceneObjectFlags.Unknown8"/>, which nothing in 1.0 reads and no object has.
+    /// </summary>
     [Fact]
-    public void SceneObjectFlagsAreTheRomsWithoutActor() =>
-        AssertMatches<RomSceneObjectFlags, SceneObjectFlags>(RomSceneObjectFlags.Actor);
+    public void SceneObjectFlagsAreTheRomsWithoutActorAndTheUnread() =>
+        AssertMatches<RomSceneObjectFlags, SceneObjectFlags>(RomSceneObjectFlags.Actor, RomSceneObjectFlags.Unknown8);
 
     /// <summary>The importer leaves a flag with an invalid operation plain.</summary>
     [Fact]

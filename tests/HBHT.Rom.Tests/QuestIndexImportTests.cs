@@ -43,7 +43,7 @@ public sealed class QuestIndexImportTests(Na10Import fixture)
 
         // A scene object's gate is a use by its voxel ID, except a gate on the constant flags 0 and 1.
         var gated = plugins.All<MapRecord>(RecordTypes.Map)
-            .SelectMany(m => m.Objects.OfType<SceneObject>().Select(o => (Voxel: MapRecord.VoxelId(m.Id, o.Index), Gate: o.Visible!)))
+            .SelectMany(m => m.Objects.OfType<SceneObject>().Where(o => o.Visible is not null).Select(o => (Voxel: MapRecord.VoxelId(m.Id, o.Index), Gate: o.Visible!)))
             .ToList();
         Assert.Contains(gated, g => Number(g.Gate.Flag) > 1);
         foreach (var (voxel, gate) in gated.Take(2000))

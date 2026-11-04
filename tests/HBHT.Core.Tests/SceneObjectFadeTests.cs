@@ -46,9 +46,12 @@ public class SceneObjectFadeTests
     public void AChestIsDrawnToItsModelsDistanceFromThePlayerNotItsRadius()
     {
         // A chest's object: radius 30, and its closed model drawn to 10.
-        var chest = new SceneObject(0, new Vector3(9.5f, 0, 0), 30, PakVariant.Any, Always,
-            [new(RecordId.Hex(RecordTypes.Scene, 0x907), 10), new(RecordId.Hex(RecordTypes.Scene, 0x909), 0), new(RecordId.Hex(RecordTypes.Scene, 0x905), 0)],
-            1, Vector3.Zero, Vector3.One, default, SceneObjectFlags.Solid);
+        var chest = new SceneObject(0, new Vector3(9.5f, 0, 0), 30, Always,
+            [new(RecordId.Hex(RecordTypes.Scene, 0x907), 10)], Vector3.Zero, Vector3.One, default, SceneObjectFlags.Solid)
+        {
+            Opened = new(RecordId.Hex(RecordTypes.Scene, 0x909), 0),
+            Destroyed = new(RecordId.Hex(RecordTypes.Scene, 0x905), 0),
+        };
         Span<byte> alphas = stackalloc byte[1];
         SceneObjectFade.Alphas(chest, Vector3.Zero, View, alphas);
         Assert.Equal(127, alphas[0]);
@@ -173,18 +176,18 @@ public class SceneObjectFadeTests
         Assert.Equal([0, 0], At(nothing, 20, nearest));
     }
 
-    private static readonly FlagGate Always = new(RecordId.Decimal(RecordTypes.Flag, 0), true);
+    private static readonly FlagGate? Always = null;
 
     private static SceneObject Tree(Vector3 position, SceneObjectFlags flags) =>
-        new(0, position, 40, PakVariant.Any, Always,
+        new(0, position, 40, Always,
             [new(RecordId.Hex(RecordTypes.Scene, 0x7E1), 15), new(RecordId.Hex(RecordTypes.Scene, 0x7E3), 40)],
-            2, Vector3.Zero, Vector3.One, default, flags);
+            Vector3.Zero, Vector3.One, default, flags);
 
     /// <summary>The levels' alphas with the player <paramref name="distance"/> along the look from the object, facing it.</summary>
     private static byte[] At(SceneObject o, float distance, ObjectDistance? range = null)
     {
         var view = View with { Focus = o.Position - new Vector3(distance, 0, 0), Camera = new Vector2(o.Position.X - distance - 10, o.Position.Z) };
-        var alphas = new byte[o.Lods];
+        var alphas = new byte[o.Models.Count];
         SceneObjectFade.Alphas(o, Vector3.Zero, view, alphas, range);
         return alphas;
     }

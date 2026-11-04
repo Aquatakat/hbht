@@ -12,14 +12,14 @@ public class MapObjectPresenceTests
     private static readonly RecordId Entity = RecordId.Parse("aidyn:entity/0x0001");
 
     private static MonsterPartyObject Party(RecordId? dialogue) =>
-        new(0, Vector3.Zero, 5, PakVariant.Any, null, [], Entity, null, 1, 1, null, PartyFlags.None, dialogue, null)
+        new(0, Vector3.Zero, 5, null, [], Entity, null, 1, 1, null, PartyFlags.None, dialogue, null)
         {
             Enabled = new FlagGate(Flag(10)),
             Used = new FlagWrite(Flag(11)),
         };
 
     private static ContainerObject Container(ContainerKind kind) =>
-        new(0, Vector3.Zero, 5, PakVariant.Any, kind >= ContainerKind.Herb ? new FlagGate(Flag(12)) : null, kind,
+        new(0, Vector3.Zero, 5, kind >= ContainerKind.Herb ? new FlagGate(Flag(12)) : null, kind,
             Flag(13), Flag(14), 0, 0, null, 0, null)
         {
             Enabled = kind >= ContainerKind.Herb ? new FlagGate(Flag(10)) : null,
@@ -28,11 +28,11 @@ public class MapObjectPresenceTests
     [Fact]
     public void MostObjectsAreThereWhileTheirVisibleGateHolds()
     {
-        var sound = new SoundObject(0, Vector3.Zero, 5, PakVariant.Any, new FlagGate(Flag(12), Invert: true),
+        var sound = new SoundObject(0, Vector3.Zero, 5, new FlagGate(Flag(12), Invert: true),
             RecordId.Parse("aidyn:sample/0x0001"), 1, 0, 0, SoundFlags.None);
         Assert.True(MapObjectPresence.There(sound, Set()));
         Assert.False(MapObjectPresence.There(sound, Set(12)));
-        Assert.True(MapObjectPresence.There(new SavePointObject(0, Vector3.Zero, 5, PakVariant.Any, null), Set()));
+        Assert.True(MapObjectPresence.There(new SavePointObject(0, Vector3.Zero, 5, null), Set()));
     }
 
     [Fact]

@@ -45,14 +45,14 @@ public sealed class PotionRecordTests(Na10Import fixture)
     }
 
     [Fact]
-    public void FireballAloneIsAnAreaAsTheCombatRecordsListHadIt()
+    public void FireballAloneIsABlast()
     {
-        var areas = Set.All<SpellRecord>(RecordTypes.Spell).Where(s => s.Area).ToList();
+        var areas = Set.All<SpellRecord>(RecordTypes.Spell).Where(s => s.Targeting.Blast).ToList();
         var fireball = Assert.Single(areas);
         Assert.Equal(Fireball, fireball.Id);
         // The code keys the area by spell kind 8 (EnemyAI.AreaCentre, 0x80058008).
         Assert.Equal(8, fireball.Position);
-        Assert.True(fireball.Placed);
+        Assert.True(fireball.Targeting.Placed);
     }
 
     /// <summary>The base plugin with a hand-written one after it: a spell that heals and a potion that dispels the Elemental school.</summary>
@@ -67,8 +67,8 @@ public sealed class PotionRecordTests(Na10Import fixture)
             Effects = [new HealEffect(50, 50)],
             Duration = null,
             Position = null,
-            AiValue = null,
-            Visuals = null,
+            Appeal = null,
+            Presentation = null,
         };
         var healing = Set.Get<ItemRecord>(PotionId(BasePotion.Healing));
         var draught = healing with

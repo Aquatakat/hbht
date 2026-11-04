@@ -33,29 +33,29 @@ public enum LockResult
 public static class Containers
 {
     /// <summary>
-    /// Rolls a loot table (<c>get_chest_loot</c>): gold between its bounds, doubled; a reagent, its kind
-    /// picked before its chance is rolled; then the six drops, each rolling its chance if it has one. An
-    /// empty drop that hits gives nothing.
+    /// Rolls a loot table (<c>get_chest_loot</c>): gold between its bounds, times <paramref name="goldMultiplier"/>
+    /// (<see cref="CombatRecord.LootGoldMultiplier"/>, 1.0's shift left by one), kept to 16 bits; a reagent, its kind picked
+    /// before its chance is rolled; then the drops, each rolling its chance if it has one, then its count.
     /// </summary>
-    public static LootRoll Roll(LootRecord loot, InventoryRecord rules, IRandom random)
+    public static LootRoll Roll(LootRecord loot, InventoryRecord rules, int goldMultiplier, IRandom random)
     {
-        var gold = (ushort)(random.Range(loot.GoldMin, loot.GoldMax) << 1);
+        var gold = (ushort)(random.Range(loot.GoldMin, loot.GoldMax) * goldMultiplier);
         var items = new List<(RecordId, int)>();
         RecordId[] reagents = [rules.Spice, rules.Herb, rules.Gemstone];
         var reagent = reagents[random.Range(0, 2)];
-        Drop(reagent, loot.ReagentChance, loot.ReagentMin, loot.ReagentMax, counted: true);
-        for (var i = 0; i < loot.Drops.Count; i++)
-            Drop(loot.Drops[i].Item, loot.Drops[i].Chance, loot.Drops[i].Min, loot.Drops[i].Max, counted: i < 2);
+        Drop(reagent, loot.ReagentChance, loot.ReagentMin, loot.ReagentMax);
+        foreach (var drop in loot.Drops)
+            Drop(drop.Item, drop.Chance, drop.Least, drop.Most);
         return new LootRoll(gold, items);
 
-        // item_chances: a percent roll, then the count between the bounds for a counted drop.
-        void Drop(RecordId? item, int chance, int min, int max, bool counted)
+        // item_chances: a percent roll, then the count between the bounds, which draws nothing for one number.
+        void Drop(RecordId item, int chance, int min, int max)
         {
             if (chance == 0 || random.RollD(1, 100) > chance)
                 return;
-            var count = counted ? random.Range(min, max) : 1;
-            if (item is { } given && count != 0)
-                items.Add((given, count));
+            var count = random.Range(min, max);
+            if (count != 0)
+                items.Add((item, count));
         }
     }
 
@@ -279,7 +279,7 @@ public sealed class Container(ContainerObject record)
         var gold = Gold;
         if (Loot is { } table)
         {
-            var roll = Containers.Roll(loot(table), items.Rules, random);
+            var roll = Containers.Roll(loot(table), items.Rules, items.LootGoldMultiplier, random);
             gold = roll.Gold;
             foreach (var (item, count) in roll.Items)
                 pile.Add(item, count);

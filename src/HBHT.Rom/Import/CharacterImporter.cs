@@ -210,7 +210,7 @@ internal static class CharacterImporter
             e.Shield.IsNone ? null : Record(e.Shield, DbType.Shield, e.Id),
             e.BaseProtection, e.Unk4E, e.Morale,
             [.. e.Resistances.Where(r => r.Element != Element.None).Select(r => new Resistance(r.Element, r.Amount * ResistanceStep))],
-            e.ExpReward * ExpPerRewardPoint, e.LootCategory, e.Unk55, e.Unk56,
+            e.ExpReward * ExpPerRewardPoint, e.LootCategory, e.Unk55,
             alaron ? DbRecordIds.Flag(AlaronTrueNameFlag) : null);
     }
 
@@ -219,6 +219,9 @@ internal static class CharacterImporter
     private static RecordId Record(ItemId id, DbType type, ItemId owner) =>
         id.Type == type && DbRecordIds.For(id) is { } record ? record
             : throw new InvalidDataException($"Entity {owner} names {id}, which isn't a {type}.");
+
+    /// <summary><c>unk1E</c> bit 0x10: the caster places the area.</summary>
+    private const int PlacedBit = 0x10;
 
     /// <param name="items">Where the spell symbols' icons are. Without them or <paramref name="menu"/>, spells have no icon.</param>
     /// <param name="menu">Where each spell's symbol and description come from. Without it, spells have neither.</param>
@@ -234,14 +237,34 @@ internal static class CharacterImporter
         var special = (SpellSpecial)s.Special;
         if (!Enum.IsDefined(special))
             throw new InvalidDataException($"Spell {s.Id} has special {s.Special}.");
+        // unk1E's bits: 1 Lunar and 2 Solar, which Combatant.ResistRoll and SpellResistanceApplies read; 0x10 a placed area,
+        // which CanCast, BeginSpellTargeting and IsResistable read. 0x20, 0x40 and 0x80 nothing in 1.0 reads (docs/formats/db.md).
+        var aspect = (s.Unk1E & 3) switch
+        {
+            0 => Aspect.None,
+            1 => Aspect.Lunar,
+            2 => Aspect.Solar,
+            _ => throw new InvalidDataException($"{s.Id} is both Lunar and Solar."),
+        };
+        var (spice, herb, gemstone) = ItemImporter.Reagents(db);
+        RecordId? reagent = s.Reagent switch
+        {
+            Reagent.None => null,
+            Reagent.Spice => spice,
+            Reagent.Herb => herb,
+            Reagent.Gemstone => gemstone,
+            _ => throw new InvalidDataException($"Spell {s.Id} has reagent {s.Reagent}."),
+        };
         return new SpellRecord(
-            DbRecordIds.For(s.Id)!.Value, s.Name, s.School, s.Damage, s.StaminaCost, s.TargetCount,
-            s.TargetType, s.WizardRequired, special, s.Range, s.Reagent,
-            s.ExpModifier * SpellCostPerPoint, s.Unk1E,
+            DbRecordIds.For(s.Id)!.Value, s.Name, s.School, s.StaminaCost,
+            new SpellTargeting(s.TargetType, s.TargetCount, Placed: (s.Unk1E & PlacedBit) != 0),
+            s.WizardRequired, special, s.Range, reagent,
+            s.ExpModifier * SpellCostPerPoint,
             items is not null && menu is not null && menu.SpellSymbols.TryGetValue(s.Id, out var symbol)
                 ? RecordId.Hex(RecordTypes.Image, items.SpellSymbolIcons[symbol]) : null,
             menu is null ? null : ItemImporter.Description(db, RomStringTable.Spells, menu.SpellDescriptions, s.Id),
-            position);
+            position,
+            Aspect: aspect);
     }
 
     /// <summary>The seven stats, <c>aidyn:stat/0</c> to <c>6</c>.</summary>

@@ -11,7 +11,7 @@ public sealed class QuestIndexTests : IDisposable
     /// <summary>
     /// Script 0x0100 checks flag 10 twice and sets and clears flag 20; it ends by setting 30, and
     /// winning its battle sets 31. Script 0x0101 sets flag 20 and checks 40. Flag 50 is derived
-    /// from 10 and 20 and adds journal entry 2, which lists flag 60. Map 0x0200 has objects gated
+    /// from 10 and 20. Flag 60 lists journal entry 2. Map 0x0200 has objects gated
     /// on flag 10, on flag 20 inverted, and on flags 0 and 1. The engine writes 70 and 71, and
     /// reads 72.
     /// </summary>
@@ -39,16 +39,17 @@ public sealed class QuestIndexTests : IDisposable
               },
               { "id": "aidyn:flag/10" },
               { "id": "aidyn:flag/20" },
-              { "id": "aidyn:flag/50", "journal": "aidyn:journal/2",
+              { "id": "aidyn:flag/50",
                 "formula": { "kind": "Logic", "op": "And", "operand": 0, "inputs": [ "aidyn:flag/10", "aidyn:flag/20" ] } },
-              { "id": "aidyn:journal/2", "flag": "aidyn:flag/60", "text": "Find the key." },
+              { "id": "aidyn:flag/60", "journal": "aidyn:journal/2" },
+              { "id": "aidyn:journal/2", "text": "Find the key." },
               {
                 "id": "aidyn:map/0x0200",
                 "objects": [
-                  { "type": "chest", "index": 0, "position": [0, 0, 0], "radius": 1, "pak": "Any", "visible": { "flag": "aidyn:flag/10" } },
-                  { "type": "chest", "index": 1, "position": [0, 0, 0], "radius": 1, "pak": "Any", "visible": { "flag": "aidyn:flag/20", "invert": true } },
-                  { "type": "chest", "index": 2, "position": [0, 0, 0], "radius": 1, "pak": "Any", "visible": { "flag": "aidyn:flag/0" } },
-                  { "type": "chest", "index": 3, "position": [0, 0, 0], "radius": 1, "pak": "Any", "visible": { "flag": "aidyn:flag/1", "invert": true } },
+                  { "type": "chest", "index": 0, "position": [0, 0, 0], "radius": 1, "visible": { "flag": "aidyn:flag/10" } },
+                  { "type": "chest", "index": 1, "position": [0, 0, 0], "radius": 1, "visible": { "flag": "aidyn:flag/20", "invert": true } },
+                  { "type": "chest", "index": 2, "position": [0, 0, 0], "radius": 1, "visible": { "flag": "aidyn:flag/0" } },
+                  { "type": "chest", "index": 3, "position": [0, 0, 0], "radius": 1, "visible": { "flag": "aidyn:flag/1", "invert": true } },
                 ],
               },
               {
@@ -100,16 +101,13 @@ public sealed class QuestIndexTests : IDisposable
     }
 
     [Fact]
-    public void JournalEntriesReadTheFlagThatAddsThemAndTheFlagThatListsThem()
+    public void AJournalEntryReadsTheFlagThatListsIt()
     {
         var index = Index();
         var entry = Id("aidyn:journal/2");
 
-        Assert.Equal([new FlagUse(Flag(50), entry, FlagAccess.Read, FlagRole.JournalAdds)], index.UsesOf(Flag(50)));
         Assert.Equal([new FlagUse(Flag(60), entry, FlagAccess.Read, FlagRole.JournalListed)], index.UsesOf(Flag(60)));
-        Assert.Equal(
-            [new FlagUse(Flag(50), entry, FlagAccess.Read, FlagRole.JournalAdds), new FlagUse(Flag(60), entry, FlagAccess.Read, FlagRole.JournalListed)],
-            index.UsesBy(entry));
+        Assert.Equal([new FlagUse(Flag(60), entry, FlagAccess.Read, FlagRole.JournalListed)], index.UsesBy(entry));
     }
 
     [Fact]
@@ -204,7 +202,6 @@ public sealed class QuestIndexTests : IDisposable
                 new QuestEdge(Flag(20), Id("aidyn:voxel/0x0200/1"), FlagRole.ObjectVisible, FlagAccess.Read),
             ],
             index.Downstream(Flag(20)));
-        Assert.Equal([new QuestEdge(Flag(50), Id("aidyn:journal/2"), FlagRole.JournalAdds, FlagAccess.Read)], index.Downstream(Flag(50)));
         Assert.Equal([new QuestEdge(Flag(60), Id("aidyn:journal/2"), FlagRole.JournalListed, FlagAccess.Read)], index.Downstream(Flag(60)));
 
         // A script is downstream of the flags it checks and upstream of the flags it changes.
@@ -242,8 +239,8 @@ public sealed class QuestIndexTests : IDisposable
     /// </summary>
     private QuestIndex ItemIndex()
     {
-        const string Obj = "\"position\": [0, 0, 0], \"radius\": 1, \"pak\": \"Any\", \"kind\": \"Chest\", \"lockLevel\": 0, \"trapLevel\": 0, \"gold\": 0";
-        const string Party = "\"position\": [0, 0, 0], \"radius\": 1, \"pak\": \"Any\", \"enemies\": [], \"entity\": \"aidyn:entity/0x0001\", \"minSize\": 1, \"maxSize\": 1";
+        const string Obj = "\"position\": [0, 0, 0], \"radius\": 1, \"kind\": \"Chest\", \"lockLevel\": 0, \"trapLevel\": 0, \"gold\": 0";
+        const string Party = "\"position\": [0, 0, 0], \"radius\": 1, \"enemies\": [], \"entity\": \"aidyn:entity/0x0001\", \"minSize\": 1, \"maxSize\": 1";
         var plugins = _temp.Aidyn(("items.json", $$"""
             [
               { "id": "aidyn:item/0x1200", "name": "Key A", "icon": "aidyn:image/0x0001", "price": 0, "kind": "Key", "keyItem": { "held": "aidyn:flag/100", "region": "aidyn:flag/101" } },

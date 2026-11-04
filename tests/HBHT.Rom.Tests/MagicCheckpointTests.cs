@@ -166,7 +166,7 @@ public sealed class MagicCheckpointTests(Na10Import fixture)
         Assert.Equal(PartOfDay.Midday, built.Battle.PartOfDay);
 
         // The reagent: the party's Spice stack of 99.
-        var spice = built.Game.Rules.Magic!.ReagentItem(learned.Spell.Reagent)!.Value;
+        var spice = learned.Spell.Reagent!.Value;
         Assert.Equal(99, built.Game.Party.Inventory.Count(spice));
         Assert.Equal(99, c.Inventory.Single(s => TestRoms.ItemId(s.Item.Id) == spice).Quantity);
 
@@ -183,7 +183,7 @@ public sealed class MagicCheckpointTests(Na10Import fixture)
     {
         var built = Build();
         var learned = built.Rheda.Sheet.Spells.Single(s => s.Spell.Id == Endurance);
-        var spice = built.Game.Rules.Magic!.ReagentItem(learned.Spell.Reagent)!.Value;
+        var spice = learned.Spell.Reagent!.Value;
         var expected = new Lcg(built.Seed);
         var outcomes = built.Battle.Cast(built.Rheda, SpellSource.From(learned), [built.Rheda, built.Alaron]);
         return (built, outcomes, learned, expected, built.Game.Party.Inventory.Count(spice));
@@ -254,14 +254,14 @@ public sealed class MagicCheckpointTests(Na10Import fixture)
         Assert.Equal((alaron09.Current[stamina], alaron09.Modified[stamina]), (built.Alaron.Sheet.Stats.Current(Stat.Stamina), built.Alaron.Sheet.Stats.RawModified(Stat.Stamina)));
 
         // The Spice stack: 99 -> 98, one for both targets.
-        var spice = built.Game.Rules.Magic!.ReagentItem(Endurance_Reagent(built))!.Value;
+        var spice = Endurance_Reagent(built)!.Value;
         var original08 = c08.Inventory.Single(s => TestRoms.ItemId(s.Item.Id) == spice).Quantity;
         Assert.Equal(98, original08);
         Assert.Equal(original08, built.Game.Party.Inventory.Count(spice));
         Assert.Equal(98, c09.Inventory.Single(s => TestRoms.ItemId(s.Item.Id) == spice).Quantity);
     }
 
-    private static Reagent Endurance_Reagent(Built built) => built.Rheda.Sheet.Spells.Single(s => s.Spell.Id == Endurance).Spell.Reagent;
+    private static RecordId? Endurance_Reagent(Built built) => built.Rheda.Sheet.Spells.Single(s => s.Spell.Id == Endurance).Spell.Reagent;
 
     [Fact]
     public void TheCastDrawsTheD100AndTheImprovementRollFromTheCombatStream()

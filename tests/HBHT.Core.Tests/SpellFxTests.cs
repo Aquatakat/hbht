@@ -22,7 +22,7 @@ public sealed class SpellFxTests
     private static readonly MagicRecord Magic = MagicData.Record with { Refused = Refused, Resisted = Resisted };
 
     private static SpellRecord Shown(SpellRecord spell, bool caster = true, bool target = true, bool aura = true) =>
-        spell with { Visuals = new MagicVisuals(caster ? CasterActor : null, target ? TargetActor : null, Aura: aura ? Aura : null) };
+        spell with { Presentation = new MagicPresentation(caster ? CasterActor : null, target ? TargetActor : null, Aura: aura ? Aura : null) };
 
     private static (SpellFx Fx, Combatant A, Combatant B) Battle(GameClock? clock = null)
     {
@@ -71,7 +71,7 @@ public sealed class SpellFxTests
     public void AnActorShownAtTheHeadStandsTheEntitysHeightAboveTheFeet()
     {
         var (fx, a, b) = Battle();
-        var spell = MagicData.Weakness with { Visuals = new MagicVisuals(Target: TargetActor, TargetAtHead: true) };
+        var spell = MagicData.Weakness with { Presentation = new MagicPresentation(Target: TargetActor, TargetAtHead: true) };
 
         fx.Start(a, b, spell, SpellVisualKind.Cast);
 
@@ -317,7 +317,7 @@ public sealed class SpellFxTests
     {
         var (fx, a, _) = Battle();
         var potion = new ItemRecord(RecordId.Hex(RecordTypes.Item, 0x1009), "Strength Potion", default, 0, ItemKind.Potion,
-            Visuals: new MagicVisuals(Target: CasterActor, Aura: Aura));
+            Presentation: new MagicPresentation(Target: CasterActor, Aura: Aura));
 
         fx.StartPotion(a, potion);
 

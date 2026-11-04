@@ -46,12 +46,12 @@ public sealed class ChunkScenery
     /// (<c>VoxelObjects_Activate</c>), not every frame.
     /// </summary>
     /// <param name="model">
-    /// Which of an object's models its nearest level shows: 0, its own, or for a container's, 1 opened
-    /// or 2 destroyed (<c>replace_container_voxel</c>). All 0 if not given.
+    /// What an object's nearest level shows: its own first model, or a container's opened or destroyed one
+    /// (<c>replace_container_voxel</c>). Its own if not given.
     /// </param>
     /// <param name="particles">Whether its actors' emitters start (<see cref="Models.Particles"/>).</param>
     public static ChunkScenery Load(PluginSet plugins, Models models, MapSetRecord set, ChunkEntry chunk, Func<SceneObject, bool> placed,
-        Func<SceneObject, int>? model = null, bool particles = true)
+        Func<SceneObject, SceneModel>? model = null, bool particles = true)
     {
         var scenery = new ChunkScenery(chunk, new Node3D { Name = chunk.Name, Position = set.Origin(chunk.Row, chunk.Column).ToGodot() });
         foreach (var scene in new[] { chunk.Scene, chunk.AltScene, chunk.Fill }.OfType<RecordId>())
@@ -69,7 +69,7 @@ public sealed class ChunkScenery
         foreach (var o in plugins.Get<MapRecord>(chunk.Map).Objects.OfType<SceneObject>())
         {
             if (placed(o))
-                objects.AddChild(scenery.Place(plugins, models, o, model?.Invoke(o) ?? 0, particles).Node);
+                objects.AddChild(scenery.Place(plugins, models, o, model?.Invoke(o) ?? o.Models[0], particles).Node);
         }
         scenery.Billboards = global::HBHT.Views.Billboards.Facings(scenery.Root);
         return scenery;
@@ -124,10 +124,10 @@ public sealed class ChunkScenery
     public PlacedObject? Find(int index) => Objects.FirstOrDefault(p => p.Object.Index == index);
 
     /// <summary>
-    /// A scene object's levels of detail, each hidden, the nearest showing model <paramref name="first"/>. The core's
+    /// A scene object's levels of detail, each hidden, the nearest showing <paramref name="first"/>. The core's
     /// <see cref="Core.Chunks.ChunkSurfaces"/>, which rain lands on, places the nearest level the same way.
     /// </summary>
-    private PlacedObject Place(PluginSet plugins, Models models, SceneObject o, int first, bool particles)
+    private PlacedObject Place(PluginSet plugins, Models models, SceneObject o, SceneModel first, bool particles)
     {
         var q = o.Orientation();
         var node = new Node3D
@@ -136,10 +136,10 @@ public sealed class ChunkScenery
             Transform = new Transform3D(new Basis(new Quaternion(q.X, q.Y, q.Z, q.W)) * Basis.FromScale(o.Scale.ToGodot()),
                 o.Position.ToGodot()),
         };
-        var levels = new Level?[Math.Min(o.Lods, o.Models.Count)];
+        var levels = new Level?[o.Models.Count];
         for (var i = 0; i < levels.Length; i++)
         {
-            var model = i == 0 && first < o.Models.Count ? o.Models[first] : o.Models[i];
+            var model = i == 0 ? first : o.Models[i];
             if (Instantiate(plugins, models, model.Model, o.Flags, particles) is not ({ } instance, var animator))
                 continue;
             // The original averages a tinted object's tint with the scenery's (SetSceneColors).
@@ -179,7 +179,7 @@ public sealed class ChunkScenery
             yield return scene;
         if (plugins.TryGet<MapRecord>(chunk.Map) is not { } map)
             yield break;
-        foreach (var model in map.Objects.OfType<SceneObject>().SelectMany(o => o.Models.Take(Math.Max(o.Lods, 1))).Select(m => m.Model).Distinct())
+        foreach (var model in map.Objects.OfType<SceneObject>().SelectMany(o => o.Models).Select(m => m.Model).Distinct())
             yield return model;
     }
 }

@@ -43,11 +43,10 @@ public sealed class ChunkSurfaces(PluginSet plugins)
         }
         foreach (var o in map.Record.Objects.OfType<SceneObject>())
         {
-            if (!map.IsActive(o.Index) || Math.Min(o.Lods, o.Models.Count) == 0)
+            if (!map.IsActive(o.Index) || o.Models.Count == 0)
                 continue;
             // The nearest level shows a container's opened or destroyed model in place of its own (ChunkScenery.Place).
-            var look = (int)map.Look(o.Index);
-            var model = (look < o.Models.Count ? o.Models[look] : o.Models[0]).Model;
+            var model = map.Nearest(o).Model;
             if (model.Type == RecordTypes.Actor)
             {
                 if (plugins.TryGet<ActorRecord>(model) is not { } actor)
@@ -75,7 +74,7 @@ public sealed class ChunkSurfaces(PluginSet plugins)
             return;
         foreach (var o in map.Objects.OfType<SceneObject>())
         {
-            foreach (var model in o.Models.Select(m => m.Model))
+            foreach (var model in o.Models.Append(o.Opened).Append(o.Destroyed).OfType<SceneModel>().Select(m => m.Model))
             {
                 if (model.Type != RecordTypes.Actor)
                     Scene(model);

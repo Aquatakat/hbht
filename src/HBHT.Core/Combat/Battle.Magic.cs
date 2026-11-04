@@ -223,7 +223,7 @@ public sealed partial class Battle : IMagicHost
         var sheet = caster.Sheet;
         var level = Casting.Level(sheet, source);
         // Combatant.CheckSpellAvailable (0x800635B8).
-        if (spell.TargetType == SpellTargetType.Field)
+        if (spell.Targeting.Type == SpellTargetType.Field)
         {
             SayBoth(UnavailableLine);
             return new(target, CastResult.NotCast, CastRefusal.Unavailable);
@@ -282,7 +282,7 @@ public sealed partial class Battle : IMagicHost
         var sheet = caster.Sheet;
         var random = Game.Random.Combat;
         // CheckReagent (0x80063BFC): the party's own pay one from the inventory.
-        var reagent = Magic.ReagentItem(spell.Reagent);
+        var reagent = spell.Reagent;
         var pays = !caster.Flags.HasFlag(CombatantFlags.FromEnemyList) && !caster.Controlled && reagent is not null;
         if (pays && !Game.Party.Inventory.Take(reagent!.Value))
         {

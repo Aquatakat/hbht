@@ -104,5 +104,14 @@ public sealed class ItemCatalog
     /// <summary>The installed plugins' items.</summary>
     public static ItemCatalog From(PluginSet plugins) => new(
         plugins.All<WeaponRecord>(RecordTypes.Weapon), plugins.All<ArmorRecord>(RecordTypes.Armor), plugins.All<ItemRecord>(RecordTypes.Item),
-        plugins.Singleton<InventoryRecord>());
+        plugins.Singleton<InventoryRecord>())
+    {
+        LootGoldMultiplier = plugins.TrySingleton<CombatRecord>()?.LootGoldMultiplier ?? 1,
+    };
+
+    /// <summary>
+    /// What a container's loot table's gold is multiplied by (<see cref="CombatRecord.LootGoldMultiplier"/>), which a battle's
+    /// rewards read from the combat record too; 1 without one.
+    /// </summary>
+    public int LootGoldMultiplier { get; init; } = 1;
 }

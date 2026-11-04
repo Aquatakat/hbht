@@ -110,7 +110,7 @@ public sealed partial class Battle
     /// </remarks>
     public bool CanAttack(Combatant a, Combatant t, CombatAction action)
     {
-        if (_rules.Untargetable?.Contains(t.Entity) == true)
+        if (_rules.Untargetable.Contains(t.Entity))
             return false;
         if (!a.Healing)
         {
@@ -635,7 +635,7 @@ public sealed partial class Battle
             Cue(new MissileLaunched(Flight));
             return true;
         }
-        if (WeaponOf(a) is not { } weapon || _rules.Missiles?.FirstOrDefault(m => m.Weapon == weapon.Id) is not { } missile)
+        if (WeaponOf(a) is not { } weapon || _rules.Missiles.FirstOrDefault(m => m.Weapon == weapon.Id) is not { } missile)
             return false;
         if ((missile.Scene ?? weapon.Model) is not { } scene)
             return false;

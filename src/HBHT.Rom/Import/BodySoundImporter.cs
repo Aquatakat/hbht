@@ -64,7 +64,9 @@ internal static class BodySoundImporter
             if (DbRecordIds.For(db.Spells[i].Id) is { } id)
                 casts.TryAdd(id, Sequence(tables.SpellSounds[i]));
         }
-        return [.. spells.Select(s => casts.TryGetValue(s.Id, out var cast) ? s with { Cast = cast } : s)];
+        return [.. spells.Select(s => casts.TryGetValue(s.Id, out var cast)
+            ? s with { Presentation = (s.Presentation ?? new MagicPresentation()) with { Sound = cast } }
+            : s)];
     }
 
     /// <summary>Each body kind's footsteps: its loudness and its set's keys by surface, through the step sounds.</summary>

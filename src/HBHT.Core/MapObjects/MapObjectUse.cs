@@ -238,7 +238,7 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
         return o switch
         {
             ContainerObject c => distance <= c.Reach + radius && map.Container(o.Index)!.Usable(Flags),
-            TeleporterObject or TriggerObject or DialogueObject => distance <= o.Radius && Holds(o.Enabled),
+            TeleporterObject or TripwireObject or DialogueObject => distance <= o.Radius && Holds(o.Enabled),
             SavePointObject => distance <= o.Radius,
             _ => false,
         };
@@ -267,8 +267,8 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
             case DialogueObject dialogue:
                 host.StartScript(map, dialogue);
                 break;
-            case TriggerObject trigger:
-                Trigger(map, trigger);
+            case TripwireObject tripwire:
+                Trip(map, tripwire);
                 break;
             case MonsterPartyObject party:
                 host.Talk(map, party);
@@ -299,15 +299,15 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
         {
             if (!o.Tangible || !map.IsActive(o.Index) || Vector3.Distance(o.Position, at) > o.Radius || !Holds(o.Enabled))
                 continue;
-            if (Popup is not null && o is not TriggerObject)
+            if (Popup is not null && o is not TripwireObject)
                 continue;
             switch (o)
             {
                 case TeleporterObject teleporter:
                     host.Teleport(map, teleporter);
                     return;
-                case TriggerObject trigger:
-                    Trigger(map, trigger);
+                case TripwireObject tripwire:
+                    Trip(map, tripwire);
                     break;
                 case DialogueObject dialogue:
                     host.StartScript(map, dialogue);
@@ -342,29 +342,29 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
         }
     }
 
-    // Triggers.
+    // Tripwires.
 
     /// <summary>
-    /// A trigger going off (<c>trigger_vobject_func</c>): it sets its flag, asks its actor for an
+    /// A tripwire going off (<c>trigger_vobject_func</c>): it sets its flag, asks its actor for an
     /// animation, or changes its map's toggles' collision; then it writes its <see cref="MapObject.Used"/>.
     /// </summary>
-    public void Trigger(LoadedMap map, TriggerObject trigger)
+    public void Trip(LoadedMap map, TripwireObject tripwire)
     {
-        switch (trigger.Kind)
+        switch (tripwire.Does)
         {
-            case TriggerKind.SetFlag:
+            case SetFlagAction set:
                 // Brought up to date at once, so a journal entry it adds is told on the next tick, as the camp south of
                 // Gwernia castle's is as the player reaches it.
-                Flags.TrySetAndProcess(trigger.Flag, true);
+                Flags.TrySetAndProcess(set.Flag, true);
                 break;
-            case TriggerKind.Animate when trigger.Request is { } request && map.Linked<SceneObject>(trigger) is { } actor:
-                host.Animate(map, actor, request);
+            case AnimateAction animate when map.Linked<SceneObject>(tripwire) is { } actor:
+                host.Animate(map, actor, animate.Request);
                 break;
-            case TriggerKind.ChangeCollision when trigger.Toggle is { } toggle:
-                World?.ChangeToggles(map.Key, toggle, trigger.KeepFlags ?? 0xFFFF, trigger.AddFlags ?? 0);
+            case ChangeCollisionAction change:
+                World?.ChangeToggles(map.Key, change.Toggle, change.KeepFlags, change.AddFlags);
                 break;
         }
-        Write(trigger.Used);
+        Write(tripwire.Used);
     }
 
     // Teleporters.

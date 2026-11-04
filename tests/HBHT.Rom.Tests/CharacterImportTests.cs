@@ -261,7 +261,7 @@ public sealed class CharacterImportTests(Na10Import fixture)
         {
             var entity = entities[DbRecordIds.For(rom.Id)!.Value];
             Assert.Equal(rom.ExpReward * 50, entity.Experience);
-            Assert.Equal((rom.Unk55, rom.Unk56, (int)rom.LootCategory), (entity.Perception, entity.Unk21, entity.LootCategory));
+            Assert.Equal((rom.Unk55, (int)rom.LootCategory), (entity.Perception, entity.LootCategory));
         });
     }
 
@@ -291,7 +291,7 @@ public sealed class CharacterImportTests(Na10Import fixture)
             var spell = spells[DbRecordIds.For(rom.Id)!.Value];
             Assert.Equal(rom.ExpModifier * 50, spell.TrainingCost);
             Assert.Equal((int)rom.Special, (int)spell.Special);
-            Assert.Equal((int)rom.TargetCount, (int)spell.TargetCount);
+            Assert.Equal((int)rom.TargetCount, (int)spell.Targeting.Count);
         });
     }
 

@@ -80,7 +80,7 @@ public class ParticleTests
         Assert.Equal(218, emitters);
         // The data never moves an emitter or gives it a second acceleration.
         Assert.Equal(ParticleEmitterFlags.BounceAtZero | ParticleEmitterFlags.ExactTargetJitter | ParticleEmitterFlags.ExactSpawnJitter |
-            ParticleEmitterFlags.LocatorNormal | ParticleEmitterFlags.ActorRequest | ParticleEmitterFlags.Unknown40 |
+            ParticleEmitterFlags.LocatorNormal | ParticleEmitterFlags.ActorRequest | Borg5ParticleEmitter.UnreadFlag |
             ParticleEmitterFlags.AccelerationChanges | ParticleEmitterFlags.Target | ParticleEmitterFlags.Fade |
             ParticleEmitterFlags.Scales, flags);
         Assert.Equal(20, unknown40);

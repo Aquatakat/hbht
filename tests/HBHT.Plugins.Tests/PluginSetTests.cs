@@ -54,9 +54,9 @@ public sealed class PluginSetTests : IDisposable
 
     private const string MapWithThreeObjects = """
         [{ "id": "aidyn:map/0x0E87", "objects": [
-          { "type": "container", "index": 0, "position": [1, 0, 1], "radius": 1, "pak": "With", "kind": "Chest", "loot": "aidyn:loot/0x0401", "reach": 2 },
-          { "type": "savePoint", "index": 1, "position": [2, 0, 2], "radius": 1, "pak": "With" },
-          { "type": "scene", "index": 2, "position": [3, 0, 3], "radius": 1, "pak": "With", "models": [{ "model": "aidyn:scene/0x0B48", "drawDistance": 15 }] },
+          { "type": "container", "index": 0, "position": [1, 0, 1], "radius": 1, "kind": "Chest", "loot": "aidyn:loot/0x0401", "reach": 2 },
+          { "type": "savePoint", "index": 1, "position": [2, 0, 2], "radius": 1 },
+          { "type": "scene", "index": 2, "position": [3, 0, 3], "radius": 1, "models": [{ "model": "aidyn:scene/0x0B48", "drawDistance": 15 }] },
         ] }]
         """;
 
@@ -69,7 +69,7 @@ public sealed class PluginSetTests : IDisposable
                 { "patch": "aidyn:map/0x0E87", "objects": [
                   { "index": 0, "reach": 5 },
                   { "index": 1, "$remove": true },
-                  { "type": "savePoint", "index": 7, "position": [9, 0, 9], "radius": 2, "pak": "With" },
+                  { "type": "savePoint", "index": 7, "position": [9, 0, 9], "radius": 2 },
                 ] }
                 """)),
         ]);
@@ -384,7 +384,7 @@ public sealed class PluginSetTests : IDisposable
         Assert.True(RecordTypes.Registry.All(t => t.Class is null || t.Class.Name.EndsWith("Record", StringComparison.Ordinal)));
 
         // The map object kinds come from MapObject's attributes, each with a name of its own.
-        Assert.Equal(["scene", "container", "light", "sound", "wanderNode", "monsterParty", "refPoint", "teleporter", "camera", "dialogue", "trigger", "savePoint"],
+        Assert.Equal(["scene", "container", "light", "sound", "wanderNode", "monsterParty", "refPoint", "teleporter", "camera", "dialogue", "tripwire", "savePoint"],
             MapObjectKinds.All.Select(k => k.Discriminator));
         Assert.All(MapObjectKinds.All, k => Assert.NotEqual(k.Type.Name, k.Name));
         Assert.Equal("Monster party", MapObjectKinds.Name("monsterParty"));
@@ -393,8 +393,8 @@ public sealed class PluginSetTests : IDisposable
     [Fact]
     public void TypedRecordsRoundTrip()
     {
-        var original = new SceneObject(3, new(1.5f, 2, -3), 45, PakVariant.With, new FlagGate(RecordId.Parse("aidyn:flag/0"), true),
-            [new SceneModel(RecordId.Parse("aidyn:scene/0x0B48"), 15)], 1, new(0, 0.5f, 0), new(1, 1, 1),
+        var original = new SceneObject(3, new(1.5f, 2, -3), 45, new FlagGate(RecordId.Parse("aidyn:flag/0"), true),
+            [new SceneModel(RecordId.Parse("aidyn:scene/0x0B48"), 15)], new(0, 0.5f, 0), new(1, 1, 1),
             new Rgba(1, 2, 3, 4), SceneObjectFlags.Solid | SceneObjectFlags.Tint);
         MapRecord map = new(RecordId.Parse("aidyn:map/0x0E87"), [original]);
         var json = JsonSerializer.Serialize(map, PluginJson.Options);

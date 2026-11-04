@@ -26,7 +26,13 @@ public sealed class FlagNetwork
     private readonly Formula?[] _formulas;
     /// <summary>The derived flags, in the order they're evaluated.</summary>
     private readonly int[] _derived;
-    private readonly RecordId?[] _journal;
+    /// <summary>The flags that list journal entries, with their entries, in the entries' order (the journal table's).</summary>
+    private readonly (int Handle, RecordId Entry)[] _journal;
+    /// <summary>
+    /// Each of <see cref="_journal"/>'s flags as the network last saw it come up to date: the original's derived flag
+    /// <c>count(entry's flag) &gt; 0</c>, whose turning on raised the notice.
+    /// </summary>
+    private readonly bool[] _journalSeen;
     private readonly HashSet<RecordId> _entries;
     private readonly List<RecordId> _journalOrder = [];
     private readonly int _newJournalEntry;
@@ -35,7 +41,7 @@ public sealed class FlagNetwork
     private readonly record struct Formula(FlagFormulaKind Kind, FlagOperation Op, int Operand, int[] Inputs);
 
     /// <param name="flags">Every flag. Base-game flags must be numbered from 0 with no gaps.</param>
-    /// <param name="newJournalEntry">The plain flag set when a flag with a journal entry turns on.</param>
+    /// <param name="newJournalEntry">The plain flag set when a flag that lists a journal entry turns on.</param>
     /// <param name="loadOrder">Where each non-base flag's plugin loads, which orders their handles.</param>
     public FlagNetwork(IEnumerable<FlagRecord> flags, RecordId newJournalEntry, Func<RecordId, int>? loadOrder = null)
     {
@@ -58,8 +64,13 @@ public sealed class FlagNetwork
                 throw new InvalidDataException($"Flag {_ids[h]} is defined twice.");
         }
         _initial = [.. ordered.Select(f => f.Formula is null && f.Initial)];
-        _journal = [.. ordered.Select(f => f.Journal)];
-        _entries = [.. _journal.OfType<RecordId>()];
+        _journal = [.. ordered.Select((f, h) => (Handle: h, Entry: f.Journal)).Where(j => j.Entry is not null)
+            .Select(j => (j.Handle, j.Entry!.Value))
+            .OrderBy(j => j.Value.Namespace == RecordId.BaseNamespace ? 0 : 1)
+            .ThenBy(j => j.Value.Namespace == RecordId.BaseNamespace && int.TryParse(j.Value.Key, CultureInfo.InvariantCulture, out var n) ? n : int.MaxValue)
+            .ThenBy(j => j.Value.ToString(), StringComparer.Ordinal)];
+        _journalSeen = new bool[_journal.Length];
+        _entries = [.. _journal.Select(j => j.Entry)];
         _formulas = [.. ordered.Select(f => f.Formula is { } formula ? Compile(f.Id, formula) : (Formula?)null)];
         _derived = [.. Enumerable.Range(0, _ids.Length).Where(h => _formulas[h] is not null)];
         _values = new byte[_ids.Length];
@@ -96,14 +107,17 @@ public sealed class FlagNetwork
     /// </summary>
     public IReadOnlyList<RecordId> JournalOrder => _journalOrder;
 
-    /// <summary>Whether a flag adds this journal entry.</summary>
+    /// <summary>Whether a flag lists this journal entry.</summary>
     public bool HasJournalEntry(RecordId entry) => _entries.Contains(entry);
 
+    /// <summary>Every journal entry a flag lists, in the entries' order: for the base game, the journal table's.</summary>
+    public IEnumerable<RecordId> JournalEntries => _journal.Select(j => j.Entry).Distinct();
+
     /// <summary>
-    /// Every journal entry a flag adds, in the order of the flags that add them, the network's: for the base game, the journal
-    /// table's.
+    /// Whether the journal shows an entry: whether a flag that lists it is set (<c>Journal.AddEntry</c>, <c>0x8005256c</c>, reads
+    /// each entry's own flag). Reading a derived one, as entry 32's is, brings the network up to date.
     /// </summary>
-    public IEnumerable<RecordId> JournalEntries => _journal.OfType<RecordId>().Distinct();
+    public bool Lists(RecordId entry) => _journal.Any(j => j.Entry == entry && Get(j.Handle));
 
     public RecordId Id(int handle) => _ids[handle];
 
@@ -240,6 +254,7 @@ public sealed class FlagNetwork
     {
         for (var h = 0; h < _values.Length; h++)
             _values[h] = (byte)(_initial[h] ? 1 : 0);
+        Array.Clear(_journalSeen);
         NewestJournalEntry = null;
         _journalOrder.Clear();
         Dirty = true;
@@ -248,7 +263,7 @@ public sealed class FlagNetwork
 
     /// <summary>
     /// Sets every plain flag and brings the derived flags up to date, as loading a save does
-    /// (<c>LoadGameState</c>). Derived flags that turn on add their journal entries, but none is left the newest:
+    /// (<c>LoadGameState</c>). Journal flags that turn on add their entries, but none is left the newest:
     /// the user found the original's journal highlights nothing just after loading (Oct 17, 2026).
     /// </summary>
     /// <param name="journal">
@@ -264,8 +279,7 @@ public sealed class FlagNetwork
         }
         Dirty = true;
         Process();
-        var on = Enumerable.Range(0, _ids.Length).Where(h => _values[h] != 0 && _journal[h] is not null)
-            .Select(h => _journal[h]!.Value).Distinct().ToList();
+        var on = _journal.Where(j => _values[j.Handle] != 0).Select(j => j.Entry).Distinct().ToList();
         var saved = (journal ?? []).Where(_entries.Contains).Distinct().ToList();
         _journalOrder.Clear();
         _journalOrder.AddRange(on.Where(e => !saved.Contains(e)));
@@ -276,7 +290,7 @@ public sealed class FlagNetwork
     /// <summary>
     /// Brings the derived flags up to date (<c>ProcessGameStates</c>): evaluates every derived flag in
     /// order, each seeing the ones before it as already updated, and starts again from the first
-    /// while anything changed.
+    /// while anything changed. At the end of each pass the journal's flags are looked at (<see cref="SeeJournal"/>).
     /// </summary>
     public void Process()
     {
@@ -285,10 +299,36 @@ public sealed class FlagNetwork
             Dirty = false;
             foreach (var handle in _derived)
                 Write(handle, Evaluate(_formulas[handle]!.Value));
+            SeeJournal();
         }
     }
 
-    /// <summary><c>set_journalentry_flag</c>: a change marks the network out of date, and may add a journal entry.</summary>
+    /// <summary>
+    /// Adds the entries whose flags have turned on since the network last came up to date, in the entries' order: each raises
+    /// the new-entry flag and becomes the newest. The original's derived flags 5556 on, one an entry and the last it evaluates,
+    /// are <c>count(entry's flag) &gt; 0</c>, and a write that turns one on does this (<c>GameStateFunnel.Write</c>,
+    /// <c>0x800cb33c</c>, which only <c>ProcessGameStates</c> calls for a derived flag), so the notice waits for the network as
+    /// theirs did. Nothing else reads them, and the port keeps them as these bits.
+    /// </summary>
+    private void SeeJournal()
+    {
+        for (var i = 0; i < _journal.Length; i++)
+        {
+            var on = _values[_journal[i].Handle] != 0;
+            if (on == _journalSeen[i])
+                continue;
+            _journalSeen[i] = on;
+            if (!on)
+                continue;
+            var entry = _journal[i].Entry;
+            _values[_newJournalEntry] = 1;
+            NewestJournalEntry = entry;
+            if (!_journalOrder.Contains(entry))
+                _journalOrder.Add(entry);
+        }
+    }
+
+    /// <summary><c>set_journalentry_flag</c>: a change marks the network out of date.</summary>
     private void Write(int handle, bool value)
     {
         var bit = (byte)(value ? 1 : 0);
@@ -296,13 +336,6 @@ public sealed class FlagNetwork
             return;
         _values[handle] = bit;
         Dirty = true;
-        if (value && _journal[handle] is { } entry)
-        {
-            _values[_newJournalEntry] = 1;
-            NewestJournalEntry = entry;
-            if (!_journalOrder.Contains(entry))
-                _journalOrder.Add(entry);
-        }
     }
 
     private bool Evaluate(Formula formula)

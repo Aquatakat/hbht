@@ -2,6 +2,15 @@ using HBHT.Plugins.Records;
 
 namespace HBHT.Rom.Db;
 
+/// <summary>The reagent a spell uses up, as the spell DB names it: an index into the reagents' items (<c>0x800E29CC</c>).</summary>
+public enum Reagent
+{
+    None,
+    Spice,
+    Herb,
+    Gemstone,
+}
+
 /// <summary>A <c>SpellDB</c> record (0x24 bytes).</summary>
 /// <param name="Special">AidynEditor calls it the aspect. The decomp's <c>MagicSpecial</c> has 1 true name, 2 heavy, 3 solar, 4 lunar.</param>
 public sealed record RomSpellRecord(

@@ -32,7 +32,6 @@ namespace HBHT.Plugins.Records;
 /// <param name="Experience">What beating it is worth, before the award multiplier (<see cref="ProgressionRecord.ExpAward"/>).</param>
 /// <param name="LootCategory">Which loot table beaten enemies roll. Resolved with combat's rewards (2.5).</param>
 /// <param name="Perception">How far it notices the party in trek, 10 or 0 (<c>EntityDB::GetPerception</c>).</param>
-/// <param name="Unk21">Read with <paramref name="Perception"/> (<c>EntityDB::GetVal_21h</c>); what for isn't known.</param>
 /// <param name="SoleWeapon">
 /// The only weapon it can equip (<c>Entity::canEquipWeapon</c>): Niesen's Archmage Staff. Null for
 /// everyone else.
@@ -65,7 +64,6 @@ public sealed record EntityRecord(
     int Experience,
     int LootCategory,
     int Perception,
-    int Unk21,
     RecordId? TrueNameFlag = null,
     RecordId? SoleWeapon = null,
     EntityBody? Body = null,
@@ -273,26 +271,24 @@ public sealed record TrainingPrices(int FirstLevelGold, int GoldPerLevel, float 
 
 /// <summary>A spell (<c>aidyn:spell/0x…</c>), from the spell DB (<c>SpellDB</c>, <c>TempSpell::Init</c>).</summary>
 /// <param name="School">A character can learn it if its school is the same, the spell is unschooled or the character is Chaos.</param>
-/// <param name="Damage">The ROM's damage byte, which the effects carry now (<see cref="DamageEffect"/>).</param>
 /// <param name="Stamina">What casting it costs (<c>Entity::SpellStaminaSubtract</c>).</param>
+/// <param name="Targeting">Whom it takes, how many, and how its area is placed.</param>
 /// <param name="Wizard">The Wizard level it takes to learn it.</param>
 /// <param name="Special">What its target must have or when it can be cast.</param>
 /// <param name="Range">Its reach per level of the cast.</param>
-/// <param name="Reagent">What each cast uses up.</param>
+/// <param name="Reagent">
+/// The item each cast uses up, or null for none: in the base, the inventory's spice, herb or gemstone
+/// (<see cref="InventoryRecord.Spice"/>; the ROM's byte names one of the three, by the table at <c>0x800E29CC</c>).
+/// </param>
 /// <param name="TrainingCost">
 /// Raising it from level <c>n</c> to <c>n + 1</c> costs (n + 1)² × this in experience, and learning
 /// it costs this (<c>TempSpell::GetExpPrice</c>). It's the record's byte × 50.
-/// </param>
-/// <param name="Unk1E">
-/// Copied to RAM as a set of bits: 1 Lunar and 2 Solar (<see cref="Aspect"/>), 0x10 a placed area (<see cref="Placed"/>); 0x20, 0x40
-/// and 0x80 nothing in combat reads.
 /// </param>
 /// <param name="Icon">The spell's symbol (<c>GetSpellIcon</c>), which lists show beside its school's icon.</param>
 /// <param name="Description">
 /// What C-down's details say of it (<c>aidyn:strings/2</c>). Four spells have none, and the original
 /// can't show their details.
 /// </param>
-/// <param name="Cast">What casting it plays, in combat (<c>AudioKeys.PlaySpellCast</c>).</param>
 /// <param name="Position">
 /// Its place in the spell table (<c>SpellDB</c>), which groups spells by school. Loading a save puts a
 /// spellbook in this order, school by school, as the original does (<c>SaveParty::LoadSpell</c>). A
@@ -301,17 +297,14 @@ public sealed record TrainingPrices(int FirstLevelGold, int GoldPerLevel, float 
 /// <param name="Effects">What a cast does to each target (ADR 0020).</param>
 /// <param name="Duration">How long its effects last on a target; none, and they happen once.</param>
 /// <param name="Aspect">Solar or Lunar: it meets those resistances, and the resist roll's aspect factor.</param>
-/// <param name="Placed">The caster places its area, and its range is about that point (state 11).</param>
 /// <param name="Resisted">Who resists it.</param>
 /// <param name="NotResistedBy">Entities that never resist it: the Marquis, Wall of Bones.</param>
 /// <param name="Filter">Who it may be cast at, beyond its side and its special.</param>
-/// <param name="AiValue">What the enemies' AI makes of it (<c>EnemyAI.SpellValue</c>); with none, its first effect's type's.</param>
-/// <param name="Visuals">What casting it shows in a battle; with none, nothing.</param>
-/// <param name="Area">
-/// The AI centres its placed area on its opponents and scores it by whom it would catch, and a party member who knows it makes the
-/// enemies spread out by twice the casting level (<c>EnemyAI.AreaCentre</c>, <c>0x80058008</c>, <c>EnemyAI.AimAreaSpell</c>,
-/// <c>0x8005974C</c>, and <c>Combat.CreatePartyCombatants</c>, <c>0x8005C7C8</c>, all by spell kind 8): Fireball.
+/// <param name="Appeal">
+/// The base of the enemies' AI's score for casting it (<c>EnemyAI.SpellValue</c>): 0 and the AI never picks it. With none, the
+/// highest of the spells whose first effect is of the same type.
 /// </param>
+/// <param name="Presentation">What casting it shows and plays in a battle; with none, nothing.</param>
 /// <param name="Strike">
 /// The share of its effect's animation at which it lands, the target reacting and its number shown: the cast state of the actor
 /// its visual plays at the target, or with none at the caster (a refused cast's or a resisted one's, when it's that), at the frame
@@ -324,35 +317,47 @@ public sealed record SpellRecord(
     RecordId Id,
     string Name,
     MagicSchool School,
-    int Damage,
     int Stamina,
-    SpellTargetCount TargetCount,
-    SpellTargetType TargetType,
+    SpellTargeting Targeting,
     int Wizard,
     SpellSpecial Special,
     int Range,
-    Reagent Reagent,
+    RecordId? Reagent,
     int TrainingCost,
-    int Unk1E,
     RecordId? Icon = null,
     string? Description = null,
     int? Position = null,
-    RecordId? Cast = null,
     IReadOnlyList<Effect>? Effects = null,
     EffectDuration? Duration = null,
     Aspect Aspect = Aspect.None,
-    bool Placed = false,
     Resisted Resisted = Resisted.Never,
     IReadOnlyList<RecordId>? NotResistedBy = null,
     TargetFilter? Filter = null,
-    int? AiValue = null,
-    MagicVisuals? Visuals = null,
-    bool Area = false,
+    int? Appeal = null,
+    MagicPresentation? Presentation = null,
     float Strike = SpellRecord.DefaultStrike)
 {
     /// <summary>A spell's strike with none given: its effect's end.</summary>
     public const float DefaultStrike = 1;
 }
+
+/// <summary>Whom a spell takes, and how its area is placed.</summary>
+/// <param name="Type">Which side it takes.</param>
+/// <param name="Count">How many it takes.</param>
+/// <param name="Placed">
+/// The caster places its area, and its range is about that point (state 11): the ROM's <c>unk1E</c> bit 0x10, which <c>CanCast</c>,
+/// <c>BeginSpellTargeting</c> and <c>IsResistable</c> read. Fireball, Teleportation and the four dispels.
+/// </param>
+/// <param name="Blast">
+/// The AI centres its placed area on its opponents and scores it by whom it would catch, and a party member who knows it makes the
+/// enemies spread out by twice the casting level (<c>EnemyAI.AreaCentre</c>, <c>0x80058008</c>, <c>EnemyAI.AimAreaSpell</c>,
+/// <c>0x8005974C</c>, and <c>Combat.CreatePartyCombatants</c>, <c>0x8005C7C8</c>, all by spell kind 8): Fireball alone.
+/// </param>
+public sealed record SpellTargeting(
+    SpellTargetType Type,
+    SpellTargetCount Count,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] bool Placed = false,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] bool Blast = false);
 
 /// <summary>How many targets a spell takes.</summary>
 public enum SpellTargetCount
@@ -390,11 +395,4 @@ public enum SpellSpecial
     Night,
 }
 
-/// <summary>The reagent a spell uses up.</summary>
-public enum Reagent
-{
-    None,
-    Spice,
-    Herb,
-    Gemstone,
-}
+
