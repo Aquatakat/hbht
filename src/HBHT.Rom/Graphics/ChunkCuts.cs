@@ -57,7 +57,8 @@ public sealed record CellFill(int Row, int Column, IReadOnlyList<FillPiece> Piec
 /// <item>Over a cell two or more away with a chunk, or any cell without one, it's cut at the cells' edges, and each piece is dropped
 /// if what the cell draws already covers it, and otherwise moved into that cell's fill, nearest chunks first: what the cell's own
 /// scenes and its neighbours' draw over it covers any piece from further, and of two pieces from as far, the second is dropped
-/// where it lies on the first.</item>
+/// where it lies on the first. Opaque sea isn't taken for a copy of half-alpha sea; instead the half-alpha sea goes from a fill
+/// wherever opaque sea lies at its height.</item>
 /// </list>
 /// <para>
 /// A chunk that lost anything over a cell <see cref="Shows"/> the chunks that now draw it there, which the runtime draws while the
@@ -339,13 +340,16 @@ public sealed class ChunkCuts
         private readonly Coverage _coverage = new(cellSize);
         private readonly Dictionary<(int Row, int Column), SortedSet<(int Row, int Column)>> _shows = [];
 
+        private List<Triangle> _triangles = [];
+
         public ChunkCuts Cut(List<Triangle> triangles)
         {
+            _triangles = triangles;
             // A square of sea draws all its cell, before anything else is weighed.
             foreach (var (cell, height) in squares)
             {
                 Corner P(int i, int k) => new(new Vector3((cell.Row + i) * cellSize, height, (cell.Column + k) * cellSize), default);
-                _coverage.Add([P(0, 0), P(0, 1), P(1, 1), P(1, 0)], cell, cell);
+                _coverage.Add([P(0, 0), P(0, 1), P(1, 1), P(1, 0)], cell, cell, sea: true);
             }
             // What a chunk's scenes keep is in the coverage before any piece is weighed against it, its own cell first, so a
             // neighbour's copy of it is known.
@@ -354,7 +358,7 @@ public sealed class ChunkCuts
             {
                 var tri = triangles[t];
                 if (InBox(tri, Own(sources[tri.Source])) && !OverSquare(tri))
-                    _coverage.Add(Polygon(tri), Cell(sources[tri.Source]), Cell(sources[tri.Source]));
+                    _coverage.Add(Polygon(tri), Cell(sources[tri.Source]), Cell(sources[tri.Source]), Sea(tri), Shallows(tri));
                 else
                     outside.Add(t);
             }
@@ -422,13 +426,13 @@ public sealed class ChunkCuts
                 }
                 if (mine.Count == 0 && !clipped)
                 {
-                    _coverage.Add(polygon, owner, owner);
+                    _coverage.Add(polygon, owner, owner, Sea(tri), Shallows(tri));
                     continue;
                 }
                 changed.Add((tri.Source, tri.Draw));
                 keptParts[t] = kept;
                 foreach (var part in kept)
-                    _coverage.Add(part, owner, owner);
+                    _coverage.Add(part, owner, owner, Sea(tri), Shallows(tri));
                 candidates.AddRange(mine);
             }
 
@@ -437,6 +441,13 @@ public sealed class ChunkCuts
             foreach (var candidate in candidates.OrderBy(c => c.Rank).ThenBy(c => sources[c.Source].Row).ThenBy(c => sources[c.Source].Column)
                 .ThenBy(c => c.Source).ThenBy(c => c.Order))
                 Weigh(candidate, finer: true, fills);
+            // Half-alpha sea goes from a fill where opaque sea lies at its height, whoever's: laid on it, it only flickers (S20).
+            foreach (var cell in fills.Keys.ToList())
+            {
+                fills[cell] = [.. fills[cell].SelectMany(OffTheSea)];
+                if (fills[cell].Count == 0)
+                    fills.Remove(cell);
+            }
 
             // A changed draw's polygons: its triangles as they are, but those cut, as what they keep.
             var scenes = new Dictionary<int, SceneCut>();
@@ -489,7 +500,9 @@ public sealed class ChunkCuts
                 Show(owner, covered.Sources);
                 return;
             }
-            var copied = _coverage.Measure(candidate.Polygon, e => Distance(e.Owner, cell) == candidate.Rank, copy: true);
+            // Opaque sea is no copy of half-alpha sea, which goes from the fill where they meet instead (OffTheSea).
+            var sea = Sea(_triangles[candidate.Order]);
+            var copied = _coverage.Measure(candidate.Polygon, e => Distance(e.Owner, cell) == candidate.Rank && !(sea && e.Shallows), copy: true);
             if (copied.Share >= CopyShare)
             {
                 Show(owner, copied.Sources);
@@ -504,9 +517,33 @@ public sealed class ChunkCuts
             if (!fills.TryGetValue(cell, out var list))
                 fills[cell] = list = [];
             list.Add(candidate);
-            _coverage.Add(candidate.Polygon, owner, cell);
+            _coverage.Add(candidate.Polygon, owner, cell, sea, Shallows(_triangles[candidate.Order]));
             Show(owner, cell);
         }
+
+        /// <summary>
+        /// What's left of a fill's piece of half-alpha sea off the opaque sea at its height, cut finer where it's partly on it; any
+        /// other piece, whole.
+        /// </summary>
+        private IEnumerable<Candidate> OffTheSea(Candidate candidate)
+        {
+            var tri = _triangles[candidate.Order];
+            if (!Shallows(tri))
+                return [candidate];
+            var on = _coverage.Measure(candidate.Polygon, e => e.Sea, copy: true).Share;
+            if (on >= CoveredShare)
+                return [];
+            if (on <= UncoveredShare)
+                return [candidate];
+            return Grid(candidate.Polygon, Finer).Select(piece => candidate with { Polygon = piece })
+                .Where(piece => _coverage.Measure(piece.Polygon, e => e.Sea, copy: true).Share < CoveredShare);
+        }
+
+        /// <summary>Whether a triangle is opaque sea: opaque, and its texture scrolls.</summary>
+        private static bool Sea(Triangle t) => t.Scrolls && t.Opaque;
+
+        /// <summary>Whether a triangle is half-alpha sea, the shallows' water: its texture scrolls, and it isn't opaque.</summary>
+        private static bool Shallows(Triangle t) => t.Scrolls && !t.Opaque;
 
         private void Show((int Row, int Column) owner, (int Row, int Column) cell) => Show(owner, [cell]);
 
@@ -692,14 +729,14 @@ public sealed class ChunkCuts
     /// </summary>
     internal sealed class Coverage(float cellSize)
     {
-        internal readonly record struct Entry(float Height, (int Row, int Column) Owner, (int Row, int Column) Drawn, int Next);
+        internal readonly record struct Entry(float Height, (int Row, int Column) Owner, (int Row, int Column) Drawn, bool Sea, bool Shallows, int Next);
 
         private readonly Dictionary<(int Row, int Column), int[]> _heads = [];
         private readonly List<Entry> _entries = [];
         private readonly int _side = (int)MathF.Ceiling(cellSize / Spacing);
 
-        /// <summary>Adds what a polygon covers.</summary>
-        public void Add(IReadOnlyList<Corner> polygon, (int Row, int Column) owner, (int Row, int Column) drawn) =>
+        /// <summary>Adds what a polygon covers, and whether it's opaque sea or half-alpha.</summary>
+        public void Add(IReadOnlyList<Corner> polygon, (int Row, int Column) owner, (int Row, int Column) drawn, bool sea = false, bool shallows = false) =>
             Raster(polygon, (cell, index, height) =>
             {
                 if (!_heads.TryGetValue(cell, out var heads))
@@ -707,7 +744,7 @@ public sealed class ChunkCuts
                     _heads[cell] = heads = new int[_side * _side];
                     Array.Fill(heads, -1);
                 }
-                _entries.Add(new Entry(height, owner, drawn, heads[index]));
+                _entries.Add(new Entry(height, owner, drawn, sea, shallows, heads[index]));
                 heads[index] = _entries.Count - 1;
             });
 

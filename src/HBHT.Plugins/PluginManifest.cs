@@ -142,8 +142,9 @@ public static class BasePlugin
     /// progression record's <c>firstSpellFlag</c> and the inventory record's <c>firstPotionFlag</c>.
     /// 72 makes each Overworld cell that's open sea, a fill of flat water and nothing else, a square of the sea, and cuts other chunks'
     /// sea at its edge.
+    /// 73 drops a fill's half-alpha sea where opaque sea lies at its height (S20), and no longer takes the opaque sea for a copy of it.
     /// </summary>
-    public const int ImporterVersion = 72;
+    public const int ImporterVersion = 73;
 
     /// <summary>
     /// What's wrong with the imported base plugin under <paramref name="pluginsDirectory"/>, worded for the player, or null if

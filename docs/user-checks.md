@@ -29,7 +29,7 @@ Each node now names its speaker, which the importer works out from the links int
 
 ### The data format's fifth slice: saves (format 2)
 
-- **A save of yours from before the overhaul** ([saves](systems/saves.md#older-formats)): run `hbht import` first (the base plugin is now at importer 72), then load a save the game wrote before it, from the System tab or with `--save`. It should load with no message, at the place it was made, the party wearing its weapons, armor and shields, the inventory and the World tab's minimap pieces as they were. Save it and load the new save: the same again. `hbht save show <save>` on the old one says `Format 1, read as 2` and should list nothing left out.
+- **A save of yours from before the overhaul** ([saves](systems/saves.md#older-formats)): run `hbht import` first (the base plugin is now at importer 73), then load a save the game wrote before it, from the System tab or with `--save`. It should load with no message, at the place it was made, the party wearing its weapons, armor and shields, the inventory and the World tab's minimap pieces as they were. Save it and load the new save: the same again. `hbht save show <save>` on the old one says `Format 1, read as 2` and should list nothing left out.
 
 ### The help and the journal notice on triggers (importer 71)
 
@@ -40,6 +40,6 @@ The first spell's and first potion's help and the new journal entry's notice are
 - **A new journal entry:** "A new journal entry has been added." comes in trek's message box as before, as after the opening's first entry.
 - **In the editor:** the record list shows a chunk's Borg9 in its Borg column (`aidyn:chunk/0/I08`, for one).
 
-### The open sea as squares (importer 72)
+### The open sea as squares (importer 73)
 
-Run `hbht import` first. Each Overworld cell that's open sea is a square of it now, and other chunks' sea is cut at its edge ([rendering](systems/rendering.md#draw-distance)). Look again from where the sea was a mess on Nov 4, under both Draw Distances: out from L20, Namer's Isle (B22), Port Saiid (B15) and I19 for seams and two textures; round Terminor from G19 and from its gate, at dawn or dusk too, for the sea's far edge in the fog; and along the south coast from R20, R21 and S16, where the shallows keep the original's pieces. Gwernia's bay lies at −29.4 and the open sea at −32: see whether the step between them shows, out from M07 and L08.
+Run `hbht import` first. Each Overworld cell that's open sea is a square of it now, and other chunks' sea is cut at its edge ([rendering](systems/rendering.md#draw-distance)). The user looked over it in the editor on Nov 5, and found it right but for a lighter patch in S20, half-alpha sea laid on the open sea, which importer 73 cuts away: see that S20 matches S19 and S21 in the editor. In the runtime, look again from where the sea was a mess on Nov 4, under both Draw Distances: out from L20, Namer's Isle (B22), Port Saiid (B15) and I19 for seams and two textures; round Terminor from G19 and from its gate, at dawn or dusk too, for the sea's far edge in the fog; and along the south coast from R20, R21 and S16, where the shallows keep the original's pieces. Gwernia's bay lies at −29.4 and the open sea at −32: see whether the step between them shows, out from M07 and L08.

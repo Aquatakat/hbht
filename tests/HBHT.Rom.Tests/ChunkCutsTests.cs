@@ -19,11 +19,11 @@ public class ChunkCutsTests
 
     /// <summary>A flat square from (x0, z0) to (x1, z1) at <paramref name="y"/>, in the world, as two triangles of draw 0.</summary>
     private static IEnumerable<Triangle> Square(int source, Source of, float x0, float z0, float x1, float z1, float y = 0, bool sea = false,
-        int draw = 0)
+        int draw = 0, bool opaque = true)
     {
         Corner P(float x, float z) => At(new Vector3(x, y, z), of);
-        yield return new Triangle(source, draw, Matrix4x4.Identity, P(x0, z0), P(x1, z0), P(x1, z1), sea);
-        yield return new Triangle(source, draw, Matrix4x4.Identity, P(x0, z0), P(x1, z1), P(x0, z1), sea);
+        yield return new Triangle(source, draw, Matrix4x4.Identity, P(x0, z0), P(x1, z0), P(x1, z1), sea, opaque);
+        yield return new Triangle(source, draw, Matrix4x4.Identity, P(x0, z0), P(x1, z1), P(x0, z1), sea, opaque);
     }
 
     private static ChunkCuts Cut((int Row, int Column)[] cells, Source[] sources, IEnumerable<Triangle> triangles) =>
@@ -148,6 +148,26 @@ public class ChunkCutsTests
         Assert.Equal(-32, fills[(2, 1)].Sea);
         Assert.Null(fills[(3, 1)].Sea);
         Assert.Equal(new[] { 0, 1 }, fills[(3, 1)].Pieces.Select(p => p.Draw).Order());
+    }
+
+    [Fact]
+    public void HalfAlphaSeaInAFillGoesWhereOpaqueSeaLiesAtItsHeight()
+    {
+        // Over (3, 1), shallows: half-alpha sea over a seabed. The half-alpha sea runs on over the open sea, as R20's does over S20.
+        var a = Chunk(1, 1, 1);
+        var cuts = Cut([(1, 1)], [a],
+        [
+            .. Square(0, a, 300, 100, 400, 200, y: -32, sea: true, draw: 0, opaque: false),
+            .. Square(0, a, 300, 100, 350, 200, y: -35, draw: 1),
+            .. Square(0, a, 350, 100, 400, 200, y: -32, sea: true, draw: 2),
+        ]);
+        var fill = Assert.Single(cuts.Fills);
+        Assert.Null(fill.Sea);
+        var areas = fill.Pieces.ToDictionary(p => p.Draw, p => Area(p.Polygons));
+        Assert.Equal(50 * 100, areas[0], 0.1f);
+        Assert.True(fill.Pieces.Single(p => p.Draw == 0).Polygons.SelectMany(p => p).All(v => v.Position.X <= 50.01f));
+        Assert.Equal(50 * 100, areas[1], 0.1f);
+        Assert.Equal(50 * 100, areas[2], 0.1f);
     }
 
     [Fact]
@@ -278,6 +298,20 @@ public sealed class ChunkCutsImportTests(Na10Import fixture)
         Assert.True(IsSquare(Chunk("N09"), -29.4f));
         // The shallows off the south coast keep the sea and the seabed under it.
         Assert.DoesNotContain(squares, c => c.Name == "S21");
+    }
+
+    [Fact]
+    public void TheShallowsStopWhereTheOpenSeaStarts()
+    {
+        // Half-alpha water runs right across S20, over the open sea from its middle out at the same height; what lay on the sea goes.
+        var triangles = SceneMesh.For(Data.Set, Chunk("S20").Fill!.Value);
+        // Not counting the original's slivers, a ten-thousandth of a unit across.
+        var shallows = triangles.Where(t => t.Scrolls && t.Blend == SurfaceBlend.Translucent && Vector3.Cross(t.B - t.A, t.C - t.A).Length() > 0.1f)
+            .SelectMany(t => new[] { t.A, t.B, t.C }).ToList();
+        var sea = triangles.Where(t => t.Scrolls && t.Blend == SurfaceBlend.Opaque).SelectMany(t => new[] { t.A, t.B, t.C }).ToList();
+        Assert.NotEmpty(shallows);
+        Assert.InRange(sea.Min(v => v.X), 50, 60);
+        Assert.True(shallows.Max(v => v.X) <= sea.Min(v => v.X) + 10);
     }
 
     [Fact]
