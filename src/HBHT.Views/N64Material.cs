@@ -49,7 +49,9 @@ namespace HBHT.Views;
 /// <para>
 /// Under the Draw Distance setting's Extended (<see cref="RadialParameter"/>), the fog goes by the distance from the eye
 /// rather than the depth, and nothing is drawn past a sphere about the eye, so turning the camera doesn't bring scenery in
-/// and out at the screen's corners as the original's flat far plane does.
+/// and out at the screen's corners as the original's flat far plane does. The fog there moves toward the sky's gradient
+/// behind each pixel rather than the fog colour (<see cref="SkyLinesParameter"/>), so at the sphere, where the fog is
+/// whole, the scenery is the sky behind it and the cut doesn't show.
 /// </para>
 /// <para>
 /// Borg2 materials clamp, repeat or mirror S and T separately (faces are often half a texture,
@@ -74,6 +76,17 @@ public static class N64Material
     /// is then measured along instead of the depth; 0 for the original's depth and far plane.
     /// </summary>
     public const string RadialParameter = "n64_radial";
+    /// <summary>
+    /// Global: the sky's gradient as the backdrop draws it behind the scenery this frame, a column of lines in on-screen
+    /// values from the top down, laid as <see cref="SkyBehindParameter"/> says.
+    /// </summary>
+    public const string SkyLinesParameter = "n64_sky_lines";
+    /// <summary>
+    /// Global: how <see cref="SkyLinesParameter"/>'s lines lie behind the scenery, a <see cref="SkyBehind"/>. Under Draw
+    /// Distance's Extended (<see cref="RadialParameter"/>), the fog's colour is the sky behind each pixel, so the scenery melts
+    /// into the sky at the sphere it's cut at; otherwise, and with <see cref="SkyBehind.None"/>, it's the fog colour.
+    /// </summary>
+    public const string SkyBehindParameter = "n64_sky_behind";
     /// <summary>Per instance: a scene object's tint, in on-screen values, with alpha 1, or 0 for none.</summary>
     public const string ObjectTintParameter = "object_tint";
     /// <summary>Per instance: the scene's own tint, in on-screen values, with alpha 1, or 0 for none (<see cref="SetSceneTint"/>).</summary>
@@ -151,6 +164,9 @@ public static class N64Material
         RenderingServer.GlobalShaderParameterAdd(FogColorParameter, RenderingServer.GlobalShaderParameterType.Vec3, new Vector3(1, 1, 1));
         RenderingServer.GlobalShaderParameterAdd(FogParameter, RenderingServer.GlobalShaderParameterType.Vec4, new Vector4(0, 1000, 0, 0));
         RenderingServer.GlobalShaderParameterAdd(RadialParameter, RenderingServer.GlobalShaderParameterType.Float, 0f);
+        RenderingServer.GlobalShaderParameterAdd(SkyLinesParameter, RenderingServer.GlobalShaderParameterType.Sampler2D,
+            ImageTexture.CreateFromImage(Image.CreateEmpty(1, 1, false, Image.Format.Rgb8)));
+        RenderingServer.GlobalShaderParameterAdd(SkyBehindParameter, RenderingServer.GlobalShaderParameterType.Int, (int)SkyBehind.None);
         RenderingServer.GlobalShaderParameterAdd(SunDirectionParameter, RenderingServer.GlobalShaderParameterType.Vec3, new Vector3(0, 1, 0));
         RenderingServer.GlobalShaderParameterAdd(SunColorParameter, RenderingServer.GlobalShaderParameterType.Vec3, new Vector3(0, 0, 0));
         RenderingServer.GlobalShaderParameterAdd(BodyAmbientParameter, RenderingServer.GlobalShaderParameterType.Vec3, new Vector3(1, 1, 1));
@@ -175,6 +191,19 @@ public static class N64Material
         RenderingServer.GlobalShaderParameterSet(FogParameter, new Vector4(sky.SceneryFogStart, 1000, near, far));
         RenderingServer.GlobalShaderParameterSet(RadialParameter, radial);
         SetSkyLight(sky);
+    }
+
+    /// <summary>
+    /// Sets the sky's gradient as drawn behind the scenery this frame (<see cref="SkyLinesParameter"/>), which under Draw
+    /// Distance's Extended is the fog's colour. The runtime's backdrop does, each frame; <paramref name="lines"/> is kept
+    /// when null.
+    /// </summary>
+    public static void SetSkyBehind(Texture2D? lines, SkyBehind behind)
+    {
+        DeclareGlobals();
+        if (lines is not null)
+            RenderingServer.GlobalShaderParameterSet(SkyLinesParameter, lines);
+        RenderingServer.GlobalShaderParameterSet(SkyBehindParameter, (int)behind);
     }
 
     /// <summary>
@@ -543,10 +572,13 @@ public static class N64Material
                 """
             : "";
         var fog = onScreen
-            ? "ALBEDO = mix(color, n64_fog_color, fog);"
+            ? "ALBEDO = mix(color, behind, fog);"
             : unlit || rsp
-            ? "ALBEDO = to_linear(mix(color, n64_fog_color, fog));"
-            : "ALBEDO = to_linear(color);\n\tFOG = vec4(to_linear(n64_fog_color), fog);";
+            ? "ALBEDO = to_linear(mix(color, behind, fog));"
+            : "ALBEDO = to_linear(color);\n\tFOG = vec4(to_linear(behind), fog);";
+        var dome = (Core.Sky.SkyBackdrop.DomeLines, Core.Sky.SkyScreen.Middle.Y, Core.Sky.SkyScreen.Focal,
+            Core.Sky.SkyBackdrop.DomePitch, Core.Sky.SkyBackdrop.DomeDown);
+        static string F(float x) => x.ToString("R", System.Globalization.CultureInfo.InvariantCulture) + (x == MathF.Floor(x) ? ".0" : "");
         // ALPHA starts as 1 − the instance's transparency, which fades scene objects, so it's
         // multiplied rather than set, and a cut-out's threshold fades with it to keep its shape.
         var alpha = blend switch
@@ -568,6 +600,9 @@ public static class N64Material
                 global uniform vec4 n64_fog;
                 // Draw Distance's Extended: nothing past this distance from the eye, which the fog goes by; or 0.
                 global uniform float n64_radial;
+                // The sky's gradient behind the scenery, and how it lies: 0 not drawn, 1 by the screen's lines, 2 as a dome.
+                global uniform sampler2D n64_sky_lines;
+                global uniform int n64_sky_behind;
                 // Draw Distance's Extended: the drawn chunks' square, as the centre's row and column, its reach and the cells'
                 // size (a reach of 0 for none), and which of its cells have scenery, a bit each, row by row from the corner.
                 global uniform vec3 n64_sun_direction;
@@ -629,6 +664,22 @@ public static class N64Material
                 	return x;
                 }
 
+                // What the fog moves toward: the fog colour, or under Draw Distance's Extended the sky's gradient behind the
+                // pixel, as the backdrop lays it (SkyBackdropView), so the scenery melts into the sky at the sphere it's cut at.
+                vec3 fog_toward(vec3 seen, vec2 screen, mat4 inv_view) {
+                	if (n64_radial <= 0.0 || n64_sky_behind == 0) {
+                		return n64_fog_color;
+                	}
+                	if (n64_sky_behind == 1) {
+                		return texture(n64_sky_lines, vec2(0.5, screen.y)).rgb;
+                	}
+                	vec3 way = normalize((inv_view * vec4(seen, 0.0)).xyz);
+                	float angle = asin(clamp(way.y, -1.0, 1.0)) + {{F(dome.DomePitch)}};
+                	float line = angle >= 1.5698 ? -1.0e9 : {{F(dome.Y)}} - {{F(dome.Focal)}} * tan(angle) + {{F(dome.DomeDown)}};
+                	float f = clamp(line, 1.0, {{F(dome.DomeLines)}});
+                	return texture(n64_sky_lines, vec2(0.5, (f - 0.5) / {{F(dome.DomeLines)}})).rgb;
+                }
+
                 void vertex() {
                 	// The depth buffer's z / w for the original's planes, on the 0–1000 scale: by the depth, or under Draw
                 	// Distance's Extended by the distance from the eye, so the fog doesn't shift as the camera turns.
@@ -655,6 +706,7 @@ public static class N64Material
                 		: lighting != 0 ? vec3(1.0) : (object_tint.a > 0.0 ? (n64_tint + object_tint.rgb) * 0.5 : n64_tint);
                 	vec3 color = texel.rgb * shade.rgb * prim.rgb * tint;
                 	float alpha = {{(textured ? "texel.a" : "shade.a")}} * prim.a;
+                	vec3 behind = fog > 0.0 ? fog_toward(VERTEX, SCREEN_UV, INV_VIEW_MATRIX) : n64_fog_color;
                 	{{fog}}
                 	{{alpha}}
                 }
@@ -662,4 +714,15 @@ public static class N64Material
         };
         return shader;
     }
+}
+
+/// <summary>How the sky's gradient lies behind the scenery (<see cref="N64Material.SkyBehindParameter"/>).</summary>
+public enum SkyBehind
+{
+    /// <summary>No gradient is drawn behind (no sky, or the lightning's white): the fog keeps its colour.</summary>
+    None,
+    /// <summary>The original's: a line of the gradient for each of the screen's lines, top to bottom.</summary>
+    Screen,
+    /// <summary>The projected sky's dome: a line for each elevation (<see cref="Core.Sky.SkyBackdrop.DomeFraction"/>).</summary>
+    Dome,
 }

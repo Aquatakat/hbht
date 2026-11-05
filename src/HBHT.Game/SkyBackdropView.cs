@@ -112,6 +112,13 @@ public partial class SkyBackdropView : Control
             _domeMaterial.SetShaderParameter("tan_half", MathF.Tan(Mathf.DegToRad(camera.Fov) / 2));
             _domeMaterial.SetShaderParameter("aspect", Size.X / MathF.Max(Size.Y, 1));
         }
+        // What's behind the scenery, which Draw Distance's Extended fogs toward (N64Material.SkyLinesParameter): the dome, or
+        // the screen's lines, which _Draw fills this frame. No gradient where the sky's black or the lightning's white.
+        var drawn = state is { Current: not null, Drawn: true } && camera is not null && !_sky.Sky.Flash;
+        if (_dome.Visible)
+            N64Material.SetSkyBehind(_domeTexture, SkyBehind.Dome);
+        else
+            N64Material.SetSkyBehind(_gradient, drawn ? SkyBehind.Screen : SkyBehind.None);
         QueueRedraw();
     }
 
