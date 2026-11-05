@@ -54,5 +54,4 @@ Not yet looked at in the runtime or the editor. Run `hbht import` first: the bas
   - **West of Jundar** (E13, F13, F14): into D13*, E12* and F12*.
   - **Gwernia and the prologue's forest** (M07, L08, N07, N08, I08): M07's west edge into M06*, L08's beach into L07*, N07 into O07*, N08 into O09*, O10* and P08*–P10*; I08 shows J09.
   - **The south coast** (S16, T16, T18, S18–S21, P17, N16, O16, U26, U28): S21's sea is in R22*–U23*; S18–S20 moved theirs into T19*–U20*; T16 into T15*, U15*, U16*. The rest are slivers: S15*, P18*, N15*, O15*, U25*, U29*, and the Goblin Camp's B03* from B04.
-- **Dialogue entities' footsteps** ([audio](systems/audio.md#bodies-sounds)): Amann's patrol in the Misc interiors' E01, or Damek's at Overworld Q16, is heard stepping. The dialogue entities are entities with no sheet now (ADR 0032), with the same sounds.
 
