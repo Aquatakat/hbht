@@ -43,7 +43,7 @@ public partial class Editor : Control
         N64Material.RspLighting = true;
         _records.SetAnchorsPreset(LayoutPreset.FullRect);
         AddChild(_records);
-        _ = BackgroundTask.Report(StartAsync(CommandLine.Parse(OS.GetCmdlineUserArgs())));
+        _ = BackgroundTask.Report(StartAsync(CommandLine.Parse(CommandLine.Args())));
     }
 
     private async Task StartAsync(Dictionary<string, string> args)
@@ -120,7 +120,7 @@ public partial class Editor : Control
     /// </summary>
     private async Task<bool> ImportFirstAsync(string plugins, Dictionary<string, string> args, string? png)
     {
-        var page = new ImportPage(plugins, AppLauncher.StartedFromGame(OS.GetCmdlineUserArgs()));
+        var page = new ImportPage(plugins, AppLauncher.StartedFromGame(CommandLine.Args()));
         var center = new CenterContainer();
         center.SetAnchorsPreset(LayoutPreset.FullRect);
         center.AddChild(page);

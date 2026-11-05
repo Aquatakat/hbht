@@ -117,7 +117,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         hud.AddChild(_message);
         AddChild(hud);
 
-        var options = LaunchOptions.Parse(OS.GetCmdlineUserArgs());
+        var options = LaunchOptions.Parse(CommandLine.Args());
         // A save loaded from the menu starts where it stands, and the command line's presses aren't made again; so does the title
         // the game over goes back to.
         if (_pendingSave is not null || _toTitle)
@@ -143,7 +143,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     private bool HandOffToEditor()
     {
         if (_loadedPlugins is not null || BasePlugin.Diagnose(DataPaths.Plugins) is not { } problem
-            || LaunchOptions.Parse(OS.GetCmdlineUserArgs()).Screenshot is not null)
+            || LaunchOptions.Parse(CommandLine.Args()).Screenshot is not null)
             return false;
         GD.Print($"{problem}\nStarting the editor to import.");
         if (!AppLauncher.LaunchEditor(fromGame: true))

@@ -49,7 +49,7 @@ It loads the plugins folder as the runtime does (`PluginSet.LoadInstalled`, in [
 
 ## The command line
 
-`tools/godot.ps1 --path src/HBHT.Editor -- --record aidyn:mapset/0 --tab preview --screenshot out/shot.png` opens a record, saves the window and quits. It gives up after a minute, so a hang can't block a script. `Editor` parses the options and takes the screenshot with the views' `CommandLine`, as the runtime does.
+`tools/godot.ps1 --path src/HBHT.Editor --record aidyn:mapset/0 --tab preview --screenshot out/shot.png` opens a record, saves the window and quits. It gives up after a minute, so a hang can't block a script. `Editor` parses the options and takes the screenshot with the views' `CommandLine`, as the runtime does.
 
 - **The page:** `--record <id>`, `--tab preview|fields|used-by|atlas`, `--data <plugins folder>`.
 - **The import page**, with no current import: `--from-game 1` (which the game passes) ends it with Play; `--rom <path>`, `--keep-mushroom 1`, `--keep-seams 1` and `--import 1` fill it in and press Import, and a screenshot waits for the import, giving up after 15 minutes rather than one. Without `--import`, `--screenshot` saves the page as it opens.
