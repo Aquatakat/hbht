@@ -36,7 +36,8 @@ public sealed record FillPiece(int Scene, int Draw, IReadOnlyList<CutVertex[]> P
 /// A cell's fill: what other chunks' scenes drew over it that its own don't, and the chunk nearest it that gave some, whose terrain
 /// and whose Draw Distance a chunk made for the fill takes.
 /// </summary>
-public sealed record CellFill(int Row, int Column, IReadOnlyList<FillPiece> Pieces, (int Row, int Column) Nearest);
+/// <param name="Sea">The height of the sea, where the fill is a square of it (<see cref="ChunkCuts.Squares"/>).</param>
+public sealed record CellFill(int Row, int Column, IReadOnlyList<FillPiece> Pieces, (int Row, int Column) Nearest, float? Sea = null);
 
 /// <summary>
 /// Takes out of a map set's chunk scenes what they draw over other chunks' cells, so that a chunk draws its own cell, and its
@@ -109,8 +110,12 @@ public sealed class ChunkCuts
     /// <summary>A point of a polygon, where it is in the world and as the export writes it.</summary>
     internal readonly record struct Corner(Vector3 World, CutVertex Vertex);
 
-    /// <summary>A triangle a source draws, with the matrix that places its draw's node in the scene.</summary>
-    internal readonly record struct Triangle(int Source, int Draw, Matrix4x4 World, Corner A, Corner B, Corner C);
+    /// <summary>
+    /// A triangle a source draws, with the matrix that places its draw's node in the scene, and whether its draw's texture scrolls
+    /// (<see cref="Borg1Flags.Moving"/>), as water's does, and whether it's drawn opaque.
+    /// </summary>
+    internal readonly record struct Triangle(int Source, int Draw, Matrix4x4 World, Corner A, Corner B, Corner C, bool Scrolls = false,
+        bool Opaque = true);
 
     /// <summary>A piece over a cell it may move into, from a triangle of a chunk further away.</summary>
     private sealed record Candidate(int Source, int Draw, int Order, Matrix4x4 World, (int Row, int Column) Cell, int Rank, Corner[] Polygon);
@@ -136,6 +141,7 @@ public sealed class ChunkCuts
         }
         var cellSize = chunks.Count == 0 ? 1 : MapSets.CellSize(chunks[0].Set);
         var models = new Dictionary<int, Borg2Geometry>();
+        var textures = new Dictionary<int, Borg1Flags>();
         var triangles = new List<Triangle>();
         for (var s = 0; s < sources.Count; s++)
         {
@@ -152,6 +158,12 @@ public sealed class ChunkCuts
                     || transform.Flags.HasFlag(Borg5TransformFlags.Billboard))
                     continue;
                 var mesh = model.Meshes[draw.DisplayList];
+                var flags = Borg1Flags.None;
+                if (draw.Texture is { } slot && !textures.TryGetValue(scene.Textures[slot], out flags))
+                    textures[scene.Textures[slot]] = flags = Borg1Texture.Parse(read(scene.Textures[slot])).Flags;
+                // As the export's material has it: the tint's and the model's alpha, and the texture's own.
+                var opaque = mesh.Tint.W == 0 && model.Alpha == 0 && !flags.HasFlag(Borg1Flags.HasTransparency);
+                var scrolls = flags.HasFlag(Borg1Flags.Moving);
                 var world = scene.WorldMatrix(draw.Transform);
                 Matrix4x4.Invert(world, out var toNode);
                 var corners = new Corner[mesh.Vertices.Length];
@@ -163,18 +175,165 @@ public sealed class ChunkCuts
                     corners[v] = new Corner(Vector3.Transform(position, world) + source.Origin, CutVertex.Of(mesh.Vertices[v], position));
                 }
                 for (var i = 0; i + 2 < mesh.Indices.Length; i += 3)
-                    triangles.Add(new Triangle(s, d, world, corners[mesh.Indices[i]], corners[mesh.Indices[i + 1]], corners[mesh.Indices[i + 2]]));
+                    triangles.Add(new Triangle(s, d, world, corners[mesh.Indices[i]], corners[mesh.Indices[i + 1]], corners[mesh.Indices[i + 2]],
+                        scrolls, opaque));
             }
         }
         return Cut([.. chunks.Select(c => (c.Row, c.Column))], sources, cellSize, triangles);
     }
 
-    /// <summary>Cuts the triangles of a map set's sources, whose chunks are in <paramref name="cells"/>.</summary>
-    internal static ChunkCuts Cut(HashSet<(int Row, int Column)> cells, IReadOnlyList<Source> sources, float cellSize, List<Triangle> triangles) =>
-        new Cutter(cells, sources, cellSize).Cut(triangles);
+    /// <summary>
+    /// Cuts the triangles of a map set's sources, whose chunks are in <paramref name="cells"/>, and makes the cells that are open sea
+    /// squares of it (<see cref="Squares"/>): the cut again, with those cells drawn by their squares alone.
+    /// </summary>
+    internal static ChunkCuts Cut(HashSet<(int Row, int Column)> cells, IReadOnlyList<Source> sources, float cellSize, List<Triangle> triangles)
+    {
+        var first = new Cutter(cells, sources, cellSize, new Dictionary<(int, int), float>()).Cut(triangles);
+        var squares = Squares(first, sources, cellSize, triangles);
+        if (squares is not { } sea)
+            return first;
+        var second = new Cutter(cells, sources, cellSize, sea.Heights).Cut(triangles);
+        var nearest = first.Fills.ToDictionary(f => (f.Row, f.Column), f => f.Nearest);
+        var fills = second.Fills.Where(f => !sea.Heights.ContainsKey((f.Row, f.Column)))
+            .Concat(sea.Heights.Select(s => new CellFill(s.Key.Row, s.Key.Column, [sea.Piece(s.Key, s.Value)], nearest[s.Key], s.Value)))
+            .OrderBy(f => f.Row).ThenBy(f => f.Column);
+        return new ChunkCuts(second.Scenes, [.. fills], second.Shows);
+    }
+
+    /// <summary>How far apart a sea triangle's corners may be, up and down, and from a square's height, to be that sea.</summary>
+    internal const float SeaHeight = 1.5f;
+
+    /// <summary>How far apart the points of a square of sea are, across the ground: the N64's fog is worked out at each.</summary>
+    internal const float SquareSpacing = 10;
+
+    /// <summary>The squares of sea a cut makes, by cell, at their heights, and the square it makes for a cell.</summary>
+    private sealed record SeaSquares(Dictionary<(int Row, int Column), float> Heights, Func<(int Row, int Column), float, FillPiece> Piece);
+
+    /// <summary>
+    /// The cells a first cut leaves as open sea: those whose own chunk, if they have one, draws nothing over them, and whose fill is
+    /// all flat, scrolling water at one height. Each becomes a square of the sea that covers most of them, drawn as that sea's draw
+    /// draws it, at the cell's height, with its texture laid on the world as that draw lays it, so the squares
+    /// meet one another seamlessly.
+    /// </summary>
+    private static SeaSquares? Squares(ChunkCuts first, IReadOnlyList<Source> sources, float cellSize, List<Triangle> triangles)
+    {
+        var bySceneDraw = new Dictionary<(int Scene, int Draw), (bool Scrolls, bool Opaque)>();
+        var ownArt = new HashSet<(int Row, int Column)>();
+        foreach (var t in triangles)
+        {
+            var source = sources[t.Source];
+            bySceneDraw[(source.Scene, t.Draw)] = (t.Scrolls, t.Opaque);
+            foreach (var c in new[] { t.A, t.B, t.C })
+            {
+                if (c.World.X > source.Row * cellSize && c.World.X < (source.Row + 1) * cellSize
+                    && c.World.Z > source.Column * cellSize && c.World.Z < (source.Column + 1) * cellSize)
+                    ownArt.Add((source.Row, source.Column));
+            }
+        }
+        var heights = new Dictionary<(int Row, int Column), float>();
+        var mapped = new Dictionary<(int Scene, int Draw, Vector2 S, Vector2 T), float>();
+        var looks = new Dictionary<(int Scene, int Draw), Dictionary<(Vector3 Normal, Vector4 Color), float>>();
+        foreach (var fill in first.Fills)
+        {
+            if (ownArt.Contains((fill.Row, fill.Column)))
+                continue;
+            var weighted = 0f;
+            var total = 0f;
+            var low = float.MaxValue;
+            var high = float.MinValue;
+            var sea = true;
+            foreach (var piece in fill.Pieces)
+            {
+                sea &= bySceneDraw.GetValueOrDefault((piece.Scene, piece.Draw)).Scrolls;
+                foreach (var polygon in piece.Polygons)
+                {
+                    var area = Area(polygon);
+                    foreach (var v in polygon)
+                    {
+                        low = Math.Min(low, v.Position.Y);
+                        high = Math.Max(high, v.Position.Y);
+                    }
+                    weighted += polygon.Average(v => v.Position.Y) * area;
+                    total += area;
+                }
+            }
+            if (!sea || total == 0 || high - low > SeaHeight)
+                continue;
+            heights[(fill.Row, fill.Column)] = weighted / total;
+            // How each opaque draw lays its texture on the world, by area, and how its corners are shaded.
+            foreach (var piece in fill.Pieces)
+            {
+                if (!bySceneDraw[(piece.Scene, piece.Draw)].Opaque)
+                    continue;
+                foreach (var polygon in piece.Polygons)
+                {
+                    if (Gradient(polygon) is not { } g)
+                        continue;
+                    var key = (piece.Scene, piece.Draw, g.S, g.T);
+                    mapped[key] = mapped.GetValueOrDefault(key) + Area(polygon);
+                    if (!looks.TryGetValue((piece.Scene, piece.Draw), out var look))
+                        looks[(piece.Scene, piece.Draw)] = look = [];
+                    foreach (var v in polygon)
+                        look[(v.Normal, v.Color)] = look.GetValueOrDefault((v.Normal, v.Color)) + Area(polygon) / polygon.Length;
+                }
+            }
+        }
+        // The sea's draw: the opaque one that covers the most of them, laying its texture square to the world and unmirrored.
+        var draws = mapped.Where(m => m.Key.S.X > 0 && m.Key.S.Y == 0 && m.Key.T.X == 0 && m.Key.T.Y == m.Key.S.X).ToList();
+        if (heights.Count == 0 || draws.Count == 0)
+            return null;
+        var (scene, draw, s, _) = draws.MaxBy(m => m.Value).Key;
+        var (normal, color) = looks[(scene, draw)].MaxBy(l => l.Value).Key;
+        var scale = s.X;
+        // The texture's coordinates where the cell starts, less whole turns of the widest texture (256 texels at 64 units each).
+        float Start(float origin) => origin * scale % (256 * 64);
+        FillPiece Piece((int Row, int Column) cell, float height)
+        {
+            var (x0, z0) = (Start(cell.Row * cellSize), Start(cell.Column * cellSize));
+            var steps = (int)MathF.Ceiling(cellSize / SquareSpacing);
+            var step = cellSize / steps;
+            CutVertex At(int i, int k) => new(new Vector3(i * step, height, k * step), normal, color,
+                new Vector2(x0 + i * step * scale, z0 + k * step * scale), false);
+            var quads = new List<CutVertex[]>();
+            for (var i = 0; i < steps; i++)
+            {
+                for (var k = 0; k < steps; k++)
+                    quads.Add([At(i, k), At(i, k + 1), At(i + 1, k + 1), At(i + 1, k)]);
+            }
+            return new FillPiece(scene, draw, quads);
+        }
+        return new SeaSquares(heights, Piece);
+    }
+
+    /// <summary>How a polygon's texture coordinates change across the ground, per unit of X and of Z, rounded, or null for one with no area there.</summary>
+    private static (Vector2 S, Vector2 T)? Gradient(CutVertex[] polygon)
+    {
+        var (a, b, c) = (polygon[0], polygon[1], polygon[2]);
+        var e1 = new Vector2(b.Position.X - a.Position.X, b.Position.Z - a.Position.Z);
+        var e2 = new Vector2(c.Position.X - a.Position.X, c.Position.Z - a.Position.Z);
+        var det = e1.X * e2.Y - e1.Y * e2.X;
+        if (MathF.Abs(det) < 0.25f)
+            return null;
+        var d1 = b.St - a.St;
+        var d2 = c.St - a.St;
+        // St = M (x, z) + o, solved from two edges.
+        var ds = new Vector2((d1.X * e2.Y - d2.X * e1.Y) / det, (d2.X * e1.X - d1.X * e2.X) / det);
+        var dt = new Vector2((d1.Y * e2.Y - d2.Y * e1.Y) / det, (d2.Y * e1.X - d1.Y * e2.X) / det);
+        static Vector2 Round(Vector2 v) => new(MathF.Round(v.X * 4) / 4, MathF.Round(v.Y * 4) / 4);
+        return (Round(ds), Round(dt));
+    }
+
+    private static float Area(CutVertex[] polygon)
+    {
+        var area = Vector3.Zero;
+        for (var i = 1; i + 1 < polygon.Length; i++)
+            area += Vector3.Cross(polygon[i].Position - polygon[0].Position, polygon[i + 1].Position - polygon[0].Position);
+        return area.Length() / 2;
+    }
 
     /// <summary>Does the cutting, over a map set's triangles.</summary>
-    private sealed class Cutter(HashSet<(int Row, int Column)> real, IReadOnlyList<Source> sources, float cellSize)
+    private sealed class Cutter(HashSet<(int Row, int Column)> real, IReadOnlyList<Source> sources, float cellSize,
+        IReadOnlyDictionary<(int Row, int Column), float> squares)
     {
         private readonly HashSet<(int Row, int Column)> _real = real;
         private readonly Coverage _coverage = new(cellSize);
@@ -182,13 +341,19 @@ public sealed class ChunkCuts
 
         public ChunkCuts Cut(List<Triangle> triangles)
         {
+            // A square of sea draws all its cell, before anything else is weighed.
+            foreach (var (cell, height) in squares)
+            {
+                Corner P(int i, int k) => new(new Vector3((cell.Row + i) * cellSize, height, (cell.Column + k) * cellSize), default);
+                _coverage.Add([P(0, 0), P(0, 1), P(1, 1), P(1, 0)], cell, cell);
+            }
             // What a chunk's scenes keep is in the coverage before any piece is weighed against it, its own cell first, so a
             // neighbour's copy of it is known.
             var outside = new List<int>();
             for (var t = 0; t < triangles.Count; t++)
             {
                 var tri = triangles[t];
-                if (InBox(tri, Own(sources[tri.Source])))
+                if (InBox(tri, Own(sources[tri.Source])) && !OverSquare(tri))
                     _coverage.Add(Polygon(tri), Cell(sources[tri.Source]), Cell(sources[tri.Source]));
                 else
                     outside.Add(t);
@@ -210,32 +375,52 @@ public sealed class ChunkCuts
                     keptParts[t] = [];
                     continue;
                 }
-                // A triangle wholly over a neighbour that's a copy of what the neighbour draws there is dropped.
-                var cells = polygon.Select(c => CellOf(c.World)).Distinct().ToList();
-                if (cells.Count == 1 && cells[0] is var only && _real.Contains(only) && Distance(owner, only) == 1
-                    && _coverage.Measure(polygon, e => e.Owner == only, copy: true).Share >= CopyShare)
+                // Sea over a square of it goes, at the square's edge, whatever chunk it's from: the square draws it there.
+                var parts = new List<Corner[]> { polygon };
+                var clipped = false;
+                if (OverSquare(tri))
                 {
-                    changed.Add((tri.Source, tri.Draw));
-                    keptParts[t] = [];
-                    Show(owner, only);
-                    continue;
-                }
-                var (inside, rest) = Outside(polygon, Own(source));
-                var kept = inside is null ? new List<Corner[]>() : [inside];
-                var mine = new List<Candidate>();
-                foreach (var part in rest)
-                {
-                    foreach (var piece in Grid(part, cellSize))
+                    parts.Clear();
+                    foreach (var piece in Grid(polygon, cellSize))
                     {
                         var cell = CellOf(Centroid(piece));
-                        var distance = Distance(owner, cell);
-                        if (distance == 0 || (distance == 1 && _real.Contains(cell)))
-                            kept.Add(piece);
+                        if (squares.ContainsKey(cell))
+                            Show(owner, cell);
                         else
-                            mine.Add(new Candidate(tri.Source, tri.Draw, t, tri.World, cell, distance, piece));
+                            parts.Add(piece);
+                    }
+                    clipped = true;
+                }
+                var kept = new List<Corner[]>();
+                var mine = new List<Candidate>();
+                foreach (var whole in parts)
+                {
+                    // A triangle wholly over a neighbour that's a copy of what the neighbour draws there is dropped.
+                    var cells = whole.Select(c => CellOf(c.World)).Distinct().ToList();
+                    if (cells.Count == 1 && cells[0] is var only && _real.Contains(only) && Distance(owner, only) == 1
+                        && _coverage.Measure(whole, e => e.Owner == only, copy: true).Share >= CopyShare)
+                    {
+                        clipped = true;
+                        Show(owner, only);
+                        continue;
+                    }
+                    var (inside, rest) = Outside(whole, Own(source));
+                    if (inside is not null)
+                        kept.Add(inside);
+                    foreach (var part in rest)
+                    {
+                        foreach (var piece in Grid(part, cellSize))
+                        {
+                            var cell = CellOf(Centroid(piece));
+                            var distance = Distance(owner, cell);
+                            if (distance == 0 || (distance == 1 && _real.Contains(cell)))
+                                kept.Add(piece);
+                            else
+                                mine.Add(new Candidate(tri.Source, tri.Draw, t, tri.World, cell, distance, piece));
+                        }
                     }
                 }
-                if (mine.Count == 0)
+                if (mine.Count == 0 && !clipped)
                 {
                     _coverage.Add(polygon, owner, owner);
                     continue;
@@ -335,6 +520,33 @@ public sealed class ChunkCuts
                     _shows[owner] = set = [];
                 set.Add(cell);
             }
+        }
+
+        /// <summary>
+        /// Whether a triangle is sea over a square of it: its texture scrolls, it's flat, at the square's height, and it reaches into
+        /// the square's cell.
+        /// </summary>
+        private bool OverSquare(Triangle t)
+        {
+            if (!t.Scrolls || squares.Count == 0)
+                return false;
+            var low = Math.Min(t.A.World.Y, Math.Min(t.B.World.Y, t.C.World.Y));
+            var high = Math.Max(t.A.World.Y, Math.Max(t.B.World.Y, t.C.World.Y));
+            if (high - low > SeaHeight)
+                return false;
+            var x0 = Math.Min(t.A.World.X, Math.Min(t.B.World.X, t.C.World.X));
+            var x1 = Math.Max(t.A.World.X, Math.Max(t.B.World.X, t.C.World.X));
+            var z0 = Math.Min(t.A.World.Z, Math.Min(t.B.World.Z, t.C.World.Z));
+            var z1 = Math.Max(t.A.World.Z, Math.Max(t.B.World.Z, t.C.World.Z));
+            for (var r = (int)MathF.Floor(x0 / cellSize); r * cellSize < x1; r++)
+            {
+                for (var c = (int)MathF.Floor(z0 / cellSize); c * cellSize < z1; c++)
+                {
+                    if (squares.TryGetValue((r, c), out var height) && Math.Abs((low + high) / 2 - height) <= SeaHeight)
+                        return true;
+                }
+            }
+            return false;
         }
 
         private (float X0, float Z0, float X1, float Z1) Own(Source source) =>

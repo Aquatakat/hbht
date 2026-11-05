@@ -18,11 +18,12 @@ public class ChunkCutsTests
         new(world, new CutVertex(world - source.Origin, Vector3.UnitY, Vector4.One, new Vector2(world.X, world.Z) * 64, false));
 
     /// <summary>A flat square from (x0, z0) to (x1, z1) at <paramref name="y"/>, in the world, as two triangles of draw 0.</summary>
-    private static IEnumerable<Triangle> Square(int source, Source of, float x0, float z0, float x1, float z1, float y = 0)
+    private static IEnumerable<Triangle> Square(int source, Source of, float x0, float z0, float x1, float z1, float y = 0, bool sea = false,
+        int draw = 0)
     {
         Corner P(float x, float z) => At(new Vector3(x, y, z), of);
-        yield return new Triangle(source, 0, Matrix4x4.Identity, P(x0, z0), P(x1, z0), P(x1, z1));
-        yield return new Triangle(source, 0, Matrix4x4.Identity, P(x0, z0), P(x1, z1), P(x0, z1));
+        yield return new Triangle(source, draw, Matrix4x4.Identity, P(x0, z0), P(x1, z0), P(x1, z1), sea);
+        yield return new Triangle(source, draw, Matrix4x4.Identity, P(x0, z0), P(x1, z1), P(x0, z1), sea);
     }
 
     private static ChunkCuts Cut((int Row, int Column)[] cells, Source[] sources, IEnumerable<Triangle> triangles) =>
@@ -105,6 +106,48 @@ public class ChunkCutsTests
         Assert.Equal(50 * 100, Area(fill.Pieces[0].Polygons), 0.1f);
         Assert.Equal(50 * 100, Area(fill.Pieces[1].Polygons), 0.1f);
         Assert.Equal(new[] { (3, 1) }, cuts.Shows[(5, 1)]);
+    }
+
+    [Fact]
+    public void ACellOfOpenSeaIsASquareOfItAndTheSeaAroundItIsCutAtItsEdge()
+    {
+        // Chunk (1, 1)'s sea runs from its own cell over (2, 1) and (3, 1), which have no chunk.
+        var a = Chunk(1, 1, 1);
+        var cuts = Cut([(1, 1)], [a], Square(0, a, 100, 100, 400, 200, y: -32, sea: true));
+        // Its own cell alone: not the 16 past it, over the square.
+        Assert.Equal(100 * 100, Area(cuts.Scenes[1].Draws[0]), 0.1f);
+        var fills = cuts.Fills.ToDictionary(f => (f.Row, f.Column));
+        Assert.Equal(new[] { (2, 1), (3, 1) }, fills.Keys.Order());
+        foreach (var fill in fills.Values)
+        {
+            Assert.Equal(-32, fill.Sea);
+            var piece = Assert.Single(fill.Pieces);
+            Assert.Equal((1, 0), (piece.Scene, piece.Draw));
+            Assert.Equal(100 * 100, Area(piece.Polygons), 0.1f);
+            // On the grid the fog is worked out at.
+            Assert.Equal(100, piece.Polygons.Count);
+            // Its texture laid on the world as the sea's is, 64 units a unit here, but for whole turns of the widest texture.
+            Assert.All(piece.Polygons.SelectMany(p => p), v =>
+            {
+                Assert.Equal(-32, v.Position.Y);
+                var off = new Vector2(fill.Row * Cell + v.Position.X, fill.Column * Cell + v.Position.Z) * 64 - v.St;
+                Assert.Equal(0, off.X % 16384, 0.01f);
+                Assert.Equal(0, off.Y % 16384, 0.01f);
+            });
+        }
+        Assert.Equal(new[] { (2, 1), (3, 1) }, cuts.Shows[(1, 1)]);
+    }
+
+    [Fact]
+    public void ACellWithMoreThanSeaOverItKeepsItsFill()
+    {
+        // Over (3, 1), besides the sea, a sheet of land.
+        var a = Chunk(1, 1, 1);
+        var cuts = Cut([(1, 1)], [a], [.. Square(0, a, 100, 100, 400, 200, y: -32, sea: true), .. Square(0, a, 330, 130, 370, 170, y: -20, draw: 1)]);
+        var fills = cuts.Fills.ToDictionary(f => (f.Row, f.Column));
+        Assert.Equal(-32, fills[(2, 1)].Sea);
+        Assert.Null(fills[(3, 1)].Sea);
+        Assert.Equal(new[] { 0, 1 }, fills[(3, 1)].Pieces.Select(p => p.Draw).Order());
     }
 
     [Fact]
@@ -215,6 +258,26 @@ public sealed class ChunkCutsImportTests(Na10Import fixture)
         // A real chunk with nothing in its own cell takes the sea another drew over it; C07 takes C09's peaks past its own.
         Assert.NotNull(Chunk("L23").Fill);
         Assert.NotNull(Chunk("C07").Fill);
+    }
+
+    [Fact]
+    public void OpenSeaIsASquareOfIt()
+    {
+        // A fill that's a square: 200 triangles, flat, filling its cell.
+        bool IsSquare(ChunkRecord c, float height)
+        {
+            var triangles = SceneMesh.For(Data.Set, c.Fill!.Value);
+            return triangles.Count == 200 && triangles.All(t => t.Scrolls)
+                && triangles.SelectMany(t => new[] { t.A, t.B, t.C }).All(v => MathF.Abs(v.Y - height) < 0.2f);
+        }
+        var squares = OverworldChunks.Where(c => c.Fill is not null && (IsSquare(c, -32) || IsSquare(c, -29.4f))).ToList();
+        Assert.InRange(squares.Count, 90, 110);
+        // Past Lighthouse Point, round Terminor, and Gwernia's bay, which lies higher than the rest.
+        Assert.Contains(squares, c => c.Row == -1 && c.Column == 15);
+        Assert.True(IsSquare(Chunk("F19"), -32));
+        Assert.True(IsSquare(Chunk("N09"), -29.4f));
+        // The shallows off the south coast keep the sea and the seabed under it.
+        Assert.DoesNotContain(squares, c => c.Name == "S21");
     }
 
     [Fact]
