@@ -69,6 +69,7 @@ public sealed class PlayerMotion
     {
         // Alaron's, the base game's leader, until the session gives it the leader's (GameSession.PlayerActor).
         Body = new Body(position, Radius) { Heading = Vector2.Normalize(heading), Actor = Body.AlaronActor };
+        Body.AfterTick = PlayOnce;
     }
 
     /// <summary>His body, the first that <c>ProcessPlayers</c> steps.</summary>
@@ -183,7 +184,6 @@ public sealed class PlayerMotion
         if (Movement == MovementMode.Modern)
         {
             Body.Modern.Step(world, animation, driven: true);
-            PlayOnce(animation);
             FellOut = Sphere.Velocity.Y < -FallLimit || Sphere.Position.Y < Floor;
             if (FellOut)
             {
@@ -193,7 +193,6 @@ public sealed class PlayerMotion
             return;
         }
         _frameForward += Body.Animate(animation);
-        PlayOnce(animation);
         if (!_frame.Tick())
             return;
         var forward = _frameForward;
@@ -221,16 +220,22 @@ public sealed class PlayerMotion
 
     /// <summary>
     /// Lets <see cref="Latched"/> go on the last frame of the state his actor entered for it, so the state that follows is
-    /// standing's. An animation that isn't an actor's holds it.
+    /// standing's. An animation that isn't an actor's holds it. It's read after each of his actor's ticks
+    /// (<see cref="Body.AfterTick"/>), since at a faster pace a tick of the game can play two: read after the pair, the entry or the
+    /// last frame in the first of them was missed, the latch never went, and his animation for a door looped with the controls dead.
     /// </summary>
-    private void PlayOnce(IRootMotion animation)
+    private void PlayOnce(Actors.IActorMotion actor)
     {
-        if (Latched is not { } latched || animation is not Actors.IActorMotion actor)
+        if (Latched is not { } latched)
             return;
         if (actor.Entered && Body.EntryRequest == latched)
             _latchedEntered = true;
-        if (_latchedEntered && actor.Frame >= actor.StateLength)
-            Latched = null;
+        if (!_latchedEntered || actor.Frame < actor.StateLength)
+            return;
+        Latched = null;
+        // The rest of this tick's animation stands, as the next tick's would.
+        if (Body.Request == latched)
+            Body.Request = Body.Idle;
     }
 
     /// <summary>

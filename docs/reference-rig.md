@@ -39,7 +39,7 @@ Resolve addresses against the project's symbol map, `tools/symbols/` (roadmap 0.
 
 ## Engine: Godot 4.7.2 (.NET)
 
-ADR 0002 has the Godot version pinned in the repository. `tools/godot.ps1` runs the pinned editor. On first use it downloads `Godot_v4.7.2-stable_mono_win64.zip` from the official GitHub release, checks it against the release's SHA-512 and unpacks it into the gitignored `.tools/godot/`. The editor runs self-contained (the `._sc_` file beside it), so its settings and caches stay in `.tools/` and don't touch another Godot install. The script runs the console build, so Godot's output and exit code reach the terminal.
+ADR 0002 has the Godot version pinned in the repository. `tools/godot.ps1` runs the pinned editor. On first use it downloads `Godot_v4.7.2-stable_mono_win64.zip` from the official GitHub release, checks it against the release's SHA-512 and unpacks it into the gitignored `.tools/godot/`. The editor runs self-contained (the `._sc_` file beside it), so its settings and caches stay in `.tools/` and don't touch another Godot install. The script runs the console build, so Godot's output and exit code reach the terminal. Every argument goes to Godot as given, the projects' own options with or without a `--` before them (Windows PowerShell drops the `--`), and an argument PowerShell reads as a list, such as `--at 16,62` typed at its prompt, is joined back with its commas.
 
 ```powershell
 tools/godot.ps1 --path src/HBHT.Editor --editor   # the editor

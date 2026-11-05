@@ -363,8 +363,8 @@ public sealed partial class TrekLoop : IMapObjectHost
             Rescue();
             before = motion.Sphere.Position;
         }
-        if (_using is { } underway && !fading)
-            StepUse(underway);
+        if (_using is { } underway)
+            StepUse(underway, fading);
         // WanderTick, which a popup, a conversation, the menu and a fade stop.
         if (playing && Use.Popup is null && !talking)
         {
@@ -660,20 +660,36 @@ public sealed partial class TrekLoop : IMapObjectHost
 
         /// <summary>Whether his actor has entered a state under the request.</summary>
         public bool Seen { get; set; }
+
+        /// <summary>Whether his actor has reached the share of that state, which a fade may keep it from being used at yet.</summary>
+        public bool Due { get; set; }
     }
 
     /// <summary>
     /// A tick of a use waiting for its share of the player's animation: it's used at that frame of the first state his actor enters
     /// under the request, which may wait for the state he's in to end, or at once with no animation. An actor without the animation
-    /// starts its state again under the request, and times it by that. It's used then if the object is still there to use.
+    /// starts its state again under the request, and times it by that. It's used then if the object is still there to use. Each of
+    /// his actor's ticks this tick is read (<see cref="Body.Played"/>), since at a faster pace a tick can play two, and through a
+    /// fade, which only holds the use back. Once the animation has played out (<see cref="PlayerMotion.Latched"/> gone) it's due
+    /// whatever its share, so a share past 1 can't keep the controls dead.
     /// </summary>
-    private void StepUse(UseUnderway underway)
+    private void StepUse(UseUnderway underway, bool fading)
     {
-        if (PlayerAnimation is IActorMotion { Entered: true } && Player.Body.EntryRequest == underway.Request)
-            underway.Seen = true;
-        var due = PlayerAnimation is not IActorMotion animation
-            || underway.Seen && animation.Frame >= (int)(animation.StateLength * underway.Strike);
-        if (!due)
+        if (PlayerAnimation is IActorMotion)
+        {
+            foreach (var played in Player.Body.Played)
+            {
+                if (played.Entered && played.EntryRequest == underway.Request)
+                    underway.Seen = true;
+                if (underway.Seen && played.Frame >= (int)(played.StateLength * underway.Strike))
+                    underway.Due = true;
+            }
+            if (underway.Seen && Player.Latched is null)
+                underway.Due = true;
+        }
+        else
+            underway.Due = true;
+        if (!underway.Due || fading)
             return;
         _using = null;
         if (Chunks.MapAt(Player.Sphere.Position) == underway.Map && underway.Map.IsActive(underway.Object.Index))

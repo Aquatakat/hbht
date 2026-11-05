@@ -534,7 +534,7 @@ public sealed class TrekLoopTests(Na10Import fixture)
 
     /// <summary>
     /// A on a locked chest the player reaches alone asks for his animation for opening it (request 11), which plays once while the
-    /// lock's popup is up: on its last frame he's asked to stand again.
+    /// lock's popup is up: on its last frame he's asked to stand again, so the tick that plays it ends standing.
     /// </summary>
     [Fact]
     public void ALockedChestPlaysThePlayersAnimationOnceUnderItsPopup()
@@ -548,12 +548,12 @@ public sealed class TrekLoopTests(Na10Import fixture)
 
         Assert.Equal(PressOutcome.Used, trek.Press(MenuAction.Accept));
         Assert.NotNull(trek.Use.Popup);
-        for (var i = 0; i < 20; i++)
+        for (var i = 0; i < 19; i++)
         {
             trek.Tick(NotRead);
             Assert.Equal(Body.OpenContainer, trek.Player.Request);
         }
-        for (var i = 0; i < 30; i++)
+        for (var i = 0; i < 31; i++)
         {
             trek.Tick(NotRead);
             Assert.Equal(Body.Idle, trek.Player.Request);
@@ -619,5 +619,40 @@ public sealed class TrekLoopTests(Na10Import fixture)
         Assert.Equal(15, ticks);
         Assert.Equal(10, motion.Frame);
         Assert.Null(trek.Using);
+    }
+
+    /// <summary>
+    /// At a faster pace a tick of the game can play two of his actor's ticks. One whose first entered the state for the door, or
+    /// played its last frame, went unseen when only the second was read: the door was never used, the latch never went, and the
+    /// animation looped with the controls dead. Each is read now, and the rest of a tick after the last frame stands.
+    /// </summary>
+    [Fact]
+    public void AFasterPaceStillUsesTheDoorAndLetsTheAnimationGo()
+    {
+        var (trek, _, door) = StartOnADoor();
+        trek.PlayerLook = new EntityBody(Body.AlaronActor, 0.5f, 1, 1, Strikes: new Dictionary<RecordId, float> { [Requests.Id(EntityBody.UseTeleporterRequest)] = 0.5f });
+        var motion = new StatesOf(20);
+        trek.PlayerAnimation = motion;
+        trek.Player.Pace = 2;
+        // 6 frames of idling are left: the state for the door is entered on the first of a pair of the actor's ticks.
+        for (var i = 0; i < 14; i++)
+            motion.Tick(Body.Idle);
+
+        Assert.Equal(PressOutcome.Used, trek.Press(MenuAction.Accept));
+        Assert.Same(door, trek.Using);
+        var ticks = 0;
+        while (!trek.Teleporting)
+        {
+            Assert.True(++ticks < 60, "The door was never used.");
+            trek.Tick(NotRead);
+        }
+        Assert.Null(trek.Using);
+        // The animation plays out once, and he stands.
+        while (trek.Player.Latched is not null)
+        {
+            Assert.True(++ticks < 60, "The animation for the door never let go.");
+            trek.Tick(NotRead);
+        }
+        Assert.Equal(Body.Idle, trek.Player.Body.Request);
     }
 }

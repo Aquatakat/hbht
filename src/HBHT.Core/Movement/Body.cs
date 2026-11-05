@@ -541,20 +541,43 @@ public sealed class Body
     internal float Animate(IRootMotion animation, float faster = 1, float rate = 1)
     {
         _pace += Pace * faster * rate;
+        _played.Clear();
         var forward = 0f;
         for (; _pace >= 1; _pace--)
         {
             var moved = animation.Tick(Request);
-            if (animation is Actors.IActorMotion { Entered: true })
+            if (animation is Actors.IActorMotion actor)
             {
-                _entryRequest = Request;
-                MovingStates = Request == Idle ? 0 : MovingStates + 1;
+                if (actor.Entered)
+                {
+                    _entryRequest = Request;
+                    MovingStates = Request == Idle ? 0 : MovingStates + 1;
+                }
+                _played.Add(new AnimationTick(actor.Entered, _entryRequest, actor.Frame, actor.StateLength));
+                AfterTick?.Invoke(actor);
             }
             if (Request != Idle || _entryRequest != Idle)
                 forward += moved;
         }
         return forward / faster;
     }
+
+    /// <summary>
+    /// What one of its actor's ticks played: whether it entered a state, the request that state was entered under, and its frame
+    /// of its state's length.
+    /// </summary>
+    internal readonly record struct AnimationTick(bool Entered, int EntryRequest, int Frame, int StateLength);
+
+    private readonly List<AnimationTick> _played = [];
+
+    /// <summary>
+    /// Its actor's ticks the last <see cref="Animate"/> played, in order: none, one, or more at a faster pace, whose entries and last
+    /// frames the actor's state after them doesn't show.
+    /// </summary>
+    internal IReadOnlyList<AnimationTick> Played => _played;
+
+    /// <summary>Called after each of its actor's ticks in <see cref="Animate"/>, which may change <see cref="Request"/> for the next.</summary>
+    internal Action<Actors.IActorMotion>? AfterTick { get; set; }
 
     /// <summary>The request its animation's state was entered under (<c>+0x1A</c>), 0 as it's made.</summary>
     private int _entryRequest;
