@@ -61,6 +61,8 @@ The three in-place events are fired through a `FireEvent` that the session hands
 | 10 | `item.gained` | `check.subjectKind` `Potion`, `check.flag` 3612 in 0–0 | `flag.set` 3612, `message.show` line 521, "You've acquired a potion! …" | `WidgetBarter::AFunc` |
 | 11 | `journal.added` | | `message.show` "A new journal entry has been added.", read from the code segment (`CodeTable.JournalNotice`, `0x800ce28c` in 1.0) | `NewJournalEntryPopup` |
 
+The user played triggers 9–11 on Nov 5, 2026: the first potion's and first spell's help each show once, and the journal notice comes in trek's message box, as before they were triggers.
+
 Every kind of the endings table takes over from trek, so a cinematic after a cut-scene starts straight from its end, with no trek built and none drawn. After Roog's, trek is built again where the player stood and fades in, as after any cut-scene; Alaron's True Name also comes back whenever his sheet is built while 590, that cinematic's done flag, is set ([characters](characters.md)).
 
 **The Shadow's cinematic** stays on the combat record's `shadow` (`GameSession.EndBattle`): it's chosen by how a battle ended, merged, which no condition says, and the record's `shadow` holds the merge's rules with it.
