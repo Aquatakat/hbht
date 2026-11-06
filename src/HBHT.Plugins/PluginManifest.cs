@@ -144,8 +144,9 @@ public static class BasePlugin
     /// sea at its edge.
     /// 73 drops a fill's half-alpha sea where opaque sea lies at its height (S20), and no longer takes the opaque sea for a copy of it.
     /// 74 lays the squares of sea that touch at one height, ends their grid on the cell's edge exactly, and hangs a skirt under each.
+    /// 75 hangs a skirt under every fill's opaque sea where it ends on its cell's edge (J20 beside K20).
     /// </summary>
-    public const int ImporterVersion = 74;
+    public const int ImporterVersion = 75;
 
     /// <summary>
     /// What's wrong with the imported base plugin under <paramref name="pluginsDirectory"/>, worded for the player, or null if

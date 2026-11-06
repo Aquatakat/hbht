@@ -160,6 +160,24 @@ public class ChunkCutsTests
     }
 
     [Fact]
+    public void AFillsSeaHasASkirtWhereItEndsOnItsCellsEdge()
+    {
+        // (1, 1)'s sea over (2, 1), whose fill also holds a sheet of land, so it isn't a square: its sea ends on the cell's edges,
+        // and hangs a skirt there; the land, not a sea draw, has none.
+        var a = Chunk(1, 1, 1);
+        var cuts = Cut([(1, 1)], [a], [.. Square(0, a, 100, 100, 300, 200, y: -32, sea: true), .. Square(0, a, 230, 130, 270, 170, y: -20, draw: 1)]);
+        var fill = Assert.Single(cuts.Fills);
+        Assert.Null(fill.Sea);
+        var sea = fill.Pieces.Single(p => p.Draw == 0).Polygons;
+        var skirt = sea.Where(p => p.Any(v => v.Position.Y < -32)).ToList();
+        Assert.NotEmpty(skirt);
+        Assert.All(skirt.SelectMany(p => p), v => Assert.Contains(v.Position.Y, new[] { -32f, -32 - SkirtDepth }));
+        // Its edges on the cell's, a skirt each way: toward (3, 1), and along z 100 and 200 from 16 in, where (1, 1)'s own sea ends.
+        Assert.Equal((100 + 84 + 84) * SkirtDepth * 2, Area(skirt), 0.1f);
+        Assert.DoesNotContain(fill.Pieces.Single(p => p.Draw == 1).Polygons.SelectMany(p => p), v => v.Position.Y < -20);
+    }
+
+    [Fact]
     public void ACellWithMoreThanSeaOverItKeepsItsFill()
     {
         // Over (3, 1), besides the sea, a sheet of land.
@@ -184,7 +202,8 @@ public class ChunkCutsTests
         ]);
         var fill = Assert.Single(cuts.Fills);
         Assert.Null(fill.Sea);
-        var areas = fill.Pieces.ToDictionary(p => p.Draw, p => Area(p.Polygons));
+        // The opaque sea's skirt aside.
+        var areas = fill.Pieces.ToDictionary(p => p.Draw, p => Area(p.Polygons.Where(q => q.All(v => v.Position.Y >= -32 || p.Draw != 2))));
         Assert.Equal(50 * 100, areas[0], 0.1f);
         Assert.True(fill.Pieces.Single(p => p.Draw == 0).Polygons.SelectMany(p => p).All(v => v.Position.X <= 50.01f));
         Assert.Equal(50 * 100, areas[1], 0.1f);

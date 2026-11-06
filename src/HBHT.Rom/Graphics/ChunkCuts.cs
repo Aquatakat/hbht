@@ -190,15 +190,49 @@ public sealed class ChunkCuts
     internal static ChunkCuts Cut(HashSet<(int Row, int Column)> cells, IReadOnlyList<Source> sources, float cellSize, List<Triangle> triangles)
     {
         var first = new Cutter(cells, sources, cellSize, new Dictionary<(int, int), float>()).Cut(triangles);
+        var seaDraws = triangles.Where(t => t.Scrolls && t.Opaque).Select(t => (sources[t.Source].Scene, t.Draw)).ToHashSet();
         var squares = Squares(first, sources, cellSize, triangles);
         if (squares is not { } sea)
-            return first;
+            return new ChunkCuts(first.Scenes, [.. first.Fills.Select(f => Skirted(f, seaDraws, cellSize))], first.Shows);
         var second = new Cutter(cells, sources, cellSize, sea.Heights).Cut(triangles);
         var nearest = first.Fills.ToDictionary(f => (f.Row, f.Column), f => f.Nearest);
-        var fills = second.Fills.Where(f => !sea.Heights.ContainsKey((f.Row, f.Column)))
+        var fills = second.Fills.Where(f => !sea.Heights.ContainsKey((f.Row, f.Column))).Select(f => Skirted(f, seaDraws, cellSize))
             .Concat(sea.Heights.Select(s => new CellFill(s.Key.Row, s.Key.Column, [sea.Piece(s.Key, s.Value)], nearest[s.Key], s.Value)))
             .OrderBy(f => f.Row).ThenBy(f => f.Column);
         return new ChunkCuts(second.Scenes, [.. fills], second.Shows);
+    }
+
+    /// <summary>
+    /// A fill with a skirt hung under each edge of its opaque sea that lies on its cell's edge, as a square's is
+    /// (<see cref="SkirtDepth"/>). The fill's sea was gathered from other chunks' copies, which in 1.0 lay over the next chunk's own
+    /// water; cut at the cell's edge, it meets that water with a step, J20's 0.038 over K20's, and the sky showed through.
+    /// </summary>
+    private static CellFill Skirted(CellFill fill, HashSet<(int Scene, int Draw)> seaDraws, float cellSize)
+    {
+        const float onEdge = 0.01f;
+        static bool Edge(float a, float b, float at) => MathF.Abs(a - at) < onEdge && MathF.Abs(b - at) < onEdge;
+        var pieces = fill.Pieces.Select(piece =>
+        {
+            if (!seaDraws.Contains((piece.Scene, piece.Draw)))
+                return piece;
+            var skirts = new List<CutVertex[]>();
+            foreach (var polygon in piece.Polygons)
+            {
+                for (var i = 0; i < polygon.Length; i++)
+                {
+                    var (a, b) = (polygon[i], polygon[(i + 1) % polygon.Length]);
+                    var (pa, pb) = (a.Position, b.Position);
+                    if (!(Edge(pa.X, pb.X, 0) || Edge(pa.X, pb.X, cellSize) || Edge(pa.Z, pb.Z, 0) || Edge(pa.Z, pb.Z, cellSize)))
+                        continue;
+                    var drop = new Vector3(0, SkirtDepth, 0);
+                    CutVertex[] side = [a, b, b with { Position = pb - drop }, a with { Position = pa - drop }];
+                    skirts.Add(side);
+                    skirts.Add([.. side.Reverse()]);
+                }
+            }
+            return skirts.Count == 0 ? piece : piece with { Polygons = [.. piece.Polygons, .. skirts] };
+        }).ToList();
+        return fill with { Pieces = pieces };
     }
 
     /// <summary>How far apart a sea triangle's corners may be, up and down, and from a square's height, to be that sea.</summary>
