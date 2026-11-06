@@ -22,10 +22,10 @@ public sealed class ImportTests(Na10Import fixture)
         Assert.Equal(17, mapSets.Count);
         // The original's, and those the importer makes for fills on the Overworld, with no scene of their own.
         var allChunks = mapSets.SelectMany(s => set.ChunksIn(s.Id)).ToList();
-        Assert.Equal(680, allChunks.Count);
-        Assert.Equal(680, set.IdsOf(RecordTypes.Chunk).Count);
+        Assert.Equal(629, allChunks.Count);
+        Assert.Equal(629, set.IdsOf(RecordTypes.Chunk).Count);
         Assert.Equal(543, allChunks.Count(c => c.Scene is not null || c.AltScene is not null));
-        Assert.Equal(137, allChunks.Count(c => c.Scene is null && c.AltScene is null));
+        Assert.Equal(86, allChunks.Count(c => c.Scene is null && c.AltScene is null));
         var overworld = set.Get<MapSetRecord>(RecordId.Parse("aidyn:mapset/0"));
         var overworldChunks = set.ChunksIn(overworld.Id).ToList();
         Assert.Equal(("Overworld", 100f), (overworld.Label, overworld.CellSize));

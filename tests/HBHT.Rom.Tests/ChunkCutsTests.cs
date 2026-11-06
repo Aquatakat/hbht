@@ -273,12 +273,15 @@ public sealed class ChunkCutsImportTests(Na10Import fixture)
     public void NoChunkSceneDrawsPastItsNeighbours()
     {
         var set = Overworld;
-        foreach (var chunk in OverworldChunks)
+        float Reach(RecordId scene) => SceneMesh.For(Data.Set, scene).SelectMany(t => new[] { t.A, t.B, t.C })
+            .Select(v => MathF.Max(MathF.Max(-v.X, v.X - set.CellSize), MathF.Max(-v.Z, v.Z - set.CellSize))).DefaultIfEmpty(0).Max();
+        // The islands' scenes are left whole, as 1.0 draws them: Namer's Isle's sea reaches three cells past A22.
+        Assert.True(Reach(Chunk("A22").AltScene!.Value) > 2 * set.CellSize);
+        foreach (var chunk in OverworldChunks.Where(c => c.Extended))
         {
             foreach (var scene in new[] { chunk.Scene, chunk.AltScene }.OfType<RecordId>())
             {
-                var reach = SceneMesh.For(Data.Set, scene).SelectMany(t => new[] { t.A, t.B, t.C })
-                    .Select(v => MathF.Max(MathF.Max(-v.X, v.X - set.CellSize), MathF.Max(-v.Z, v.Z - set.CellSize))).DefaultIfEmpty(0).Max();
+                var reach = Reach(scene);
                 // To a hair, where a triangle reaches by a sliver too thin to cut off.
                 Assert.True(reach <= set.CellSize + 0.05f, $"{chunk.Name}'s {scene} draws {reach} past its cell.");
             }
@@ -290,7 +293,7 @@ public sealed class ChunkCutsImportTests(Na10Import fixture)
     {
         var set = Overworld;
         var fills = OverworldChunks.Where(c => c.Fill is not null).ToList();
-        Assert.InRange(fills.Count, 130, 160);
+        Assert.InRange(fills.Count, 80, 100);
         Assert.Equal(fills.Count, fills.Select(c => c.Fill).Distinct().Count());
         foreach (var chunk in fills)
         {
@@ -317,7 +320,7 @@ public sealed class ChunkCutsImportTests(Na10Import fixture)
     {
         var set = Overworld;
         var made = OverworldChunks.Where(c => c.Scene is null && c.AltScene is null && c.Fill is not null).ToList();
-        Assert.InRange(made.Count, 120, 150);
+        Assert.InRange(made.Count, 75, 100);
         // On the original's own map for its chunks of sea, which has no objects.
         Assert.All(made, c => Assert.Equal("0x3559", c.Borg));
         Assert.All(made, c => Assert.Empty(c.Objects));
@@ -341,7 +344,9 @@ public sealed class ChunkCutsImportTests(Na10Import fixture)
                 && triangles.SelectMany(t => new[] { t.A, t.B, t.C }).All(v => MathF.Abs(v.Y - height) < 1);
         }
         var squares = OverworldChunks.Where(c => c.Fill is not null && (IsSquare(c, -32) || IsSquare(c, -29.4f))).ToList();
-        Assert.InRange(squares.Count, 90, 110);
+        Assert.InRange(squares.Count, 55, 75);
+        // None round the islands, whose art is left whole.
+        Assert.DoesNotContain(squares, c => c.Name is "0_22" or "A21" or "C22" or "E21" or "G23");
         // Past Lighthouse Point, round Terminor, and Gwernia's bay, which lies higher than the rest.
         Assert.Contains(squares, c => c.Row == -1 && c.Column == 15);
         Assert.True(IsSquare(Chunk("F19"), -32));

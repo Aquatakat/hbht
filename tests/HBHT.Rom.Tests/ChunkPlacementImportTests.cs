@@ -13,7 +13,7 @@ public sealed class ChunkPlacementImportTests(Na10Import fixture)
         var data = fixture.Data;
         var index = ChunkIndex.For(data.Set);
 
-        Assert.Equal(680, data.ChunkRecords.Count);
+        Assert.Equal(629, data.ChunkRecords.Count);
         Assert.Empty(index.Clashes);
         Assert.All(data.ChunkRecords, chunk =>
         {
@@ -23,7 +23,7 @@ public sealed class ChunkPlacementImportTests(Na10Import fixture)
             Assert.Equal((chunk.MapSet, chunk.Row, chunk.Column), ChunkRecord.PlaceOf(chunk.Id));
             Assert.Equal(chunk.Id, ChunkRecord.IdOf(chunk.MapSet, chunk.Row, chunk.Column));
         });
-        Assert.Equal(680, data.MapSets.Sum(s => index.In(s.Id).Count));
+        Assert.Equal(629, data.MapSets.Sum(s => index.In(s.Id).Count));
         Assert.Equal(543, data.MapSets.Sum(s => index.In(s.Id).Count(id => data.Chunk(id).Scene is not null || data.Chunk(id).AltScene is not null)));
 
         var i08 = data.Set.ChunkAt(RecordId.Decimal(RecordTypes.MapSet, 0), 9, 8)!;
@@ -34,11 +34,12 @@ public sealed class ChunkPlacementImportTests(Na10Import fixture)
     [Fact]
     public void TheSeaNorthOfTheOverworldIsNamedByNumbers()
     {
-        // The importer's sea past row A has no letter: 0_13 to 0_17 and 0_19 to 0_25, and the same in row -1.
+        // The importer's sea past row A has no letter: 0_13 to 0_17 past Lighthouse Point, and the same in row -1. Namer's Isle's sea
+        // past it is the island's own, left whole.
         var numbered = fixture.Data.ChunkRecords.Where(c => c.Id.Key.Split('/')[1].Contains('_', StringComparison.Ordinal)).ToList();
-        Assert.Equal(24, numbered.Count);
+        Assert.Equal(10, numbered.Count);
         Assert.All(numbered, c => Assert.Equal("aidyn:mapset/0", c.MapSet.ToString()));
-        Assert.Equal(Enumerable.Range(13, 5).Concat(Enumerable.Range(19, 7)).Select(c => $"0/-1_{c}").Concat(Enumerable.Range(13, 5).Concat(Enumerable.Range(19, 7)).Select(c => $"0/0_{c}")).Order(StringComparer.Ordinal),
+        Assert.Equal(Enumerable.Range(13, 5).Select(c => $"0/-1_{c}").Concat(Enumerable.Range(13, 5).Select(c => $"0/0_{c}")).Order(StringComparer.Ordinal),
             numbered.Select(c => c.Id.Key).Order(StringComparer.Ordinal));
         Assert.Equal((-1, 13), (numbered.Single(c => c.Id.Key == "0/-1_13").Row, numbered.Single(c => c.Id.Key == "0/-1_13").Column));
     }
@@ -61,7 +62,7 @@ public sealed class ChunkPlacementImportTests(Na10Import fixture)
             ["0x3672"] = "16/M15 16/M21",
         }, shared);
         var sea = fixture.Data.ChunkRecords.Where(c => c.Borg == "0x3559").ToList();
-        Assert.Equal(141, sea.Count);
+        Assert.Equal(90, sea.Count);
         Assert.Contains(sea, c => c.Id == Ids.Chunk(0, "L23"));
         Assert.Contains(sea, c => c.Id == Ids.Chunk(0, "S17"));
         Assert.Contains(sea, c => c.Id == Ids.Chunk(0, "S18"));

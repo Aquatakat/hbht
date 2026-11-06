@@ -18,7 +18,7 @@ public sealed class ChunkImportTests(Na10Import fixture)
         var records = Path.Combine(Data.Dir, "records");
         Assert.False(Directory.Exists(Path.Combine(records, "maps")));
         Assert.False(File.Exists(Path.Combine(records, "minimaps.json")));
-        Assert.Equal(680, Directory.GetFiles(Path.Combine(records, "chunks"), "*.json", SearchOption.AllDirectories).Length);
+        Assert.Equal(629, Directory.GetFiles(Path.Combine(records, "chunks"), "*.json", SearchOption.AllDirectories).Length);
     }
 
     [Fact]
@@ -140,7 +140,7 @@ public sealed class ChunkImportTests(Na10Import fixture)
         // A fresh load of the imported plugin reads no chunk or script until it is asked for (ADR 0036).
         var fresh = PluginSet.Load([Data.Dir]);
         var chunks = fresh.IdsOf(RecordTypes.Chunk);
-        Assert.Equal(680, chunks.Count);
+        Assert.Equal(629, chunks.Count);
         Assert.All(chunks, id => Assert.False(fresh.IsRead(id)));
         Assert.All(fresh.IdsOf(RecordTypes.Script), id => Assert.False(fresh.IsRead(id)));
         var index = ChunkIndex.For(fresh);

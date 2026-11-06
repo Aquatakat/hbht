@@ -42,12 +42,12 @@ The original calls them voxel objects (`RenderVoxelScenes` in all three ROMs' st
 `MapImporter` writes a `chunk` record per cell (`ChunkRecord`), a file each at `records/chunks/<set>/<name>.json`, which the plugin set reads only once it's asked for (ADR 0036): the map set's entry for the cell (`WorldImporter.BuildCells`: scenes, terrain, music, region, swap, fill, Draw Distance's Extended and what it shows) with its Borg9's objects, grid and drawn neighbours. A map set's record lists no chunks; the plugin set finds a cell's chunk by its ID (`ChunkIndex`), and the minimap is on the map set (`minimap`).
 
 - **The name** is the original's: `"New Grid: %d-%c%02d"` in the debug build prints the map set, the row's letter (`row − 1 + 'A'`) and the column, so `aidyn:chunk/8/C05` is Terminor's row 3, column 5. The 24 sea cells the importer makes north of the Overworld's row A, rows 0 and −1 (columns 13–17 and 19–25), have no letter: a cell outside rows A–Z is named `<row>_<column>`, `aidyn:chunk/0/0_13` and `aidyn:chunk/0/-1_13` (`ChunkRecord.NameOf`). The original has no such cells.
-- **680 chunks**: the original's 543 entries and the 137 cells of sea the importer makes for fills, most of them now squares of it ([rendering](../systems/rendering.md#draw-distance)).
+- **629 chunks**: the original's 543 entries and the 86 cells of sea the importer makes for fills, most of them now squares of it ([rendering](../systems/rendering.md#draw-distance)).
 - **The 9 shared Borg9s are copied** into each cell that uses them, so each object has one ID. Each copy's `borg` names the Borg9 it came from (provenance, which nothing reads), and its `collision` the one asset of it:
 
 | Borg9 | Cells |
 | --- | --- |
-| `0x3559` (sea, no objects) | Overworld L23, S17, S18, T17 and the 137 sea cells (141) |
+| `0x3559` (sea, no objects) | Overworld L23, S17, S18, T17 and the 86 sea cells (90) |
 | `0x0E87` | Battlefields A01, A03 |
 | `0x0E88` | Battlefields C01, C03, G01, G03, K11 |
 | `0x0E89` | Battlefields E01, E03 |

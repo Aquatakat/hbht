@@ -299,7 +299,7 @@ public sealed class MapObjectImportTests(Na10Import fixture)
         Assert.False(Directory.Exists(Path.Combine(records, "maps")));
         Assert.False(File.Exists(Path.Combine(records, "minimaps.json")));
         var files = Directory.GetFiles(Path.Combine(records, "chunks"), "*.json", SearchOption.AllDirectories);
-        Assert.Equal(680, files.Length);
+        Assert.Equal(629, files.Length);
         foreach (var chunk in Data.ChunkRecords)
         {
             var written = File.ReadAllBytes(Path.Combine([records, "chunks", .. chunk.Id.Key.Split('/')]) + ".json");
