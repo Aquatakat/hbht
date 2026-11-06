@@ -148,8 +148,9 @@ public static class BasePlugin
     /// 76 drops the skirts, which showed through the shallows, and meets the water instead: a square's edge takes the points and
     /// heights of the water beside it, eased in over 20, and a fill's sea a real chunk's (<c>SeaRims</c>).
     /// 77 leaves the islands' scenes whole, as 1.0 draws them: Namer's Isle and Chaos Isle aren't cut, and nothing is made from their art.
+    /// 78 welds the islands' scenes wherever they meet, however far past their cells (Namer's Isle's sea along x 200).
     /// </summary>
-    public const int ImporterVersion = 77;
+    public const int ImporterVersion = 78;
 
     /// <summary>
     /// What's wrong with the imported base plugin under <paramref name="pluginsDirectory"/>, worded for the player, or null if

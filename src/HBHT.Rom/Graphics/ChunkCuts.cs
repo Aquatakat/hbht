@@ -141,10 +141,10 @@ public sealed class ChunkCuts
         var seen = new HashSet<int>();
         // The islands' scenes stay whole, as 1.0 draws them: nothing else is loaded or shown from an island, nor an island from the
         // mainland, so their art doubles nothing. Out of the cut, their cells still chunks' (docs/systems/rendering.md#draw-distance).
-        var mainland = chunks.Count == 0 ? [] : MapSets.Extended(chunks);
+        var islands = chunks.Count == 0 ? [] : MapSets.Islands(chunks);
         foreach (var (chunk, scene) in chunks.SelectMany(c => new[] { (c, c.Scene), (c, c.AltScene) }).Concat(swaps))
         {
-            if (!mainland.Contains((chunk.Row, chunk.Column)))
+            if (islands.Contains((chunk.Row, chunk.Column)))
                 continue;
             if (scene != 0 && seen.Add(scene))
                 sources.Add(new Source(chunk.Row, chunk.Column, scene, MapSets.ChunkOrigin(chunk)));

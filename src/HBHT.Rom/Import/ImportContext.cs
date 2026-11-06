@@ -91,7 +91,7 @@ internal sealed class ImportContext(RomImage rom, string staging, IProgress<stri
         if (!Options.WeldSeams)
             return [];
         bool Animated(int scene) => Animations[scene].Any();
-        var welds = SeamWelds.ForChunks(Chunks, Archive.Read, Animated);
+        var welds = SeamWelds.ForChunks(Chunks, Archive.Read, Animated, MapSets.Islands(Chunks));
         foreach (var (chunk, lit) in Swaps)
         {
             var around = Chunks.Where(c => c.Set == chunk.Set && Math.Abs(c.Row - chunk.Row) <= 1 && Math.Abs(c.Column - chunk.Column) <= 1)

@@ -46,7 +46,12 @@ public static class SeamWelds
     /// </summary>
     /// <param name="read">Reads a Borg by archive index.</param>
     /// <param name="animated">Whether a scene has animations, which can move its nodes apart.</param>
-    public static Dictionary<int, Dictionary<DrawVertex, Vector3>> ForChunks(IReadOnlyList<MapChunk> chunks, Func<int, byte[]> read, Func<int, bool> animated)
+    /// <param name="islands">
+    /// The Overworld's chunks whose scenes are drawn whole (<see cref="MapSets.Islands"/>): their art past their cells is their own, not a
+    /// copy the cut takes away, so it's welded wherever it meets a neighbour's, not only within <see cref="Border"/>.
+    /// </param>
+    public static Dictionary<int, Dictionary<DrawVertex, Vector3>> ForChunks(IReadOnlyList<MapChunk> chunks, Func<int, byte[]> read, Func<int, bool> animated,
+        IReadOnlySet<(int Row, int Column)>? islands = null)
     {
         var uses = chunks.SelectMany(c => new[] { c.Scene, c.AltScene }).Where(s => s != 0).CountBy(s => s).ToDictionary();
         var models = new Dictionary<int, Borg2Geometry>();
@@ -61,7 +66,8 @@ public static class SeamWelds
                 {
                     if (scene == 0)
                         continue;
-                    var piece = new Piece(scene, MapSets.ChunkOrigin(chunk), alt, animated(scene), (chunk.Row, chunk.Column), cellSize, uses[scene] > 1);
+                    var piece = new Piece(scene, MapSets.ChunkOrigin(chunk), alt, animated(scene), (chunk.Row, chunk.Column), cellSize, uses[scene] > 1,
+                        chunk.Set == MapSet.Overworld && islands?.Contains((chunk.Row, chunk.Column)) == true);
                     geometry.Add(piece, Borg5Scene.Parse(read(scene)), i => Model(models, read, i));
                 }
             }
@@ -91,11 +97,14 @@ public static class SeamWelds
     /// <param name="NodesMove">Its nodes can move apart, so only what's on one node is welded.</param>
     /// <param name="Cell">Its chunk's row and column, or null for a scene alone.</param>
     /// <param name="Fixed">Nothing of it moves: it's drawn in more than one place.</param>
-    internal sealed record Piece(int Scene, Vector3 Offset, bool Alt, bool NodesMove, (int Row, int Column)? Cell, float CellSize, bool Fixed)
+    /// <param name="Whole">An island's scene, drawn whole: all of it counts as in its cell.</param>
+    internal sealed record Piece(int Scene, Vector3 Offset, bool Alt, bool NodesMove, (int Row, int Column)? Cell, float CellSize, bool Fixed, bool Whole = false)
     {
-        /// <summary>How far a point is past this chunk's cell, across the ground.</summary>
+        /// <summary>How far a point is past this chunk's cell, across the ground; none for an island's, drawn whole.</summary>
         public float Past(Vector3 p)
         {
+            if (Whole)
+                return 0;
             var dx = MathF.Max(0, MathF.Max(Offset.X - p.X, p.X - (Offset.X + CellSize)));
             var dz = MathF.Max(0, MathF.Max(Offset.Z - p.Z, p.Z - (Offset.Z + CellSize)));
             return MathF.Max(dx, dz);
@@ -305,6 +314,10 @@ public static class SeamWelds
         var (pa, pb) = (g.Pieces[ta.Piece], g.Pieces[tb.Piece]);
         if (ta.Piece == tb.Piece)
             return ta.Node == tb.Node || !pa.NodesMove ? ModelGap : 0;
+        // An island's scenes are drawn whole and together, scenery and water, so they weld to one another however far apart their
+        // chunks: Chaos Isle's D22 and F23 lay sea that meets, and E22 keeps water in its scenery that meets D22's.
+        if (pa.Whole && pb.Whole && !pa.NodesMove && !pb.NodesMove)
+            return ChunkGap;
         if (pa.Cell is not { } ca || pb.Cell is not { } cb || pa.Alt != pb.Alt
             || Math.Max(Math.Abs(ca.Row - cb.Row), Math.Abs(ca.Column - cb.Column)) > 1)
             return 0;

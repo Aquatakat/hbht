@@ -121,6 +121,16 @@ public static class MapSets
         }
         return reached;
     }
+
+    /// <summary>
+    /// The Overworld's chunks <see cref="Extended"/> leaves out, the islands the boats sail to: from one nothing else is loaded or
+    /// shown, and from the mainland none is, so the importer leaves their scenes whole, as 1.0 draws them, art past their cells and all.
+    /// </summary>
+    public static HashSet<(int Row, int Column)> Islands(IReadOnlyList<MapChunk> chunks)
+    {
+        var mainland = Extended(chunks);
+        return [.. chunks.Where(c => c.Set == MapSet.Overworld && !mainland.Contains((c.Row, c.Column))).Select(c => (c.Row, c.Column))];
+    }
 }
 
 public static class MapChunks
