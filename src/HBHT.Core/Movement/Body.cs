@@ -789,6 +789,21 @@ public sealed class Body
     }
 
     /// <summary>
+    /// A sphere at <paramref name="at"/> rested on the topmost floor under it, found by sweeping a point down from on high
+    /// rather than the sphere, so the bands where <see cref="SetDown"/> misses at a crease don't miss it; or null with no
+    /// floor under it. The port's, for combat's placing once every try to the side has missed: 1.0 leaves the body where
+    /// it was made, under the arena's floor, and it falls through the world (<c>docs/systems/movement.md</c>).
+    /// </summary>
+    public static Vector3? RestOnFloor(CollisionWorld world, Vector3 at, float radius) =>
+        SpherePhysics.SweepNearest(world, at with { Y = 100 }, at with { Y = -100 }, PointRadius, skipSeeThrough: true, minUp: 0.5f,
+            out var floor, out _)
+            ? at with { Y = floor.Y + radius + 0.01f }
+            : null;
+
+    /// <summary>The radius <see cref="RestOnFloor"/> sweeps: a point's, whose band of misses at a crease is too thin to land in.</summary>
+    private const float PointRadius = 0.001f;
+
+    /// <summary>
     /// A body of <paramref name="look"/> made at <paramref name="at"/> and set down on the ground (<see cref="SetDown"/>), as
     /// the original's <c>CreateActor</c>, <c>AllocWanderer</c> and combat's <c>CreateBody</c> make one, with its entity's steps
     /// under Modern movement. Whoever spawns it sets the rest.

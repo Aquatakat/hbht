@@ -98,14 +98,21 @@ public partial class ConversationBoxView : Control
     {
         if (StepsBox)
             Box.Step();
-        if (Visible && (Box.Fading || Box.Layout is { Choices.Count: > 0 }))
+        // Also once the alpha differs from the one last drawn: the tick a fade out ends, the box is no longer fading, and without
+        // a redraw the canvas would keep its last frame, the box faint over the world (and over a battle a conversation began).
+        if (Visible && (Box.Fading || Box.Alpha != _drawnAlpha || Box.Layout is { Choices.Count: > 0 }))
             QueueRedraw();
     }
 
+    /// <summary>The alpha the box was last drawn at, 0 when it wasn't.</summary>
+    private int _drawnAlpha;
+
     public override void _Draw()
     {
+        _drawnAlpha = 0;
         if (Box.Layout is not { } layout || !Box.Visible)
             return;
+        _drawnAlpha = Box.Alpha;
         // The fade is the whole box's, its panel, portrait and text alike.
         SelfModulate = new Color(1, 1, 1, Box.Alpha / 255f);
         _images.DrawPanel(this, layout.Panel);

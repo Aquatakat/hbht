@@ -174,8 +174,8 @@ public sealed partial class Battle
             // 1.0 makes the bodies here, in slot order, after Combat.Setup has built the turn order (Combat.Init, 0x80022ED8), so a
             // body that finds no floor where it's made tries to the side (Body.SetDown's draws) after the turn order's draws.
             // The cell isn't moved with it: the target sets' reach tests read a nudged body into it (Combat.ResetTargetSets, next).
-            combatant.Body.Sphere.Position = Body.SetDown(World, BodyStart(Arena.Origin, combatant.Cell), combatant.Look.Radius,
-                Game.Random.Combat).Position;
+            combatant.Body.Sphere.Position = OnFloor(Body.SetDown(World, BodyStart(Arena.Origin, combatant.Cell), combatant.Look.Radius,
+                Game.Random.Combat), combatant.Look.Radius);
             combatant.UpdateRadius(this);
             combatant.PlaceField(this);
         }
@@ -346,6 +346,19 @@ public sealed partial class Battle
     internal static Vector2 CellOf(ReferencePointObject? point) =>
         point is null ? new Vector2(ZonePoint.X, ZonePoint.Z) : new Vector2((byte)(int)point.Position.X, (byte)(int)point.Position.Z);
 
+    /// <summary>
+    /// A combatant's body where its set-down left it, or, where every try missed, rested on the floor under there
+    /// (<see cref="Body.RestOnFloor"/>): the port's fix, the user's choice. 1.0 leaves it a unit up, under the arena's floor, and
+    /// it falls through the world: about one battle in 14 with the party on G11's set 4, whose <c>good4a</c> lies in a band
+    /// the sweep misses (<c>docs/systems/combat.md</c>). The draws are the original's either way.
+    /// </summary>
+    private Vector3 OnFloor((Vector3 Position, bool Grounded) setDown, float radius) =>
+        setDown.Grounded ? setDown.Position : Body.RestOnFloor(World, setDown.Position, radius) ?? setDown.Position;
+
+    /// <inheritdoc cref="OnFloor((Vector3, bool), float)"/>
+    private Vector3 OnFloor(Vector3 position, float radius) =>
+        position.Y != Arena.Origin.Y + BodyHeight ? position : Body.RestOnFloor(World, position, radius) ?? position;
+
     /// <summary>Where a body is made for a combatant at <paramref name="cell"/> of an arena at <paramref name="origin"/>, before it's set down.</summary>
     internal static Vector3 BodyStart(Vector3 origin, Vector2 cell) => origin + new Vector3(cell.X, BodyHeight, cell.Y);
 
@@ -362,6 +375,8 @@ public sealed partial class Battle
         var at = BodyStart(Arena.Origin, cell);
         // A body walking to a point in combat gives it up where it stands after 30 ticks of coming no nearer (Body.StepTowardGoal).
         var body = Body.Spawn(World, at, look, nudge ? Game.Random.Combat : null);
+        if (nudge)
+            body.Sphere.Position = OnFloor(body.Sphere.Position, look.Radius);
         body.Heading = Directions[direction];
         body.GiveUpTicks = 30;
         body.StaysWhenStalled = true;
