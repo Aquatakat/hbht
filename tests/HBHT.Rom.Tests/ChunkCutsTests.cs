@@ -361,6 +361,20 @@ public sealed class ChunkCutsImportTests(Na10Import fixture)
     }
 
     [Fact]
+    public void NamersIslesSeaSheetsAreWeldedAllAlongWhereTheyMeet()
+    {
+        // A22's sea runs east to x 200, where B22's starts, 700 units north to south, most of it far past both cells: 0.009 apart in
+        // the ROM, and every point of each side's edge now one of the other's.
+        IEnumerable<Vector3> Edge(string name, float localX) => SceneMesh.For(Data.Set, Chunk(name).AltScene!.Value)
+            .Where(t => t.Scrolls).SelectMany(t => new[] { t.A, t.B, t.C }).Where(v => MathF.Abs(v.X - localX) < 0.05f)
+            .Select(v => v with { X = v.X - localX }).Distinct();
+        // In B22's coordinates, A22's are 100 further west, so its edge's points are where B22's are, x and all.
+        var (west, east) = (Edge("A22", 100).ToList(), Edge("B22", 0).ToList());
+        Assert.InRange(west.Max(v => v.Z) - west.Min(v => v.Z), 690, 710);
+        Assert.All(west, v => Assert.Contains(east, e => Vector3.Distance(e, v) < 0.001f));
+    }
+
+    [Fact]
     public void TheShallowsStopWhereTheOpenSeaStarts()
     {
         // Half-alpha water runs right across S20, over the open sea from its middle out at the same height; what lay on the sea goes.
