@@ -283,6 +283,7 @@ public sealed class ChunkCuts
         var draws = mapped.Where(m => m.Key.S.X > 0 && m.Key.S.Y == 0 && m.Key.T.X == 0 && m.Key.T.Y == m.Key.S.X).ToList();
         if (heights.Count == 0 || draws.Count == 0)
             return null;
+        Level(heights);
         var (scene, draw, s, _) = draws.MaxBy(m => m.Value).Key;
         var (normal, color) = looks[(scene, draw)].MaxBy(l => l.Value).Key;
         var scale = s.X;
@@ -292,18 +293,65 @@ public sealed class ChunkCuts
         {
             var (x0, z0) = (Start(cell.Row * cellSize), Start(cell.Column * cellSize));
             var steps = (int)MathF.Ceiling(cellSize / SquareSpacing);
-            var step = cellSize / steps;
-            CutVertex At(int i, int k) => new(new Vector3(i * step, height, k * step), normal, color,
-                new Vector2(x0 + i * step * scale, z0 + k * step * scale), false);
+            // The last row and column on the cell's edge exactly, where the next square's first lie.
+            float Along(int i) => i == steps ? cellSize : i * (cellSize / steps);
+            CutVertex At(int i, int k, float drop = 0) => new(new Vector3(Along(i), height - drop, Along(k)), normal, color,
+                new Vector2(x0 + Along(i) * scale, z0 + Along(k) * scale), false);
             var quads = new List<CutVertex[]>();
             for (var i = 0; i < steps; i++)
             {
                 for (var k = 0; k < steps; k++)
                     quads.Add([At(i, k), At(i, k + 1), At(i + 1, k + 1), At(i + 1, k)]);
             }
+            // The skirt: each edge hung down, facing both ways, so a step against a coastal chunk's own water shows the sea.
+            foreach (var (a, b) in new[] { ((0, 0), (steps, 0)), ((steps, 0), (steps, steps)), ((steps, steps), (0, steps)), ((0, steps), (0, 0)) })
+            {
+                CutVertex[] side = [At(a.Item1, a.Item2), At(b.Item1, b.Item2), At(b.Item1, b.Item2, SkirtDepth), At(a.Item1, a.Item2, SkirtDepth)];
+                quads.Add(side);
+                quads.Add([.. side.Reverse()]);
+            }
             return new FillPiece(scene, draw, quads);
         }
         return new SeaSquares(heights, Piece);
+    }
+
+    /// <summary>How far a square of sea's skirt hangs below it: past the steps where it meets coastal chunks' own water, a tenth or so.</summary>
+    internal const float SkirtDepth = 0.5f;
+
+    /// <summary>How far apart two squares side by side or corner to corner may lie, up and down, to be one sea at one height.</summary>
+    internal const float LevelTolerance = 0.5f;
+
+    /// <summary>
+    /// Puts each run of squares that touch, side by side or corner to corner, within <see cref="LevelTolerance"/> of one another, at
+    /// one height, their mean. The fills they're made from lie a little apart (−31.917 to −32.020 round Terminor), and at the low
+    /// angle the sea is seen from, each step between two squares opened a crack along their edge, with the sky behind it.
+    /// Gwernia's bay, 2.6 higher, stays a run of its own.
+    /// </summary>
+    private static void Level(Dictionary<(int Row, int Column), float> heights)
+    {
+        var seen = new HashSet<(int Row, int Column)>();
+        foreach (var start in heights.Keys.OrderBy(c => c.Row).ThenBy(c => c.Column).ToList())
+        {
+            if (!seen.Add(start))
+                continue;
+            var run = new List<(int Row, int Column)> { start };
+            for (var i = 0; i < run.Count; i++)
+            {
+                var (row, column) = run[i];
+                for (var dr = -1; dr <= 1; dr++)
+                {
+                    for (var dc = -1; dc <= 1; dc++)
+                    {
+                        var next = (row + dr, column + dc);
+                        if (heights.TryGetValue(next, out var h) && MathF.Abs(h - heights[run[i]]) <= LevelTolerance && seen.Add(next))
+                            run.Add(next);
+                    }
+                }
+            }
+            var mean = run.Average(c => heights[c]);
+            foreach (var c in run)
+                heights[c] = mean;
+        }
     }
 
     /// <summary>How a polygon's texture coordinates change across the ground, per unit of X and of Z, rounded, or null for one with no area there.</summary>

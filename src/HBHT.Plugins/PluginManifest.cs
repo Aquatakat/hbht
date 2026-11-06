@@ -143,8 +143,9 @@ public static class BasePlugin
     /// 72 makes each Overworld cell that's open sea, a fill of flat water and nothing else, a square of the sea, and cuts other chunks'
     /// sea at its edge.
     /// 73 drops a fill's half-alpha sea where opaque sea lies at its height (S20), and no longer takes the opaque sea for a copy of it.
+    /// 74 lays the squares of sea that touch at one height, ends their grid on the cell's edge exactly, and hangs a skirt under each.
     /// </summary>
-    public const int ImporterVersion = 73;
+    public const int ImporterVersion = 74;
 
     /// <summary>
     /// What's wrong with the imported base plugin under <paramref name="pluginsDirectory"/>, worded for the player, or null if
