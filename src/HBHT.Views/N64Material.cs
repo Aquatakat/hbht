@@ -201,10 +201,23 @@ public static class N64Material
     public static void SetSkyBehind(Texture2D? lines, SkyBehind behind)
     {
         DeclareGlobals();
-        if (lines is not null)
+        // Only on a change: Godot rebuilds every material that reads a global texture each time it's set, the same texture or
+        // not, which every frame was most of a frame's time. The texture's own Update reaches the materials without it.
+        if (lines is not null && lines != _skyLines)
+        {
+            _skyLines = lines;
             RenderingServer.GlobalShaderParameterSet(SkyLinesParameter, lines);
-        RenderingServer.GlobalShaderParameterSet(SkyBehindParameter, (int)behind);
+        }
+        if (behind != _skyBehind)
+        {
+            _skyBehind = behind;
+            RenderingServer.GlobalShaderParameterSet(SkyBehindParameter, (int)behind);
+        }
     }
+
+    /// <summary>The texture and the way last set by <see cref="SetSkyBehind"/>.</summary>
+    private static Texture2D? _skyLines;
+    private static SkyBehind _skyBehind = SkyBehind.None;
 
     /// <summary>
     /// Sets the globals that light lit display lists as the RSP does (<see cref="RspLighting"/>) from the core's sky: bodies'
