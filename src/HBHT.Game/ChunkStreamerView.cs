@@ -188,6 +188,11 @@ public partial class ChunkStreamerView : Node3D
     /// <summary>Every chunk's scenery drawn: the 3×3's, the ring's, and what stands in while a chunk's builds.</summary>
     private IEnumerable<ChunkScenery> Drawn => _loaded.Values.Concat(_ringLoaded.Values).Concat(_standIns.Values);
 
+    /// <summary>The cells of the map set whose scenery is drawn now, by row and column: the fog's edge (<see cref="FogHorizon"/>).</summary>
+    public IEnumerable<(int Row, int Column)> DrawnCells =>
+        _loaded.Keys.Select(m => m.Key).Concat(_ringLoaded.Keys.Select(m => m.Key)).Concat(_standIns.Keys)
+            .Where(k => k.MapSet == Chunks.MapSet.Id).Select(k => (k.Row, k.Column));
+
     /// <summary>The drawn chunks' billboards.</summary>
     public IEnumerable<Node3D> BillboardFacings => Drawn.SelectMany(c => c.Billboards);
 

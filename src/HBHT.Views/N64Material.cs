@@ -87,6 +87,12 @@ public static class N64Material
     /// into the sky at the sphere it's cut at; otherwise, and with <see cref="SkyBehind.None"/>, it's the fog colour.
     /// </summary>
     public const string SkyBehindParameter = "n64_sky_behind";
+    /// <summary>
+    /// Global: under Draw Distance's Extended, how far the fog reaches each way round the eye (<see cref="Core.Scenes.FogHorizon"/>),
+    /// a texel each, which pulls the fog and the cut in from <see cref="RadialParameter"/>'s sphere toward the edge of the cells
+    /// drawn. Set by <see cref="SetHorizon"/>.
+    /// </summary>
+    public const string HorizonParameter = "n64_horizon";
     /// <summary>Per instance: a scene object's tint, in on-screen values, with alpha 1, or 0 for none.</summary>
     public const string ObjectTintParameter = "object_tint";
     /// <summary>Per instance: the scene's own tint, in on-screen values, with alpha 1, or 0 for none (<see cref="SetSceneTint"/>).</summary>
@@ -167,6 +173,7 @@ public static class N64Material
         RenderingServer.GlobalShaderParameterAdd(SkyLinesParameter, RenderingServer.GlobalShaderParameterType.Sampler2D,
             ImageTexture.CreateFromImage(Image.CreateEmpty(1, 1, false, Image.Format.Rgb8)));
         RenderingServer.GlobalShaderParameterAdd(SkyBehindParameter, RenderingServer.GlobalShaderParameterType.Int, (int)SkyBehind.None);
+        RenderingServer.GlobalShaderParameterAdd(HorizonParameter, RenderingServer.GlobalShaderParameterType.Sampler2D, Horizon(null));
         RenderingServer.GlobalShaderParameterAdd(SunDirectionParameter, RenderingServer.GlobalShaderParameterType.Vec3, new Vector3(0, 1, 0));
         RenderingServer.GlobalShaderParameterAdd(SunColorParameter, RenderingServer.GlobalShaderParameterType.Vec3, new Vector3(0, 0, 0));
         RenderingServer.GlobalShaderParameterAdd(BodyAmbientParameter, RenderingServer.GlobalShaderParameterType.Vec3, new Vector3(1, 1, 1));
@@ -213,6 +220,49 @@ public static class N64Material
             _skyBehind = behind;
             RenderingServer.GlobalShaderParameterSet(SkyBehindParameter, (int)behind);
         }
+    }
+
+    /// <summary>
+    /// Sets how far the fog reaches each way round the eye under Draw Distance's Extended (<see cref="HorizonParameter"/>), a
+    /// value for each of <see cref="Core.Scenes.FogHorizon.Sectors"/>; null for the sphere every way. The runtime does, each frame.
+    /// </summary>
+    public static void SetHorizon(float[]? edges)
+    {
+        DeclareGlobals();
+        Horizon(edges);
+    }
+
+    private static Image? _horizonImage;
+    private static ImageTexture? _horizon;
+    private static readonly byte[] HorizonBytes = new byte[Core.Scenes.FogHorizon.Sectors * sizeof(float)];
+
+    /// <summary>
+    /// The horizon's texture with these edges, or none nearer than far off. Made once and updated in place: setting a global
+    /// texture rebuilds every material that reads it (<see cref="SetSkyBehind"/>).
+    /// </summary>
+    private static ImageTexture Horizon(float[]? edges)
+    {
+        var values = HorizonBytes.AsSpan();
+        if (edges is null)
+        {
+            for (var i = 0; i < Core.Scenes.FogHorizon.Sectors; i++)
+                System.Buffers.Binary.BinaryPrimitives.WriteSingleLittleEndian(values[(i * 4)..], 1.0e6f);
+        }
+        else
+        {
+            System.Runtime.InteropServices.MemoryMarshal.AsBytes(edges.AsSpan()).CopyTo(values);
+        }
+        if (_horizonImage is null || _horizon is null)
+        {
+            _horizonImage = Image.CreateFromData(Core.Scenes.FogHorizon.Sectors, 1, false, Image.Format.Rf, HorizonBytes);
+            _horizon = ImageTexture.CreateFromImage(_horizonImage);
+        }
+        else
+        {
+            _horizonImage.SetData(Core.Scenes.FogHorizon.Sectors, 1, false, Image.Format.Rf, HorizonBytes);
+            _horizon.Update(_horizonImage);
+        }
+        return _horizon;
     }
 
     /// <summary>The texture and the way last set by <see cref="SetSkyBehind"/>.</summary>
@@ -616,13 +666,12 @@ public static class N64Material
                 // The sky's gradient behind the scenery, and how it lies: 0 not drawn, 1 by the screen's lines, 2 as a dome.
                 global uniform sampler2D n64_sky_lines;
                 global uniform int n64_sky_behind;
-                // Draw Distance's Extended: the drawn chunks' square, as the centre's row and column, its reach and the cells'
-                // size (a reach of 0 for none), and which of its cells have scenery, a bit each, row by row from the corner.
+                // Draw Distance's Extended: how far the fog reaches each way round the eye, a texel each from +X toward +Z.
+                global uniform sampler2D n64_horizon;
                 global uniform vec3 n64_sun_direction;
                 global uniform vec3 n64_sun_color;
                 global uniform vec3 n64_body_ambient;
                 instance uniform vec4 object_tint = vec4(0.0);
-                // A chunk's own scene's row and column, or -1000 for anything else.
                 // A scene's own tint (Scene.SetTint), with alpha 1, which replaces the scenery's and a lit draw's white; or 0 for none.
                 instance uniform vec4 scene_tint = vec4(0.0);
                 // A body's own ambient, with alpha 1, in place of half the sky's (its tint, in combat); or 0 for none.
@@ -657,6 +706,8 @@ public static class N64Material
                 varying vec4 shade_w;
                 varying float fog_w;
                 varying float clip_w;
+                // 1 where the fog is drawn at all.
+                varying float fog_on;
 
                 vec3 to_screen(vec3 c) {
                 	return mix(1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, c * 12.92, lessThan(c, vec3(0.0031308)));
@@ -693,28 +744,52 @@ public static class N64Material
                 	return texture(n64_sky_lines, vec2(0.5, (f - 0.5) / {{F(dome.DomeLines)}})).rgb;
                 }
 
-                void vertex() {
-                	// The depth buffer's z / w for the original's planes, on the 0–1000 scale: by the depth, or under Draw
-                	// Distance's Extended by the distance from the eye, so the fog doesn't shift as the camera turns.
+                // The fog this far out, by the depth buffer's z / w for the original's planes on the 0–1000 scale.
+                float fog_at(float depth) {
                 	float near = n64_fog.z;
                 	float far = n64_fog.w;
+                	float z = (far + near) / (far - near) - 2.0 * far * near / ((far - near) * max(depth, 0.0001));
+                	return clamp((z * 500.0 + 500.0 - n64_fog.x) / (n64_fog.y - n64_fog.x), 0.0, 1.0);
+                }
+
+                // Draw Distance's Extended: how many times nearer than the sphere the fog's edge is the way through a point,
+                // toward the edge of the cells drawn (FogHorizon), between the two texels either side of that way.
+                float horizon_scale(vec3 seen, mat4 inv_view) {
+                	vec2 way = (inv_view * vec4(seen, 0.0)).xz;
+                	if (dot(way, way) < 1.0e-8) {
+                		return 1.0;
+                	}
+                	float u = mod(atan(way.y, way.x) / 6.28318530718 * {{Core.Scenes.FogHorizon.Sectors}}.0, {{Core.Scenes.FogHorizon.Sectors}}.0);
+                	int a = int(floor(u));
+                	float edge = mix(texelFetch(n64_horizon, ivec2(a % {{Core.Scenes.FogHorizon.Sectors}}, 0), 0).r,
+                		texelFetch(n64_horizon, ivec2((a + 1) % {{Core.Scenes.FogHorizon.Sectors}}, 0), 0).r, fract(u));
+                	return max(n64_radial / max(edge, 1.0), 1.0);
+                }
+
+                void vertex() {
+                	// By the depth, or under Draw Distance's Extended by the distance from the eye, so the fog doesn't shift as the
+                	// camera turns; Extended's is worked out again for each pixel (fragment).
                 	vec3 seen = (MODELVIEW_MATRIX * vec4(VERTEX, 1.0)).xyz;
-                	float depth = max(n64_radial > 0.0 ? length(seen) : -seen.z, 0.0001);
-                	float z = (far + near) / (far - near) - 2.0 * far * near / ((far - near) * depth);
-                	float fog = far > near && lighting != 3 && unfogged == 0.0 ? clamp((z * 500.0 + 500.0 - n64_fog.x) / (n64_fog.y - n64_fog.x), 0.0, 1.0) : 0.0;{{light}}{{(texgen ? TexGen : "")}}
+                	fog_on = n64_fog.w > n64_fog.z && lighting != 3 && unfogged == 0.0 ? 1.0 : 0.0;
+                	float fog = fog_on > 0.0 ? fog_at(n64_radial > 0.0 ? length(seen) : -seen.z) : 0.0;{{light}}{{(texgen ? TexGen : "")}}
                 	clip_w = max((PROJECTION_MATRIX * (MODELVIEW_MATRIX * vec4(VERTEX, 1.0))).w, 0.0001);
                 	shade_w = {{vertexShade}} * clip_w;
                 	fog_w = fog * clip_w;
                 }
 
                 void fragment() {
-                	// Draw Distance's Extended cuts at a sphere about the eye, where the fog has ended, not at a far plane.
-                	if (n64_radial > 0.0 && length(VERTEX) > n64_radial) {
-                		discard;
+                	// Draw Distance's Extended cuts at a sphere about the eye, where the fog has ended, not at a far plane, and the
+                	// fog ends nearer the way the cells drawn end nearer: the distance is stretched by how much nearer, for each pixel.
+                	float fog = fog_w / clip_w;
+                	if (n64_radial > 0.0) {
+                		float stretched = length(VERTEX) * horizon_scale(VERTEX, INV_VIEW_MATRIX);
+                		if (stretched > n64_radial) {
+                			discard;
+                		}
+                		fog = fog_on > 0.0 ? fog_at(stretched) : 0.0;
                 	}
                 	{{texel}}
                 	vec4 shade = shade_w / clip_w;
-                	float fog = fog_w / clip_w;
                 	vec3 tint = scene_tint.a > 0.0 ? scene_tint.rgb
                 		: lighting != 0 ? vec3(1.0) : (object_tint.a > 0.0 ? (n64_tint + object_tint.rgb) * 0.5 : n64_tint);
                 	vec3 color = texel.rgb * shade.rgb * prim.rgb * tint;

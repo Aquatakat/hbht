@@ -44,6 +44,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     private PauseMenuView? _menu;
     /// <summary>Godot's events as the game's buttons, and the held directions told to the session's stick.</summary>
     private readonly MenuStick _stick = new();
+    private readonly FogHorizon _horizon = new();
     private Models? _models;
     private ParticlesView? _particles;
     /// <summary>The game being played: what runs, trek or a cut-scene and what's over them, and where each leads (<see cref="GameSession"/>).</summary>
@@ -902,6 +903,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         // From where the scenery is drawn this frame: between ticks, the camera interpolated.
         var eye = _camera.Current.GetGlobalTransformInterpolated().Origin;
         Billboards.Face(chunks.BillboardFacings, eye);
+        PullInFog(chunks, focus, eye, (float)delta);
         _ringView?.Face(eye);
 
         if (_overlay.Visible)
@@ -928,6 +930,24 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         // Only as it changes: setting it calls into the renderer, which can be busy with what the builder makes.
         if (Scene is null && Battle is null && _camera!.Far != _sky.CameraFar)
             _camera.Far = _sky.CameraFar;
+    }
+
+    /// <summary>
+    /// Under Draw Distance's Extended, brings the fog in to the edge of the cells drawn round the eye, where that's nearer than the
+    /// sphere the frame is cut at, and lets it out as a new cell comes in (<see cref="FogHorizon"/>), but never nearer than the
+    /// original's own. Under Original, and outside trek, the fog is the planes' alone.
+    /// </summary>
+    private void PullInFog(ChunkStreamerView chunks, Vector3 focus, Vector3 eye, float seconds)
+    {
+        var radius = _sky!.Frame.Radial;
+        if (radius <= 0)
+        {
+            _horizon.Reset();
+            return;
+        }
+        _horizon.Step(seconds, chunks.Chunks.MapSet.Id, chunks.DrawnCells, chunks.Chunks.MapSet.CellSize,
+            new System.Numerics.Vector2(eye.X, eye.Z), new System.Numerics.Vector2(focus.X, focus.Z), _sky.Sky.Planes.Far, radius);
+        N64Material.SetHorizon(_horizon.Edges);
     }
 
     /// <summary>
