@@ -903,7 +903,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         // From where the scenery is drawn this frame: between ticks, the camera interpolated.
         var eye = _camera.Current.GetGlobalTransformInterpolated().Origin;
         Billboards.Face(chunks.BillboardFacings, eye);
-        PullInFog(chunks, focus, eye, (float)delta);
+        PullInFog(chunks, focus, (float)delta);
         _ringView?.Face(eye);
 
         if (_overlay.Visible)
@@ -933,11 +933,11 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     }
 
     /// <summary>
-    /// Under Draw Distance's Extended, brings the fog in to the edge of the cells drawn round the eye, where that's nearer than the
+    /// Under Draw Distance's Extended, brings the fog in to the edge of the cells drawn round the player, where that's nearer than the
     /// sphere the frame is cut at, and lets it out as a new cell comes in (<see cref="FogHorizon"/>), but never nearer than the
     /// original's own. Under Original, and outside trek, the fog is the planes' alone.
     /// </summary>
-    private void PullInFog(ChunkStreamerView chunks, Vector3 focus, Vector3 eye, float seconds)
+    private void PullInFog(ChunkStreamerView chunks, Vector3 focus, float seconds)
     {
         var radius = _sky!.Frame.Radial;
         if (radius <= 0)
@@ -946,8 +946,8 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
             return;
         }
         _horizon.Step(seconds, chunks.Chunks.MapSet.Id, chunks.DrawnCells, chunks.Chunks.MapSet.CellSize,
-            new System.Numerics.Vector2(eye.X, eye.Z), new System.Numerics.Vector2(focus.X, focus.Z), _sky.Sky.Planes.Far, radius);
-        N64Material.SetHorizon(_horizon.Edges);
+            new System.Numerics.Vector2(focus.X, focus.Z), _sky.Sky.Planes.Far, radius);
+        N64Material.SetHorizon(_horizon.Edges, focus);
     }
 
     /// <summary>

@@ -27,10 +27,13 @@ public sealed class FogHorizonTests
     /// <summary>The sector pointing along +X (row up), +Z (column up), −X and −Z.</summary>
     private const int PlusX = 0, PlusZ = FogHorizon.Sectors / 4, MinusX = FogHorizon.Sectors / 2, MinusZ = 3 * FogHorizon.Sectors / 4;
 
+    /// <summary>Loaded with these cells drawn, and settled since.</summary>
     private static FogHorizon Settled(List<(int, int)> drawn, Vector2 eye)
     {
         var horizon = new FogHorizon();
-        horizon.Step(1 / 60f, Overworld, drawn, Size, eye, eye, Floor, Radius);
+        horizon.Step(1 / 60f, Overworld, drawn, Size, eye, Floor, Radius);
+        for (var i = 0; i < 40; i++)
+            horizon.Step(0.1f, Overworld, drawn, Size, eye, Floor, Radius);
         return horizon;
     }
 
@@ -72,60 +75,67 @@ public sealed class FogHorizonTests
     {
         // Standing in (10, 10)'s far half, 210 from the 5×5's edge along +X, with the row past it still to come.
         var eye = new Vector2(1090, 1050);
-        var horizon = new FogHorizon();
-        // Settled since it was loaded.
-        horizon.Step(1 / 60f, Overworld, FiveByFive(), Size, eye, eye, Floor, Radius);
-        for (var i = 0; i < 31; i++)
-            horizon.Step(0.1f, Overworld, FiveByFive(), Size, eye, eye, Floor, Radius);
+        var horizon = Settled(FiveByFive(), eye);
         Assert.Equal(210, horizon.Edges[PlusX], 1);
         var withRow = FiveByFive().Concat(Enumerable.Range(8, 5).Select(c => (13, c))).ToList();
-        horizon.Step(1 / 60f, Overworld, withRow, Size, eye, eye, Floor, Radius);
+        horizon.Step(1 / 60f, Overworld, withRow, Size, eye, Floor, Radius);
         Assert.Equal(0, horizon.Revealed(13, 10));
         Assert.Equal(210, horizon.Edges[PlusX], 1);
         // Standing still, it moves back at RevealSpeed alone.
         for (var i = 0; i < 600; i++)
-            horizon.Step(1 / 60f, Overworld, withRow, Size, eye, eye, Floor, Radius);
+            horizon.Step(1 / 60f, Overworld, withRow, Size, eye, Floor, Radius);
         Assert.Equal(210 + 10 * FogHorizon.RevealSpeed, horizon.Edges[PlusX], 0);
         Assert.Equal(10 * FogHorizon.RevealSpeed / Size, horizon.Revealed(13, 10), 2);
     }
 
     [Fact]
-    public void TheScenerySettlingInAfterAJumpIsRevealedAtOnce()
+    public void AfterAJumpTheFogMovesOutSmoothlyAsTheSceneryArrives()
     {
-        // The 3×3 at once, then the rest of the 5×5 as it's built, a second later.
+        // The 3×3 at once, with the fog at the original's: the rest of the 5×5 as it's built, after a long first frame.
         var horizon = new FogHorizon();
         var threeByThree = FiveByFive().Where(c => Math.Abs(c.Row - 10) <= 1 && Math.Abs(c.Column - 10) <= 1).ToList();
-        horizon.Step(1 / 60f, Overworld, threeByThree, Size, Middle, Middle, Floor, Radius);
+        horizon.Step(1 / 60f, Overworld, threeByThree, Size, Middle, Floor, Radius);
         Assert.Equal(Floor, horizon.Edges[PlusX], 1);
-        // A long first frame doesn't count for more than a tenth of a second.
-        horizon.Step(5, Overworld, FiveByFive().Where(c => c.Row < 12).ToList(), Size, Middle, Middle, Floor, Radius);
-        // Each cell that comes in keeps it settling a while longer.
+        horizon.Step(5, Overworld, FiveByFive().Where(c => c.Row < 12).ToList(), Size, Middle, Floor, Radius);
         for (var i = 0; i < 25; i++)
-            horizon.Step(0.1f, Overworld, FiveByFive().Where(c => c.Row < 12).ToList(), Size, Middle, Middle, Floor, Radius);
-        horizon.Step(0.1f, Overworld, FiveByFive(), Size, Middle, Middle, Floor, Radius);
+            horizon.Step(0.1f, Overworld, FiveByFive().Where(c => c.Row < 12).ToList(), Size, Middle, Floor, Radius);
+        // Still settling, 2.5 s on: the last row comes in at the settling speed, two thirds of a second to a cell.
+        horizon.Step(0.1f, Overworld, FiveByFive(), Size, Middle, Floor, Radius);
+        Assert.Equal(0, horizon.Revealed(12, 10));
+        var edges = new List<float>();
+        for (var i = 0; i < 7; i++)
+        {
+            horizon.Step(0.1f, Overworld, FiveByFive(), Size, Middle, Floor, Radius);
+            edges.Add(horizon.Edges[PlusX]);
+        }
         Assert.Equal(1, horizon.Revealed(12, 10));
-        Assert.Equal(250, horizon.Edges[PlusX], 1);
+        Assert.Equal(250, edges[^1], 1);
+        // No step of more than a tenth of a second's settling, 15.
+        Assert.All(edges.Zip(edges.Skip(1)), p => Assert.InRange(p.Second - p.First, 0, 15.01f));
     }
 
     [Fact]
     public void ACellThatGoesIsGoneFromTheEdgeAtOnce()
     {
         var horizon = Settled(FiveByFive(), Middle);
-        horizon.Step(1 / 60f, Overworld, FiveByFive((12, 10)), Size, Middle, Middle, Floor, Radius);
+        horizon.Step(1 / 60f, Overworld, FiveByFive((12, 10)), Size, Middle, Floor, Radius);
         Assert.Equal(Floor, horizon.Edges[PlusX], 1);
         Assert.Equal(0, horizon.Revealed(12, 10));
     }
 
     [Fact]
-    public void AJumpOrAnotherMapSetRevealsEveryCellAtOnce()
+    public void AJumpOrAnotherMapSetBringsTheFogInAndLetsItOutAtTheSettlingSpeed()
     {
         var horizon = Settled(FiveByFive(), Middle);
         var far = new Vector2(5050, 5050);
         var there = new List<(int, int)> { (50, 50), (50, 51), (51, 50) };
-        horizon.Step(1 / 60f, Overworld, there, Size, far, far, Floor, Radius);
+        horizon.Step(1 / 60f, Overworld, there, Size, far, Floor, Radius);
+        Assert.Equal(0, horizon.Revealed(50, 51));
+        for (var i = 0; i < 7; i++)
+            horizon.Step(0.1f, Overworld, there, Size, far, Floor, Radius);
         Assert.Equal(1, horizon.Revealed(50, 51));
-        horizon.Step(1 / 60f, RecordId.Parse("aidyn:mapset/1"), [.. there, (49, 50)], Size, far, far, Floor, Radius);
-        Assert.Equal(1, horizon.Revealed(49, 50));
+        horizon.Step(1 / 60f, RecordId.Parse("aidyn:mapset/1"), there, Size, far, Floor, Radius);
+        Assert.Equal(0, horizon.Revealed(50, 51));
     }
 
     [Fact]

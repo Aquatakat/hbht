@@ -8,7 +8,7 @@ A check far into the story needn't be played to: Claude writes a save at the pla
 
 ### The fog's edge under Draw Distance's Extended
 
-The fog now comes in to the edge of the chunks drawn and moves back as a new row comes in ([rendering](systems/rendering.md#draw-distance)). Under Extended, walk and run across a few chunks on the mainland, and along the coast where the sea ends short of the fog, as from S18 looking east: no row of chunks should pop up in the middle distance, and the sea's end should fade into the sky. See whether the fog moving back after a crossing (twice his walk over his own speed) looks right, and whether the fog ever comes in so near that it looks worse than before, as at a corner of the land or after a teleport.
+The fog now comes in to the edge of the chunks drawn and moves back as a new row comes in ([rendering](systems/rendering.md#draw-distance)). Under Extended, walk and run across a few chunks on the mainland, and along the coast where the sea ends short of the fog, as from S18 looking east: no row of chunks should pop up in the middle distance, and the sea's end should fade into the sky. See whether the fog moving back after a crossing (twice his walk over his own speed) looks right, and whether the fog ever comes in so near that it looks worse than before, as at a corner of the land or after a teleport. The user found the south of Terminor right on Nov 5, 2026; since, the edge is measured from Alaron rather than the camera, so turning the camera shouldn't change the fog on distant hills, and coming back from a battle the fog should move out smoothly over a second or so rather than in steps.
 
 ### Combat parity (2.9)
 

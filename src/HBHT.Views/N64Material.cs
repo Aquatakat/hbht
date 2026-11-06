@@ -88,11 +88,13 @@ public static class N64Material
     /// </summary>
     public const string SkyBehindParameter = "n64_sky_behind";
     /// <summary>
-    /// Global: under Draw Distance's Extended, how far the fog reaches each way round the eye (<see cref="Core.Scenes.FogHorizon"/>),
+    /// Global: under Draw Distance's Extended, how far the fog reaches each way round the player (<see cref="Core.Scenes.FogHorizon"/>),
     /// a texel each, which pulls the fog and the cut in from <see cref="RadialParameter"/>'s sphere toward the edge of the cells
-    /// drawn. Set by <see cref="SetHorizon"/>.
+    /// drawn. Set by <see cref="SetHorizon"/>, with where the player is (<see cref="HorizonCentreParameter"/>).
     /// </summary>
     public const string HorizonParameter = "n64_horizon";
+    /// <summary>Global: where the player is, whom <see cref="HorizonParameter"/>'s ways are measured round.</summary>
+    public const string HorizonCentreParameter = "n64_horizon_centre";
     /// <summary>Per instance: a scene object's tint, in on-screen values, with alpha 1, or 0 for none.</summary>
     public const string ObjectTintParameter = "object_tint";
     /// <summary>Per instance: the scene's own tint, in on-screen values, with alpha 1, or 0 for none (<see cref="SetSceneTint"/>).</summary>
@@ -174,6 +176,7 @@ public static class N64Material
             ImageTexture.CreateFromImage(Image.CreateEmpty(1, 1, false, Image.Format.Rgb8)));
         RenderingServer.GlobalShaderParameterAdd(SkyBehindParameter, RenderingServer.GlobalShaderParameterType.Int, (int)SkyBehind.None);
         RenderingServer.GlobalShaderParameterAdd(HorizonParameter, RenderingServer.GlobalShaderParameterType.Sampler2D, Horizon(null));
+        RenderingServer.GlobalShaderParameterAdd(HorizonCentreParameter, RenderingServer.GlobalShaderParameterType.Vec3, new Vector3(0, 0, 0));
         RenderingServer.GlobalShaderParameterAdd(SunDirectionParameter, RenderingServer.GlobalShaderParameterType.Vec3, new Vector3(0, 1, 0));
         RenderingServer.GlobalShaderParameterAdd(SunColorParameter, RenderingServer.GlobalShaderParameterType.Vec3, new Vector3(0, 0, 0));
         RenderingServer.GlobalShaderParameterAdd(BodyAmbientParameter, RenderingServer.GlobalShaderParameterType.Vec3, new Vector3(1, 1, 1));
@@ -223,13 +226,15 @@ public static class N64Material
     }
 
     /// <summary>
-    /// Sets how far the fog reaches each way round the eye under Draw Distance's Extended (<see cref="HorizonParameter"/>), a
-    /// value for each of <see cref="Core.Scenes.FogHorizon.Sectors"/>; null for the sphere every way. The runtime does, each frame.
+    /// Sets how far the fog reaches each way round the player under Draw Distance's Extended (<see cref="HorizonParameter"/>), a
+    /// value for each of <see cref="Core.Scenes.FogHorizon.Sectors"/>, and where he is; null for the sphere every way. The
+    /// runtime does, each frame.
     /// </summary>
-    public static void SetHorizon(float[]? edges)
+    public static void SetHorizon(float[]? edges, Vector3 centre)
     {
         DeclareGlobals();
         Horizon(edges);
+        RenderingServer.GlobalShaderParameterSet(HorizonCentreParameter, centre);
     }
 
     private static Image? _horizonImage;
@@ -666,8 +671,10 @@ public static class N64Material
                 // The sky's gradient behind the scenery, and how it lies: 0 not drawn, 1 by the screen's lines, 2 as a dome.
                 global uniform sampler2D n64_sky_lines;
                 global uniform int n64_sky_behind;
-                // Draw Distance's Extended: how far the fog reaches each way round the eye, a texel each from +X toward +Z.
+                // Draw Distance's Extended: how far the fog reaches each way round the player, a texel each from +X toward +Z,
+                // and where he is.
                 global uniform sampler2D n64_horizon;
+                global uniform vec3 n64_horizon_centre;
                 global uniform vec3 n64_sun_direction;
                 global uniform vec3 n64_sun_color;
                 global uniform vec3 n64_body_ambient;
@@ -752,10 +759,10 @@ public static class N64Material
                 	return clamp((z * 500.0 + 500.0 - n64_fog.x) / (n64_fog.y - n64_fog.x), 0.0, 1.0);
                 }
 
-                // Draw Distance's Extended: how many times nearer than the sphere the fog's edge is the way through a point,
-                // toward the edge of the cells drawn (FogHorizon), between the two texels either side of that way.
+                // Draw Distance's Extended: how many times nearer than the sphere the fog's edge is the way from the player to a
+                // point, toward the edge of the cells drawn (FogHorizon), between the two texels either side of that way.
                 float horizon_scale(vec3 seen, mat4 inv_view) {
-                	vec2 way = (inv_view * vec4(seen, 0.0)).xz;
+                	vec2 way = (inv_view * vec4(seen, 1.0)).xz - n64_horizon_centre.xz;
                 	if (dot(way, way) < 1.0e-8) {
                 		return 1.0;
                 	}
