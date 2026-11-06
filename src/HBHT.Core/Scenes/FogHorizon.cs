@@ -26,9 +26,12 @@ namespace HBHT.Core.Scenes;
 /// from him too, and its distance from the eye.
 /// </para>
 /// <para>
-/// The fog never comes nearer than the original's own (<c>floor</c>, the planes' far), and the edges change by no more than
-/// <see cref="MaxTurn"/> a radian round the player, nearer rather than further, so a cell's corner fogs the scenery round it by
-/// degrees rather than along a line from him. It's only what's drawn, as <see cref="DrawDistance"/> is.
+/// The fog never comes nearer than the original's own (<c>floor</c>, the planes' far), and the edges are smoothed round the
+/// player, only ever nearer: they change by no more than <see cref="MaxTurn"/> a radian, and then each is rounded over
+/// <see cref="SmoothSectors"/> either side (<see cref="Smooth"/>). The fog thickens fast toward its end, so an edge that steps
+/// even 30 units between two ways a degree or two apart drew a curtain of fog across a hill or a bridge there, which swept
+/// across it as the player walked; the user found one at J16, toward I19 and H19, which don't have
+/// Extended. It's only what's drawn, as <see cref="DrawDistance"/> is.
 /// </para>
 /// </remarks>
 public sealed class FogHorizon
@@ -42,8 +45,11 @@ public sealed class FogHorizon
     /// </summary>
     public const float RevealSpeed = 2 * 1.26f;
 
-    /// <summary>How much an edge can change a radian round the player, toward the nearer.</summary>
-    public const float MaxTurn = 800;
+    /// <summary>How much an edge can change a radian round the player, toward the nearer: 120 units over 23°.</summary>
+    public const float MaxTurn = 300;
+
+    /// <summary>How many ways either side each edge is rounded over (<see cref="Smooth"/>): 11°.</summary>
+    public const int SmoothSectors = 8;
 
     /// <summary>How far the player can move in a frame and still be walking, not jumping, as a share of a cell.</summary>
     public const float JumpShare = 0.5f;
@@ -135,11 +141,13 @@ public sealed class FogHorizon
             Edges[i] = Math.Clamp(Cast(focus, new Vector2(MathF.Cos(angle), MathF.Sin(angle)), cellSize, radius), floor, radius);
         }
         Ease(Edges, MaxTurn * MathF.Tau / Sectors);
+        Smooth(Edges, SmoothSectors);
     }
 
     /// <summary>
-    /// How far a ray from the player goes over drawn cells before it reaches one that isn't, or into one still being revealed as
-    /// far as it's revealed, up to <paramref name="limit"/>.
+    /// How far a ray from the player goes over drawn cells before it reaches one that isn't, or into those still being revealed
+    /// as far as the first is revealed (its share of a cell's width past where the ray went into it, so the edge moves out
+    /// evenly across cells that came in together, rather than notched at their corners), up to <paramref name="limit"/>.
     /// </summary>
     private float Cast(Vector2 from, Vector2 way, float size, float limit)
     {
@@ -152,12 +160,16 @@ public sealed class FogHorizon
         var acrossRow = size / MathF.Abs(way.X);
         var acrossColumn = size / MathF.Abs(way.Y);
         var t = 0f;
-        while (t < limit)
+        // Where the edge stops once the ray is into cells still being revealed: as far past the first of them as it's revealed,
+        // a cell's width at most, unless it reaches a cell not drawn first.
+        var reach = float.PositiveInfinity;
+        while (t < MathF.Min(limit, reach))
         {
             var exit = MathF.Min(nextRow, nextColumn);
-            var share = Revealed(row, column);
-            if (share < 1)
-                return t + share * (exit - t);
+            if (!_revealed.TryGetValue((row, column), out var cell))
+                return t;
+            if (cell.Share < 1 && float.IsPositiveInfinity(reach))
+                reach = t + cell.Share * size;
             t = exit;
             if (nextRow < nextColumn)
             {
@@ -170,7 +182,39 @@ public sealed class FogHorizon
                 nextColumn += acrossColumn;
             }
         }
-        return limit;
+        return MathF.Min(limit, reach);
+    }
+
+    /// <summary>
+    /// Rounds the edges round the circle without taking any further out: each becomes the least within half of
+    /// <paramref name="width"/> either side, and then the mean of those within a quarter of it either side, twice. So each
+    /// takes in no more than <paramref name="width"/> either side of it, and every value it's the mean of is the least of a
+    /// span that holds it, so at most as far.
+    /// </summary>
+    internal static void Smooth(float[] edges, int width)
+    {
+        var n = edges.Length;
+        var least = new float[n];
+        for (var i = 0; i < n; i++)
+        {
+            var m = float.MaxValue;
+            for (var k = -width / 2; k <= width / 2; k++)
+                m = MathF.Min(m, edges[(i + k + n) % n]);
+            least[i] = m;
+        }
+        var half = width / 4;
+        for (var pass = 0; pass < 2; pass++)
+        {
+            for (var i = 0; i < n; i++)
+            {
+                var sum = 0f;
+                for (var k = -half; k <= half; k++)
+                    sum += least[(i + k + n) % n];
+                edges[i] = sum / (2 * half + 1);
+            }
+            if (pass == 0)
+                Array.Copy(edges, least, n);
+        }
     }
 
     /// <summary>
