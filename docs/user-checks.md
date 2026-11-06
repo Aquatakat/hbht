@@ -33,5 +33,8 @@ Each node now names its speaker, which the importer works out from the links int
 
 ### The data format's fifth slice: saves (format 2)
 
-- **A save of yours from before the overhaul** ([saves](systems/saves.md#older-formats)): run `hbht import` first (the base plugin is now at importer 75), then load a save the game wrote before it, from the System tab or with `--save`. It should load with no message, at the place it was made, the party wearing its weapons, armor and shields, the inventory and the World tab's minimap pieces as they were. Save it and load the new save: the same again. `hbht save show <save>` on the old one says `Format 1, read as 2` and should list nothing left out.
+- **A save of yours from before the overhaul** ([saves](systems/saves.md#older-formats)): run `hbht import` first (the base plugin is now at importer 76), then load a save the game wrote before it, from the System tab or with `--save`. It should load with no message, at the place it was made, the party wearing its weapons, armor and shields, the inventory and the World tab's minimap pieces as they were. Save it and load the new save: the same again. `hbht save show <save>` on the old one says `Format 1, read as 2` and should list nothing left out.
 
+### The sea's edges meet (importer 76)
+
+Run `hbht import` first. The skirts under the squares' and fills' edges are gone; instead a square's edge takes the points and heights of the water beside it, and a fill's sea a real chunk's ([rendering](systems/rendering.md#draw-distance)). Go close to where a square meets the shallows' see-through water (off Namer's Isle, round Chaos Isle, G18 to G24, off the south coast) and look for a wall under the water or a line of sky at the edge; then out from K20 toward J20, and round Terminor from G19, G20 and H21, where H20's own water stands 0.77 above the squares and they now rise to meet it.

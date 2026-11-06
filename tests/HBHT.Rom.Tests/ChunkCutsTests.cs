@@ -123,16 +123,11 @@ public class ChunkCutsTests
             Assert.Equal(-32, fill.Sea);
             var piece = Assert.Single(fill.Pieces);
             Assert.Equal((1, 0), (piece.Scene, piece.Draw));
-            var top = piece.Polygons.Where(p => p.All(v => v.Position.Y == -32)).ToList();
-            Assert.Equal(100 * 100, Area(top), 0.1f);
-            // On the grid the fog is worked out at, its last points on the cell's edge exactly.
-            Assert.Equal(100, top.Count);
-            Assert.Equal([0f, 100f], top.SelectMany(p => p).Select(v => v.Position.X).Where(x => x is 0 or 100).Distinct().Order());
-            // A skirt hung under each edge, facing both ways.
-            var skirt = piece.Polygons.Except(top).ToList();
-            Assert.Equal(8, skirt.Count);
-            Assert.All(skirt.SelectMany(p => p), v => Assert.Contains(v.Position.Y, new[] { -32f, -32 - ChunkCuts.SkirtDepth }));
-            Assert.Equal(4 * 100 * ChunkCuts.SkirtDepth * 2, Area(skirt), 0.1f);
+            Assert.Equal(100 * 100, Area(piece.Polygons), 0.1f);
+            // On the grid the fog is worked out at, its last points on the cell's edge exactly, flat where its neighbour's sea is too.
+            Assert.Equal(100, piece.Polygons.Count);
+            Assert.All(piece.Polygons.SelectMany(p => p), v => Assert.Equal(-32, v.Position.Y));
+            Assert.Equal([0f, 100f], piece.Polygons.SelectMany(p => p).Select(v => v.Position.X).Where(x => x is 0 or 100).Distinct().Order());
             // Its texture laid on the world as the sea's is, 64 units a unit here, but for whole turns of the widest texture.
             Assert.All(piece.Polygons.SelectMany(p => p), v =>
             {
@@ -160,21 +155,36 @@ public class ChunkCutsTests
     }
 
     [Fact]
-    public void AFillsSeaHasASkirtWhereItEndsOnItsCellsEdge()
+    public void ASquaresEdgeMeetsItsNeighboursWaterPointForPoint()
     {
-        // (1, 1)'s sea over (2, 1), whose fill also holds a sheet of land, so it isn't a square: its sea ends on the cell's edges,
-        // and hangs a skirt there; the land, not a sea draw, has none.
+        // (1, 1)'s own water rises from −31.9 at its edge's ends to −31.7 at z 155, a point off the square's grid; its sea at −32 runs on
+        // over (2, 1) and (3, 1), which become squares.
         var a = Chunk(1, 1, 1);
-        var cuts = Cut([(1, 1)], [a], [.. Square(0, a, 100, 100, 300, 200, y: -32, sea: true), .. Square(0, a, 230, 130, 270, 170, y: -20, draw: 1)]);
-        var fill = Assert.Single(cuts.Fills);
-        Assert.Null(fill.Sea);
-        var sea = fill.Pieces.Single(p => p.Draw == 0).Polygons;
-        var skirt = sea.Where(p => p.Any(v => v.Position.Y < -32)).ToList();
-        Assert.NotEmpty(skirt);
-        Assert.All(skirt.SelectMany(p => p), v => Assert.Contains(v.Position.Y, new[] { -32f, -32 - SkirtDepth }));
-        // Its edges on the cell's, a skirt each way: toward (3, 1), and along z 100 and 200 from 16 in, where (1, 1)'s own sea ends.
-        Assert.Equal((100 + 84 + 84) * SkirtDepth * 2, Area(skirt), 0.1f);
-        Assert.DoesNotContain(fill.Pieces.Single(p => p.Draw == 1).Polygons.SelectMany(p => p), v => v.Position.Y < -20);
+        Corner P(float x, float y, float z) => At(new Vector3(x, y, z), a);
+        var (c0, c1, mid, c2, c3) = (P(100, -31.9f, 100), P(200, -31.9f, 100), P(200, -31.7f, 155), P(200, -31.9f, 200), P(100, -31.9f, 200));
+        var cuts = Cut([(1, 1)], [a],
+        [
+            new Triangle(0, 1, Matrix4x4.Identity, c0, c1, mid, true, true),
+            new Triangle(0, 1, Matrix4x4.Identity, c0, mid, c3, true, true),
+            new Triangle(0, 1, Matrix4x4.Identity, c3, mid, c2, true, true),
+            .. Square(0, a, 216, 100, 400, 200, y: -32, sea: true),
+        ]);
+        var square = cuts.Fills.Single(f => (f.Row, f.Column) == (2, 1));
+        Assert.Equal(-32, square.Sea);
+        var corners = square.Pieces.SelectMany(p => p.Polygons).SelectMany(p => p).ToList();
+        // On the shared edge, (1, 1)'s points at its heights: z 55 put in, and between them along the line.
+        Assert.Contains(corners, v => v.Position == new Vector3(0, -31.7f, 55));
+        Assert.All(corners.Where(v => v.Position.X == 0), v => Assert.Equal(
+            v.Position.Z <= 55 ? -31.9f + 0.2f * v.Position.Z / 55 : -31.7f - 0.2f * (v.Position.Z - 55) / 45, v.Position.Y, 0.001f));
+        // Eased back to the square's own height inside, and there from the ease's reach on.
+        Assert.All(corners.Where(v => v.Position.X == 10), v => Assert.InRange(v.Position.Y, -31.99f, -31.7f));
+        Assert.All(corners.Where(v => v.Position.X >= SeaRims.Ease), v => Assert.Equal(-32, v.Position.Y, 0.0001f));
+        // The polygon the point went into is fanned from a corner off the edge, so the fan follows it.
+        var split = square.Pieces.SelectMany(p => p.Polygons).Single(p => p.Any(v => v.Position == new Vector3(0, -31.7f, 55)));
+        Assert.NotEqual(0, split[0].Position.X);
+        // The next square, beside it, is flat.
+        Assert.All(cuts.Fills.Single(f => (f.Row, f.Column) == (3, 1)).Pieces.SelectMany(p => p.Polygons).SelectMany(p => p),
+            v => Assert.Equal(-32, v.Position.Y));
     }
 
     [Fact]
@@ -202,8 +212,7 @@ public class ChunkCutsTests
         ]);
         var fill = Assert.Single(cuts.Fills);
         Assert.Null(fill.Sea);
-        // The opaque sea's skirt aside.
-        var areas = fill.Pieces.ToDictionary(p => p.Draw, p => Area(p.Polygons.Where(q => q.All(v => v.Position.Y >= -32 || p.Draw != 2))));
+        var areas = fill.Pieces.ToDictionary(p => p.Draw, p => Area(p.Polygons));
         Assert.Equal(50 * 100, areas[0], 0.1f);
         Assert.True(fill.Pieces.Single(p => p.Draw == 0).Polygons.SelectMany(p => p).All(v => v.Position.X <= 50.01f));
         Assert.Equal(50 * 100, areas[1], 0.1f);
@@ -323,12 +332,13 @@ public sealed class ChunkCutsImportTests(Na10Import fixture)
     [Fact]
     public void OpenSeaIsASquareOfIt()
     {
-        // A fill that's a square: 200 triangles, flat, filling its cell, and a skirt of 16 under its edges.
+        // A fill that's a square: 200 triangles and those of the points its edges took from the water beside them, scrolling, within
+        // a unit of its height (H20's water stands 0.77 above the squares beside it).
         bool IsSquare(ChunkRecord c, float height)
         {
             var triangles = SceneMesh.For(Data.Set, c.Fill!.Value);
-            return triangles.Count == 216 && triangles.All(t => t.Scrolls)
-                && triangles.SelectMany(t => new[] { t.A, t.B, t.C }).All(v => MathF.Abs(v.Y - height) < 0.2f + SkirtDepth);
+            return triangles.Count is >= 200 and < 260 && triangles.All(t => t.Scrolls)
+                && triangles.SelectMany(t => new[] { t.A, t.B, t.C }).All(v => MathF.Abs(v.Y - height) < 1);
         }
         var squares = OverworldChunks.Where(c => c.Fill is not null && (IsSquare(c, -32) || IsSquare(c, -29.4f))).ToList();
         Assert.InRange(squares.Count, 90, 110);
@@ -338,7 +348,8 @@ public sealed class ChunkCutsImportTests(Na10Import fixture)
         Assert.True(IsSquare(Chunk("N09"), -29.4f));
         // Round Terminor at one height, where their fills lay from −31.917 (G20) to −32.020 (H21), and a step between two opened a
         // crack with the sky behind it.
-        float Top(string name) => SceneMesh.For(Data.Set, Chunk(name).Fill!.Value).SelectMany(t => new[] { t.A, t.B, t.C }).Max(v => v.Y);
+        float Top(string name) => SceneMesh.For(Data.Set, Chunk(name).Fill!.Value).SelectMany(t => new[] { t.A, t.B, t.C })
+            .MinBy(v => Vector2.Distance(new Vector2(v.X, v.Z), new Vector2(50, 50))).Y;
         Assert.Single(new[] { "E16", "F19", "G20", "G21", "H21", "H22", "J21", "K22", "L24" }.Select(Top).Distinct());
         // The shallows off the south coast keep the sea and the seabed under it.
         Assert.DoesNotContain(squares, c => c.Name == "S21");

@@ -145,8 +145,10 @@ public static class BasePlugin
     /// 73 drops a fill's half-alpha sea where opaque sea lies at its height (S20), and no longer takes the opaque sea for a copy of it.
     /// 74 lays the squares of sea that touch at one height, ends their grid on the cell's edge exactly, and hangs a skirt under each.
     /// 75 hangs a skirt under every fill's opaque sea where it ends on its cell's edge (J20 beside K20).
+    /// 76 drops the skirts, which showed through the shallows, and meets the water instead: a square's edge takes the points and
+    /// heights of the water beside it, eased in over 20, and a fill's sea a real chunk's (<c>SeaRims</c>).
     /// </summary>
-    public const int ImporterVersion = 75;
+    public const int ImporterVersion = 76;
 
     /// <summary>
     /// What's wrong with the imported base plugin under <paramref name="pluginsDirectory"/>, worded for the player, or null if

@@ -97,12 +97,16 @@ public sealed class ChunkCuts
     /// <summary>The cells each chunk shows (<see cref="HBHT.Plugins.Records.ChunkEntry.Shows"/>), by its cell, sorted.</summary>
     public IReadOnlyDictionary<(int Row, int Column), IReadOnlyList<(int Row, int Column)>> Shows { get; }
 
+    /// <summary>The chunks' scenes' scrolling water as the cut leaves it, polygons in the world: what the fills and squares meet.</summary>
+    internal IReadOnlyList<Vector3[]> Water { get; }
+
     private ChunkCuts(IReadOnlyDictionary<int, SceneCut> scenes, IReadOnlyList<CellFill> fills,
-        IReadOnlyDictionary<(int, int), IReadOnlyList<(int, int)>> shows)
+        IReadOnlyDictionary<(int, int), IReadOnlyList<(int, int)>> shows, IReadOnlyList<Vector3[]>? water = null)
     {
         Scenes = scenes;
         Fills = fills;
         Shows = shows;
+        Water = water ?? [];
     }
 
     /// <summary>A scene a chunk draws: its own or see-through scene, or one it swaps in.</summary>
@@ -190,49 +194,93 @@ public sealed class ChunkCuts
     internal static ChunkCuts Cut(HashSet<(int Row, int Column)> cells, IReadOnlyList<Source> sources, float cellSize, List<Triangle> triangles)
     {
         var first = new Cutter(cells, sources, cellSize, new Dictionary<(int, int), float>()).Cut(triangles);
-        var seaDraws = triangles.Where(t => t.Scrolls && t.Opaque).Select(t => (sources[t.Source].Scene, t.Draw)).ToHashSet();
+        var waterDraws = triangles.Where(t => t.Scrolls).Select(t => (sources[t.Source].Scene, t.Draw)).ToHashSet();
         var squares = Squares(first, sources, cellSize, triangles);
         if (squares is not { } sea)
-            return new ChunkCuts(first.Scenes, [.. first.Fills.Select(f => Skirted(f, seaDraws, cellSize))], first.Shows);
+            return new ChunkCuts(first.Scenes, Met(first, cells, new Dictionary<(int, int), float>(), waterDraws, cellSize), first.Shows);
         var second = new Cutter(cells, sources, cellSize, sea.Heights).Cut(triangles);
         var nearest = first.Fills.ToDictionary(f => (f.Row, f.Column), f => f.Nearest);
-        var fills = second.Fills.Where(f => !sea.Heights.ContainsKey((f.Row, f.Column))).Select(f => Skirted(f, seaDraws, cellSize))
+        var withSquares = new ChunkCuts(second.Scenes, [.. second.Fills.Where(f => !sea.Heights.ContainsKey((f.Row, f.Column)))
             .Concat(sea.Heights.Select(s => new CellFill(s.Key.Row, s.Key.Column, [sea.Piece(s.Key, s.Value)], nearest[s.Key], s.Value)))
-            .OrderBy(f => f.Row).ThenBy(f => f.Column);
-        return new ChunkCuts(second.Scenes, [.. fills], second.Shows);
+            .OrderBy(f => f.Row).ThenBy(f => f.Column)], second.Shows, second.Water);
+        return new ChunkCuts(second.Scenes, Met(withSquares, cells, sea.Heights, waterDraws, cellSize), second.Shows);
     }
 
     /// <summary>
-    /// A fill with a skirt hung under each edge of its opaque sea that lies on its cell's edge, as a square's is
-    /// (<see cref="SkirtDepth"/>). The fill's sea was gathered from other chunks' copies, which in 1.0 lay over the next chunk's own
-    /// water; cut at the cell's edge, it meets that water with a step, J20's 0.038 over K20's, and the sky showed through.
+    /// The fills with their edges met to the water beside them (<see cref="SeaRims"/>): a square's to its neighbour's own water and
+    /// fill, eased in from its edges; another fill's sea to a real chunk's own water.
     /// </summary>
-    private static CellFill Skirted(CellFill fill, HashSet<(int Scene, int Draw)> seaDraws, float cellSize)
+    private static List<CellFill> Met(ChunkCuts cuts, HashSet<(int Row, int Column)> cells, IReadOnlyDictionary<(int Row, int Column), float> squares,
+        HashSet<(int Scene, int Draw)> waterDraws, float cellSize)
     {
-        const float onEdge = 0.01f;
-        static bool Edge(float a, float b, float at) => MathF.Abs(a - at) < onEdge && MathF.Abs(b - at) < onEdge;
-        var pieces = fill.Pieces.Select(piece =>
+        var fills = cuts.Fills.ToDictionary(f => (f.Row, f.Column));
+        Vector3 Origin((int Row, int Column) c) => new Vector3(c.Row, 0, c.Column) * cellSize;
+        (int, int) CellOf(Vector3 p) => ((int)MathF.Floor(p.X / cellSize), (int)MathF.Floor(p.Z / cellSize));
+        var sceneWater = cuts.Water.GroupBy(p => CellOf(p.Aggregate(Vector3.Zero, (a, v) => a + v) / p.Length))
+            .ToDictionary(g => g.Key, g => g.ToList());
+        IEnumerable<Vector3[]> FillWater((int, int) cell) => fills.TryGetValue(cell, out var f) && !squares.ContainsKey(cell)
+            ? f.Pieces.Where(p => waterDraws.Contains((p.Scene, p.Draw))).SelectMany(p => p.Polygons)
+                .Select(p => p.Select(v => v.Position + Origin(cell)).ToArray())
+            : [];
+        // A side's water, in the cell's coordinates: the neighbour's own, and for a square its fill too.
+        SeaRims.Profile? Side((int Row, int Column) cell, int side, float height, bool withFill)
         {
-            if (!seaDraws.Contains((piece.Scene, piece.Draw)))
-                return piece;
-            var skirts = new List<CutVertex[]>();
-            foreach (var polygon in piece.Polygons)
+            var next = (cell.Row + SeaRims.Toward[side].Row, cell.Column + SeaRims.Toward[side].Column);
+            if (squares.ContainsKey(next))
+                return null;
+            var water = sceneWater.GetValueOrDefault(next) ?? [];
+            var polygons = (withFill ? water.Concat(FillWater(next)) : water).Select(p => p.Select(v => v - Origin(cell)).ToArray());
+            return SeaRims.Of(polygons, side, cellSize, height, SeaHeight);
+        }
+
+        // The squares: their edges' water, and the field that eases it in, read in the world.
+        var profiles = squares.ToDictionary(s => s.Key, s => Enumerable.Range(0, 4).Select(side => Side(s.Key, side, s.Value, withFill: true)).ToList());
+        var rims = new List<(Vector2, Vector2, float, float)>();
+        foreach (var (cell, sides) in profiles)
+        {
+            var origin = Origin(cell);
+            for (var side = 0; side < 4; side++)
             {
-                for (var i = 0; i < polygon.Length; i++)
+                if (sides[side] is not { } profile)
+                    continue;
+                foreach (var span in profile.Spans)
                 {
-                    var (a, b) = (polygon[i], polygon[(i + 1) % polygon.Length]);
-                    var (pa, pb) = (a.Position, b.Position);
-                    if (!(Edge(pa.X, pb.X, 0) || Edge(pa.X, pb.X, cellSize) || Edge(pa.Z, pb.Z, 0) || Edge(pa.Z, pb.Z, cellSize)))
-                        continue;
-                    var drop = new Vector3(0, SkirtDepth, 0);
-                    CutVertex[] side = [a, b, b with { Position = pb - drop }, a with { Position = pa - drop }];
-                    skirts.Add(side);
-                    skirts.Add([.. side.Reverse()]);
+                    Vector2 At(float t) => side < 2
+                        ? new Vector2(origin.X + (side == 0 ? 0 : cellSize), origin.Z + t)
+                        : new Vector2(origin.X + t, origin.Z + (side == 2 ? 0 : cellSize));
+                    rims.Add((At(span.T0), At(span.T1), span.Y0 - squares[cell], span.Y1 - squares[cell]));
                 }
             }
-            return skirts.Count == 0 ? piece : piece with { Polygons = [.. piece.Polygons, .. skirts] };
-        }).ToList();
-        return fill with { Pieces = pieces };
+        }
+        var field = new SeaRims.Field(rims);
+
+        var met = new List<CellFill>();
+        foreach (var fill in cuts.Fills)
+        {
+            var cell = (fill.Row, fill.Column);
+            if (squares.TryGetValue(cell, out var height))
+            {
+                var origin = Origin(cell);
+                met.Add(fill with { Pieces = [.. fill.Pieces.Select(p => p with { Polygons = SeaRims.Meet(p.Polygons, profiles[cell], cellSize,
+                    v => height + field.Offset(new Vector2(origin.X + v.X, origin.Z + v.Z))) })] });
+                continue;
+            }
+            // Another fill's sea meets a real chunk's own water.
+            var pieces = fill.Pieces.Select(piece =>
+            {
+                if (!waterDraws.Contains((piece.Scene, piece.Draw)) || piece.Polygons.Count == 0)
+                    return piece;
+                var level = piece.Polygons.SelectMany(p => p).Average(v => v.Position.Y);
+                var sides = Enumerable.Range(0, 4).Select(side =>
+                {
+                    var next = (fill.Row + SeaRims.Toward[side].Row, fill.Column + SeaRims.Toward[side].Column);
+                    return cells.Contains(next) ? Side(cell, side, level, withFill: false) : null;
+                }).ToList();
+                return sides.All(s => s is null) ? piece : piece with { Polygons = SeaRims.Meet(piece.Polygons, sides, cellSize) };
+            }).ToList();
+            met.Add(fill with { Pieces = pieces });
+        }
+        return met;
     }
 
     /// <summary>How far apart a sea triangle's corners may be, up and down, and from a square's height, to be that sea.</summary>
@@ -329,7 +377,7 @@ public sealed class ChunkCuts
             var steps = (int)MathF.Ceiling(cellSize / SquareSpacing);
             // The last row and column on the cell's edge exactly, where the next square's first lie.
             float Along(int i) => i == steps ? cellSize : i * (cellSize / steps);
-            CutVertex At(int i, int k, float drop = 0) => new(new Vector3(Along(i), height - drop, Along(k)), normal, color,
+            CutVertex At(int i, int k) => new(new Vector3(Along(i), height, Along(k)), normal, color,
                 new Vector2(x0 + Along(i) * scale, z0 + Along(k) * scale), false);
             var quads = new List<CutVertex[]>();
             for (var i = 0; i < steps; i++)
@@ -337,20 +385,10 @@ public sealed class ChunkCuts
                 for (var k = 0; k < steps; k++)
                     quads.Add([At(i, k), At(i, k + 1), At(i + 1, k + 1), At(i + 1, k)]);
             }
-            // The skirt: each edge hung down, facing both ways, so a step against a coastal chunk's own water shows the sea.
-            foreach (var (a, b) in new[] { ((0, 0), (steps, 0)), ((steps, 0), (steps, steps)), ((steps, steps), (0, steps)), ((0, steps), (0, 0)) })
-            {
-                CutVertex[] side = [At(a.Item1, a.Item2), At(b.Item1, b.Item2), At(b.Item1, b.Item2, SkirtDepth), At(a.Item1, a.Item2, SkirtDepth)];
-                quads.Add(side);
-                quads.Add([.. side.Reverse()]);
-            }
             return new FillPiece(scene, draw, quads);
         }
         return new SeaSquares(heights, Piece);
     }
-
-    /// <summary>How far a square of sea's skirt hangs below it: past the steps where it meets coastal chunks' own water, a tenth or so.</summary>
-    internal const float SkirtDepth = 0.5f;
 
     /// <summary>How far apart two squares side by side or corner to corner may lie, up and down, to be one sea at one height.</summary>
     internal const float LevelTolerance = 0.5f;
@@ -564,8 +602,16 @@ public sealed class ChunkCuts
                         [.. g.Select(p => p.Polygon.Select(c => InCell(c, p.World, origin)).ToArray())]))],
                     Cell(sources[nearest.Source])));
             }
+            var water = new List<Vector3[]>();
+            for (var t = 0; t < triangles.Count; t++)
+            {
+                if (!triangles[t].Scrolls)
+                    continue;
+                foreach (var part in keptParts.TryGetValue(t, out var parts) ? parts : [Polygon(triangles[t])])
+                    water.Add([.. part.Select(c => c.World)]);
+            }
             return new ChunkCuts(scenes, cellFills,
-                _shows.ToDictionary(s => s.Key, s => (IReadOnlyList<(int, int)>)[.. s.Value]));
+                _shows.ToDictionary(s => s.Key, s => (IReadOnlyList<(int, int)>)[.. s.Value]), water);
         }
 
         /// <summary>
