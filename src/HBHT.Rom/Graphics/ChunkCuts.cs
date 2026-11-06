@@ -138,58 +138,68 @@ public sealed class ChunkCuts
         if (chunks.Select(c => c.Set).Distinct().Count() > 1)
             throw new ArgumentException("The chunks of one map set are cut at a time.", nameof(chunks));
         var sources = new List<Source>();
+        var islandSources = new List<Source>();
         var seen = new HashSet<int>();
         // The islands' scenes stay whole, as 1.0 draws them: nothing else is loaded or shown from an island, nor an island from the
         // mainland, so their art doubles nothing. Out of the cut, their cells still chunks' (docs/systems/rendering.md#draw-distance).
         var islands = chunks.Count == 0 ? [] : MapSets.Islands(chunks);
         foreach (var (chunk, scene) in chunks.SelectMany(c => new[] { (c, c.Scene), (c, c.AltScene) }).Concat(swaps))
         {
-            if (islands.Contains((chunk.Row, chunk.Column)))
-                continue;
             if (scene != 0 && seen.Add(scene))
-                sources.Add(new Source(chunk.Row, chunk.Column, scene, MapSets.ChunkOrigin(chunk)));
+                (islands.Contains((chunk.Row, chunk.Column)) ? islandSources : sources).Add(new Source(chunk.Row, chunk.Column, scene, MapSets.ChunkOrigin(chunk)));
         }
         var cellSize = chunks.Count == 0 ? 1 : MapSets.CellSize(chunks[0].Set);
         var models = new Dictionary<int, Borg2Geometry>();
         var textures = new Dictionary<int, Borg1Flags>();
-        var triangles = new List<Triangle>();
-        for (var s = 0; s < sources.Count; s++)
+        var triangles = Triangles(sources);
+        var cuts = Cut([.. chunks.Select(c => (c.Row, c.Column))], sources, cellSize, triangles);
+        // With the seams joined, a floor of sea under the islands' water, so the sky doesn't show under the shallows' edge (SeaFloors).
+        if (welds.Count == 0 || islandSources.Count == 0)
+            return cuts;
+        var raised = SeaFloors.Lay(islandSources, Triangles(islandSources));
+        return new ChunkCuts(cuts.Scenes.Concat(raised).ToDictionary(), cuts.Fills, cuts.Shows, cuts.Water);
+
+        List<Triangle> Triangles(List<Source> sources)
         {
-            var source = sources[s];
-            var scene = Borg5Scene.Parse(read(source.Scene));
-            var moved = welds.GetValueOrDefault(source.Scene);
-            for (var d = 0; d < scene.Draws.Count; d++)
+            var triangles = new List<Triangle>();
+            for (var s = 0; s < sources.Count; s++)
             {
-                var draw = scene.Draws[d];
-                if (!models.TryGetValue(scene.Models[draw.Model], out var model))
-                    models[scene.Models[draw.Model]] = model = Borg2Geometry.Parse(read(scene.Models[draw.Model]));
-                var transform = scene.Transforms[draw.Transform];
-                if (!SceneGltf.IsDrawn(model, draw.DisplayList) || transform.Op != Borg5TransformOp.PivotRotate
-                    || transform.Flags.HasFlag(Borg5TransformFlags.Billboard))
-                    continue;
-                var mesh = model.Meshes[draw.DisplayList];
-                var flags = Borg1Flags.None;
-                if (draw.Texture is { } slot && !textures.TryGetValue(scene.Textures[slot], out flags))
-                    textures[scene.Textures[slot]] = flags = Borg1Texture.Parse(read(scene.Textures[slot])).Flags;
-                // As the export's material has it: the tint's and the model's alpha, and the texture's own.
-                var opaque = mesh.Tint.W == 0 && model.Alpha == 0 && !flags.HasFlag(Borg1Flags.HasTransparency);
-                var scrolls = flags.HasFlag(Borg1Flags.Moving);
-                var world = scene.WorldMatrix(draw.Transform);
-                Matrix4x4.Invert(world, out var toNode);
-                var corners = new Corner[mesh.Vertices.Length];
-                for (var v = 0; v < corners.Length; v++)
+                var source = sources[s];
+                var scene = Borg5Scene.Parse(read(source.Scene));
+                var moved = welds.GetValueOrDefault(source.Scene);
+                for (var d = 0; d < scene.Draws.Count; d++)
                 {
-                    var position = moved is not null && moved.TryGetValue(new DrawVertex(d, v), out var welded)
-                        ? Vector3.Transform(welded, toNode)
-                        : SceneGltf.Position(model, mesh.Vertices[v]);
-                    corners[v] = new Corner(Vector3.Transform(position, world) + source.Origin, CutVertex.Of(mesh.Vertices[v], position));
+                    var draw = scene.Draws[d];
+                    if (!models.TryGetValue(scene.Models[draw.Model], out var model))
+                        models[scene.Models[draw.Model]] = model = Borg2Geometry.Parse(read(scene.Models[draw.Model]));
+                    var transform = scene.Transforms[draw.Transform];
+                    if (!SceneGltf.IsDrawn(model, draw.DisplayList) || transform.Op != Borg5TransformOp.PivotRotate
+                        || transform.Flags.HasFlag(Borg5TransformFlags.Billboard))
+                        continue;
+                    var mesh = model.Meshes[draw.DisplayList];
+                    var flags = Borg1Flags.None;
+                    if (draw.Texture is { } slot && !textures.TryGetValue(scene.Textures[slot], out flags))
+                        textures[scene.Textures[slot]] = flags = Borg1Texture.Parse(read(scene.Textures[slot])).Flags;
+                    // As the export's material has it: the tint's and the model's alpha, and the texture's own.
+                    var opaque = mesh.Tint.W == 0 && model.Alpha == 0 && !flags.HasFlag(Borg1Flags.HasTransparency);
+                    var scrolls = flags.HasFlag(Borg1Flags.Moving);
+                    var world = scene.WorldMatrix(draw.Transform);
+                    Matrix4x4.Invert(world, out var toNode);
+                    var corners = new Corner[mesh.Vertices.Length];
+                    for (var v = 0; v < corners.Length; v++)
+                    {
+                        var position = moved is not null && moved.TryGetValue(new DrawVertex(d, v), out var welded)
+                            ? Vector3.Transform(welded, toNode)
+                            : SceneGltf.Position(model, mesh.Vertices[v]);
+                        corners[v] = new Corner(Vector3.Transform(position, world) + source.Origin, CutVertex.Of(mesh.Vertices[v], position));
+                    }
+                    for (var i = 0; i + 2 < mesh.Indices.Length; i += 3)
+                        triangles.Add(new Triangle(s, d, world, corners[mesh.Indices[i]], corners[mesh.Indices[i + 1]], corners[mesh.Indices[i + 2]],
+                            scrolls, opaque));
                 }
-                for (var i = 0; i + 2 < mesh.Indices.Length; i += 3)
-                    triangles.Add(new Triangle(s, d, world, corners[mesh.Indices[i]], corners[mesh.Indices[i + 1]], corners[mesh.Indices[i + 2]],
-                        scrolls, opaque));
             }
+            return triangles;
         }
-        return Cut([.. chunks.Select(c => (c.Row, c.Column))], sources, cellSize, triangles);
     }
 
     /// <summary>

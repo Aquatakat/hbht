@@ -375,6 +375,27 @@ public sealed class ChunkCutsImportTests(Na10Import fixture)
     }
 
     [Fact]
+    public void NamersIsleHasAFloorOfSeaUnderItsWater()
+    {
+        // With the seams joined, a sheet of the island's opaque sea lies under all of it, below the deepest seabed, so the sky doesn't
+        // show under the shallows' edge, where the seabed stops short of the opaque sea and nothing lay under that.
+        foreach (var name in new[] { "A22", "B22" })
+        {
+            var chunk = Chunk(name);
+            var water = SceneMesh.For(Data.Set, chunk.AltScene!.Value).Where(t => t.Scrolls && t.Blend == SurfaceBlend.Opaque).ToList();
+            var seabed = SceneMesh.For(Data.Set, chunk.Scene!.Value).Where(t => !t.Scrolls).SelectMany(t => new[] { t.A, t.B, t.C })
+                .Where(v => v.Y is < -32 and > -37).Min(v => v.Y);
+            var floor = water.Where(t => t.A.Y < seabed && t.B.Y < seabed && t.C.Y < seabed).ToList();
+            Assert.NotEmpty(floor);
+            var sheet = water.Except(floor).SelectMany(t => new[] { t.A, t.B, t.C }).ToList();
+            var under = floor.SelectMany(t => new[] { t.A, t.B, t.C }).ToList();
+            // Across the whole sheet.
+            Assert.Equal(sheet.Min(v => v.X), under.Min(v => v.X), 0.01f);
+            Assert.Equal(sheet.Max(v => v.Z), under.Max(v => v.Z), 0.01f);
+        }
+    }
+
+    [Fact]
     public void TheShallowsStopWhereTheOpenSeaStarts()
     {
         // Half-alpha water runs right across S20, over the open sea from its middle out at the same height; what lay on the sea goes.
