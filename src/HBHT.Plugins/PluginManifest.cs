@@ -150,8 +150,10 @@ public static class BasePlugin
     /// 77 leaves the islands' scenes whole, as 1.0 draws them: Namer's Isle and Chaos Isle aren't cut, and nothing is made from their art.
     /// 78 welds the islands' scenes wherever they meet, however far past their cells (Namer's Isle's sea along x 200).
     /// 79 lays a floor of sea under the islands' water, below the deepest seabed, so the sky doesn't show under the shallows (<c>SeaFloors</c>).
+    /// 80 closes that gap instead of hiding it: ground just under a shore, where see-through water turns opaque, rises onto it, Namer's
+    /// Isle's seabed's rim (<c>SeamWelds</c>), and the floor goes.
     /// </summary>
-    public const int ImporterVersion = 79;
+    public const int ImporterVersion = 80;
 
     /// <summary>
     /// What's wrong with the imported base plugin under <paramref name="pluginsDirectory"/>, worded for the player, or null if

@@ -11,8 +11,9 @@ public readonly record struct DrawVertex(int Draw, int Vertex);
 /// player's choice at import (<c>ImportOptions.WeldSeams</c>). It finds the edges that border one triangle only and lie
 /// along another such edge, and moves both ends of each pair to the same point. Between chunks it welds only neighbours'
 /// scenes at their shared border, scenery to scenery and water to water, so a chunk's stand-in for land past its own cell is
-/// left alone; within a scene, only what doesn't move apart. A vertex lying along another mesh's edge is moved onto it.
-/// Collision isn't touched, so nothing of the rules changes.
+/// left alone; within a scene, only what doesn't move apart. A vertex lying along another mesh's edge is moved onto it, and
+/// ground lying just under the line where see-through water turns opaque rises onto it. Collision isn't touched, so nothing of
+/// the rules changes.
 /// </summary>
 public static class SeamWelds
 {
@@ -55,6 +56,7 @@ public static class SeamWelds
     {
         var uses = chunks.SelectMany(c => new[] { c.Scene, c.AltScene }).Where(s => s != 0).CountBy(s => s).ToDictionary();
         var models = new Dictionary<int, Borg2Geometry>();
+        var textures = new Dictionary<int, Borg1Flags>();
         var welds = new Dictionary<int, Dictionary<DrawVertex, Vector3>>();
         foreach (var set in chunks.GroupBy(c => c.Set))
         {
@@ -68,7 +70,7 @@ public static class SeamWelds
                         continue;
                     var piece = new Piece(scene, MapSets.ChunkOrigin(chunk), alt, animated(scene), (chunk.Row, chunk.Column), cellSize, uses[scene] > 1,
                         chunk.Set == MapSet.Overworld && islands?.Contains((chunk.Row, chunk.Column)) == true);
-                    geometry.Add(piece, Borg5Scene.Parse(read(scene)), i => Model(models, read, i));
+                    geometry.Add(piece, Borg5Scene.Parse(read(scene)), i => Model(models, read, i), i => Texture(textures, read, i));
                 }
             }
             foreach (var (scene, moved) in Weld(geometry))
@@ -93,6 +95,13 @@ public static class SeamWelds
         return model;
     }
 
+    private static Borg1Flags Texture(Dictionary<int, Borg1Flags> textures, Func<int, byte[]> read, int index)
+    {
+        if (!textures.TryGetValue(index, out var flags))
+            textures[index] = flags = Borg1Texture.Parse(read(index)).Flags;
+        return flags;
+    }
+
     /// <summary>A scene placed in the world: a chunk's scenery or water at its origin, or a scene alone.</summary>
     /// <param name="NodesMove">Its nodes can move apart, so only what's on one node is welded.</param>
     /// <param name="Cell">Its chunk's row and column, or null for a scene alone.</param>
@@ -113,7 +122,18 @@ public static class SeamWelds
 
     internal readonly record struct Vertex(int Piece, DrawVertex At, Vector3 Position);
 
-    internal readonly record struct Triangle(int A, int B, int C, int Piece, int Node);
+    internal readonly record struct Triangle(int A, int B, int C, int Piece, int Node, Surface Surface = Surface.Ground);
+
+    /// <summary>
+    /// What a triangle's draw is: ground, or water, whose texture scrolls (<see cref="Borg1Flags.Moving"/>), drawn see-through or
+    /// opaque as the export draws it. Only the chunks' scenes are told apart, for their shores; a scene alone is all ground.
+    /// </summary>
+    internal enum Surface : byte
+    {
+        Ground,
+        Shallows,
+        Sea,
+    }
 
     /// <summary>The drawn triangles of the pieces welded together, in world coordinates.</summary>
     internal sealed class Geometry
@@ -122,8 +142,11 @@ public static class SeamWelds
         public List<Vertex> Vertices { get; } = [];
         public List<Triangle> Triangles { get; } = [];
 
-        /// <summary>Adds what the scene's glTF draws (<see cref="SceneGltf"/>), as it stands before anything animates it. Billboards turn, so they're left out.</summary>
-        public void Add(Piece piece, Borg5Scene scene, Func<int, Borg2Geometry> model)
+        /// <summary>
+        /// Adds what the scene's glTF draws (<see cref="SceneGltf"/>), as it stands before anything animates it. Billboards turn, so
+        /// they're left out. Without <paramref name="texture"/>, the textures' flags by Borg1, it's all ground.
+        /// </summary>
+        public void Add(Piece piece, Borg5Scene scene, Func<int, Borg2Geometry> model, Func<int, Borg1Flags>? texture = null)
         {
             var p = Pieces.Count;
             Pieces.Add(piece);
@@ -137,16 +160,20 @@ public static class SeamWelds
                     continue;
                 var mesh = geometry.Meshes[draw.DisplayList];
                 var world = scene.WorldMatrix(draw.Transform);
+                var flags = texture is not null && draw.Texture is { } slot ? texture(scene.Textures[slot]) : Borg1Flags.None;
+                // As the export's material has it: the tint's and the model's alpha, and the texture's own.
+                var surface = !flags.HasFlag(Borg1Flags.Moving) ? Surface.Ground
+                    : mesh.Tint.W == 0 && geometry.Alpha == 0 && !flags.HasFlag(Borg1Flags.HasTransparency) ? Surface.Sea : Surface.Shallows;
                 var first = Vertices.Count;
                 for (var v = 0; v < mesh.Vertices.Length; v++)
                     Vertices.Add(new Vertex(p, new DrawVertex(d, v), Vector3.Transform(SceneGltf.Position(geometry, mesh.Vertices[v]), world) + piece.Offset));
                 for (var i = 0; i + 2 < mesh.Indices.Length; i += 3)
-                    Triangles.Add(new Triangle(first + mesh.Indices[i], first + mesh.Indices[i + 1], first + mesh.Indices[i + 2], p, draw.Transform));
+                    Triangles.Add(new Triangle(first + mesh.Indices[i], first + mesh.Indices[i + 1], first + mesh.Indices[i + 2], p, draw.Transform, surface));
             }
         }
 
         /// <summary>Adds triangles as one draw, its vertices in the piece's own coordinates, for tests.</summary>
-        public void Add(Piece piece, IReadOnlyList<Vector3> vertices, IEnumerable<(int A, int B, int C, int Node)> triangles)
+        public void Add(Piece piece, IReadOnlyList<Vector3> vertices, IEnumerable<(int A, int B, int C, int Node)> triangles, Surface surface = Surface.Ground)
         {
             var p = Pieces.Count;
             Pieces.Add(piece);
@@ -154,7 +181,7 @@ public static class SeamWelds
             for (var v = 0; v < vertices.Count; v++)
                 Vertices.Add(new Vertex(p, new DrawVertex(0, v), vertices[v] + piece.Offset));
             foreach (var (a, b, c, node) in triangles)
-                Triangles.Add(new Triangle(first + a, first + b, first + c, p, node));
+                Triangles.Add(new Triangle(first + a, first + b, first + c, p, node, surface));
         }
     }
 
@@ -294,6 +321,39 @@ public static class SeamWelds
                 moved[r] = b.Foot;
         }
 
+        // Ground just under a shore, the line where see-through water meets opaque, rises onto it. Namer's Isle's seabed ends 0.05 to
+        // 0.2 under where its shallows turn to open sea, with nothing under the open sea, so the sky shows through the gap under the
+        // shallows' edge. The water's edge there isn't open, both its sides drawn, so nothing above pairs the seabed's with it.
+        var shores = Shores(g, pointOf);
+        var shoreLines = new SpatialHash(ChunkGap);
+        for (var i = 0; i < shores.Count; i++)
+            shoreLines.AddSegment(At(shores[i].P), At(shores[i].Q), i);
+        foreach (var r in edgesOf.Keys.ToList())
+        {
+            var own = edgesOf[r].Select(k => edges[k]).Where(k => g.Triangles[k.Triangle].Surface == Surface.Ground).ToList();
+            if (own.Count == 0 || members[r].Any(v => g.Pieces[g.Vertices[v].Piece].Fixed))
+                continue;
+            var at = At(r);
+            (float Gap, Vector3 Foot)? best = null;
+            foreach (var i in shoreLines.Near(at))
+            {
+                var (p, q, sea) = (At(shores[i].P), At(shores[i].Q), shores[i].Sea);
+                var along = q - p;
+                var foot = p + along * Math.Clamp(Vector3.Dot(at - p, along) / along.LengthSquared(), 0, 1);
+                var gap = Vector3.Distance(at, foot);
+                var limit = own.Max(k => Limit(g, k.Triangle, sea, foot));
+                // Under the line, on the shallows' side of it, and along it.
+                if (gap < Same || gap > limit || at.Y > foot.Y
+                    || !own.Any(k => Seam(p, q, Centroid(g, sea), Centroid(g, k.Triangle)))
+                    || !own.Any(k => Off(At(k.P == r ? k.Q : k.P), p, q) <= limit))
+                    continue;
+                if (best is null || gap < best.Value.Gap)
+                    best = (gap, foot);
+            }
+            if (best is { } b)
+                moved[r] = b.Foot;
+        }
+
         var welds = new Dictionary<int, Dictionary<DrawVertex, Vector3>>();
         foreach (var (point, to) in moved)
         {
@@ -305,6 +365,28 @@ public static class SeamWelds
             }
         }
         return welds;
+    }
+
+    /// <summary>The edges where see-through water meets opaque, each with its opaque triangle: drawn on both sides, they aren't open.</summary>
+    private static List<(int P, int Q, int Sea)> Shores(Geometry g, int[] pointOf)
+    {
+        var water = new Dictionary<(int, int), List<int>>();
+        for (var t = 0; t < g.Triangles.Count; t++)
+        {
+            var tri = g.Triangles[t];
+            if (tri.Surface == Surface.Ground)
+                continue;
+            int[] corners = [pointOf[tri.A], pointOf[tri.B], pointOf[tri.C]];
+            if (corners[0] == corners[1] || corners[1] == corners[2] || corners[0] == corners[2])
+                continue;
+            for (var e = 0; e < 3; e++)
+            {
+                var key = Ordered(corners[e], corners[(e + 1) % 3]);
+                (water.TryGetValue(key, out var on) ? on : water[key] = []).Add(t);
+            }
+        }
+        return [.. water.Where(w => w.Value.Count == 2 && g.Triangles[w.Value[0]].Surface != g.Triangles[w.Value[1]].Surface)
+            .Select(w => (w.Key.Item1, w.Key.Item2, w.Value.Single(t => g.Triangles[t].Surface == Surface.Sea)))];
     }
 
     /// <summary>How far apart the edges of two triangles can be welded at <paramref name="site"/>, or 0 where they mustn't be.</summary>

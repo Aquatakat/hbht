@@ -141,6 +141,61 @@ public class SeamWeldsTests
         Assert.All(twice, s => Assert.False(welds.ContainsKey(s)));
     }
 
+    /// <summary>
+    /// Ground from x 0 to 10 whose far edge lies <paramref name="under"/> the water, and water at 0 over it, see-through to x 10 and
+    /// opaque from there to 20, the two sharing their edge: Namer's Isle's seabed, shallows and open sea, in small.
+    /// </summary>
+    private static Dictionary<int, Dictionary<DrawVertex, Vector3>> Shore(float under, bool whole = true, float groundFrom = 0)
+    {
+        Piece At(int scene, bool alt) => new(scene, new Vector3(Cell, 0, Cell), alt, false, (1, 1), Cell, false, whole);
+        var g = new Geometry();
+        var (x0, x1) = (groundFrom, groundFrom + 10);
+        g.Add(At(1, false), [new(x0, -1, 40), new(x1, -under, 40), new(x1, -under, 60), new(x0, -1, 60)], [(0, 1, 2, 0), (0, 2, 3, 0)]);
+        Vector3[] water = [new(0, 0, 40), new(10, 0, 40), new(10, 0, 60), new(0, 0, 60), new(20, 0, 40), new(20, 0, 60)];
+        g.Add(At(2, true), water, [(0, 1, 2, 0), (0, 2, 3, 0)], Surface.Shallows);
+        g.Add(At(3, true), water, [(1, 4, 5, 0), (1, 5, 2, 0)], Surface.Sea);
+        return SeamWelds.Weld(g);
+    }
+
+    [Fact]
+    public void GroundUnderWhereTheShallowsTurnOpaqueRisesOntoTheLine()
+    {
+        // The island's seabed's edge, 0.2 under: it rises to the water, and the water stays.
+        var welds = Shore(0.2f);
+        Assert.Equal([1], welds.Keys);
+        Assert.Equal(new Vector3(10, 0, 40), welds[1][new DrawVertex(0, 1)]);
+        Assert.Equal(new Vector3(10, 0, 60), welds[1][new DrawVertex(0, 2)]);
+        Assert.Equal(2, welds[1].Count);
+        // Too far under, on the mainland, where scenery and water don't weld, or under the open sea's side of the line: left.
+        Assert.Empty(Shore(0.3f));
+        Assert.Empty(Shore(0.2f, whole: false));
+        Assert.Empty(Shore(0.2f, groundFrom: 10));
+    }
+
+    [Fact]
+    public void NamersIslesSeabedMeetsTheLineWhereItsShallowsTurnToOpenSea()
+    {
+        var rom = TestRoms.Get(RomVersionId.Na10);
+        var archive = BorgArchive.Open(rom);
+        var chunks = MapChunks.Read(rom);
+        var animated = archive.Listings.Where(l => l.Type == BorgType.Animation)
+            .Select(l => Borg6Animation.Parse(archive.Read(l.Index)).Scene).ToHashSet();
+        var welds = SeamWelds.ForChunks(chunks, archive.Read, animated.Contains, MapSets.Islands(chunks));
+
+        // The shallows end half a cell out from A22 and B22, x 50 to 300 and z 2150 to 2350, where the open sea at -31.981 takes
+        // over; the seabed under them ends there 0.05 under the water on A22's side and 0.2 on B22's. Each point of its edge rises
+        // onto the line.
+        var a22 = chunks.Single(c => c.Set == MapSet.Overworld && c.Name == "A22");
+        var b22 = chunks.Single(c => c.Set == MapSet.Overworld && c.Name == "B22");
+        Assert.Equal((0xEC5, 0x3611), (a22.Scene, b22.Scene));
+        var rim = new[] { (a22, 11), (b22, 10) }
+            .SelectMany(s => welds[s.Item1.Scene].Where(w => w.Key.Draw == s.Item2).Select(w => w.Value + MapSets.ChunkOrigin(s.Item1)))
+            .Where(p => MathF.Abs(p.X - 50) < 0.1f || MathF.Abs(p.X - 300) < 0.1f || MathF.Abs(p.Z - 2150) < 0.1f || MathF.Abs(p.Z - 2350) < 0.1f)
+            .ToList();
+        Assert.Equal(30, rim.Count);
+        Assert.All(rim, p => Assert.Equal(-31.981f, p.Y, 0.001f));
+    }
+
     [Fact]
     public void WeldingIsTheDefault() => Assert.True(ImportOptions.Default.WeldSeams);
 }
