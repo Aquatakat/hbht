@@ -1,6 +1,6 @@
 # Aidyn Chronicles Reimplementation: Roadmap
 
-Sep 26, 2026 · Updated Nov 6, 2026
+Sep 26, 2026 · Updated Nov 7, 2026
 
 ## Summary
 
@@ -18,7 +18,7 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 **M4: the prologue** is done: the user played it side by side with the emulator, what differed is fixed, and the user has played the fixes. Next, by the phases' order, is **Phase 4: content parity**.
 
-- **Combat parity (2.9):** the formula vectors from 1.0's functions in the interpreter past melee's, the turns', the setup's and the rewards' (ranged and flasks, casting, effects and potions, morale and the AI), the replay laying each actor's state from the RAM, the positions shown but not checked (among them reserves taking other spawn points than 1.0's on the same draws, which may be the port's) ([combat parity](systems/combat-parity.md#whats-left)).
+- **Combat parity (2.9):** the formula vectors and the replay are done. Left are two places the replay shows but doesn't check: a reserve's walk that 1.0 gave up near its spawn, and a reserve in an ambush whose own point is taken, which 1.0 brings in on the `bad` points (the party's side there) before the `good` ones, where the port tries the enemies' side first ([combat parity](systems/combat-parity.md#whats-left)).
 
 ### Left over from finished work
 

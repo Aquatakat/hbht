@@ -75,9 +75,13 @@ Setup 9's setup block, as each battle began:
 
 **The cadence** (`KnownCadence`):
 
-- Setup 2's 0018 and second session's 0016, setup 4's 0006 and setup 8's 0037: the first corner lies astern, and 1.0's body, turning 20° a frame at the logger's long frames, walks a wide curve away and gives up near its start; the port's turns round and walks on. At 4–6-tick frames the port's gives up too; at the second session's 0016 it curves the other way ([combat-ai](combat-ai.md#not-settled)).
+- Setup 2's 0018 and second session's 0016, setup 4's 0006 and setup 8's 0037: the first corner lies astern, and 1.0's body, turning 20° a frame at the logger's long frames, walks a wide curve away and gives up near its start; the port's turns round and walks on. At 4–6-tick frames the port's gives up too; at the second session's 0016 it curves the other way. Which way a body whose first corner is dead astern first curves is left unsettled, the user's choice: 1.0's own `Facing.Turn` turns as the port's does, so the difference lies elsewhere in the walk's first frames, and in play a body turning left or right from a corner straight behind it looks the same.
 - Setup 2's 0096, setup 6's 0040, setup 7's 0024, setup 8's 0018, setup 11's 0009 and setup 13's 0062: 1.0 decides two frames after a walk arrives, and the logger's frames carry its body on into (or out of) reach before it does; the port decides 2–3 ticks after, as 1.0 does at 30 fps.
-- Setup 11's 0068 isn't the cadence: 1.0's Hobgoblin was mid-fidget (its actor's state 12, clock 27 of 101), which takes no run request, so its walk gave up on its cell. The replay starts every body idle; seeded in that state, the port's does as 1.0's.
+- Setup 11's 0068 isn't the cadence: 1.0's Hobgoblin was mid-fidget (its actor's state 12, clock 27 of 101), which takes no run request, so its walk gave up on its cell. The replay starts every body idle; seeded in that state, the port's does as 1.0's. Laying each actor's state and clock from the RAM would take it off the list, which the user judged not worth the scaffolding: the port's actors fidget and refuse a run mid-fidget as 1.0's do, so only the replay's starting state differs.
+
+**Places left unchecked**, by the user's choice:
+
+- The attacker's body after a blow stands up to 0.5 from the original's (a backstab), with its footprint a cell over. An attack's animation carries its body by its root, sometimes far (a Giant Bat hit from behind can be thrown out of reach of whoever hit it), and the port's does as 1.0's in play.
 
 **The port's fixes** (`KnownFixes`):
 
@@ -172,11 +176,7 @@ A family is one Python module and one C# test class, which touch nothing of the 
 
 ## What's left
 
-- **Which way 1.0's Spellweaver curved** at setup 2's second session's 0016 ([combat-ai](combat-ai.md#not-settled)).
-- **The actors' states**: the replay starts every body idle; laying each actor's state and clock from the RAM would take setup 11's 0068 off the list.
 - **Positions shown but not checked:**
-  - The attacker's body after a blow stands up to 0.5 from the original's (a backstab), with its footprint a cell over.
   - A reserve's walk with no action ends 4.6 from the original's (the second trial's slot 5): 1.0's body moved 0.26 from its spawn at (17, 43) and gave up after 12 frames, while the port's runs its leg toward (23, 49).
-  - Reserves that join at a round's end can take other spawn points than the original's, on the same draws. In setup 1, at the end of slot 5's turn, slot 6's reserve stands at (13, 26) for the original's (24, 39), and slot 7's at (24, 39) for (19, 23). The two disagree about which point is free, likely over a body that has fled or died.
+  - Reserves that join at a round's end can take other spawn points than the original's, on the same draws, in an ambush. In setup 1 (an ambush), at the end of slot 5's turn, slot 6's reserve stands at `good0d` (13, 26) for the original's `bad0a` (24, 39), and slot 7's at `bad0a` for `bad0b` (19, 23). Their own points were taken, and 1.0's fallback tries each set's `bad` points before its `good` ones whatever the ambush, where the port's tries the enemies' own side first ([combat](combat.md#a-turn)).
 - **Not in a log**, by the user's choice: the Shadow's and the Goblin Ambush's battles, which the user played in 1.0 and the port and found alike, their outcomes being the code's rules rather than the draws' ([combat](combat.md#the-special-battles)); the Antidote drunk in battle (its cure is Remove Poison's, which passed); a spell's level rising from 0, which the pak can't hold; and setup 14, Sense Aura at level 9, whose popup was compared by eye.
-- **The formula vectors** for the families after melee, [above](#the-formula-vectors).
