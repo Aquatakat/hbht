@@ -10,12 +10,6 @@ A check far into the story needn't be played to: Claude writes a save at the pla
 
 Battles the user plays in 1.0 from written saves, logged with `tools/parity.ps1` and replayed into the port ([combat parity](systems/combat-parity.md)). Setups 1–14 are played, and none is waiting. If a hold (Web of Starlight, Wall of Bones, Frozen Doom) locks 1.0 up again, save a state in ares before closing it: the RAM at the lock settles its cause ([combat](systems/combat-actions.md#where-the-port-differs)).
 
-### The data format's third slice (importer 69)
-
-Each node now names its speaker, which the importer works out from the links into it ([scripts](systems/scripts.md#speakers)).
-
-- **The cut-scenes' camera at the merge nodes**: 138 textless nodes are reached with more than one speaker in force, every one holding only camera moves onto marks, so no op's actor depends on the speaker. All 262 cut-scene launches replayed tick for tick as before against the old import, but none has been watched since. Watch one in the game, and the camera should move as it did: 1384 (`aidyn:script/0x03B2`, "Take a long look..."), which plays from the script object `byecastle` in Overworld M07 on leaving Gwernia once two of the three errands are done (flag 5049: 5004 set, 98 not yet). `out/user-checks/hbht-saves/Before Take a long look.json` is a new game with Abrecan, Rheda and Godric joined (89–91 set, and 67 for the throne room), standing at the castle's exit in M06: walk on into M07.
-
 ### The data format's fourth slice (importer 70)
 
 - **Keelin's scene from her body** ([scripts](systems/scripts.md#the-world-it-plays-in), [wanderers](systems/wanderers.md#talking)): in Terminor's inn (C05), before she's recruited, talk to Keelin's body rather than using the script object beside her (stand so that A reaches her body: face her from the side away from the object). In 1.0 her scene crashes after "Kisses." as she walks to point 34; started from the object, it plays to its end. The port now starts it from her body as the object does (her npc's `stage`, `aidyn:mapobject/8/C05/12`), the user's fix: it should play as the object's start does in 1.0, Keelin walking off and the scene ending. The other five talkers with a stage (Edur in I08 and four more, listed in the scripts doc) should play from their bodies as from their objects too.
