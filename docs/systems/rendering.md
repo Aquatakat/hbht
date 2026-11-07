@@ -179,6 +179,8 @@ The player chooses Godot's renderer on the Video page ([ADR 0038](../adr/0038-th
 
 Everything the runtime fades, it fades through the N64 material's own `fade` rather than Godot's per-instance transparency, which only Forward+ draws ([draw distance](#draw-distance)'s faded levels).
 
+The user played under Mobile and Compatibility (Nov 7, 2026): no flickering and nothing at the wrong depth, roads and shadows among it, and faded models, the Spirit Wolf and objects at their draw distance, fading as under Forward+.
+
 How each is measured and how fast it ran is in [runtime](runtime.md#measuring-it).
 
 ## What's left
