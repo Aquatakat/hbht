@@ -8,13 +8,8 @@ namespace HBHT.Rom.Tests;
 /// <summary>The music as trek hands over to a cut-scene's stage, on NA 1.0's data.</summary>
 public sealed partial class GameSessionTests
 {
-    /// <summary>A tick, and the audio's, as the runtime steps it every tick.</summary>
-    private static SessionStep TickHeard(GameSession session, GameAudio audio)
-    {
-        var step = Tick(session);
-        audio.Step();
-        return step;
-    }
+    /// <summary>A tick, which steps the audio too, as the runtime's does (<see cref="GameSession.Tick"/>).</summary>
+    private static SessionStep TickHeard(GameSession session, GameAudio audio) => Tick(session);
 
     [Fact]
     public void AStagesMusicTakesOverOnceItHasFadedInSoTheDreamWorldStopsTheWizardsSchools()

@@ -33,13 +33,22 @@ public sealed class SpellFxTests
         return (new SpellFx(clock, Magic), a, b);
     }
 
-    private static void Tick(SpellFx fx, int ticks, ISpellFxHost? host = null, params Combatant[] bodies)
+    /// <summary>
+    /// Ticks the visuals, each actor's played by <paramref name="host"/>'s motion and emitters, or with none, as one with no animations
+    /// (the hand-written plugins have no assets), which ends at once.
+    /// </summary>
+    private static void Tick(SpellFx fx, int ticks, Host? host = null, params Combatant[] bodies)
     {
         for (var i = 0; i < ticks; i++)
         {
             foreach (var c in bodies)
                 c.Tint.Step();
-            fx.Tick(host);
+            if (host is not null)
+            {
+                foreach (var v in fx.Visuals.Where(v => v.IsActor && v.Motion is null))
+                    (v.Motion, v.EmittingInTest) = (host.Motion, () => host.Emitting);
+            }
+            fx.Tick();
         }
     }
 
@@ -117,7 +126,7 @@ public sealed class SpellFxTests
     }
 
     [Fact]
-    public void HeadlessActorsEndAtOnceAndTheLastingSceneStays()
+    public void ActorsWithNoAnimationsEndAtOnceAndTheLastingSceneStays()
     {
         var (fx, a, b) = Battle();
         fx.Start(a, b, Shown(MagicData.Endurance), SpellVisualKind.Cast);
@@ -139,7 +148,7 @@ public sealed class SpellFxTests
         var alphas = new List<byte>();
         for (var i = 0; i < 600; i++)
         {
-            fx.Tick(null);
+            fx.Tick();
             alphas.Add(aura.Showing ? aura.Alpha : (byte)0);
         }
 
@@ -164,7 +173,7 @@ public sealed class SpellFxTests
         var order = new List<Combatant>();
         for (var i = 0; i < 1200; i++)
         {
-            fx.Tick(null);
+            fx.Tick();
             Assert.True(auras.Count(v => v.Showing && v.Alpha > 0) <= 1);
             if (auras.FirstOrDefault(v => v.Showing && v.Alpha > 0) is { } shown && order.LastOrDefault() != shown.Owner)
                 order.Add(shown.Owner);
@@ -188,7 +197,7 @@ public sealed class SpellFxTests
         var aOrder = new List<SpellFxVisual>();
         for (var i = 0; i < 1200; i++)
         {
-            fx.Tick(null);
+            fx.Tick();
             var showing = auras.Where(v => v.Showing && v.Alpha > 0).ToList();
             Assert.True(showing.Count(v => v.Owner == a) <= 1);
             if (showing.Select(v => v.Owner).Distinct().Count() == 2)
@@ -362,17 +371,14 @@ public sealed class SpellFxTests
         Assert.Equal((0f, 0f), (tint.Level, tint.Rate));
     }
 
-    private sealed class Host(int length) : ISpellFxHost
+    /// <summary>An actor's animation of a set length, and whether its emitters run on.</summary>
+    private sealed class Host(int length)
     {
         public Motion Motion { get; } = new(length);
 
         public List<int> Requests => Motion.Requests;
 
         public bool Emitting { get; set; } = true;
-
-        IActorMotion? ISpellFxHost.Motion(SpellFxVisual visual) => Motion;
-
-        bool ISpellFxHost.Emitting(SpellFxVisual visual) => Emitting;
     }
 
     private sealed class Motion(int length) : IActorMotion

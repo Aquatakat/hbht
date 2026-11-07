@@ -107,10 +107,28 @@ public sealed partial class Combatant
     public int HandLocator { get; private set; }
 
     /// <summary>
-    /// Where its actor's locator n is in the world, as the runtime last drew it (<c>SceneGetLocatorPos</c>, <c>0x8009ECD0</c>), or
-    /// null if it has none; the runtime sets it as it makes the body's view. Null in a battle with no runtime.
+    /// Its actor's animations, which the battle steps its body by and the views pose its scene where they stand, or null for a body the
+    /// views draw still (<see cref="Actors.ActorMotion.AsDrawn"/>). The battle makes it as the combatant comes onto the field: the core
+    /// owns it, so a battle plays the same with a view or without (ADR 0040).
     /// </summary>
-    public Func<int, Vector3?>? LocatorAt { get; set; }
+    public Actors.ActorMotion? Actor { get; internal set; }
+
+    /// <summary>What its body steps by: its <see cref="Actor"/>, or standing still with none.</summary>
+    public Actors.IActorMotion Motion => (Actors.IActorMotion?)Actor ?? Actors.IActorMotion.Still;
+
+    /// <summary>
+    /// Where its actor's locator <paramref name="locator"/> is in the world (<c>SceneGetLocatorPos</c>, <c>0x8009ECD0</c>), as the views
+    /// draw the body: its actor's scene posed where its motion stands, scaled by the body's scale, turned to its heading and stood at its
+    /// feet. Null if it has no actor or the actor has no such locator.
+    /// </summary>
+    public Matrix4x4? LocatorAt(int locator) =>
+        Actor?.Locator(locator) is { } local ? local * BodyTransform : null;
+
+    /// <summary>Its body's place in the world as the views draw it: its scale, the turn to its heading, at its feet.</summary>
+    public Matrix4x4 BodyTransform =>
+        Matrix4x4.CreateScale(Body.Scale)
+        * Matrix4x4.CreateRotationY(MathF.Atan2(Body.Heading.X, Body.Heading.Y))
+        * Matrix4x4.CreateTranslation(Body.Sphere.Position - new Vector3(0, Body.Sphere.Radius, 0));
 
     /// <summary>The notes over the body's head as it performs (<c>Combatant.StartTroubadour</c>), or taken off (<c>StopPerforming</c>).</summary>
     internal void HoldNotes(bool held) =>
@@ -143,6 +161,12 @@ public sealed partial class Combatant
     /// <c>Combat.Bodies</c>): dead, once its fall has played, or fled. The combatant stays in its slot until a reserve takes it.
     /// </summary>
     public bool Freed { get; internal set; }
+
+    /// <summary>
+    /// Whether its body is still drawn: from coming onto the field (<see cref="CombatantJoined"/>) until a freed body's fade is over
+    /// (<see cref="CombatantGone"/>). A spell's visual's emitters attached to its locators run while it is.
+    /// </summary>
+    public bool OnField { get; internal set; }
 
     /// <summary>
     /// The target mark's pulse on its body (<c>CombatTargetMarks.Draw</c>, <c>0x80089830</c>), 0–1, while it's selected in the

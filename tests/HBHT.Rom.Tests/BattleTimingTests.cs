@@ -18,7 +18,6 @@ public sealed class BattleTimingTests(Na10Import fixture)
 
     private sealed class Run
     {
-        private readonly Dictionary<Combatant, IActorMotion?> _motions = [];
         private readonly PluginSet _set;
         private readonly CombatCheckpoints.Built _built;
         private readonly HBHT.Core.Chunks.ZoneEngine _zone;
@@ -36,8 +35,8 @@ public sealed class BattleTimingTests(Na10Import fixture)
 
         public Battle Battle => _built.Battle;
 
-        public IActorMotion? Motion(Combatant c) => _motions.TryGetValue(c, out var m) ? m
-            : _motions[c] = ActorMotion.For(_set, _set.Get<ActorRecord>(c.Look.Actor), _built.Game.Random.Animation);
+        /// <summary>A combatant's actor, the core's own (ADR 0040).</summary>
+        public IActorMotion? Motion(Combatant c) => c.Actor;
 
         /// <summary>A tick, the party attacking what's in reach or skipping on its turns.</summary>
         public void Tick()
@@ -49,7 +48,7 @@ public sealed class BattleTimingTests(Na10Import fixture)
                 else
                     Battle.Skip();
             }
-            Battle.Tick(_zone, false, Motion);
+            Battle.Tick(_zone, false);
         }
 
         public bool Over => Battle.Over || Battle.State is CombatState.Victory or CombatState.Defeat;

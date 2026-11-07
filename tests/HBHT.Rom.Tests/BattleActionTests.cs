@@ -21,7 +21,7 @@ public sealed class BattleActionTests(Na10Import fixture)
     {
         public Battle Battle => Built.Battle;
 
-        public void Tick() => Battle.Tick(Zone, false, _ => null);
+        public void Tick() => Battle.Tick(Zone, false);
 
         /// <summary>Plays on, skipping the other members' turns, until <paramref name="name"/>'s turn, faded in.</summary>
         public Combatant TurnOf(string name)
@@ -201,13 +201,12 @@ public sealed class BattleActionTests(Na10Import fixture)
     [Fact]
     public void AFlaskLeavesTheThrowersHandForTheTargetsCentre()
     {
-        // Combat.StartCastCamera: from the hand's locator (+0x88) as the body was last drawn, to the target body's centre.
+        // Combat.StartCastCamera: from the hand's locator (+0x88) as the body is drawn, to the target body's centre. The core poses the
+        // hand itself (ADR 0040), at the throw's strike.
         var run = Start();
         var brenna = run.TurnOf("Brenna");
         run.Built.Game.Party.Inventory.Add(PotionId(BasePotion.FireFlask), 2);
         brenna.HoldPotion(run.Battle.Game.Party.Inventory.Catalog[PotionId(BasePotion.FireFlask)], run.Battle);
-        var hand = brenna.Body.Sphere.Position + new System.Numerics.Vector3(0.3f, 1.1f, 0.2f);
-        brenna.LocatorAt = i => i == brenna.HandLocator ? hand : null;
         Assert.True(run.Battle.Attack());
         Assert.True(run.Battle.Confirm());
         MissileFlight? flight = null;
@@ -224,7 +223,12 @@ public sealed class BattleActionTests(Na10Import fixture)
         }
         var target = run.Battle.Slots[run.Battle.Target]!;
         Assert.Equal(0, brenna.HandLocator);
+        var hand = brenna.LocatorAt(brenna.HandLocator)!.Value.Translation;
         Assert.Equal(hand, flight.From);
+        // Her hand, not her middle: off her body's axis and below her head.
+        var feet = brenna.Body.Sphere.Position.Y - brenna.Body.Sphere.Radius;
+        Assert.InRange(hand.Y - feet, 0.3f, brenna.Look.Height * brenna.Look.Scale);
+        Assert.True(System.Numerics.Vector2.Distance(new(hand.X, hand.Z), new(brenna.Body.Sphere.Position.X, brenna.Body.Sphere.Position.Z)) > 0.05f);
         Assert.True(System.Numerics.Vector3.Distance(target.Body.Sphere.Position, flight.From + flight.Way * flight.Length) < 1e-3f);
     }
 
@@ -314,7 +318,7 @@ public sealed class BattleActionTests(Na10Import fixture)
             for (var step = 0; step < 8 && !confirmed; step++)
             {
                 for (var i = 0; i < 6; i++)
-                    run.Battle.Tick(run.Zone, false, _ => null, () => new HBHT.Core.Trek.PlayerInput(way));
+                    run.Battle.Tick(run.Zone, false, () => new HBHT.Core.Trek.PlayerInput(way));
                 point = run.Battle.AreaAim;
                 confirmed = System.Numerics.Vector2.Distance(point, rheda.Cell) > 3
                     && !run.Battle.Grid.IsOccupied((int)point.X, (int)point.Y, rheda.Footprint) && run.Battle.Confirm();
@@ -334,19 +338,9 @@ public sealed class BattleActionTests(Na10Import fixture)
         Assert.Equal(point.Y + rheda.Body.ScaledRadius, at.Z, 3);
         Assert.True(System.Numerics.Vector2.Distance(new(start.X, start.Z), new(rheda.Body.Sphere.Position.X, rheda.Body.Sphere.Position.Z)) > 1);
         run.UntilTurnEnds(rheda);
-        Assert.Equal(new System.Numerics.Vector2(at.X, at.Z), new System.Numerics.Vector2(rheda.Body.Sphere.Position.X, rheda.Body.Sphere.Position.Z)
-            - new System.Numerics.Vector2(run.Battle.Origin.X, run.Battle.Origin.Z));
-    }
-
-    /// <summary>The spells' visuals with their actors' real animations, which a spell's strike is a share of.</summary>
-    private sealed class FxHost(PluginSet set) : ISpellFxHost
-    {
-        private readonly Dictionary<SpellFxVisual, HBHT.Core.Actors.IActorMotion?> _motions = [];
-
-        public HBHT.Core.Actors.IActorMotion? Motion(SpellFxVisual visual) => _motions.TryGetValue(visual, out var m) ? m
-            : _motions[visual] = HBHT.Core.Actors.ActorMotion.For(set, set.Get<ActorRecord>(visual.Id), new HBHT.Core.Rng.Lcg(1));
-
-        public bool Emitting(SpellFxVisual visual) => false;
+        // She stays there, but for what her cast's animation's root carries her, as any body's does.
+        Assert.True(System.Numerics.Vector2.Distance(new System.Numerics.Vector2(at.X, at.Z), new System.Numerics.Vector2(rheda.Body.Sphere.Position.X,
+            rheda.Body.Sphere.Position.Z) - new System.Numerics.Vector2(run.Battle.Origin.X, run.Battle.Origin.Z)) < 1);
     }
 
     [Theory]
@@ -370,11 +364,8 @@ public sealed class BattleActionTests(Na10Import fixture)
             run.Battle.StepTarget(1);
         Assert.True(run.Battle.Confirm());
 
-        var motions = new Dictionary<Combatant, HBHT.Core.Actors.IActorMotion?>();
-        HBHT.Core.Actors.IActorMotion? Motion(Combatant c) => motions.TryGetValue(c, out var m) ? m
-            : motions[c] = HBHT.Core.Actors.ActorMotion.For(Set, Set.Get<ActorRecord>(c.Look.Actor), run.Built.Game.Random.Animation);
-        var fx = new FxHost(Set);
-        void Tick() => run.Battle.Tick(run.Zone, false, Motion, fx: fx);
+        // The core's own actors: the combatants' and the visuals' (ADR 0040).
+        void Tick() => run.Battle.Tick(run.Zone, false);
         for (var i = 0; i < 2000 && run.Battle.State != CombatState.Action; i++)
             Tick();
 
@@ -384,12 +375,12 @@ public sealed class BattleActionTests(Na10Import fixture)
         {
             Tick();
             ticks++;
-            if (rheda.Body.Playing == Battle.CastRequest && Motion(rheda) is { } casting)
+            if (rheda.Body.Playing == Battle.CastRequest && rheda.Actor is { } casting)
                 cast = casting.StateLength;
             if (started < 0 && run.Battle.Fx.Visuals.FirstOrDefault(v => v.Owner == rheda && v.IsActor) is { } visual)
             {
                 started = ticks;
-                effect = fx.Motion(visual)!.StateLength;
+                effect = visual.Actor!.StateLength;
             }
         }
         Assert.InRange(cast, 200, 300);
@@ -429,7 +420,7 @@ public sealed class BattleActionTests(Na10Import fixture)
         for (var i = 0; i < 30 && !taken; i++)
         {
             for (var t = 0; t < 6; t++)
-                run.Battle.Tick(run.Zone, false, _ => null, () => new HBHT.Core.Trek.PlayerInput(new System.Numerics.Vector2(0, 1)));
+                run.Battle.Tick(run.Zone, false, () => new HBHT.Core.Trek.PlayerInput(new System.Numerics.Vector2(0, 1)));
             taken = !run.Battle.TeleportLands(rheda, run.Battle.AreaAim);
         }
         Assert.True(taken);
@@ -513,7 +504,7 @@ public sealed class BattleActionTests(Na10Import fixture)
 
         // A second of the stick pushed: the centre moves, but never past the reach from her body.
         for (var i = 0; i < 120; i++)
-            run.Battle.Tick(run.Zone, false, _ => null, () => new HBHT.Core.Trek.PlayerInput(new System.Numerics.Vector2(0, 1)));
+            run.Battle.Tick(run.Zone, false, () => new HBHT.Core.Trek.PlayerInput(new System.Numerics.Vector2(0, 1)));
         var body = sholeh.Body.Sphere.Position - run.Battle.Origin;
         var off = run.Battle.AreaAim - new System.Numerics.Vector2(body.X, body.Z);
         Assert.True(off.Length() > 0.5f);

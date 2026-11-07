@@ -43,14 +43,27 @@ public abstract partial class BodyView : Node3D
     /// </summary>
     /// <param name="shadow">The shadow texture, or null for a body with no shadow.</param>
     /// <param name="builder">What builds its actor's scene off the main thread; with none, it's built at once.</param>
-    protected BodyView(string name, Body body, EntityBody look, PluginSet plugins, Models models, Texture2D? shadow, ChunkBuilder? builder = null)
+    /// <param name="owned">
+    /// The actor's motion as the core owns and steps it, a combatant's (ADR 0040), which the view only poses its scene by
+    /// (<see cref="ActorAnimator.Follow"/>); none for a body whose view makes its motion.
+    /// </param>
+    protected BodyView(string name, Body body, EntityBody look, PluginSet plugins, Models models, Texture2D? shadow, ChunkBuilder? builder = null,
+        ActorMotion? owned = null)
     {
         Body = body;
         Name = name;
         _models = models;
         if (plugins.TryGet<ActorRecord>(look.Actor) is { } actor)
         {
-            if (builder is not null && models.Glb(actor.Scene) is { } glb)
+            if (owned is not null)
+            {
+                if (models.InstantiateActor(actor, motion: owned) is var (ownedNode, follower))
+                {
+                    Attach(ownedNode, follower);
+                    _follower = follower;
+                }
+            }
+            else if (builder is not null && models.Glb(actor.Scene) is { } glb)
                 Build(actor, glb, models, builder);
             else if (models.InstantiateActor(actor, rolls: models.BodyRolls) is var (node, animator))
             {
@@ -78,6 +91,9 @@ public abstract partial class BodyView : Node3D
 
     /// <summary>Its animations, which the core ticks as the body steps.</summary>
     public IActorMotion Motion { get; private set; } = IActorMotion.Still;
+
+    /// <summary>The animator that poses its scene by a motion the core owns, which <see cref="Sync"/> follows; none otherwise.</summary>
+    private readonly ActorAnimator? _follower;
 
     /// <summary>Draws its actor's scene once it's been built off the main thread, if it has. Once a frame.</summary>
     public void TakeBuilt()
@@ -223,6 +239,7 @@ public abstract partial class BodyView : Node3D
             : (last + feet) / 2;
         _last = feet;
         Position = drawn.ToGodot();
+        _follower?.Follow();
         if (_turn is not null)
             _turn.Rotation = new Vector3(0, Mathf.Atan2(Body.Heading.X, Body.Heading.Y), 0);
     }

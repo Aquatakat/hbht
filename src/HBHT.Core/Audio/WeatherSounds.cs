@@ -14,7 +14,7 @@ namespace HBHT.Core.Audio;
 /// with the sound volume as its gain, as the containers' sounds do; the port's one-shots take it once
 /// (<see cref="GameAudio.Play(OneShot)"/>).
 /// </remarks>
-public sealed class WeatherSounds(GameAudio audio, SoundsRecord sounds)
+public sealed class WeatherSounds(ISoundOutput audio, SoundsRecord sounds)
 {
     /// <summary>Each thunder sound's lifetime in ticks, by its place in <see cref="SoundsRecord.Thunder"/> (literals in <c>RenderSky</c>).</summary>
     public static readonly int[] ThunderTicks = [240, 360, 420, 360];

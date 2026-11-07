@@ -20,7 +20,7 @@ public sealed class BattlePressTests(Na10Import fixture)
     {
         public Battle Battle => Built.Battle;
 
-        public void Tick() => Battle.Tick(Zone, false, _ => null);
+        public void Tick() => Battle.Tick(Zone, false);
 
         /// <summary>Plays on, skipping the members' turns that <paramref name="take"/> doesn't want, until one it does, faded in.</summary>
         public Combatant Turn(Func<Combatant, bool> take)

@@ -613,7 +613,6 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         {
             for (var i = 0; i < ticks; i++)
             {
-                audio.Step();
                 if (session.StreamsTrek)
                     session.Trek.Chunks.Update(session.Trek.Player.Sphere.Position);
                 Tick(session);

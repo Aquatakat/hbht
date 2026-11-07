@@ -528,9 +528,6 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
     {
         var fight = built.Battle;
         var zone = Zone(built);
-        var motions = new Dictionary<Combatant, HBHT.Core.Actors.IActorMotion?>();
-        HBHT.Core.Actors.IActorMotion? Motion(Combatant m) => motions.TryGetValue(m, out var found) ? found
-            : motions[m] = HBHT.Core.Actors.ActorMotion.For(Set, Set.Get<ActorRecord>(m.Look.Actor), built.Game.Random.Animation);
         List<string>? checkedThen = null;
         // The turn, not the combatant: one with two turns in a row (Haste, or the order's grouping) begins its second at once.
         var turn = fight.Order.Now;
@@ -546,7 +543,7 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
         var states = new List<(CombatState State, int Ticks)>();
         for (var i = 0; i < 20000 && !Ended() && !fight.Over; i++)
         {
-            fight.Tick(zone, false, Motion);
+            fight.Tick(zone, false);
             // Sense Aura's popup waits for a press, which ends the turn; the player's came before the next turn's RAM.
             if (fight.Aura is not null)
                 fight.DismissAura();

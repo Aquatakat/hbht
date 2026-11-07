@@ -37,7 +37,7 @@ public sealed partial class Battle
     private readonly int[] _spellCursors = [-1, -1, -1, -1], _itemCursors = [-1, -1, -1, -1];
 
     /// <summary>The spells' and potions' visuals (<c>combatspellvisuals.cpp</c>), which the runtime draws.</summary>
-    public SpellFx Fx => _fx ??= new SpellFx(Game?.Clock, Game?.Rules.Magic.Record) { Cue = Cue };
+    public SpellFx Fx => _fx ??= new SpellFx(Game?.Clock, Game?.Rules.Magic.Record, Game?.Plugins) { Cue = Cue };
 
     private SpellFx? _fx;
 

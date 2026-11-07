@@ -8,10 +8,20 @@ namespace HBHT.Core.Audio;
 /// <see cref="MapSounds"/>, which plays through this.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Everything here takes a lock, so <see cref="Render"/> can be called from an audio thread while the game steps the
 /// rest.
+/// </para>
+/// <para>
+/// Whether a sequence plays on (<see cref="IsPlaying"/>) is kept here by the game's ticks (<see cref="Step"/>, which the session runs
+/// each tick), not read from the mixer, which runs ahead of the game on the audio thread by however much it buffers: a sequence that
+/// doesn't loop plays for as long as the sequencer reads it (<see cref="AudioEngine.StopsAfter"/>), and one with a duration until it's
+/// past, a millisecond a sixtieth of a tick. So what the game does on a sound's end, as a map sound reading its flags' gate
+/// (<see cref="KeptSound.Update"/>), comes on the same tick with the audio thread or without (ADR 0040). A sequence the sequencer had
+/// no player free for is kept here all the same, unheard.
+/// </para>
 /// </remarks>
-public sealed class GameAudio
+public sealed class GameAudio : ISoundOutput
 {
     /// <summary>One-shots playing at once (<c>Audio.Init</c>).</summary>
     public const int MaxSounds = 16;
@@ -21,6 +31,27 @@ public sealed class GameAudio
     private RecordId? _musicPlaying;
     private SoundHandle _music;
     private int _musicAhead;
+
+    /// <summary>The sequences started through <see cref="Start"/> that the game holds as playing, with when each ends.</summary>
+    private readonly Dictionary<SoundHandle, Heard> _heard = [];
+
+    /// <summary>Each sequence's length played once, in the sequencer's milliseconds, worked out once.</summary>
+    private readonly Dictionary<Sequence, int> _lengths = [];
+
+    /// <summary>Ticks stepped (<see cref="Step"/>), the game's clock for <see cref="IsPlaying"/>.</summary>
+    private long _ticks;
+
+    /// <summary>The handles given out for sequences the sequencer had no player for, counted down from −1.</summary>
+    private int _unheard;
+
+    /// <summary>A sequence the game holds as playing: when, on the game's clock in milliseconds, it plays out, and when its duration ends.</summary>
+    private sealed class Heard
+    {
+        public double Out = double.PositiveInfinity, Cut = double.PositiveInfinity;
+    }
+
+    /// <summary>The game's clock, in the sequencer's milliseconds: 1000/60 a tick.</summary>
+    private double Now => _ticks * 1000.0 / 60;
 
     public GameAudio(SoundBank bank, int rate = AudioEngine.OriginalRate)
     {
@@ -106,14 +137,38 @@ public sealed class GameAudio
     public SoundHandle Start(RecordId sequence, byte volume, byte pan, bool loop, int durationMs = -1)
     {
         lock (_sync)
-            return Bank.Get(sequence) is { } s ? Engine.Play(s, volume, pan, loop, durationMs) : default;
+        {
+            if (Bank.Get(sequence) is not { } s)
+                return default;
+            var handle = Engine.Play(s, volume, pan, loop, durationMs);
+            if (handle.IsNone)
+                handle = new SoundHandle(-1, --_unheard);
+            if (!_lengths.TryGetValue(s, out var length))
+                _lengths[s] = length = AudioEngine.StopsAfter(s);
+            var heard = _heard[handle] = new Heard();
+            if (!loop)
+                heard.Out = Now + length;
+            Cut(heard, durationMs);
+            return handle;
+        }
     }
 
+    /// <inheritdoc/>
     public bool IsPlaying(SoundHandle handle)
     {
         lock (_sync)
-            return Engine.IsPlaying(handle);
+        {
+            if (!_heard.TryGetValue(handle, out var heard))
+                return false;
+            if (Now < Math.Min(heard.Out, heard.Cut))
+                return true;
+            _heard.Remove(handle);
+            return false;
+        }
     }
+
+    /// <summary>The sequencer stops a sequence once its duration has passed, on the step after (<c>Dcm.Step</c>).</summary>
+    private void Cut(Heard heard, int ms) => heard.Cut = ms < 0 ? double.PositiveInfinity : Now + ms + 1;
 
     public void Set(SoundHandle handle, byte volume, byte pan)
     {
@@ -127,13 +182,20 @@ public sealed class GameAudio
     public void SetDuration(SoundHandle handle, int ms)
     {
         lock (_sync)
+        {
             Engine.SetDuration(handle, ms);
+            if (_heard.TryGetValue(handle, out var heard))
+                Cut(heard, ms);
+        }
     }
 
     public void Stop(SoundHandle handle)
     {
         lock (_sync)
+        {
             Engine.Stop(handle);
+            _heard.Remove(handle);
+        }
     }
 
     /// <summary>The byte a sequence plays at for a loudness from 0 to 1, as the original truncates it.</summary>
@@ -148,6 +210,7 @@ public sealed class GameAudio
     {
         lock (_sync)
         {
+            _ticks++;
             StepMusic();
             for (var i = 0; i < MaxSounds; i++)
             {
@@ -162,6 +225,7 @@ public sealed class GameAudio
                 if (--sound.Lifetime <= 0)
                 {
                     Engine.Stop(sound.Handle);
+                    _heard.Remove(sound.Handle);
                     _sounds[i] = null;
                 }
             }
@@ -205,6 +269,7 @@ public sealed class GameAudio
         lock (_sync)
         {
             Engine.StopAll();
+            _heard.Clear();
             Array.Clear(_sounds);
             _musicPlaying = null;
             _music = default;

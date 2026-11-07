@@ -136,7 +136,7 @@ public sealed class AiCheckpointTests(Na10Import fixture, ITestOutputHelper outp
         var states = new List<CombatState>();
         for (var i = 0; i < 600 && battle.State != CombatState.Action; i++)
         {
-            battle.Tick(zone, false, _ => null);
+            battle.Tick(zone, false);
             if (states.Count == 0 || states[^1] != battle.State)
                 states.Add(battle.State);
         }
@@ -190,7 +190,7 @@ public sealed class AiCheckpointTests(Na10Import fixture, ITestOutputHelper outp
         rat.Body.ClearPath();
         var active = battle.ActiveCounts;
         for (var i = 0; i < 10 && battle.State != CombatState.Rest; i++)
-            battle.Tick(Zone(built), false, _ => null);
+            battle.Tick(Zone(built), false);
         Assert.Equal(CombatState.Rest, battle.State);
         Assert.True(rat.Gone);
         Assert.True(rat.Freed);
@@ -225,10 +225,7 @@ public sealed class AiCheckpointTests(Na10Import fixture, ITestOutputHelper outp
         var built = CombatCheckpoints.Plain(Set, 2);
         var battle = built.Battle;
         var zone = Zone(built);
-        // The bodies move by their animations' roots, as the runtime's do.
-        var motions = new Dictionary<Combatant, HBHT.Core.Actors.IActorMotion?>();
-        HBHT.Core.Actors.IActorMotion? Motion(Combatant c) => motions.TryGetValue(c, out var m) ? m
-            : motions[c] = HBHT.Core.Actors.ActorMotion.For(Set, Set.Get<ActorRecord>(c.Look.Actor), built.Game.Random.Animation);
+        // The bodies move by their animations' roots, the core's own (ADR 0040).
         var (walks, bites, rests, flights, turns) = (0, 0, 0, 0, 0);
         var last = battle.State;
         Combatant? turn = null;
@@ -241,7 +238,7 @@ public sealed class AiCheckpointTests(Na10Import fixture, ITestOutputHelper outp
                 else
                     battle.Skip();
             }
-            battle.Tick(zone, false, Motion);
+            battle.Tick(zone, false);
             if (battle.Current != turn)
                 (turn, turns) = (battle.Current, turns + 1);
             if (battle.State != last && battle.Current is { Controlled: true } c)

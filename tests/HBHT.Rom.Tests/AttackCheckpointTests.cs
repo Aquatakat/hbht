@@ -405,7 +405,7 @@ public sealed class AttackCheckpointTests(Na10Import fixture, ITestOutputHelper 
         var landed = false;
         for (var i = 0; i < 600 && battle.Current == alaron; i++)
         {
-            battle.Tick(zone, false, _ => null);
+            battle.Tick(zone, false);
             if (ticks.Count == 0 || ticks[^1].State != battle.State)
                 ticks.Add((battle.State, 0));
             ticks[^1] = (battle.State, ticks[^1].Ticks + 1);
@@ -465,7 +465,7 @@ public sealed class AttackCheckpointTests(Na10Import fixture, ITestOutputHelper 
         for (var i = 0; i < 600 && battle.State != CombatState.Victory; i++)
         {
             Assert.False(battle.Over);
-            battle.Tick(zone, false, _ => null);
+            battle.Tick(zone, false);
         }
         Assert.Equal(CombatState.Victory, battle.State);
         Assert.Equal(battle.CombatText(Battle.Victorious), battle.Lines.Shown);
@@ -477,7 +477,7 @@ public sealed class AttackCheckpointTests(Na10Import fixture, ITestOutputHelper 
 
         // Once it has faded out, it leaves for the post-battle windows, won.
         for (var i = 0; i < 600 && !battle.Over; i++)
-            battle.Tick(zone, false, _ => null);
+            battle.Tick(zone, false);
         Assert.True(battle.Over);
         Assert.Equal(BattleOutcome.Won, battle.Outcome);
         Assert.Equal(1000, battle.Spoils!.Experience);

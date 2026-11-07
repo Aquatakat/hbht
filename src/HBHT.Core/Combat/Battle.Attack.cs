@@ -646,11 +646,11 @@ public sealed partial class Battle
     }
 
     /// <summary>
-    /// Where a missile leaves from: the hand's locator as the runtime last drew it (<c>SceneGetLocatorPos</c> of <c>+0x88</c>), at the
-    /// throw's or shot's strike. The original flies nothing from an actor without the locator (the hit still lands); the port flies it
-    /// from the body's middle, as it does with no runtime.
+    /// Where a missile leaves from: the hand's locator (<c>SceneGetLocatorPos</c> of <c>+0x88</c>), at the throw's or shot's strike, as the
+    /// core poses the actor's scene (<see cref="Combatant.LocatorAt"/>), which is where the views draw it. The original flies nothing from
+    /// an actor without the locator (the hit still lands); the port flies it from the body's middle.
     /// </summary>
-    private static Vector3 Hand(Combatant c) => c.LocatorAt?.Invoke(c.HandLocator) ?? Middle(c);
+    internal static Vector3 Hand(Combatant c) => c.LocatorAt(c.HandLocator)?.Translation ?? Middle(c);
 
     /// <summary>The middle of a body: its feet and half its entity's height.</summary>
     private static Vector3 Middle(Combatant c) =>

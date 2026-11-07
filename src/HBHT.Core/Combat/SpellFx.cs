@@ -1,4 +1,5 @@
 using System.Numerics;
+using HBHT.Core.Particles;
 using HBHT.Core.Actors;
 using HBHT.Core.Calendar;
 using HBHT.Core.Magic;
@@ -25,19 +26,6 @@ public enum SpellFxRole
     Aura,
     /// <summary>A potion's lasting scene over its drinker's head (role 6).</summary>
     PotionAura,
-}
-
-/// <summary>
-/// The engine's host for the visuals' actors: each one's animation, which the visuals tick, and whether its emitters still have
-/// particles in flight. Headless, there are none, and an actor's visual ends at once.
-/// </summary>
-public interface ISpellFxHost
-{
-    /// <summary>The visual's actor, or null if it has none to play.</summary>
-    IActorMotion? Motion(SpellFxVisual visual);
-
-    /// <summary>Whether the visual's actor's emitters have particles alive (<c>Particles.SceneHasEmitters</c>).</summary>
-    bool Emitting(SpellFxVisual visual);
 }
 
 /// <summary>
@@ -101,6 +89,31 @@ public sealed class SpellFxVisual
 
     /// <summary>Whether it has played to its <see cref="Strike"/>, or has no animation to play to it.</summary>
     internal bool Struck;
+
+    /// <summary>
+    /// An actor's animations, which the core steps through its cast and the views pose its scene where they stand, or null for one the
+    /// views draw still or can't draw (<see cref="ActorMotion.AsDrawn"/>), rolling on a stream of its own from 0 as the views' did. Made
+    /// as it starts, before its start is cued.
+    /// </summary>
+    public ActorMotion? Actor
+    {
+        get => _actor;
+        internal set => (_actor, Motion) = (value, value);
+    }
+
+    private ActorMotion? _actor;
+
+    /// <summary>What its cast steps: its <see cref="Actor"/>, or a test's.</summary>
+    internal IActorMotion? Motion;
+
+    /// <summary>
+    /// Its actor's emitters on the core's own particle head, which say how long its particles last without a view
+    /// (<see cref="SpellFx.Emitting"/>), or null for an actor with none.
+    /// </summary>
+    internal Particles.ActorParticles? Emitters;
+
+    /// <summary>A test's answer to whether its emitters run on, in place of <see cref="Emitters"/>'.</summary>
+    internal Func<bool>? EmittingInTest;
 }
 
 /// <summary>
@@ -207,12 +220,22 @@ public sealed class SpellFx
     private AuraTurns _turns;
     private bool _skyDimmed;
 
+    /// <summary>
+    /// The core's own particle head, where each actor's emitters run as the views' do, to say how long its particles last
+    /// (<see cref="Emitting"/>): a frame every <see cref="Cadence.FrameTicks"/> ticks, as the runtime's head, with a pool of its own.
+    /// </summary>
+    private readonly ParticleHead _emitters = new(new Rng.Lcg(0));
+
+    private readonly PluginSet? _plugins;
+
     /// <param name="clock">The game's clock, whose shown time Darkness and Light move; none in a test.</param>
     /// <param name="magic">The magic record, with the refused and resisted casts' actors.</param>
-    internal SpellFx(GameClock? clock, MagicRecord? magic)
+    /// <param name="plugins">What the visuals' actors and emitters are read from; none in a test, where every actor's visual ends at once.</param>
+    internal SpellFx(GameClock? clock, MagicRecord? magic, PluginSet? plugins = null)
     {
         _clock = clock;
         _magic = magic;
+        _plugins = plugins;
     }
 
     /// <summary>Where each visual's start and end are cued (the battle's host).</summary>
@@ -322,13 +345,61 @@ public sealed class SpellFx
         return cast;
     }
 
-    /// <summary>A cast's visuals, cued once each knows the bodies of its cast.</summary>
+    /// <summary>
+    /// A cast's visuals, cued once each knows the bodies of its cast: an actor's animations made first, in its initial state, and its
+    /// emitters for that request started, as making it does (<c>Actor.Create</c>, <c>0x800960e0</c>).
+    /// </summary>
     private void Started(SpellFxCast cast)
     {
         foreach (var handle in (ReadOnlySpan<int>)[cast.First, cast.Second, cast.Lasting])
         {
-            if (handle >= 0 && _visuals[handle] is { } visual)
-                Cue?.Invoke(new SpellVisualStarted(visual));
+            if (handle < 0 || _visuals[handle] is not { } visual)
+                continue;
+            if (visual.IsActor && _plugins?.TryGet<ActorRecord>(visual.Id) is { } actor
+                && ActorMotion.AsDrawn(_plugins, actor, new Rng.Lcg(0)) is { } motion)
+            {
+                visual.Actor = motion;
+                if (_plugins.TryGet<EmittersRecord>(RecordId.Hex(RecordTypes.Emitters, Convert.ToInt32(actor.Scene.Key, 16))) is { } emitters)
+                {
+                    visual.Emitters = new ActorParticles(_emitters, emitters, new VisualAnchor(visual));
+                    visual.Emitters.Entered(motion.Request);
+                }
+            }
+            Cue?.Invoke(new SpellVisualStarted(visual));
+        }
+    }
+
+    /// <summary>
+    /// Whether an actor's emitters still have particles alive (<c>Particles.SceneHasEmitters</c>), on the core's own head: a visual
+    /// waits for them to go before it's finished.
+    /// </summary>
+    internal bool Emitting(SpellFxVisual v) => v.EmittingInTest?.Invoke() ?? (v.Emitters is { } e && _emitters.HasEmitters(e.Anchor));
+
+    /// <summary>
+    /// A visual's locators as the views draw them (<c>CombatSpellFx.AttachScenes</c>): its own actor's at its place, unturned and unscaled;
+    /// with bit 7 its owner's body's, and bit 8 the other's of its cast, while that body is on the field.
+    /// </summary>
+    private sealed class VisualAnchor(SpellFxVisual visual) : IParticleAnchor
+    {
+        public bool Alive => visual.Live;
+
+        public bool TryLocator(ParticleLocator locator, out Matrix4x4 world)
+        {
+            world = default;
+            if (locator.Index is < 0 or >= Plugins.Assets.SceneSkeleton.Locators)
+                return false;
+            if (locator.Scene is 1 or 2)
+            {
+                var body = locator.Scene == 1 ? visual.Owner : visual.Other;
+                if (!body.OnField || body.LocatorAt(locator.Index) is not { } at)
+                    return false;
+                world = at;
+                return true;
+            }
+            if (locator.Scene != 0 || visual.Actor?.Locator(locator.Index) is not { } local)
+                return false;
+            world = local * Matrix4x4.CreateTranslation(visual.Position);
+            return true;
         }
     }
 
@@ -570,20 +641,22 @@ public sealed class SpellFx
     /// <c>0x8008BCA0</c>), the glows (<c>StepGlow</c>, <c>0x8008B6AC</c>), then the sky's timer, the cast's window and what's
     /// finished (<c>Housekeeping</c>, <c>0x8008AF1C</c>). <paramref name="fade"/> is the screen's brightness.
     /// </summary>
-    public void Tick(ISpellFxHost? host)
+    public void Tick()
     {
         for (var h = 0; h < MaxVisuals; h++)
         {
             if (_visuals[h] is { Live: true } v)
-                StepVisual(v, host);
+                StepVisual(v);
         }
         StepGlows();
         Housekeep();
         Sky.Step();
         _clock?.StepShownOffset();
+        // The runtime steps its own head after the core's tick, as this does.
+        _emitters.Step();
     }
 
-    private void StepVisual(SpellFxVisual v, ISpellFxHost? host)
+    private void StepVisual(SpellFxVisual v)
     {
         var owner = PlayerOf(v);
         if (owner is { Cleared: false })
@@ -591,17 +664,22 @@ public sealed class SpellFx
         if (v.IsActor)
         {
             v.RequestPending = false;
-            var motion = host?.Motion(v);
-            // Its cast (request 5) from the first tick, stepped until the state's animation has run its length.
+            var motion = v.Motion;
+            // Its cast (request 5) from the first tick, stepped until the state's animation has run its length; each state it enters
+            // starts its emitters for the request (ActorStateMachine.Tick).
             if (motion is not null && motion.Frame < motion.StateLength)
+            {
                 motion.Tick(Battle.CastRequest);
+                if (motion.Entered)
+                    v.Emitters?.Entered(Battle.CastRequest);
+            }
             if (v.Strike is { } strike && (motion is null || motion.Frame >= (int)(motion.StateLength * strike)))
                 v.Struck = true;
             if (motion is null || motion.Frame >= motion.StateLength)
             {
                 v.Struck = true;
                 v.Played = true;
-                if (host?.Emitting(v) != true)
+                if (!Emitting(v))
                     v.Finished = true;
             }
             return;
@@ -731,6 +809,7 @@ public sealed class SpellFx
                 p.Pending--;
         }
         v.Live = false;
+        v.Emitters?.Stop();
         _visuals[handle] = null;
         _visualPool.Give(handle);
         Cue?.Invoke(new SpellVisualEnded(v));
@@ -756,6 +835,7 @@ public sealed class SpellFx
         _clock?.ClearShownOffset();
         Array.Clear(_casts);
         Array.Clear(_visuals);
+        _emitters.Clear();
         Array.Clear(_bodies);
         _auraCount = 0;
     }

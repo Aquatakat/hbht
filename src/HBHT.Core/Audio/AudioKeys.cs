@@ -38,8 +38,14 @@ public sealed class BodyAudio
 /// after a body's animation has stepped, the key that its request and frame reach plays, heard within 30 of what the
 /// camera looks at (docs/systems/audio.md).
 /// </summary>
-public sealed class AudioKeys(GameAudio audio, SoundsRecord sounds, IRandom random)
+public sealed class AudioKeys(ISoundOutput audio, SoundsRecord sounds, IRandom random)
 {
+    /// <summary>
+    /// What the bodies' sounds play through: the game's audio, or something that takes them in its place, as a battle's recording will
+    /// (ADR 0040). Every call a body's key makes goes through it, and none reads back how far the mixer has got.
+    /// </summary>
+    public ISoundOutput Output { get; set; } = audio;
+
     /// <summary>
     /// How far from what the camera looks at a body is heard: the port's one fall to nothing, the user's fix of the
     /// original's two (<c>Audio.VolumeAndPan</c>'s 15, which wraps loud again to 30; <see cref="VolumeAndPan"/>).
@@ -179,9 +185,9 @@ public sealed class AudioKeys(GameAudio audio, SoundsRecord sounds, IRandom rand
     private void Play(BodyAudio body, IReadOnlyList<RecordId> choices, byte volume, byte pan)
     {
         var sequence = choices[(int)random.Below((uint)choices.Count)];
-        var scaled = (byte)(int)(volume * audio.SoundVolume);
+        var scaled = (byte)(int)(volume * Output.SoundVolume);
         body.Slot ^= 1;
-        audio.Stop(body.Slots[body.Slot]);
-        body.Slots[body.Slot] = scaled == 0 ? default : audio.Start(sequence, scaled, pan, loop: false);
+        Output.Stop(body.Slots[body.Slot]);
+        body.Slots[body.Slot] = scaled == 0 ? default : Output.Start(sequence, scaled, pan, loop: false);
     }
 }

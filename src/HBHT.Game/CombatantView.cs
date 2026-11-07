@@ -11,13 +11,13 @@ namespace HBHT.Game;
 /// <summary>
 /// Draws a combatant's body in the arena (<c>renderPlayers</c> over <c>Combat.Bodies</c>): its entity's actor at its scale,
 /// standing at its feet and facing its heading, faded by its distance from the camera's aim, with its shadow and what it holds. The core
-/// steps its animations as the body moves. Party members are lit as the party is (<c>+0x70a</c>), by the arena's light map
-/// objects too, which the arenas have none of.
+/// owns and steps its animations as the body moves (<see cref="Combatant.Actor"/>), and the view poses its scene where they stand. Party
+/// members are lit as the party is (<c>+0x70a</c>), by the arena's light map objects too, which the arenas have none of.
 /// </summary>
 public partial class CombatantView : BodyView
 {
     public CombatantView(Combatant combatant, PluginSet plugins, Models models, Texture2D? shadow)
-        : base($"Combatant {combatant.Slot}", combatant.Body, combatant.Look, plugins, models, shadow)
+        : base($"Combatant {combatant.Slot}", combatant.Body, combatant.Look, plugins, models, shadow, owned: combatant.Actor)
     {
         Combatant = combatant;
         Sync();

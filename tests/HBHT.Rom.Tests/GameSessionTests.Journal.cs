@@ -183,10 +183,9 @@ public sealed partial class GameSessionTests
 
     private static readonly short[] Mixed = new short[2 * 735];
 
-    /// <summary>A tick with its audio rendered, so the map's sounds end as they do in the runtime.</summary>
+    /// <summary>A tick with its audio rendered, as the runtime mixes it (the session steps the audio as it ticks).</summary>
     private static void Hear(GameSession session)
     {
-        session.Zone.Audio.Step();
         Tick(session);
         session.Zone.Audio.Render(Mixed);
     }

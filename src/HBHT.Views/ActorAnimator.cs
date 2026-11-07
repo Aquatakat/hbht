@@ -131,6 +131,12 @@ public sealed class ActorAnimator : IActorMotion
     }
 
     /// <summary>
+    /// Poses the scene where its motion stands, for a motion the core ticks itself, as a combatant's and a spell's visual's are
+    /// (ADR 0040): the core steps it, and the view only draws it. Call after each tick.
+    /// </summary>
+    public void Follow() => ShowSeen((Machine.Clock - 1) / 60.0);
+
+    /// <summary>
     /// Whether its scene isn't seen, as a wanderer's isn't while it's faded out: the core's motion plays on, but the scene isn't
     /// posed, a call into Godot a node, till it's seen again, when it's posed at once where the motion stands.
     /// </summary>

@@ -384,11 +384,11 @@ public sealed class GameSession
     /// <param name="readInput">The player's controls, read only when trek or a battle's turn takes them.</param>
     /// <param name="frozen">Whether only time passes in trek, as while the free camera flies.</param>
     /// <param name="actors">A cut-scene's actors' animations, or null for one that has none yet.</param>
-    /// <param name="combatants">A battle's combatants' animations, or null for one that has none.</param>
-    /// <param name="spellFx">A battle's spells' visuals' actors, or null for none (<see cref="Battle.Tick"/>).</param>
-    public SessionStep Tick(SessionSettings settings, Func<PlayerInput> readInput, bool frozen, Func<CutSceneActor, IActorMotion?> actors,
-        Func<Combatant, IActorMotion?>? combatants = null, ISpellFxHost? spellFx = null)
+    public SessionStep Tick(SessionSettings settings, Func<PlayerInput> readInput, bool frozen, Func<CutSceneActor, IActorMotion?> actors)
     {
+        // The game's audio first, its music and one-shots, and the clock what plays on is kept by (GameAudio.IsPlaying), so a session
+        // with no runtime keeps it as the runtime's does.
+        Zone.Audio.Step();
         if (settings != _settings)
         {
             _settings = settings;
@@ -410,7 +410,7 @@ public sealed class GameSession
             Sky.StepTwinkle();
             return SessionStep.MenuClosed;
         }
-        var step = Step(readInput, frozen, actors, combatants, spellFx);
+        var step = Step(readInput, frozen, actors);
         // A backdrop's page fades and pulses in every mode, after the mode's step: once it has faded out, it's gone from the next tick's mode.
         Trek.StepBackdrop();
         // The sky is drawn behind whatever holds the world, and its stars twinkle as it's drawn.
@@ -483,6 +483,12 @@ public sealed class GameSession
         }
     }
 
+    /// <summary>
+    /// Whether a battle's spells' visuals are drawn, and with them the sky's dimming as a spell is cast: all but under the runtime's
+    /// <c>--spell-fx off</c>, a baseline. Only the drawing hangs on it: the visuals play in the core either way.
+    /// </summary>
+    public bool SpellFxDrawn { get; set; } = true;
+
     /// <summary>A menu host that plays nothing and can't save: a headless session's, unless a test gives it a recording one.</summary>
     private sealed class NoMenuHost : IPauseMenuHost
     {
@@ -499,8 +505,7 @@ public sealed class GameSession
     /// The mode that runs steps (<see cref="Tick"/>), and after trek, a cut-scene or a battle, the sky (<see cref="SkyDirector.Step"/>):
     /// not while the world is held, nor on the tick trek fades out into a cut-scene or a battle.
     /// </summary>
-    private SessionStep Step(Func<PlayerInput> readInput, bool frozen, Func<CutSceneActor, IActorMotion?> actors,
-        Func<Combatant, IActorMotion?>? combatants, ISpellFxHost? spellFx)
+    private SessionStep Step(Func<PlayerInput> readInput, bool frozen, Func<CutSceneActor, IActorMotion?> actors)
     {
         switch (Mode)
         {
@@ -528,12 +533,12 @@ public sealed class GameSession
         }
         if (Battle is { } battle)
         {
-            var ran = battle.Tick(Arena!, Sky.Drawn, combatants ?? (_ => null), readInput, spellFx);
+            var ran = battle.Tick(Arena!, Sky.Drawn, readInput);
             // Combat's states 14 and 27: the pause menu, mode 3.
             if (ran is BattleStep.Paused pause && !MenuOpen)
                 Send(new Transition.PauseBattle(pause.PartyTab, pause.CanFlee));
             // A cast dims the sky for a while (CombatSpellFx.DimSky), where spells' visuals are drawn.
-            Sky.Dim = spellFx is null ? 1 : battle.Fx.Sky.Value;
+            Sky.Dim = SpellFxDrawn ? battle.Fx.Sky.Value : 1;
             Sky.Step();
             if (ran is not BattleStep.Ended ended)
                 return SessionStep.Combat;

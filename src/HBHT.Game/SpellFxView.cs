@@ -12,10 +12,11 @@ namespace HBHT.Game;
 /// puts it, unturned and unscaled, playing its cast as the core ticks it, its emitters attached to the bodies of its cast; and each
 /// lasting scene in its turn at its owner's locator 3, at its alpha. Both are lit by their own scenes' lights and tinted by the
 /// screen's fade, with their billboards turned to the camera and their textures scrolling. Each is made as the battle cues its start
-/// (<see cref="SpellVisualStarted"/>) and freed as it cues its end (<see cref="SpellVisualEnded"/>). It's also the core's host for the
-/// actors (<see cref="ISpellFxHost"/>): an actor's animation, its scene made then if the cue hasn't made it yet.
+/// (<see cref="SpellVisualStarted"/>) and freed as it cues its end (<see cref="SpellVisualEnded"/>). An actor's animations are the core's
+/// (<see cref="SpellFxVisual.Actor"/>), which its scene is posed by; its emitters' particles here are drawn, and the core works out how
+/// long they last on a head of its own (ADR 0040).
 /// </summary>
-public partial class SpellFxView : Node3D, ISpellFxHost
+public partial class SpellFxView : Node3D
 {
     private readonly PluginSet _plugins;
     private readonly Models _models;
@@ -36,13 +37,6 @@ public partial class SpellFxView : Node3D, ISpellFxHost
     public SpellFxView() : this(PluginSet.Load([]), null!, null, _ => null)
     {
     }
-
-    /// <summary>The actor's animation, its scene made the first time it's asked for, or null for a visual that isn't an actor or has none.</summary>
-    public IActorMotion? Motion(SpellFxVisual visual) => Show(visual)?.Animator;
-
-    /// <summary>Whether the actor's emitters still have particles in flight.</summary>
-    public bool Emitting(SpellFxVisual visual) =>
-        _particles is not null && _shown.TryGetValue(visual, out var shown) && shown.Anchor is { } anchor && _particles.Head.HasEmitters(anchor);
 
     /// <summary>A visual starts (<see cref="SpellVisualStarted"/>): its scene or actor is made.</summary>
     public void Started(SpellFxVisual visual) => Show(visual);
@@ -69,6 +63,7 @@ public partial class SpellFxView : Node3D, ISpellFxHost
             if (visual.IsActor)
             {
                 shown.Node.Position = visual.Position.ToGodot();
+                shown.Animator?.Follow();
             }
             else
             {
@@ -120,7 +115,7 @@ public partial class SpellFxView : Node3D, ISpellFxHost
         else
         {
             if (_plugins.TryGet<ActorRecord>(visual.Id) is not { } actor
-                || _models.InstantiateActor(actor) is not var (node, animator))
+                || _models.InstantiateActor(actor, motion: visual.Actor) is not var (node, animator))
                 return null;
             shown = new Shown(node, _models.Glb(actor.Scene)!.Extras) { Animator = animator };
             shown.Scrolling = _models.Scrolls.Attach(actor.Scene, node);

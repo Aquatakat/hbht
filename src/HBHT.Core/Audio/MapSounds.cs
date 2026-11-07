@@ -11,7 +11,7 @@ namespace HBHT.Core.Audio;
 /// facing (docs/systems/audio.md).
 /// </summary>
 /// <param name="there">Whether an object's flags let it play, checked each time it starts.</param>
-public sealed class MapSounds(GameAudio audio, IRandom random, Func<MapObject, bool> there)
+public sealed class MapSounds(ISoundOutput audio, IRandom random, Func<MapObject, bool> there)
 {
     /// <summary>The most at once (<c>Audio.Init</c>, 1.0 <c>0x8004DF08</c>): the original writes past them, the port drops the rest.</summary>
     public const int MaxSounds = 82;

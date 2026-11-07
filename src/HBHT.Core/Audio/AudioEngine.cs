@@ -214,6 +214,33 @@ public sealed class AudioEngine
         return ms;
     }
 
+    /// <summary>
+    /// How many of the sequencer's milliseconds one play of <paramref name="sequence"/> that doesn't loop lasts, as <c>Dcm.Step</c>
+    /// steps it from <see cref="Play"/>: it reads a row each time its counter comes round, and stops on the step that reads its last.
+    /// </summary>
+    public static int StopsAfter(Sequence sequence)
+    {
+        var engine = new AudioEngine();
+        var p = engine._players[0];
+        p.Sequence = sequence;
+        p.Counter = p.Reload = DefaultReload;
+        p.Position = 0;
+        for (var t = 0; t < sequence.Tracks; t++)
+            p.Tracks[t].Wait = 0;
+        for (var ms = 1; ; ms++)
+        {
+            if (p.Counter < p.Reload)
+            {
+                p.Counter++;
+                continue;
+            }
+            engine.ReadRow(p, sound: false);
+            if (p.Position >= sequence.Stream.Length)
+                return ms;
+            p.Counter = 0;
+        }
+    }
+
     private Player? Find(SoundHandle handle) =>
         handle is { IsNone: false, Player: >= 0 and < MaxPlayers } && _players[handle.Player] is { Playing: true } p && p.Stamp == handle.Stamp ? p : null;
 

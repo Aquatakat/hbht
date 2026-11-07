@@ -17,17 +17,26 @@ public sealed class ActorMotion : IActorMotion
 {
     private readonly ActorRecord _actor;
     private readonly ActorClips _clips;
+    private readonly SceneSkeleton? _skeleton;
+    private readonly int _heldRoot;
     private Vector3 _lastRoot;
     private bool _made;
     private ActorParticles? _particles;
 
+    /// <summary>The state and clock the views last posed its scene at: the last a moving animation played, as a still one leaves it be.</summary>
+    private (int State, int Clock)? _posed;
+
     /// <param name="rolls">The stream its branches roll on (<see cref="ActorStateMachine"/>).</param>
-    public ActorMotion(ActorRecord actor, ActorClips clips, IRandom rolls)
+    /// <param name="skeleton">Its scene's transforms, which its locators are posed by (<see cref="Locator"/>); none for no locators.</param>
+    public ActorMotion(ActorRecord actor, ActorClips clips, IRandom rolls, SceneSkeleton? skeleton = null)
     {
         _actor = actor;
         _clips = clips;
+        _skeleton = skeleton;
+        _heldRoot = skeleton?.Find(SceneNames.Transform(actor.RootTransform)) ?? -1;
         Machine = new ActorStateMachine(actor, Length, rolls);
         _lastRoot = Root;
+        Posed();
     }
 
     /// <summary>
@@ -36,6 +45,16 @@ public sealed class ActorMotion : IActorMotion
     /// </summary>
     public static ActorMotion? For(PluginSet plugins, ActorRecord actor, IRandom rolls) =>
         ActorClips.For(plugins, actor.Scene, actor.RootTransform) is { Animated: true } clips ? new ActorMotion(actor, clips, rolls) : null;
+
+    /// <summary>
+    /// The actor's motion as the views draw it (<c>Models.InstantiateActor</c>), with its locators: for a scene with animations, moving
+    /// or still, which the views give an animator; null for one without, or with no asset, which they draw still. The core owns it, and
+    /// the views pose its scene where it stands (ADR 0040).
+    /// </summary>
+    public static ActorMotion? AsDrawn(PluginSet plugins, ActorRecord actor, IRandom rolls) =>
+        ActorScenes.Of(plugins).Get(actor.Scene) is { Plays: true } scene
+            ? new ActorMotion(actor, scene.Clips(actor.RootTransform), rolls, scene.Skeleton)
+            : null;
 
     public ActorStateMachine Machine { get; }
 
@@ -106,6 +125,7 @@ public sealed class ActorMotion : IActorMotion
             _particles?.Entered(Machine.Request);
         }
         Entered = Machine.Tick();
+        Posed();
         if (!Entered)
             return false;
         _particles?.Entered(Machine.Request);
@@ -125,13 +145,47 @@ public sealed class ActorMotion : IActorMotion
     }
 
     /// <summary>Plays a state from its first tick, as a branch does.</summary>
-    public void Enter(int state) => Machine.Enter(state);
+    public void Enter(int state)
+    {
+        Machine.Enter(state);
+        Posed();
+    }
 
     /// <inheritdoc/>
     public void Restart() => Enter(_actor.InitialState);
 
     /// <summary>Enters the state a request leads to partway through, at <paramref name="clock"/> (<see cref="ActorStateMachine.Join"/>).</summary>
-    public void Join(int request, int clock) => Machine.Join(request, clock);
+    public void Join(int request, int clock)
+    {
+        Machine.Join(request, clock);
+        Posed();
+    }
+
+    /// <summary>
+    /// Where its locator <paramref name="locator"/> is in its scene's space, as the views pose the scene where the motion stands
+    /// (<c>SceneGetLocatorPos</c>, <c>0x8009ECD0</c>, before the body's place, turn and scale): a matrix whose translation is the
+    /// locator's place. Null if its scene has no such locator, or no transforms were given.
+    /// </summary>
+    public Matrix4x4? Locator(int locator)
+    {
+        if (_skeleton is null)
+            return null;
+        if (_posed is not var (state, clock))
+            return _skeleton.Locator(locator, null, 0);
+        return _skeleton.Locator(locator, Borg6(state), clock - 1, _heldRoot, _clips.Pivot);
+    }
+
+    /// <summary>Whether its scene has locator <paramref name="locator"/>.</summary>
+    public bool HasLocator(int locator) => _skeleton?.HasLocator(locator) == true;
+
+    /// <summary>The views pose the scene where it stands now if its state's animation moves it; a still one leaves the last pose.</summary>
+    private void Posed()
+    {
+        if (_skeleton is not null && _skeleton.Animates(Borg6(Machine.State)))
+            _posed = (Machine.State, Machine.Clock);
+    }
+
+    private int Borg6(int state) => Convert.ToInt32(_actor.States[state].Animation.Key, 16);
 
     /// <summary>A state's length in ticks: its clip's, or 1 for an animation the scene doesn't have.</summary>
     private int Length(int state) => _clips.Clip(_actor.States[state].Animation)?.Length ?? 1;

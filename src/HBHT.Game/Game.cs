@@ -320,6 +320,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
             _shadowTexture = Png.Texture(shadowPng);
         var streamer = new ChunkStreamer(plugins, game, _world, start.Set, _visible);
         var session = _session = GameSession.Start(game, this, new ZoneEngine(game, streamer, _audio!, _particles.Head), start, _settings, this, playing: _playing, combatHost: this);
+        session.SpellFxDrawn = _spellFx;
         _ring = new SceneryRing(game, streamer);
         _builder = new ChunkBuilder();
         _chunks = new ChunkStreamerView(plugins, models, streamer, session.Trek.Wanderers, _shadowTexture, _ring, _builder);
@@ -631,7 +632,6 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     {
         if (_player is null || _camera is null || _session is not { } session)
             return;
-        _audio!.Step();
         // The HUD is trek's: not in a cut-scene. Under the pause menu and a backdrop's page it's drawn as it stands,
         // as the world is, so that it lays itself out again as the window or the menu size changes.
         _hud!.Visible = Scene is null && Battle is null && Title is null;
@@ -640,8 +640,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
             _popupView!.Step();
         var before = _player.Motion.Sphere.Position;
         var step = session.Tick(_playing, ReadInput, _camera.Flying,
-            actor => _actorViews.TryGetValue(actor, out var view) ? view.Motion : null,
-            combatant => _combatantViews.TryGetValue(combatant, out var view) ? view.Motion : null, _spellFxView);
+            actor => _actorViews.TryGetValue(actor, out var view) ? view.Motion : null);
         _backdrop!.Draw(session.Backdrop);
         switch (step)
         {

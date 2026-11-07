@@ -270,12 +270,14 @@ public sealed partial class Battle
     /// </summary>
     /// <param name="arena">The zone engine the arena is loaded in.</param>
     /// <param name="skyDrawn">Whether the arena's sky is drawn, for its weather.</param>
-    /// <param name="motion">Each combatant's animations, or null for one with none.</param>
     /// <param name="readInput">The player's controls, read only in a turn the player plays, once the screen has faded in.</param>
-    /// <param name="fx">The spells' visuals' actors (<see cref="SpellFx"/>), or null for none: headless, an actor's visual ends at once.</param>
     /// <returns>Whether it goes on, its pause menu is due, or it has ended.</returns>
-    public BattleStep Tick(ZoneEngine arena, bool skyDrawn, Func<Combatant, IActorMotion?> motion, Func<PlayerInput>? readInput = null,
-        ISpellFxHost? fx = null)
+    /// <remarks>
+    /// It asks the views nothing (ADR 0040): the combatants' and the spells' visuals' actors are the core's (<see cref="Combatant.Actor"/>,
+    /// <see cref="SpellFxVisual.Actor"/>), a missile leaves the hand's locator as the core poses it, and the visuals' emitters run as
+    /// long as the core works out. So a battle plays tick for tick the same with the runtime drawing it or without.
+    /// </remarks>
+    public BattleStep Tick(ZoneEngine arena, bool skyDrawn, Func<PlayerInput>? readInput = null)
     {
         // Combat.HoldForMessage: while "Enemy reinforcements flee" holds the battle, its controls and states wait.
         var held = Lines.StepHold();
@@ -320,8 +322,7 @@ public sealed partial class Battle
                 continue;
             }
             combatant.Audio.Weapon = combatant.Sheet.Equipment.Weapon?.Item is { Record.Model: not null, Weapon: { } weapon } ? weapon.Sounds : null;
-            var own = motion(combatant);
-            var animation = own is { } m ? keys.Sounding(m, combatant.Audio, combatant.Sounds, combatant.Body.Sphere) : IActorMotion.Still;
+            var animation = keys.Sounding(combatant.Motion, combatant.Audio, combatant.Sounds, combatant.Body.Sphere);
             // A body that has fallen holds its last frame; one a web or hold keeps doesn't step its idle (Body.IsHeld, 0x80012754).
             var still = combatant.Fallen || combatant.PoseHeld && combatant.Body.Request == 0 && combatant.Audio.Request == 0;
             // ProcessPlayers reads the frame before the actor steps for an attack's strike.
@@ -331,7 +332,7 @@ public sealed partial class Battle
             HBHT.Core.Movement.Crowd.Push(crowd, i, start);
             AfterBodies(combatant, animation, strikes);
             if (_cast is { Started: false } waiting && waiting.Caster == combatant)
-                StepCastStart(waiting, own is null ? null : animation);
+                StepCastStart(waiting, animation);
         }
         CombatCamera.Step(this);
         arena.StepSounds(Camera.Aim);
@@ -344,7 +345,7 @@ public sealed partial class Battle
         // ProcessPlayers moves each body's tint on, after the marks, before the spells' visuals.
         foreach (var c in Combatants)
             c.Tint.Step();
-        Fx.Tick(fx);
+        Fx.Tick();
         Numbers.Tick();
         Fade.Step();
         Gui.Tick(this);
@@ -368,7 +369,10 @@ public sealed partial class Battle
         foreach (var c in _fading)
         {
             if (--c.Fading == 0)
+            {
+                c.OnField = false;
                 Cue(new CombatantGone(c, c.Gone));
+            }
         }
         _fading.RemoveAll(c => c.Fading == 0);
         _crowd.Clear();

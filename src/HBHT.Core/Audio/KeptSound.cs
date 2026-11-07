@@ -31,7 +31,7 @@ public abstract class KeptSound(RecordId sequence, float volume, bool loop)
     /// <param name="audio">What it plays through.</param>
     /// <param name="level">The sound or music volume it scales by (<see cref="GameAudio.SoundVolume"/>).</param>
     /// <param name="there">Whether its flags let it play, read on every update while it isn't playing.</param>
-    public void Update(GameAudio audio, float level, Func<bool>? there = null)
+    public void Update(ISoundOutput audio, float level, Func<bool>? there = null)
     {
         var volumeByte = AudioLevels.Volume(Fade, volume, level);
         var pan = AudioLevels.PanByte(Pan);
