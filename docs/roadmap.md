@@ -24,9 +24,14 @@ This is the one list of what's open. A task's status is in its phase's table bel
 - **Content still in code:** the [hardcoded content](hardcoded-content.md) log, planned in [Phase 5](#phase-5-mod-system-and-tools). Among it, a mod's own skills, stats and weapon skills load and validate, but the core holds the original's 24 skill slots and 7 stats, so a mod's isn't played (ADR 0032).
 - **2.10:** what else could move onto triggers, each with its event ([events](systems/events.md#what-else-could-move-onto-triggers)): the camp scenes (`camp.started`), the Shadow's cinematic and the Goblin Ambush's end (`battle.ended` with its outcome), and a conversation's end as `script.ended`. The editor has no view of the triggers of its own, and the quest atlas doesn't show what they read and set.
 
-### Maybe
+### Planned
 
-- **Faster battles,** a setting, after combat's parity fixes: the next combatant starts moving while the last action plays, once nothing it touches is still in that action, as Ogre Battle 64 does. The rules and their random numbers stay as they are, since an attack's outcome is rolled when it's chosen; only what's drawn overlaps. The camera can pick shots that hold both, scoring angles by raycast.
+- **Combat Turns: Start Early,** a setting that starts the next combatant while the last action is still being drawn ([ADR 0040](adr/0040-start-early-draws-battles-from-a-recording.md), proposed). The core plays the AI's turns ahead in Original's order, and only the drawing overlaps. In stages, each with its tests:
+  1. **The battle asks the view nothing that changes its ticks.** The core owns the combatants' actor motions, works out where the hand's locator is (`Battle.Hand`, now the view's `LocatorAt`), and decides when a spell visual strikes and how long its emitters run (now `ISpellFxHost`). Sounds go through a seam. Headless battles then play as the live game does.
+  2. **Draw from a recording.** The battle records what's drawn tick by tick, and the views read only that. The Combat Turns row goes on the Enhancements page. Start Early runs ahead and plays back in order, with nothing overlapping. A test steps one battle from a checkpoint both ways and finds the same cues on the same ticks, the same log, health and places, and the same random streams.
+  3. **Overlap the AI's turns.** Each turn's recording is an action, with the bodies it touches and the paths it sweeps. An action starts drawing as soon as it shares neither with one still drawing. An idle body waits between its actions. HP, the log and the radar are drawn from the recording, and a battle's ending waits for the drawing.
+  4. **Open the player's turns early.** A player's turn opens once its combatant is free in the drawing. Whatever it touches that's still drawing fast-forwards first. A in a walk only fast-forwards.
+  5. **The camera,** last: shots that hold overlapping actions.
 
 ## Phases
 
