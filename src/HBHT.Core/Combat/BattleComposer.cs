@@ -15,7 +15,7 @@ namespace HBHT.Core.Combat;
 /// <b>Scheduling.</b> Actions start in the battle's order, never before the action before, each as soon as its ticks are settled (its turn
 /// over, and <see cref="BattleActions.TailCap"/> ticks after it recorded, or the battle waiting on the player): on the earliest drawn tick
 /// where every body it involves has finished its earlier episodes before its own episode in it begins, and nothing it draws crosses
-/// another's path (<see cref="Fits"/>). An action not yet settled starts only once nothing else is drawing, everything put at its first
+/// another's path (<see cref="Search"/>). An action not yet settled starts only once nothing else is drawing, everything put at its first
 /// tick first.
 /// </para>
 /// <para>
@@ -159,6 +159,7 @@ public sealed class BattleComposer
     public BattleFrame FastForward(bool emitters = false)
     {
         var played = new List<Moment>();
+        _search = null;
         for (var i = _unscheduled; i < _actions.Actions.Count; i++)
             _actions.Actions[i].Start = _drawn;
         _unscheduled = _actions.Actions.Count;
@@ -175,6 +176,7 @@ public sealed class BattleComposer
         _drawn++;
         Frame = drawn;
         _log = drawn.Gui.Log;
+        _search = null;
         var last = _actions.Last;
         for (var i = _unscheduled; i < _actions.Actions.Count; i++)
             _actions.Actions[i].Start = _drawn - (last - _actions.Actions[i].First);
@@ -199,20 +201,22 @@ public sealed class BattleComposer
     // Under Start Early: scheduling
 
     /// <summary>
-    /// Gives each action whose ticks are settled the drawn tick it starts on, in the battle's order: the earliest, no earlier than the last
-    /// action's start or now, where every body it involves has finished its episodes in earlier actions before its own begins, and no
-    /// shape it draws comes nearer than the recording had it to one another action draws (<see cref="Fits"/>). An action not yet settled
-    /// (its turn still playing, or its tail still being recorded) starts only when nothing else is drawing, and everything is put at its
-    /// first tick first.
+    /// Gives each action whose ticks are settled the drawn tick it starts on, in the battle's order (<see cref="Search"/>). An action not
+    /// yet settled (its turn still playing, or its tail still being recorded) starts only when nothing else is drawing, and everything is
+    /// put at its first tick first.
     /// </summary>
     private void Schedule(List<Moment> played)
     {
+        var budget = System.Diagnostics.Stopwatch.StartNew();
         while (_unscheduled < _actions.Actions.Count)
         {
             var b = _actions.Actions[_unscheduled];
             if (Settled(b))
             {
-                b.Start = Search(b);
+                // The search takes at most a share of a tick; one not done goes on next tick, from the starts not yet passed.
+                if (Search(b, budget) is not { } start)
+                    return;
+                b.Start = start;
             }
             else if (!Busy(b))
             {
@@ -226,6 +230,9 @@ public sealed class BattleComposer
             _unscheduled++;
         }
     }
+
+    /// <summary>How long a drawn tick may spend searching for actions' starts.</summary>
+    public static readonly TimeSpan SearchBudget = TimeSpan.FromMilliseconds(2);
 
     /// <summary>Whether all of an action's ticks are known, and all its episodes' that could carry on past it.</summary>
     private bool Settled(DrawnAction b) =>
@@ -246,30 +253,209 @@ public sealed class BattleComposer
         return false;
     }
 
-    /// <summary>The drawn tick an action starts on: the earliest its bodies are free and its shapes fit (<see cref="Fits"/>).</summary>
-    private int Search(DrawnAction b)
+    /// <summary>A search for an action's start, which may go on over several drawn ticks.</summary>
+    private sealed class Searching(DrawnAction action, int start, int window, List<Placed>[] mine, List<Pair> pairs)
     {
-        var start = _drawn;
-        for (var i = _live; i < b.Index; i++)
-            start = Math.Max(start, _actions.Actions[i].Start!.Value);
-        // Each body's earlier episodes end, as drawn, before its episode in this one begins.
-        foreach (var e in b.Episodes)
+        public DrawnAction Action { get; } = action;
+        public int Start { get; } = start;
+        public int Window { get; } = window;
+        public List<Placed>[] Mine { get; } = mine;
+        public List<Pair> Pairs { get; } = pairs;
+
+        /// <summary>The next delay from <see cref="Start"/> to try.</summary>
+        public int Next { get; set; }
+    }
+
+    private readonly record struct Pair(Placed?[] X, Placed?[] Y, (Vector3 Min, Vector3 Max) Box, object Key);
+
+    private Searching? _search;
+
+    /// <summary>
+    /// The drawn tick an action starts on, or null if the search must go on next tick: the earliest, no earlier than the last action's start
+    /// or now, where every body it involves has finished its episodes in earlier actions before its own begins, and nothing it draws (a
+    /// body in or resting after one of its episodes, its missiles, its spells' actors) comes within reach of a shape another action, or a
+    /// body idling, draws then, nearer than both shapes' ticks recorded them. A search past <see cref="MaxSearch"/> ticks gives up, and
+    /// the action waits for every earlier one.
+    /// </summary>
+    private int? Search(DrawnAction b, System.Diagnostics.Stopwatch budget)
+    {
+        if (_search?.Action != b)
         {
-            foreach (var earlier in _actions.EpisodesOf(e.Body))
+            _search = null;
+            var start = _drawn;
+            for (var i = _live; i < b.Index; i++)
+                start = Math.Max(start, _actions.Actions[i].Start!.Value);
+            // Each body's earlier episodes end, as drawn, before its episode in this one begins.
+            foreach (var e in b.Episodes)
             {
-                if (earlier == e)
-                    break;
-                if (earlier.Action == b || earlier.Action.Start is not { } s)
-                    continue;
-                var end = s + (earlier.To - earlier.Action.First);
-                start = Math.Max(start, end + 1 - (e.From - b.First));
+                foreach (var earlier in _actions.EpisodesOf(e.Body))
+                {
+                    if (earlier == e)
+                        break;
+                    if (earlier.Action == b || earlier.Action.Start is not { } s)
+                        continue;
+                    var end = s + (earlier.To - earlier.Action.First);
+                    start = Math.Max(start, end + 1 - (e.From - b.First));
+                }
+            }
+            var window = Window(b);
+            if (start > window)
+                return start;
+            // What the others draw on each drawn tick of the window, as if this one weren't there, and what this one draws by its own ticks.
+            var n = window - start + 1;
+            var theirs = new List<Placed>[n];
+            var mine = new List<Placed>[n];
+            for (var i = 0; i < n; i++)
+            {
+                theirs[i] = Others(b, start + i);
+                mine[i] = Mine(b, i);
+            }
+            _search = new Searching(b, start, window, mine, Pairs(theirs, mine));
+        }
+        var search = _search;
+        var delays = Math.Min(search.Window - search.Start + 1, MaxSearch + 1);
+        _shapes.Clear();
+        for (var delay = Math.Max(search.Next, _drawn - search.Start); delay < delays; delay++)
+        {
+            if (Clear(search, delay))
+            {
+                _search = null;
+                return search.Start + delay;
+            }
+            if (budget.Elapsed > SearchBudget)
+            {
+                search.Next = delay + 1;
+                return null;
             }
         }
-        var window = Window(b);
-        while (start <= window && !Fits(b, start, window))
-            start++;
-        return start;
+        _search = null;
+        return Math.Max(search.Window + 1, _drawn);
     }
+
+    /// <summary>How many drawn ticks past its earliest an action's start is searched for, before it waits for every earlier one.</summary>
+    public const int MaxSearch = 1200;
+
+    /// <summary>
+    /// The pairs of shapes, one this action draws (<paramref name="mine"/>, by its ticks) and one another does (<paramref name="theirs"/>,
+    /// by drawn ticks), that could cross: their paths come near at all, and they aren't both standing where both recordings have them.
+    /// </summary>
+    private List<Pair> Pairs(List<Placed>[] theirs, List<Placed>[] mine)
+    {
+        var pairs = new List<Pair>();
+        var theirKeys = Paths(theirs);
+        foreach (var (x, xs) in Paths(mine))
+        {
+            foreach (var (y, ys) in theirKeys)
+            {
+                if (x != y && Near(xs.Box, ys.Box) && !Still(x, xs, y, ys))
+                    pairs.Add(new Pair(xs.At, ys.At, ys.Box, y));
+            }
+        }
+        return pairs;
+    }
+
+    /// <summary>
+    /// Whether the action starting <paramref name="delay"/> ticks after the search's first draws nothing through another's path: no pair's
+    /// shape it draws k ticks in crosses the other's drawn then.
+    /// </summary>
+    private bool Clear(Searching search, int delay)
+    {
+        foreach (var (xs, ys, box, y) in search.Pairs)
+        {
+            for (var k = 0; k < xs.Length && k + delay < ys.Length; k++)
+            {
+                if (xs[k] is not { } px || ys[k + delay] is not { } py || !Near(Box(px), box) || Holds(search.Mine[k], y))
+                    continue;
+                if (Crosses(px, py))
+                    return false;
+            }
+        }
+        return true;
+
+        static bool Holds(List<Placed> my, object key)
+        {
+            foreach (var x in my)
+            {
+                if (x.Key == key)
+                    return true;
+            }
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Whether two shapes that never move stand where both recordings have them: each where the other's ticks have it, so no tick of
+    /// the one can be drawn nearer the other than it was recorded.
+    /// </summary>
+    private bool Still(object x, (Placed?[] At, (Vector3 Min, Vector3 Max) Box) xs, object y, (Placed?[] At, (Vector3 Min, Vector3 Max) Box) ys)
+    {
+        if (Place(xs) is not { } px || Place(ys) is not { } py)
+            return false;
+        foreach (var p in xs.At)
+        {
+            if (p is { } at && (ShapeOf(y, at.Tick) is not { } then || !Same(then, py)))
+                return false;
+        }
+        foreach (var p in ys.At)
+        {
+            if (p is { } at && (ShapeOf(x, at.Tick) is not { } then || !Same(then, px)))
+                return false;
+        }
+        return true;
+
+        // Its one shape, if it never moves.
+        static Shape? Place((Placed?[] At, (Vector3 Min, Vector3 Max) Box) path)
+        {
+            Shape? one = null;
+            foreach (var p in path.At)
+            {
+                if (p is not { } at)
+                    continue;
+                if (one is { } o && !Same(o, at.Shape))
+                    return null;
+                one = at.Shape;
+            }
+            return one;
+        }
+    }
+
+    /// <summary>
+    /// Whether two shapes stand within <see cref="Still"/>'s tolerance of each other: under half the slack each, so two shapes that stay
+    /// within it can't be drawn nearer than recorded by the slack.
+    /// </summary>
+    private static bool Same(Shape a, Shape b) =>
+        Vector3.DistanceSquared(a.A, b.A) < StillTolerance * StillTolerance && Vector3.DistanceSquared(a.B, b.B) < StillTolerance * StillTolerance;
+
+    private const float StillTolerance = Slack / 2 - 0.001f;
+
+    private static (Vector3 Min, Vector3 Max) Box(Placed p)
+    {
+        var grow = new Vector3(p.Shape.Radius + Margin);
+        return (Vector3.Min(p.Shape.A, p.Shape.B) - grow, Vector3.Max(p.Shape.A, p.Shape.B) + grow);
+    }
+
+    /// <summary>Each key's shape at each index, and the box all of them fit in, grown by their reach.</summary>
+    private static Dictionary<object, (Placed?[] At, (Vector3 Min, Vector3 Max) Box)> Paths(List<Placed>[] lists)
+    {
+        var paths = new Dictionary<object, (Placed?[] At, (Vector3 Min, Vector3 Max) Box)>();
+        for (var i = 0; i < lists.Length; i++)
+        {
+            foreach (var p in lists[i])
+            {
+                if (!paths.TryGetValue(p.Key, out var path))
+                    path = (new Placed?[lists.Length], (new Vector3(float.MaxValue), new Vector3(float.MinValue)));
+                path.At[i] = p;
+                var grow = new Vector3(p.Shape.Radius + Margin);
+                var min = Vector3.Min(path.Box.Min, Vector3.Min(p.Shape.A, p.Shape.B) - grow);
+                var max = Vector3.Max(path.Box.Max, Vector3.Max(p.Shape.A, p.Shape.B) + grow);
+                paths[p.Key] = (path.At, (min, max));
+            }
+        }
+        return paths;
+    }
+
+    private static bool Near((Vector3 Min, Vector3 Max) a, (Vector3 Min, Vector3 Max) b) =>
+        a.Min.X <= b.Max.X && b.Min.X <= a.Max.X && a.Min.Y <= b.Max.Y && b.Min.Y <= a.Max.Y && a.Min.Z <= b.Max.Z && b.Min.Z <= a.Max.Z;
 
     /// <summary>The last drawn tick an earlier action draws on.</summary>
     private int Window(DrawnAction b)
@@ -283,60 +469,70 @@ public sealed class BattleComposer
         return end;
     }
 
-    /// <summary>
-    /// Whether <paramref name="b"/> started on drawn tick <paramref name="start"/> draws nothing through another's path: on every drawn tick
-    /// up to <paramref name="window"/>, while earlier actions draw, no shape it draws (a body in or resting after one of its episodes, its
-    /// missiles, its spells' actors) comes within reach of a shape drawn from another tick nearer than both ticks' recordings had them.
-    /// </summary>
-    private bool Fits(DrawnAction b, int start, int window)
+    /// <summary>Every shape drawn on drawn tick <paramref name="d"/> by the actions scheduled before <paramref name="b"/>, and the bodies idling.</summary>
+    private List<Placed> Others(DrawnAction b, int d)
     {
-        var mine = new List<Placed>();
-        var theirs = new List<Placed>();
-        for (var d = start; d <= window; d++)
+        var list = new List<Placed>();
+        foreach (var body in _actions.Bodies)
         {
-            mine.Clear();
-            theirs.Clear();
-            foreach (var body in _actions.Bodies)
-            {
-                if (Place(body, d, b, start) is { } placed)
-                    (placed.Mine ? mine : theirs).Add(placed);
-            }
-            if (mine.Count == 0 && !HasThings(b))
-                continue;
-            for (var i = _live; i <= b.Index; i++)
-            {
-                var a = _actions.Actions[i];
-                var s = a == b ? start : a.Start!.Value;
-                var t = a.First + (d - s);
-                if (d < s || t > _actions.Last || t < _actions.Kept)
-                    continue;
-                foreach (var (thing, ended) in a.Things)
-                {
-                    if (thing is not (MissileFlight or SpellFxVisual) || ended < t)
-                        continue;
-                    if (ShapeOf(thing, t) is { } shape)
-                        (a == b ? mine : theirs).Add(new Placed(thing, shape, t, a == b));
-                }
-            }
-            foreach (var x in mine)
-            {
-                foreach (var y in theirs)
-                {
-                    if (Crosses(x, y))
-                        return false;
-                }
-            }
+            if (Place(body, d, null, 0) is { } placed)
+                list.Add(placed);
         }
-        return true;
-
-        static bool HasThings(DrawnAction b)
+        for (var i = _live; i < b.Index; i++)
         {
-            foreach (var (thing, _) in b.Things)
+            var a = _actions.Actions[i];
+            var t = a.First + (d - a.Start!.Value);
+            if (t < a.First || t > _actions.Last || t < _actions.Kept)
+                continue;
+            AddThings(a, t, list);
+        }
+        return list;
+    }
+
+    /// <summary>
+    /// What <paramref name="b"/> draws <paramref name="k"/> ticks into it: each body in one of its episodes then, or resting after one, and
+    /// its missiles and spells' actors.
+    /// </summary>
+    private List<Placed> Mine(DrawnAction b, int k)
+    {
+        var list = new List<Placed>();
+        var t = b.First + k;
+        if (t > _actions.Last || t < _actions.Kept)
+            return list;
+        foreach (var e in b.Episodes)
+        {
+            var at = t >= e.From && t <= e.To ? t : t > e.To && LastBefore(b, e.Body, t) == e ? Math.Min(e.To + 1, _actions.Last) : -1;
+            if (at >= 0 && Centre(e.Body, at) is { } centre)
+                list.Add(new Placed(e.Body, new Shape(centre, centre, e.Body.Body.Sphere.Radius), at, true));
+        }
+        AddThings(b, t, list);
+        return list;
+
+        static Episode? LastBefore(DrawnAction b, Combatant body, int t)
+        {
+            Episode? last = null;
+            foreach (var e in b.Episodes)
             {
-                if (thing is MissileFlight or SpellFxVisual)
-                    return true;
+                if (e.Body != body)
+                    continue;
+                if (e.From <= t && t <= e.To)
+                    return null;
+                if (e.To < t && (last is null || e.To > last.To))
+                    last = e;
             }
-            return false;
+            return last;
+        }
+    }
+
+    /// <summary>An action's missiles and spells' actors living on tick <paramref name="t"/>, its timeline's.</summary>
+    private void AddThings(DrawnAction a, int t, List<Placed> list)
+    {
+        foreach (var (thing, ended) in a.Things)
+        {
+            if (thing is not (MissileFlight or SpellFxVisual) || ended < t)
+                continue;
+            if (ShapeOf(thing, t) is { } shape)
+                list.Add(new Placed(thing, shape, t, false));
         }
     }
 
@@ -345,7 +541,7 @@ public sealed class BattleComposer
     /// episode of a scheduled action then, at that action's tick; else resting where its last episode drawn by then left it, or where
     /// it's drawn now. Null if it isn't on the field.
     /// </summary>
-    private Placed? Place(Combatant body, int d, DrawnAction b, int start)
+    private Placed? Place(Combatant body, int d, DrawnAction? b, int start)
     {
         var track = _tracks.GetValueOrDefault(body);
         int? rest = null;
@@ -393,8 +589,18 @@ public sealed class BattleComposer
         return drawn < Math.Min(mine, theirs) - Slack;
     }
 
+    /// <summary>The shapes looked up in a search, by key and tick.</summary>
+    private readonly Dictionary<(object, int), Shape?> _shapes = [];
+
     /// <summary>A body's, missile's or spell's actor's shape on a tick, or null if it isn't there.</summary>
     private Shape? ShapeOf(object key, int t)
+    {
+        if (_shapes.TryGetValue((key, t), out var known))
+            return known;
+        return _shapes[(key, t)] = Look(key, t);
+    }
+
+    private Shape? Look(object key, int t)
     {
         if (t < _actions.Kept || t > _actions.Last)
             return null;
@@ -434,6 +640,8 @@ public sealed class BattleComposer
     /// <summary>The distance between two capsules' axes.</summary>
     private static float Distance(Shape p, Shape q)
     {
+        if (p.A == p.B && q.A == q.B)
+            return Vector3.Distance(p.A, q.A);
         var (a, b) = ClosestPoints(p.A, p.B, q.A, q.B);
         return Vector3.Distance(a, b);
     }

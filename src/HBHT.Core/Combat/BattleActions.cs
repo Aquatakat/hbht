@@ -23,7 +23,7 @@ namespace HBHT.Core.Combat;
 /// up to <see cref="TailCap"/> ticks past that end, so it's drawn at the pace it began at.
 /// </para>
 /// <para>
-/// What plays once (each cue, sound call and emitter start) is an <see cref="Moment"/> on a timeline: a body's, for what's about one
+/// What plays once (each cue, sound call and emitter start) is a <see cref="Moment"/> on a timeline: a body's, for what's about one
 /// body (its cues, its keys' sounds, its actor's emitters, the lasting scene over its head), or an action's, for what that action began
 /// (its numbers, missile and spells' actors, their cues and emitters) and what's about the battle (the log's lines, the pause, the end,
 /// a sound no body's keys made). A body's timeline runs with the action it's in an episode of, and on its own between them.

@@ -19,8 +19,8 @@ namespace HBHT.Core.Combat;
 /// Under Start Early, while the battle doesn't wait on the player (<see cref="Battle.WaitsOnPlayer"/>), it's stepped ahead of the drawing,
 /// as many ticks a tick as <see cref="Budget"/> allows, up to <see cref="MaxAhead"/> frames ahead. The recording is cut into actions, one
 /// a turn (<see cref="BattleActions"/>), and each starts drawing as soon as it shares no body still drawing with an earlier one and no
-/// body it draws comes within reach of one another action draws where the recording didn't have them so (<see cref="Schedule"/>). Each
-/// drawn tick is composed (<see cref="Compose"/>): every body from the action it's involved in then, or idling on its own clock; the
+/// body it draws comes within reach of one another action draws where the recording didn't have them so. Each drawn tick is composed
+/// (<see cref="BattleComposer"/>): every body from the action it's involved in then, or idling on its own clock; the
 /// numbers, missiles and spells' actors from the action that began them; the camera, the fade and the rest of the battle's own from the
 /// newest action drawing; and every one-off once, as its timeline reaches it. Once the battle waits on the player it's stepped no further
 /// till the drawing has caught up, so a turn the player plays opens, and the battle's end comes, only as the drawing reaches them. The
@@ -117,6 +117,9 @@ public sealed class BattleDrawing
     /// <summary>How many frames the battle may be ahead of the drawing.</summary>
     public int MaxAhead { get; set; } = 60 * 60 * 5;
 
+    /// <summary>The longest a drawn tick has taken to schedule and compose under Start Early, stepping the battle aside.</summary>
+    public TimeSpan SlowestCompose { get; private set; }
+
     /// <summary>Whether an action drawn now is an AI's walk (state 5), which A only fast-forwards under Start Early.</summary>
     public bool Walking => _composer.Walking;
 
@@ -151,7 +154,10 @@ public sealed class BattleDrawing
             {
                 RunAhead(arena);
             }
-            Draw(_composer.Next(), sounds: true);
+            var clock = Stopwatch.StartNew();
+            var next = _composer.Next();
+            SlowestCompose = clock.Elapsed > SlowestCompose ? clock.Elapsed : SlowestCompose;
+            Draw(next, sounds: true);
             step = Frame.Step switch
             {
                 BattleStep.Ended when !CaughtUp => BattleStep.Ran,

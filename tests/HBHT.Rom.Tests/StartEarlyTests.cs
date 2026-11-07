@@ -117,6 +117,9 @@ public sealed class StartEarlyTests(Na10Import fixture)
         public int MostAhead { get; set; }
         public bool Paused { get; set; }
 
+        /// <summary>The longest a tick of the drawing took, stepping and all, in milliseconds.</summary>
+        public double Slowest { get; set; }
+
         /// <summary>What checks the drawing under Start Early.</summary>
         public Watch? Watch { get; set; }
 
@@ -153,7 +156,9 @@ public sealed class StartEarlyTests(Na10Import fixture)
                     return run;
                 player(run);
             }
+            var clock = System.Diagnostics.Stopwatch.StartNew();
             var step = drawing.Tick(zone, skyDrawn: false, readInput: null);
+            run.Slowest = Math.Max(run.Slowest, clock.Elapsed.TotalMilliseconds);
             run.MostAhead = Math.Max(run.MostAhead, drawing.Ahead);
             run.Drawn++;
             watch?.Drew(drawing.Frame);
@@ -363,7 +368,8 @@ public sealed class StartEarlyTests(Na10Import fixture)
         TestContext.Current.TestOutputHelper?.WriteLine(
             $"{original.Recorded.Count} ticks recorded, {original.Battle.Log.Count} lines, {original.Battle.Outcome}; Start Early ran up to " +
             $"{early.MostAhead} ahead; drawn in {original.Drawn} ticks under Original and {early.Drawn} under Start Early, " +
-            $"{100.0 * (original.Drawn - early.Drawn) / original.Drawn:F1}% shorter");
+            $"{100.0 * (original.Drawn - early.Drawn) / original.Drawn:F1}% shorter; the slowest tick took {original.Slowest:F1} ms under " +
+            $"Original and {early.Slowest:F1} ms under Start Early, {early.Drawing.SlowestCompose.TotalMilliseconds:F1} ms of it composing");
         Assert.True(early.MostAhead > 0, "Start Early never ran ahead");
         Assert.Equal(0, original.MostAhead);
         var n = Math.Min(original.Recorded.Count, early.Recorded.Count);

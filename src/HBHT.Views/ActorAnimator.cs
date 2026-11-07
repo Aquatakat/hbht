@@ -206,8 +206,18 @@ public sealed class ActorAnimator : IActorMotion
         var w = (float)_blended / _blendTicks;
         foreach (var (node, from) in nodes)
         {
-            if (GodotObject.IsInstanceValid(node))
-                node.Transform = from.InterpolateWith(node.Transform, w);
+            if (!GodotObject.IsInstanceValid(node))
+                continue;
+            var to = node.Transform;
+            // A node scaled to nothing, or turned through a mirror, has no rotation to ease through: it takes its new pose at once.
+            var (a, b) = (from.Basis.Determinant(), to.Basis.Determinant());
+            if (a < 1e-6f || b < 1e-6f)
+                continue;
+            var (fromScale, toScale) = (from.Basis.Scale, to.Basis.Scale);
+            var rotation = from.Basis.Orthonormalized().GetRotationQuaternion().Slerp(to.Basis.Orthonormalized().GetRotationQuaternion(), w);
+            var mixed = new Transform3D(new Basis(rotation) * Basis.FromScale(fromScale.Lerp(toScale, w)), from.Origin.Lerp(to.Origin, w));
+            if (mixed.Basis.Determinant() is var d && float.IsFinite(d) && Mathf.Abs(d) > 1e-6f && mixed.Origin.IsFinite())
+                node.Transform = mixed;
         }
     }
 
