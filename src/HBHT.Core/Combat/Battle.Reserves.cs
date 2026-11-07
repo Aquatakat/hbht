@@ -74,6 +74,10 @@ public sealed partial class Battle
     /// stands too near (<c>0x8005D474</c>: within its radius and the newcomer's), the first free and clear of each set 0–4 in turn,
     /// its side's letters a–d first, then the other side's (<c>0x8005D5B0</c>). The cell is the point's, truncated.
     /// </summary>
+    /// <remarks>
+    /// The original tries the <c>bad</c> letters first whatever the ambush, so its ambush's reserves come in beside the party; the
+    /// port tries the enemies' own side first, the user's choice.
+    /// </remarks>
     private (Vector2 Cell, int Direction) ChooseSpawn(int footprint, int letter, EntityBody look)
     {
         var (name, point, direction) = Spawn(party: false, reserve: true, letter, 0, Game.Random.Combat);

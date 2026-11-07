@@ -18,7 +18,7 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 **M4: the prologue** is done: the user played it side by side with the emulator, what differed is fixed, and the user has played the fixes. Next, by the phases' order, is **Phase 4: content parity**.
 
-- **Combat parity (2.9):** the formula vectors and the replay are done. Left are two places the replay shows but doesn't check: a reserve's walk that 1.0 gave up near its spawn, and a reserve in an ambush whose own point is taken, which 1.0 brings in on the `bad` points (the party's side there) before the `good` ones, where the port tries the enemies' side first ([combat parity](systems/combat-parity.md#whats-left)).
+- **Combat parity (2.9):** the formula vectors and the replay are done. Left is one place the replay shows but doesn't check: a reserve's walk that 1.0 gave up near its spawn ([combat parity](systems/combat-parity.md#whats-left)).
 
 ### Left over from finished work
 

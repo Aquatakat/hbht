@@ -89,7 +89,7 @@ Setup 9's setup block, as each battle began:
 - Setup 5b's 0064, setup 8's 0016 and setup 10's 0008: 1.0's body stuck on another by the push's rounding and gave up; the port's slides on (`Crowd.Rounding`). With the slide off, each ends within 0.4 of 1.0's.
 - Setup 11's 32 Hobgoblin turns: a 2-cell caster's own footprint no longer blocks its cast.
 
-The fixes the logs found besides, which the replay doesn't list because it reads 1.0's RAM: a talk's collision byte by the cone (`TrekLoop.TalkByte`) and the animation byte as what the player was doing when last noticed (`Wanderers.NoticedAs`), both from setup 9; a 2-cell caster's footprint, setup 11; the body set-down's draws after the turn order, setup 13; corrosion off the protection byte, which wrapped to 254, setup 3; and the casts' line naming the caster, setups 7 and 7b.
+The fixes the logs found besides, which the replay doesn't list because it reads 1.0's RAM: a talk's collision byte by the cone (`TrekLoop.TalkByte`) and the animation byte as what the player was doing when last noticed (`Wanderers.NoticedAs`), both from setup 9; a 2-cell caster's footprint, setup 11; a reserve in an ambush whose own point is taken coming in on its own side's points rather than the party's, setup 1 (at the end of slot 5's turn, slot 6 at `good0d` (13, 26) for 1.0's `bad0a` (24, 39), and slot 7 at `bad0a` for `bad0b` (19, 23)); the body set-down's draws after the turn order, setup 13; corrosion off the protection byte, which wrapped to 254, setup 3; and the casts' line naming the caster, setups 7 and 7b.
 
 ## The formula vectors
 
@@ -178,5 +178,4 @@ A family is one Python module and one C# test class, which touch nothing of the 
 
 - **Positions shown but not checked:**
   - A reserve's walk with no action ends 4.6 from the original's (the second trial's slot 5): 1.0's body moved 0.26 from its spawn at (17, 43) and gave up after 12 frames, while the port's runs its leg toward (23, 49).
-  - Reserves that join at a round's end can take other spawn points than the original's, on the same draws, in an ambush. In setup 1 (an ambush), at the end of slot 5's turn, slot 6's reserve stands at `good0d` (13, 26) for the original's `bad0a` (24, 39), and slot 7's at `bad0a` for `bad0b` (19, 23). Their own points were taken, and 1.0's fallback tries each set's `bad` points before its `good` ones whatever the ambush, where the port's tries the enemies' own side first ([combat](combat.md#a-turn)).
 - **Not in a log**, by the user's choice: the Shadow's and the Goblin Ambush's battles, which the user played in 1.0 and the port and found alike, their outcomes being the code's rules rather than the draws' ([combat](combat.md#the-special-battles)); the Antidote drunk in battle (its cure is Remove Poison's, which passed); a spell's level rising from 0, which the pak can't hold; and setup 14, Sense Aura at level 9, whose popup was compared by eye.
