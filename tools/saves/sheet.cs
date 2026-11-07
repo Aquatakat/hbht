@@ -2,6 +2,7 @@
 #:property PublishAot=false
 using System.Globalization;
 using HBHT.Core;
+using HBHT.Core.Magic;
 using HBHT.Core.Calendar;
 using HBHT.Core.Characters;
 using HBHT.Plugins;
@@ -53,9 +54,7 @@ SpellRecord Spell(string name) =>
 {
     if (name.Contains(':'))
         return (RecordId.Parse(name), name);
-    var found = plugins.All<WeaponRecord>(RecordTypes.Weapon).Select(w => (w.Id, w.Name))
-        .Concat(plugins.All<ArmorRecord>(RecordTypes.Armor).Select(a => (a.Id, a.Name)))
-        .Concat(plugins.All<ItemRecord>(RecordTypes.Item).Select(i => (i.Id, i.Name)))
+    var found = plugins.All<ItemRecord>(RecordTypes.Item).Select(i => (i.Id, i.Name))
         .Where(i => i.Name.Equals(name, StringComparison.OrdinalIgnoreCase)).ToList();
     return found.Count switch
     {
@@ -114,7 +113,7 @@ for (var i = 2; i < args.Length; i++)
             break;
         case "--skills":
             var levels = SkillSlots.ToArray(Member().Skills, Member().WeaponSkills, Member().ShieldSkill);
-            var learnable = SkillSlots.ToArray(Entity(Member()).Skills, Entity(Member()).WeaponSkills, Entity(Member()).ShieldSkill);
+            var learnable = SkillSlots.ToArray(Entity(Member()).CharacterSheet);
             foreach (var (key, value) in Pairs(args[++i]))
             {
                 var k = Skill(key);
@@ -137,10 +136,11 @@ for (var i = 2; i < args.Length; i++)
             {
                 var spell = Spell(key);
                 // SaveParty::LoadSpellsFromSchool and LoadAlaron: unschooled, the school's (Star for Chaos), and Alaron's three.
-                var keeps = spell.School == MagicSchool.None || spell.School == (entity.School == MagicSchool.Chaos ? MagicSchool.Star : entity.School)
-                    || alaron && spell.School is MagicSchool.Elemental or MagicSchool.Naming or MagicSchool.Necromancy;
+                var school = entity.CharacterSheet.School;
+                var keeps = spell.School == Schools.Unschooled || spell.School == (school == Schools.Chaos ? Schools.Star : school)
+                    || alaron && (spell.School == Schools.Elemental || spell.School == Schools.Naming || spell.School == Schools.Necromancy);
                 if (!keeps)
-                    throw new ArgumentException($"{entity.Name} ({entity.School}) can't keep {spell.Name} ({spell.School}): the original's load drops it.");
+                    throw new ArgumentException($"{entity.Name} ({school}) can't keep {spell.Name} ({spell.School}): the original's load drops it.");
                 if (value is < 1 or > SpellMost)
                     throw new ArgumentException($"{spell.Name} {value}: the pak holds 1 to {SpellMost}.");
                 book.RemoveAll(k => k.Spell == spell.Id);
