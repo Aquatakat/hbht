@@ -63,6 +63,9 @@ public sealed class Settings
         }
     }
 
+    /// <summary>Godot's renderer, from the next time the game starts.</summary>
+    public Renderer Renderer { get; set; }
+
     /// <summary>Multisample anti-aliasing's samples: 0 (off), 2, 4 or 8.</summary>
     public int Antialiasing { get; set; }
 

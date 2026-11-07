@@ -9,6 +9,7 @@ run/main_scene="res://Main.tscn"
 config/version="0"
 config/features=PackedStringArray("4.7", "C#", "Forward Plus")
 config/icon="res://icon.png"
+config/project_settings_override="user://renderer.cfg"
 
 [dotnet]
 

@@ -31,9 +31,14 @@ internal static class OnScreenOutput
             """,
     };
 
-    /// <summary>Sets <paramref name="environment"/> to show on-screen values as they are.</summary>
+    /// <summary>
+    /// Sets <paramref name="environment"/> to show on-screen values as they are. Compatibility shows the 3D image as it is already,
+    /// with no encoding to undo, so there it leaves the environment be.
+    /// </summary>
     public static void Apply(Godot.Environment environment)
     {
+        if (Renderers.Compatibility)
+            return;
         var image = Image.CreateEmpty(Entries, 1, false, Image.Format.Rgbf);
         for (var i = 0; i < Entries; i++)
         {
@@ -44,6 +49,12 @@ internal static class OnScreenOutput
         environment.AdjustmentEnabled = true;
         environment.AdjustmentColorCorrection = ImageTexture.CreateFromImage(image);
     }
+
+    /// <summary>
+    /// Whether a canvas the environment shows behind the scene needs <see cref="BackgroundEncoder"/>: not under Compatibility, which
+    /// takes the canvas into the 3D image as it drew it.
+    /// </summary>
+    public static bool BackgroundEncoded => !Renderers.Compatibility;
 
     /// <summary>
     /// A rectangle that goes over a canvas the environment shows behind the scene, last.

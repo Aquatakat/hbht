@@ -79,7 +79,7 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         var options = new OptionsMenu(new Settings(), inGame: true);
         options.Point(1);
         options.Accept();
-        Assert.Equal(["Display", "Window Size", "Render Resolution", "Frame Rate Limit", "V-Sync", "Anti-Aliasing"],
+        Assert.Equal(["Display", "Window Size", "Render Resolution", "Frame Rate Limit", "V-Sync", "Anti-Aliasing", "Renderer"],
             options.Rows.Rows.Select(r => r.Label));
         options.Back();
         options.Point(2);
@@ -126,6 +126,26 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         Assert.True(settings.Fullscreen);
         Assert.Equal(["1920x1080"], Row("Window Size").Values);
         Assert.Equal("240p", Row("Render Resolution").ValueName);
+    }
+
+    [Fact]
+    public void TheRendererRowMarksTheRenderersThatWaitForTheNextStart()
+    {
+        var settings = new Settings();
+        var options = new OptionsMenu(settings, inGame: true, ScreenInfo.Default with { Renderer = Renderer.Mobile });
+        options.Point(1);
+        options.Accept();
+        OptionRow Row() => options.Rows.Rows.Single(r => r.Label == "Renderer");
+
+        // Mobile runs: the others are marked.
+        Assert.Equal(["Forward+*", "Mobile", "Compatibility*"], Row().Values);
+        Assert.Equal("Forward+*", Row().ValueName);
+        options.Point(options.Rows.Rows.ToList().IndexOf(Row()));
+        options.Change(1);
+        Assert.Equal(Renderer.Mobile, settings.Renderer);
+        Assert.Equal("Mobile", Row().ValueName);
+        options.Change(1);
+        Assert.Equal(Renderer.Compatibility, settings.Renderer);
     }
 
     [Fact]
@@ -217,13 +237,16 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         new Settings
         {
             MusicVolume = 30, UiLines = 480, UiFilter = UiFilter.Smooth, BriskPace = true, ObjectDistance = 3, ExtendedDrawDistance = true,
-            Movement = Movement.MovementMode.Modern,
+            Movement = Movement.MovementMode.Modern, Renderer = Renderer.Compatibility,
         }.Save(path);
 
         var read = Settings.Load(path);
 
         Assert.Equal((30, 480, UiFilter.Smooth, true, 3f, true), (read.MusicVolume, read.UiLines, read.UiFilter, read.BriskPace, read.ObjectDistance, read.ExtendedDrawDistance));
         Assert.Equal(Movement.MovementMode.Modern, read.Movement);
+        Assert.Equal(Renderer.Compatibility, read.Renderer);
+        Assert.Contains("\"renderer\": \"Compatibility\"", File.ReadAllText(path));
+        Assert.Equal(Renderer.ForwardPlus, Settings.Load(Path.Combine(_saves, "none.json")).Renderer);
         Assert.Equal(100, Settings.Load(Path.Combine(_saves, "none.json")).SoundVolume);
     }
 

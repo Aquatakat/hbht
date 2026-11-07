@@ -88,7 +88,8 @@ public partial class SkyBackdropView : Control
         var layer = new CanvasLayer { Name = "Sky", Layer = Layer };
         layer.AddChild(new SkyBackdropView(sky));
         // The scene is drawn in on-screen values (OnScreenOutput), and so must the backdrop be.
-        layer.AddChild(OnScreenOutput.BackgroundEncoder());
+        if (OnScreenOutput.BackgroundEncoded)
+            layer.AddChild(OnScreenOutput.BackgroundEncoder());
         return layer;
     }
 

@@ -55,7 +55,9 @@ public sealed record OptionRow(string Label, OptionKind Kind, Func<int> Get, Act
 /// The screen the game is on, as the options open, which the Video page's sizes are listed from: the screen's size, the
 /// part of it a window can take (less the taskbar), the window's size now, and the refresh rate.
 /// </summary>
-public sealed record ScreenInfo(int Width, int Height, int UsableWidth, int UsableHeight, int WindowWidth, int WindowHeight, int RefreshRate)
+/// <param name="Renderer">The renderer the game runs with, which a change of the setting takes the place of only as it next starts.</param>
+public sealed record ScreenInfo(int Width, int Height, int UsableWidth, int UsableHeight, int WindowWidth, int WindowHeight, int RefreshRate,
+    Renderer Renderer = Renderer.ForwardPlus)
 {
     /// <summary>A 1080p screen at 60 Hz with the window at the runtime's 1280 × 960, for tests and headless runs.</summary>
     public static readonly ScreenInfo Default = new(1920, 1080, 1920, 1040, 1280, 960, 60);
@@ -306,6 +308,8 @@ public sealed partial class OptionsMenu
             Choice("V-Sync", ["On", "Off"], () => s.VSync ? 0 : 1, v => s.VSync = v == 0),
             Choice("Anti-Aliasing", ["Off", "2x", "4x", "8x"], () => Array.IndexOf(Samples, s.Antialiasing) is var i and >= 0 ? i : 0,
                 v => s.Antialiasing = Samples[v]),
+            Choice("Renderer", [.. Renderers.Select(r => RendererName(r) + (r != _screen.Renderer ? "*" : ""))],
+                () => Array.IndexOf(Renderers, s.Renderer) is var i and >= 0 ? i : 0, v => s.Renderer = Renderers[v]),
         ];
     }
 
@@ -382,6 +386,19 @@ public sealed partial class OptionsMenu
     /// pixels.
     /// </summary>
     private static readonly int[] RenderLineCounts = [240, 480];
+
+    /// <summary>
+    /// The renderers, in the order the Renderer row steps through them. A renderer other than the one running is marked with an
+    /// asterisk: choosing it takes effect as the game next starts.
+    /// </summary>
+    private static readonly Renderer[] Renderers = [Renderer.ForwardPlus, Renderer.Mobile, Renderer.Compatibility];
+
+    private static string RendererName(Renderer renderer) => renderer switch
+    {
+        Renderer.Mobile => "Mobile",
+        Renderer.Compatibility => "Compatibility",
+        _ => "Forward+",
+    };
 
     private static readonly float[] Scales = [0.5f, 0.75f, 1, 1.5f, 2];
 

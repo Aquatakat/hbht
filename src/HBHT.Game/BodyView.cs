@@ -28,7 +28,7 @@ public abstract partial class BodyView : Node3D
     private Level? _model;
     private Node3D? _turn;
     private PendingBody? _pending;
-    private readonly ShadowDecal? _shadow;
+    private readonly ShadowView? _shadow;
     private readonly Models? _models;
 
     /// <summary>What it holds in each attachment slot, the model drawn for it, and its billboards' facing nodes (body <c>+0x730</c>).</summary>
@@ -61,7 +61,7 @@ public abstract partial class BodyView : Node3D
         }
         if (shadow is not null)
         {
-            _shadow = new ShadowDecal(shadow);
+            _shadow = new ShadowView(shadow);
             AddChild(_shadow);
             _shadow.TopLevel = true;
         }
@@ -138,7 +138,7 @@ public abstract partial class BodyView : Node3D
         _turn = new Node3D { Scale = Vector3.One * Body.Scale };
         _turn.AddChild(node);
         AddChild(_turn);
-        ShadowDecal.MarkBody(node);
+        ShadowView.MarkBody(node);
         // Its emitters' particles show and fade with it (Level.Show).
         _model = new Level(node, null) { Animator = animator };
         _meshes = null;
@@ -268,7 +268,7 @@ public abstract partial class BodyView : Node3D
                 if (want is { } h && Attachment(h.Locator) is { } parent && _models!.Instantiate(h.Scene) is { } item)
                 {
                     N64Material.SetLighting(item, N64Material.Lighting.Body);
-                    ShadowDecal.MarkBody(item);
+                    ShadowView.MarkBody(item);
                     parent.AddChild(item);
                     var level = new Level(item, _models.Scrolls.Attach(h.Scene, item));
                     level.Show(_model!.Alpha);

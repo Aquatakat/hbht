@@ -61,7 +61,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     private bool _extendedDrawDistance;
     private Player? _player;
     private CameraRig? _camera;
-    private ShadowDecal? _shadow;
+    private ShadowView? _shadow;
     /// <summary>The texture of bodies' shadows (<c>BORG1_PlayerShadow</c>).</summary>
     private Texture2D? _shadowTexture;
     private SkyView? _sky;
@@ -339,7 +339,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         else if (_models!.InstantiateActor(actor, rolls: _models.BodyRolls) is var (model, animator))
         {
             _player.SetModel(model);
-            ShadowDecal.MarkBody(model);
+            ShadowView.MarkBody(model);
             if (animator is not null)
             {
                 animator.Driven = true;
@@ -349,7 +349,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
 
         if (_shadowTexture is not null)
         {
-            _shadow = new ShadowDecal(_shadowTexture);
+            _shadow = new ShadowView(_shadowTexture);
             AddChild(_shadow);
         }
     }
@@ -427,6 +427,8 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     {
         var s = _launch?.Over(_settings) ?? _settings;
         _playing = _launch?.Session(_settings) ?? SessionSettings.From(_settings);
+        // The player's, for Godot to start with next time; a run's --rendering-method goes over it.
+        Renderers.Choose(_settings.Renderer);
         ApplyWindow(s);
         DisplayServer.WindowSetVsyncMode(s.VSync ? DisplayServer.VSyncMode.Enabled : DisplayServer.VSyncMode.Disabled);
         // V-Sync holds the frames to the screen's rate already, and a limit at it as well only beats against it, losing frames.
@@ -1185,7 +1187,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         {
             var screen = DisplayServer.WindowGetCurrentScreen();
             var (size, usable, window) = (DisplayServer.ScreenGetSize(screen), DisplayServer.ScreenGetUsableRect(screen).Size, DisplayServer.WindowGetSize());
-            return new ScreenInfo(size.X, size.Y, usable.X, usable.Y, window.X, window.Y, RefreshRate(screen));
+            return new ScreenInfo(size.X, size.Y, usable.X, usable.Y, window.X, window.Y, RefreshRate(screen), Renderers.Running);
         }
     }
 

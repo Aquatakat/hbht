@@ -25,7 +25,7 @@ public partial class ParticlesView : Node3D
     /// <summary>The render priority of slot 0's particles, which puts them after every other translucent draw.</summary>
     private const int Priority = 100;
 
-    /// <summary>Bodies' visual layer (<c>ShadowDecal.BodyLayer</c>), which the shadow's decal leaves out.</summary>
+    /// <summary>Bodies' visual layer (<c>ShadowView.BodyLayer</c>), which the shadow's decal leaves out.</summary>
     private const int BodyLayer = 2;
 
     private static readonly Shader Shader = new()
