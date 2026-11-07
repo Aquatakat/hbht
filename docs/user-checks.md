@@ -10,16 +10,13 @@ A check far into the story needn't be played to: Claude writes a save at the pla
 
 Battles the user plays in 1.0 from written saves, logged with `tools/parity.ps1` and replayed into the port ([combat parity](systems/combat-parity.md)). Setups 1–14 are played, and none is waiting. If a hold (Web of Starlight, Wall of Bones, Frozen Doom) locks 1.0 up again, save a state in ares before closing it: the RAM at the lock settles its cause ([combat](systems/combat-actions.md#where-the-port-differs)).
 
-### The data format's second slice (importer 68)
-
-- **Xibid's gift** ([scripts](systems/scripts.md#ops-that-need-more-than-a-flag)): his first talk in H13 (`aidyn:script/0x03EE`) ends on a Diplomat check, which with the story saves' party (no Diplomat, best Intelligence 22) goes to Alaron's "Farewell." about 86% of the time, and otherwise to "Much thanks for your kind attention, Xibid." and Xibid's token, a Healing Potion, which the port adds without a word or a sound (35 to 36 in the save). Slot D of the pak beside 1.0's ROM, and `out/user-checks/hbht-saves/Xibid H13, Diplomat 10.json` for the runtime, give Alaron Diplomat 10, so the check always passes: talk to Xibid in 1.0, choose "I'll remember, Xibid.", and see whether anything shows as the token's given and whether the party's Healing Potions go from 35 to 36.
-
 ### The data format's third slice (importer 69)
 
-Each node now names its speaker, which the importer works out from the links into it ([scripts](systems/scripts.md#speakers)). One line is reached with different speakers in force in 1.0 and was given one by hand:
+Each node now names its speaker, which the importer works out from the links into it ([scripts](systems/scripts.md#speakers)).
 
-- **"Let's see what the old man has."** (script 1470, `aidyn:script/0x03C3`, node 37, a cut-scene at a shop, with Dougal not in the party): now Alaron's, as the camera frames him. In 1.0 its portrait is Rheda's, Brenna's or Alaron's, by who spoke before. Play it with Rheda or Brenna in the party.
-- **The cut-scenes' camera at the merge nodes** ([scripts](systems/scripts.md#speakers)): 138 textless nodes are reached with more than one speaker in force, every one holding only camera moves onto marks, so no op's actor depends on the speaker. All 262 cut-scene launches replayed tick for tick as before against the old import, but none has been watched since. Play one or two in the game or the editor, such as 1384 (`aidyn:script/0x0568`) and 1391 (`0x056F`): the camera should move as it did.
+- **The cut-scenes' camera at the merge nodes**: 138 textless nodes are reached with more than one speaker in force, every one holding only camera moves onto marks, so no op's actor depends on the speaker. All 262 cut-scene launches replayed tick for tick as before against the old import, but none has been watched since. Play one or two in the game or the editor, and the camera should move as it did. Two that have such nodes:
+  - 1384 (`aidyn:script/0x03B2`, "Take a long look..."): plays from the script object `byecastle` in Overworld M07, on leaving Gwernia once two of the three errands are done (flag 5049: 5004 set, 98 not yet).
+  - 1391 (`aidyn:script/0x03B4`, "The road is different here."): plays from `stage1391.` in Overworld H08 or the Shadow in K08, after the spirit in the forest and the throne room scene and before the party reaches C09 (flag 5050: 9 and 67 set, 100 and 194 clear).
 
 ### The data format's fourth slice (importer 70)
 
