@@ -96,22 +96,28 @@ public sealed class CombatNumber(int slot, Vector3 at, int amount, bool healing)
     public int Ticks { get; internal set; }
 
     /// <summary>Its colour, damage's (255, 255, 128) or healing's (128, 128, 255).</summary>
-    public Rgba Color => Healing ? new Rgba(128, 128, 255, Alpha) : new Rgba(255, 255, 128, Alpha);
+    public Rgba Color => ColorAt(Ticks);
+
+    /// <summary>Its colour once it has shown <paramref name="ticks"/> ticks, as a battle's recording draws it.</summary>
+    public Rgba ColorAt(int ticks) => Healing ? new Rgba(128, 128, 255, AlphaAt(ticks)) : new Rgba(255, 255, 128, AlphaAt(ticks));
 
     /// <summary>Its digits, most significant first.</summary>
     public string Digits => Amount.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>The pulse of its life: sin(t / 120 × 90°), negative for healing.</summary>
-    private float S => MathF.Sin(Ticks / (float)CombatNumbers.LifeTicks * 1.5708f) * (Healing ? -1 : 1);
+    private float S(int ticks) => MathF.Sin(ticks / (float)CombatNumbers.LifeTicks * 1.5708f) * (Healing ? -1 : 1);
 
     /// <summary>
     /// Its centre's height now, and its width and height, at <paramref name="scale"/>, its distance from the camera × 0.15 so it
     /// keeps its size on the screen (<c>0x8008A630</c>): it rises half a scale and grows by a scale across and 0.4 up, from 0.5 ×
     /// 0.2 for damage and 1.5 × 0.6 for healing.
     /// </summary>
-    public (float Y, float Width, float Height) Place(float scale)
+    public (float Y, float Width, float Height) Place(float scale) => Place(scale, Ticks);
+
+    /// <summary>Its place and size as <see cref="Place(float)"/>, once it has shown <paramref name="ticks"/> ticks.</summary>
+    public (float Y, float Width, float Height) Place(float scale, int ticks)
     {
-        var s = S;
+        var s = S(ticks);
         var (w, h) = Healing ? (1.5f, 0.6f) : (0.5f, 0.2f);
         return (At.Y + s * 0.5f * scale, w + s * scale, h + s * 0.4f * scale);
     }
@@ -120,5 +126,7 @@ public sealed class CombatNumber(int slot, Vector3 at, int amount, bool healing)
     public float Scale(Vector3 listener) => Vector3.Distance(At, listener) * 0.15f;
 
     /// <summary>Its alpha: damage's from 255 down to 0, healing's from 0 up.</summary>
-    public byte Alpha => (byte)((Healing ? 0 : 255) - (sbyte)(int)(S * 255));
+    public byte Alpha => AlphaAt(Ticks);
+
+    private byte AlphaAt(int ticks) => (byte)((Healing ? 0 : 255) - (sbyte)(int)(S(ticks) * 255));
 }

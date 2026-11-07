@@ -10,7 +10,7 @@ namespace HBHT.Game;
 /// Draws the battle screen (<see cref="CombatGui"/>) on trek's <see cref="UiScreen"/>, as trek's HUD is drawn: the log box
 /// across the foot with the current combatant's portrait and line, the radar, the portraits' frames, the portraits with
 /// their skulls, and the HP bars, in the original's order. It's drawn as it stands under the pause menu, as the original's
-/// is in the frame its menu darkens.
+/// is in the frame its menu darkens. It draws the battle's recording on the tick drawn (<see cref="BattleFrame.Gui"/>, ADR 0040).
 /// </summary>
 public partial class CombatGuiView : Control
 {
@@ -26,8 +26,8 @@ public partial class CombatGuiView : Control
         SetAnchorsPreset(LayoutPreset.FullRect);
     }
 
-    /// <summary>The battle whose screen this draws.</summary>
-    public Battle? Battle { get; set; }
+    /// <summary>What draws the battle whose screen this draws, from its recording (ADR 0040).</summary>
+    public BattleDrawing? Drawing { get; set; }
 
     /// <summary>
     /// Where the radar sits: in the screen's bottom right corner, the user's choice, which on a wide screen keeps it clear of
@@ -37,10 +37,10 @@ public partial class CombatGuiView : Control
 
     public override void _Draw()
     {
-        if (Battle is not { } battle)
+        if (Drawing?.Frame is not { } tick)
             return;
         var screen = (Vector2I)Size;
-        var drawn = battle.Gui.Draw(battle, Portrait, Radar, screen.X, screen.Y);
+        var drawn = tick.Gui.Draw(Portrait, Radar, screen.X, screen.Y);
 
         var log = drawn.Log;
         _ui.Images.DrawPanel(this, log.Panel);
@@ -57,9 +57,9 @@ public partial class CombatGuiView : Control
             _ui.Sprite(this, image);
         Fill(drawn.HpBars);
 
-        if (battle.Menu is { } menu)
+        if (tick.Menu is { } menu)
             DrawMenu(menu, screen);
-        if (battle.Aura is { } aura)
+        if (tick.Aura is { } aura)
             DrawAura(aura, screen);
     }
 

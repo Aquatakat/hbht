@@ -41,15 +41,17 @@ public partial class CombatNumbersView : Node3D
             drawn.Mesh.QueueFree();
     }
 
-    /// <summary>Draws the numbers showing, seen from a camera at <paramref name="eye"/>.</summary>
-    public void Sync(System.Numerics.Vector3 eye)
+    /// <summary>Draws the numbers showing as the battle's recording has them on the tick drawn, seen from a camera at <paramref name="eye"/>.</summary>
+    public void Sync(IEnumerable<DrawnNumber> numbers, System.Numerics.Vector3 eye)
     {
-        foreach (var (number, drawn) in _shown)
+        foreach (var (number, ticks) in numbers)
         {
-            var (y, width, height) = number.Place(number.Scale(eye));
+            if (!_shown.TryGetValue(number, out var drawn))
+                continue;
+            var (y, width, height) = number.Place(number.Scale(eye), ticks);
             drawn.Mesh.Position = new System.Numerics.Vector3(number.At.X, y, number.At.Z).ToGodot();
             ((QuadMesh)drawn.Mesh.Mesh).Size = new Vector2(Math.Max(width, 0.01f), Math.Max(height, 0.01f));
-            var c = number.Color;
+            var c = number.ColorAt(ticks);
             drawn.Material.AlbedoColor = Color.Color8(c.R, c.G, c.B, c.A);
         }
     }
@@ -104,7 +106,6 @@ public partial class MissileView : Node3D
         if (_scene is null)
             return;
         AddChild(_scene);
-        Sync();
     }
 
     /// <summary>It has landed (<see cref="MissileLanded"/>): its scene goes.</summary>
@@ -115,10 +116,10 @@ public partial class MissileView : Node3D
         _flight = null;
     }
 
-    /// <summary>Draws the flight where it is on its arc, if one is flying.</summary>
-    public void Sync()
+    /// <summary>Draws the flight where the battle's recording has it on its arc on the tick drawn, if one is flying.</summary>
+    public void Sync(DrawnMissile? drawn)
     {
-        if (_scene is null || _flight is not { } flight)
+        if (_scene is null || drawn is not { } flight || flight.Flight != _flight)
             return;
         // The rotation's rows are where the scene's axes go, Godot's basis's columns.
         var r = flight.Rotation;
@@ -160,9 +161,10 @@ public partial class AimMarkerView : Node3D
         Visible = false;
     }
 
-    public void Sync(Battle battle)
+    /// <summary>Draws the marker where the battle's recording has the aim on the tick drawn (<paramref name="frame"/>), on <paramref name="battle"/>'s arena.</summary>
+    public void Sync(BattleFrame frame, Battle battle)
     {
-        if (battle.Aim is not { } aim || _cylinder is null)
+        if (frame.Aim is not { } aim || _cylinder is null)
         {
             Visible = false;
             return;
@@ -175,7 +177,7 @@ public partial class AimMarkerView : Node3D
         Position = (at with { Y = _floor }).ToGodot();
         Scale = new Vector3(aim.Radius + 0.2f, 2.0f, aim.Radius + 0.2f);
         // PointLight.Scale(colour, ScreenFade.Alpha): each channel × the fade, truncated to a byte.
-        var on = (int)(255 * battle.Fade.Brightness) / 255f;
+        var on = (int)(255 * frame.Fade) / 255f;
         N64Material.SetSceneTint(_cylinder, aim.Spell ? new Color(on, 0, 0) : new Color(0, on, 0));
         _level!.Show(Alpha);
         Visible = true;

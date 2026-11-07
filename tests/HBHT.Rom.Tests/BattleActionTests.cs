@@ -21,7 +21,7 @@ public sealed class BattleActionTests(Na10Import fixture)
     {
         public Battle Battle => Built.Battle;
 
-        public void Tick() => Battle.Tick(Zone, false);
+        public void Tick() => Battle.Tick(Zone);
 
         /// <summary>Plays on, skipping the other members' turns, until <paramref name="name"/>'s turn, faded in.</summary>
         public Combatant TurnOf(string name)
@@ -318,7 +318,7 @@ public sealed class BattleActionTests(Na10Import fixture)
             for (var step = 0; step < 8 && !confirmed; step++)
             {
                 for (var i = 0; i < 6; i++)
-                    run.Battle.Tick(run.Zone, false, () => new HBHT.Core.Trek.PlayerInput(way));
+                    run.Battle.Tick(run.Zone, () => new HBHT.Core.Trek.PlayerInput(way));
                 point = run.Battle.AreaAim;
                 confirmed = System.Numerics.Vector2.Distance(point, rheda.Cell) > 3
                     && !run.Battle.Grid.IsOccupied((int)point.X, (int)point.Y, rheda.Footprint) && run.Battle.Confirm();
@@ -365,7 +365,7 @@ public sealed class BattleActionTests(Na10Import fixture)
         Assert.True(run.Battle.Confirm());
 
         // The core's own actors: the combatants' and the visuals' (ADR 0040).
-        void Tick() => run.Battle.Tick(run.Zone, false);
+        void Tick() => run.Battle.Tick(run.Zone);
         for (var i = 0; i < 2000 && run.Battle.State != CombatState.Action; i++)
             Tick();
 
@@ -420,7 +420,7 @@ public sealed class BattleActionTests(Na10Import fixture)
         for (var i = 0; i < 30 && !taken; i++)
         {
             for (var t = 0; t < 6; t++)
-                run.Battle.Tick(run.Zone, false, () => new HBHT.Core.Trek.PlayerInput(new System.Numerics.Vector2(0, 1)));
+                run.Battle.Tick(run.Zone, () => new HBHT.Core.Trek.PlayerInput(new System.Numerics.Vector2(0, 1)));
             taken = !run.Battle.TeleportLands(rheda, run.Battle.AreaAim);
         }
         Assert.True(taken);
@@ -504,7 +504,7 @@ public sealed class BattleActionTests(Na10Import fixture)
 
         // A second of the stick pushed: the centre moves, but never past the reach from her body.
         for (var i = 0; i < 120; i++)
-            run.Battle.Tick(run.Zone, false, () => new HBHT.Core.Trek.PlayerInput(new System.Numerics.Vector2(0, 1)));
+            run.Battle.Tick(run.Zone, () => new HBHT.Core.Trek.PlayerInput(new System.Numerics.Vector2(0, 1)));
         var body = sholeh.Body.Sphere.Position - run.Battle.Origin;
         var off = run.Battle.AreaAim - new System.Numerics.Vector2(body.X, body.Z);
         Assert.True(off.Length() > 0.5f);

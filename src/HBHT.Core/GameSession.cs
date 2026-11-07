@@ -231,6 +231,12 @@ public sealed class GameSession
     /// <summary>The battle playing, in place of trek's world (<see cref="BeginBattle"/>).</summary>
     public Battle? Battle { get; private set; }
 
+    /// <summary>
+    /// What draws the battle playing from its recording (ADR 0040): it steps the battle as Combat Turns says and holds the frame drawn now
+    /// (<see cref="BattleDrawing.Frame"/>), which the views draw, and the drawn camera.
+    /// </summary>
+    public BattleDrawing? Drawing { get; private set; }
+
     /// <summary>The battle's arena: a zone engine of its own on the Battle arenas (<see cref="ZoneEngine.Stage"/>).</summary>
     public ZoneEngine? Arena { get; private set; }
 
@@ -368,6 +374,7 @@ public sealed class GameSession
         Battle?.Movement = settings.Movement;
         Battle?.Fx.Turns = settings.SpellAuras;
         Battle?.Pace = settings.Pace;
+        Battle?.Turns = settings.CombatTurns;
     }
 
     /// <summary>
@@ -472,7 +479,7 @@ public sealed class GameSession
             case GameMode.Menu:
                 return Menu.Press(action, keyboard) ? PressOutcome.Taken : PressOutcome.Ignored;
             case GameMode.Combat:
-                return Battle!.Press(action) ? PressOutcome.Taken : PressOutcome.Ignored;
+                return Drawing!.Press(action) ? PressOutcome.Taken : PressOutcome.Ignored;
             case GameMode.CutScene:
                 return Scene!.Press(action) ? PressOutcome.Taken : PressOutcome.Ignored;
             default:
@@ -531,14 +538,15 @@ public sealed class GameSession
             Sky.Step();
             return scene.Over ? SessionStep.CutSceneOver : SessionStep.CutScene;
         }
-        if (Battle is { } battle)
+        if (Battle is not null)
         {
-            var ran = battle.Tick(Arena!, Sky.Drawn, readInput);
+            // The battle steps as Combat Turns says, and a tick of it is drawn (ADR 0040).
+            var ran = Drawing!.Tick(Arena!, Sky.Drawn, readInput);
             // Combat's states 14 and 27: the pause menu, mode 3.
             if (ran is BattleStep.Paused pause && !MenuOpen)
                 Send(new Transition.PauseBattle(pause.PartyTab, pause.CanFlee));
-            // A cast dims the sky for a while (CombatSpellFx.DimSky), where spells' visuals are drawn.
-            Sky.Dim = SpellFxDrawn ? battle.Fx.Sky.Value : 1;
+            // A cast dims the sky for a while (CombatSpellFx.DimSky), where spells' visuals are drawn, as it's drawn.
+            Sky.Dim = SpellFxDrawn ? Drawing.Frame.SkyDim : 1;
             Sky.Step();
             if (ran is not BattleStep.Ended ended)
                 return SessionStep.Combat;
@@ -856,11 +864,15 @@ public sealed class GameSession
         zone.RequestMusic(arena.Chunk);
         zone.Chunks.Update(arena.Origin + Combat.Battle.ZonePoint);
         _battleEnd = BattleOutcome.None;
-        var battle = Battle = Combat.Battle.Begin(Game, setup, arena, zone.World, _combatHost);
+        // It's drawn from its recording (ADR 0040): the battle's one-offs reach the host, and the bodies' sounds the audio, as each tick
+        // is drawn.
+        var drawing = Drawing = BattleDrawing.Begin(zone, _combatHost, host => Combat.Battle.Begin(Game, setup, arena, zone.World, host));
+        var battle = Battle = drawing.Battle;
         battle.Fx.Turns = _settings.SpellAuras;
         battle.Pace = _settings.Pace;
         battle.Movement = _settings.Movement;
-        zone.Camera = battle.Camera;
+        battle.Turns = _settings.CombatTurns;
+        zone.Camera = drawing.Camera;
         foreach (var line in battle.Problems)
             _host.Warn(line);
         Send(new Transition.StartedBattle(battle, zone));
@@ -878,6 +890,8 @@ public sealed class GameSession
     {
         var battle = Battle ?? throw new InvalidOperationException("No battle is playing.");
         Battle = null;
+        Drawing?.End();
+        Drawing = null;
         // Combat.Exit (0x80023060) frees the arena with FreeZoneEngine(0), which cuts the battle's music (Bgm.Stop(1)) whatever the
         // outcome: the post-battle windows are silent but for their own sounds, and trek's music starts over as it fades in.
         Arena!.Audio.StopMusic();

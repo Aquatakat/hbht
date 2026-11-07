@@ -136,7 +136,7 @@ public sealed class AiCheckpointTests(Na10Import fixture, ITestOutputHelper outp
         var states = new List<CombatState>();
         for (var i = 0; i < 600 && battle.State != CombatState.Action; i++)
         {
-            battle.Tick(zone, false);
+            battle.Tick(zone);
             if (states.Count == 0 || states[^1] != battle.State)
                 states.Add(battle.State);
         }
@@ -190,7 +190,7 @@ public sealed class AiCheckpointTests(Na10Import fixture, ITestOutputHelper outp
         rat.Body.ClearPath();
         var active = battle.ActiveCounts;
         for (var i = 0; i < 10 && battle.State != CombatState.Rest; i++)
-            battle.Tick(Zone(built), false);
+            battle.Tick(Zone(built));
         Assert.Equal(CombatState.Rest, battle.State);
         Assert.True(rat.Gone);
         Assert.True(rat.Freed);
@@ -238,7 +238,7 @@ public sealed class AiCheckpointTests(Na10Import fixture, ITestOutputHelper outp
                 else
                     battle.Skip();
             }
-            battle.Tick(zone, false);
+            battle.Tick(zone);
             if (battle.Current != turn)
                 (turn, turns) = (battle.Current, turns + 1);
             if (battle.State != last && battle.Current is { Controlled: true } c)

@@ -52,25 +52,39 @@ public partial class SpellFxView : Node3D
     }
 
     /// <summary>
-    /// Places every visual showing, at the screen's <paramref name="fade"/>, its billboards turned toward <paramref name="eye"/>.
+    /// Places every visual showing as the battle's recording has it on the tick drawn (<paramref name="frame"/>, ADR 0040), an actor's
+    /// emitters started first as its actor started them in that tick, at the screen's <paramref name="fade"/>, its billboards turned toward
+    /// <paramref name="eye"/>.
     /// </summary>
-    public void Sync(float fade, Vector3 eye)
+    public void Sync(BattleFrame frame, float fade, Vector3 eye)
     {
         // Scene.SetTint(F, F, F, a), F the screen's fade as a byte.
         var f = (int)(fade * 255) / 255f;
-        foreach (var (visual, shown) in _shown)
+        foreach (var drawn in frame.Visuals)
         {
+            var visual = drawn.Visual;
+            if (!_shown.TryGetValue(visual, out var shown))
+                continue;
             if (visual.IsActor)
             {
-                shown.Node.Position = visual.Position.ToGodot();
-                shown.Animator?.Follow();
+                shown.Node.Position = drawn.Position.ToGodot();
+                if (shown.Animator is { } animator)
+                {
+                    foreach (var start in frame.Emitters)
+                    {
+                        if (start.Owner == visual)
+                            animator.StartEmitters(start.Request);
+                    }
+                    animator.Follow(drawn.ActorState, drawn.ActorClock);
+                }
             }
             else
             {
                 if (_bodies(visual.Owner)?.Locator(3) is { } head)
                     shown.Head = head.ToGodot();
-                shown.Node.Position = shown.Head;
-                shown.Level!.Show(visual.Showing ? visual.Alpha : (byte)0);
+                shown.Head ??= drawn.Position.ToGodot();
+                shown.Node.Position = shown.Head.Value;
+                shown.Level!.Show(drawn.Showing ? drawn.Alpha : (byte)0);
             }
             N64Material.SetSceneTint(shown.Node, new Color(f, f, f));
             Billboards.Face(shown.Facings, eye);
@@ -110,23 +124,22 @@ public partial class SpellFxView : Node3D
                 return null;
             shown = new Shown(scene, _models.Glb(visual.Id)!.Extras) { Level = new Level(scene, null) };
             shown.Scrolling = _models.Scrolls.Attach(visual.Id, scene);
-            shown.Head = (_bodies(visual.Owner)?.Locator(3) ?? visual.Position).ToGodot();
+            shown.Head = _bodies(visual.Owner)?.Locator(3)?.ToGodot();
         }
         else
         {
             if (_plugins.TryGet<ActorRecord>(visual.Id) is not { } actor
-                || _models.InstantiateActor(actor, motion: visual.Actor) is not var (node, animator))
+                || _models.InstantiateActor(actor, motion: visual.Actor, recorded: true) is not var (node, animator))
                 return null;
             shown = new Shown(node, _models.Glb(actor.Scene)!.Extras) { Animator = animator };
             shown.Scrolling = _models.Scrolls.Attach(actor.Scene, node);
             if (animator is not null)
             {
                 animator.Driven = true;
-                // Its emitters attach to the body it sits on and the other of its cast (CombatSpellFx.AttachScenes); those for its
-                // first request, 0, start as it's made, before the core asks it for its cast.
+                // Its emitters attach to the body it sits on and the other of its cast (CombatSpellFx.AttachScenes); they're its own,
+                // which start as the recording says its actor started them, those for its first request, 0, as it's made.
                 animator.Particles = _particles?.For(actor, node, _bodies(visual.Owner)?.Anchor, _bodies(visual.Other)?.Anchor);
                 shown.Anchor = animator.Particles?.Anchor;
-                animator.Motion.Made();
             }
         }
         AddChild(shown.Node);
@@ -143,6 +156,6 @@ public partial class SpellFxView : Node3D
         public Level? Level { get; init; }
         public ScrollingScene? Scrolling { get; set; }
         public IParticleAnchor? Anchor { get; set; }
-        public Vector3 Head { get; set; }
+        public Vector3? Head { get; set; }
     }
 }

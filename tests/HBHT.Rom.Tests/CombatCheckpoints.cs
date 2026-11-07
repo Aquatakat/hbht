@@ -128,7 +128,7 @@ internal static class CombatCheckpoints
     /// block (combat.md's In and out) asks for. <paramref name="beforeBegin"/> runs on the game before <see cref="Battle.Begin"/> draws
     /// (<see cref="ParityReplayTests"/> feeds the original's draws from there). The built's RAM is the setup's.
     /// </summary>
-    public static Built FromSetup(PluginSet set, ParityLog log, string label, Action<GameState>? beforeBegin = null)
+    public static Built FromSetup(PluginSet set, ParityLog log, string label, Action<GameState>? beforeBegin = null, ICombatHost? host = null)
     {
         var ram = SetupRam(log);
         Assert.Equal(1, ram.ReadByte(SetupBlock));
@@ -151,7 +151,7 @@ internal static class CombatCheckpoints
         streamer.Update(arena.Origin + Battle.ZonePoint);
         beforeBegin?.Invoke(game);
         game.Random.Sort.Seed = ram.ReadWord(SortState);
-        return new Built(Battle.Begin(game, setup, arena, streamer.World), game, streamer, ram);
+        return new Built(Battle.Begin(game, setup, arena, streamer.World, host), game, streamer, ram);
     }
 
     /// <summary>

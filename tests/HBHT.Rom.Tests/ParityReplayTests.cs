@@ -543,7 +543,7 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
         var states = new List<(CombatState State, int Ticks)>();
         for (var i = 0; i < 20000 && !Ended() && !fight.Over; i++)
         {
-            fight.Tick(zone, false);
+            fight.Tick(zone);
             // Sense Aura's popup waits for a press, which ends the turn; the player's came before the next turn's RAM.
             if (fight.Aura is not null)
                 fight.DismissAura();

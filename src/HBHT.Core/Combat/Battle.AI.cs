@@ -524,7 +524,7 @@ public sealed partial class Battle
     /// </summary>
     public bool SkipWalk()
     {
-        if (State != CombatState.Moving || Fade.Fading || Lines.Hold is not null || Current is not { Freed: false } c)
+        if (Turns != CombatTurns.Original || State != CombatState.Moving || Fade.Fading || Lines.Hold is not null || Current is not { Freed: false } c)
             return false;
         return c.Body.SkipToEnd(World);
     }

@@ -143,14 +143,30 @@ public sealed class GameAudio : ISoundOutput
             var handle = Engine.Play(s, volume, pan, loop, durationMs);
             if (handle.IsNone)
                 handle = new SoundHandle(-1, --_unheard);
-            if (!_lengths.TryGetValue(s, out var length))
-                _lengths[s] = length = AudioEngine.StopsAfter(s);
+            var length = Length(s);
             var heard = _heard[handle] = new Heard();
             if (!loop)
                 heard.Out = Now + length;
             Cut(heard, durationMs);
             return handle;
         }
+    }
+
+    /// <summary>
+    /// How long a sequence plays once, in the sequencer's milliseconds (<see cref="AudioEngine.StopsAfter"/>), or null if there's no such
+    /// sequence, which <see cref="Start"/> plays nothing for: what a battle's recording books a sound it takes by.
+    /// </summary>
+    public int? Length(RecordId sequence)
+    {
+        lock (_sync)
+            return Bank.Get(sequence) is { } s ? Length(s) : null;
+    }
+
+    private int Length(Sequence s)
+    {
+        if (!_lengths.TryGetValue(s, out var length))
+            _lengths[s] = length = AudioEngine.StopsAfter(s);
+        return length;
     }
 
     /// <inheritdoc/>

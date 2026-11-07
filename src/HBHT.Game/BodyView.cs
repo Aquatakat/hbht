@@ -44,8 +44,9 @@ public abstract partial class BodyView : Node3D
     /// <param name="shadow">The shadow texture, or null for a body with no shadow.</param>
     /// <param name="builder">What builds its actor's scene off the main thread; with none, it's built at once.</param>
     /// <param name="owned">
-    /// The actor's motion as the core owns and steps it, a combatant's (ADR 0040), which the view only poses its scene by
-    /// (<see cref="ActorAnimator.Follow"/>); none for a body whose view makes its motion.
+    /// The actor's motion as the core owns and steps it, a combatant's (ADR 0040), which the view only poses its scene by, as a battle's
+    /// recording has it (<see cref="ActorAnimator.Follow(int, int)"/>), with emitters of its own the recording starts; none for a body
+    /// whose view makes its motion.
     /// </param>
     protected BodyView(string name, Body body, EntityBody look, PluginSet plugins, Models models, Texture2D? shadow, ChunkBuilder? builder = null,
         ActorMotion? owned = null)
@@ -57,7 +58,7 @@ public abstract partial class BodyView : Node3D
         {
             if (owned is not null)
             {
-                if (models.InstantiateActor(actor, motion: owned) is var (ownedNode, follower))
+                if (models.InstantiateActor(actor, motion: owned, recorded: true) is var (ownedNode, follower))
                 {
                     Attach(ownedNode, follower);
                     _follower = follower;
@@ -233,15 +234,36 @@ public abstract partial class BodyView : Node3D
     /// </summary>
     public virtual void Sync()
     {
-        var feet = Body.Sphere.Position - new System.Numerics.Vector3(0, Body.Sphere.Radius, 0);
-        var drawn = Body.Movement == MovementMode.Modern || _last is not { } last || System.Numerics.Vector3.DistanceSquared(last, feet) > 1
+        Place(Body.Sphere.Position - new System.Numerics.Vector3(0, Body.Sphere.Radius, 0), Body.Heading, Body.Movement);
+        _follower?.Follow();
+    }
+
+    /// <summary>
+    /// Moves the node to feet at <paramref name="feet"/>, smoothed as <see cref="Sync"/> says for <paramref name="movement"/>, and turns
+    /// the model to <paramref name="heading"/>.
+    /// </summary>
+    protected void Place(System.Numerics.Vector3 feet, System.Numerics.Vector2 heading, MovementMode movement)
+    {
+        var drawn = movement == MovementMode.Modern || _last is not { } last || System.Numerics.Vector3.DistanceSquared(last, feet) > 1
             ? feet
             : (last + feet) / 2;
         _last = feet;
         Position = drawn.ToGodot();
-        _follower?.Follow();
         if (_turn is not null)
-            _turn.Rotation = new Vector3(0, Mathf.Atan2(Body.Heading.X, Body.Heading.Y), 0);
+            _turn.Rotation = new Vector3(0, Mathf.Atan2(heading.X, heading.Y), 0);
+    }
+
+    /// <summary>
+    /// Poses the actor the core owns at a battle's recorded <paramref name="state"/> and <paramref name="clock"/>, first starting the
+    /// emitters the recording says it started for <paramref name="starts"/>' requests (ADR 0040).
+    /// </summary>
+    protected void Follow(int state, int clock, IEnumerable<int> starts)
+    {
+        if (_follower is null)
+            return;
+        foreach (var request in starts)
+            _follower.StartEmitters(request);
+        _follower.Follow(state, clock);
     }
 
     /// <summary>
@@ -249,11 +271,12 @@ public abstract partial class BodyView : Node3D
     /// default as a body that isn't one of the party's (<c>+0x70a</c>), so no light map object reaches it; combat's party members
     /// are the party's. <paramref name="tint"/> is its tint's level, which the moon's light is scaled by: 0 but in combat.
     /// </summary>
-    public void Light(WorldLights lights, ChunkStreamer chunks, bool party = false, float tint = 0)
+    /// <param name="at">Where its sphere's centre is drawn; the body's own by default.</param>
+    public void Light(WorldLights lights, ChunkStreamer chunks, bool party = false, float tint = 0, System.Numerics.Vector3? at = null)
     {
         if (_model is null)
             return;
-        var centre = Body.Sphere.Position;
+        var centre = at ?? Body.Sphere.Position;
         N64Material.SetLights(Meshes, lights.ForBody(centre, chunks.MapAt(centre), party, tint));
     }
 
@@ -366,9 +389,10 @@ public abstract partial class BodyView : Node3D
     /// <paramref name="distance"/>, capped at its own alpha, <paramref name="bodyAlpha"/> (<c>+0x70C</c>), and hiding it when
     /// <paramref name="hidden"/>. Returns that alpha, and its distance from the aim.
     /// </summary>
-    protected (byte Alpha, float FromAim) Fade(System.Numerics.Vector3 aim, bool hidden = false, float distance = BodyShadow.TrekDistance, byte bodyAlpha = 0xFF)
+    protected (byte Alpha, float FromAim) Fade(System.Numerics.Vector3 aim, bool hidden = false, float distance = BodyShadow.TrekDistance, byte bodyAlpha = 0xFF,
+        System.Numerics.Vector3? at = null)
     {
-        var fromAim = System.Numerics.Vector3.Distance(aim, Body.Sphere.Position);
+        var fromAim = System.Numerics.Vector3.Distance(aim, at ?? Body.Sphere.Position);
         var alpha = BodyShadow.BodyAlpha(distance, fromAim, bodyAlpha) ?? 0;
         var shown = hidden ? (byte)0 : alpha;
         _model?.Show(shown);
@@ -396,4 +420,7 @@ public abstract partial class BodyView : Node3D
 
     /// <summary>Places its shadow with the alpha <see cref="BodyShadow.DrawAlpha"/> gave, or hides it for none.</summary>
     protected void PlaceShadow(CollisionWorld world, byte? alpha) => _shadow?.Place(world, Body.Sphere, alpha);
+
+    /// <summary>Places its shadow under a sphere drawn at <paramref name="centre"/>, with the alpha <see cref="BodyShadow.DrawAlpha"/> gave, or hides it.</summary>
+    protected void PlaceShadow(CollisionWorld world, System.Numerics.Vector3 centre, byte? alpha) => _shadow?.Place(world, centre, Body.Sphere.Radius, alpha);
 }

@@ -44,6 +44,9 @@ public sealed record SessionSettings
     /// <summary>How a battle's lasting spells' and potions' scenes over heads take their turns (<see cref="SpellFx.Turns"/>).</summary>
     public AuraTurns SpellAuras { get; init; } = AuraTurns.Battle;
 
+    /// <summary>How a battle's turns are drawn (<see cref="Battle.Turns"/>): the original's, or Start Early (ADR 0040).</summary>
+    public CombatTurns CombatTurns { get; init; }
+
     /// <summary>How many lines tall the UI screen is, which the credits lay their cards out on: the console's 240.</summary>
     public int UiLines { get; init; } = 240;
 
@@ -63,6 +66,7 @@ public sealed record SessionSettings
         Pace = settings.BriskPace ? BriskPace : 1,
         Movement = settings.Movement,
         SpellAuras = settings.SpellAuras,
+        CombatTurns = settings.CombatTurns,
         UiLines = Math.Max(settings.UiLines, 1),
         WanderReach = Trek.Wanderers.ReachFor(settings.ObjectDistance),
     };

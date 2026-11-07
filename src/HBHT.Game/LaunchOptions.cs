@@ -182,6 +182,11 @@ public sealed class LaunchOptions(Dictionary<string, string> values)
         ? auras == "each" ? Core.Combat.AuraTurns.EachCharacter : Core.Combat.AuraTurns.Battle
         : null;
 
+    /// <summary><c>--combat-turns early</c>: the options' Combat Turns, Start Early (ADR 0040).</summary>
+    public Core.Combat.CombatTurns? CombatTurns => Text("combat-turns") is { } turns
+        ? turns == "early" ? Core.Combat.CombatTurns.StartEarly : Core.Combat.CombatTurns.Original
+        : null;
+
     // What drives the run.
 
     public string? Weather => Text("weather");

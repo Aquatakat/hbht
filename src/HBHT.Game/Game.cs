@@ -790,7 +790,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
             return new SceneView(transform.Origin.ToNumerics(), new(transform.Origin.X, transform.Origin.Z), flat, 0, cone);
         }
         // In a cut-scene, a battle or the title's fly-through there's no player: levels of detail go by the camera's aim.
-        var follow = Scene?.Camera ?? Battle?.Camera ?? Title?.Camera ?? Trek!.Camera;
+        var follow = Scene?.Camera ?? Drawing?.Camera ?? Title?.Camera ?? Trek!.Camera;
         var from = Scene is not null || Battle is not null || Title is not null ? follow.Aim : _player!.Motion.Sphere.Position;
         return SceneView.Aimed(from, follow.Position, follow.Aim, cone);
     }
@@ -901,7 +901,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         _changed.Clear();
         var focus = _camera.Flying ? _camera.Current.GlobalPosition
             : Scene is not null ? Scene.Camera.Aim.ToGodot()
-            : Battle is not null ? Battle.Camera.Aim.ToGodot()
+            : Drawing is not null ? Drawing.Camera.Aim.ToGodot()
             : Title is not null ? Title.Camera.Aim.ToGodot()
             : _player.GlobalPosition;
         // A cut-scene's and an arena's 3×3 stay as they loaded, and trek's world, which went with a battle, isn't built again

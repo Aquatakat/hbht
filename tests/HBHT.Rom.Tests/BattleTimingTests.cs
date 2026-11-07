@@ -48,7 +48,7 @@ public sealed class BattleTimingTests(Na10Import fixture)
                 else
                     Battle.Skip();
             }
-            Battle.Tick(_zone, false);
+            Battle.Tick(_zone);
         }
 
         public bool Over => Battle.Over || Battle.State is CombatState.Victory or CombatState.Defeat;

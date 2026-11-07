@@ -30,7 +30,7 @@ public sealed class HeadlessBattleTests(Na10Import fixture)
         // The bodies' rolls on the shared stream move it on as they step, as the runtime's did.
         var seed = built.Game.Random.Animation.Seed;
         for (var i = 0; i < 600; i++)
-            built.Battle.Tick(zone, false);
+            built.Battle.Tick(zone);
         Assert.NotEqual(seed, built.Game.Random.Animation.Seed);
     }
 
@@ -55,7 +55,7 @@ public sealed class HeadlessBattleTests(Na10Import fixture)
         var ticks = 0;
         for (; ticks < 2000 && flight is null; ticks++)
         {
-            battle.Tick(zone, false);
+            battle.Tick(zone);
             flight = battle.Flight;
         }
         Assert.NotNull(flight);
@@ -97,7 +97,7 @@ public sealed class HeadlessBattleTests(Na10Import fixture)
         for (var tick = 0; tick < 2000 && landed < 0; tick++)
         {
             var before = battle.State;
-            battle.Tick(zone, false);
+            battle.Tick(zone);
             if (caster is null && battle.Fx.Visuals.FirstOrDefault(v => v.Role == SpellFxRole.Caster) is { } v)
                 (caster, started) = (v, tick);
             if (reached < 0 && caster?.Actor is { } a && a.Frame >= (int)(a.StateLength * strike))

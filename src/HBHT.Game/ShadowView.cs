@@ -136,10 +136,14 @@ public partial class ShadowView : Node3D
     /// Places the shadow under a body's <paramref name="sphere"/> with the alpha <see cref="BodyShadow.DrawAlpha"/> gave
     /// and moves it there, hiding it when there is none (the shadow isn't drawn). Call after the body moves.
     /// </summary>
-    public void Place(Core.Physics.CollisionWorld world, Core.Physics.CollisionSphere sphere, byte? alpha)
+    public void Place(Core.Physics.CollisionWorld world, Core.Physics.CollisionSphere sphere, byte? alpha) =>
+        Place(world, sphere.Position, sphere.Radius, alpha);
+
+    /// <summary>Places it under a sphere at <paramref name="centre"/> of <paramref name="radius"/>, with <paramref name="alpha"/>, or hides it for none.</summary>
+    public void Place(Core.Physics.CollisionWorld world, System.Numerics.Vector3 centre, float radius, byte? alpha)
     {
         if (alpha is { } a)
-            Shadow.Place(world, sphere.Position, sphere.Radius, a);
+            Shadow.Place(world, centre, radius, a);
         Sync();
         Visible &= alpha is not null;
     }

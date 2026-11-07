@@ -392,6 +392,7 @@ public sealed partial class OptionsMenu
             Choice("Movement", ["Original", "Smoother"], () => (int)s.Movement, v => s.Movement = (Movement.MovementMode)v),
             Choice("Status Auras", ["Original", "More Often"], () => s.SpellAuras == Combat.AuraTurns.EachCharacter ? 1 : 0,
                 v => s.SpellAuras = v == 1 ? Combat.AuraTurns.EachCharacter : Combat.AuraTurns.Battle),
+            Choice("Combat Turns", ["Original", "Start Early"], () => (int)s.CombatTurns, v => s.CombatTurns = (Combat.CombatTurns)v),
         ];
     }
 

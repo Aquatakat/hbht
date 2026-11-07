@@ -27,6 +27,12 @@ public partial class Game
     /// <summary>The battle playing, in place of trek's world.</summary>
     private Battle? Battle => _session?.Battle;
 
+    /// <summary>What draws the battle playing from its recording, whose frame drawn now the views draw (ADR 0040).</summary>
+    private BattleDrawing? Drawing => _session?.Drawing;
+
+    /// <summary>The combatants' views made since the last tick drawn, which are put in place at once rather than interpolated there.</summary>
+    private readonly List<CombatantView> _joined = [];
+
     /// <summary>
     /// Trek has faded out into a battle: the player's body goes with trek's world, and the session begins it
     /// (<c>Combat.Init</c>).
@@ -48,7 +54,7 @@ public partial class Game
     {
         _arenaView = new ChunkStreamerView(_plugins!, _models!, arena.Chunks, null, _shadowTexture) { Name = "Arena" };
         AddChild(_arenaView);
-        _camera!.Follow = battle.Camera;
+        _camera!.Follow = Drawing!.Camera;
         _camera.Far = SkyView.Far;
         _ringView = new CombatRingView(_models!);
         AddChild(_ringView);
@@ -63,7 +69,7 @@ public partial class Game
             _spellFxView = new SpellFxView(_plugins!, _models!, _particles, c => _combatantViews.GetValueOrDefault(c));
             AddChild(_spellFxView);
         }
-        _battleScreen!.Battle = battle;
+        _battleScreen!.Drawing = Drawing;
         _battleScreen.Visible = true;
         SyncBattle();
         _camera.ResetPhysicsInterpolation();
@@ -96,7 +102,7 @@ public partial class Game
             case CombatantJoined { Combatant: var combatant } when !_combatantViews.ContainsKey(combatant):
                 var view = _combatantViews[combatant] = new CombatantView(combatant, _plugins!, _models!, _shadowTexture);
                 AddChild(view);
-                view.ResetPhysicsInterpolation();
+                _joined.Add(view);
                 break;
             case CombatantGone { Combatant: var combatant } when _combatantViews.Remove(combatant, out var gone):
                 gone.QueueFree();
@@ -122,24 +128,42 @@ public partial class Game
         }
     }
 
-    /// <summary>Draws the combatants, the numbers over their heads, an arrow in flight, the camera and the fade where the battle has them.</summary>
+    /// <summary>
+    /// Draws the combatants, the numbers over their heads, an arrow in flight, the spells' visuals, the ring and the aim, the camera and the
+    /// fade where the battle's recording has them on the tick drawn (ADR 0040), each actor's emitters started first as it started them.
+    /// </summary>
     private void SyncBattle()
     {
-        var battle = Battle!;
+        var frame = Drawing!.Frame;
+        var camera = frame.Camera;
         var scenery = _session!.Arena!.Sky.Colors.Tint;
-        foreach (var view in _combatantViews.Values)
+        foreach (var drawn in frame.Bodies)
         {
-            view.Sync();
-            view.Draw(_world, battle.Camera.Aim, battle.Camera.Position, scenery);
+            if (!_combatantViews.TryGetValue(drawn.Combatant, out var view))
+                continue;
+            view.Sync(drawn, Starts(frame, drawn.Combatant));
+            view.Draw(_world, camera.Aim, camera.Position, scenery);
         }
-        _numbersView?.Sync(battle.Camera.Position);
-        _missileView?.Sync();
-        _aimView?.Sync(battle);
-        _spellFxView?.Sync(battle.Fade.Brightness, _camera!.Current.GlobalPosition);
-        _ringView?.Sync(battle);
+        foreach (var joined in _joined)
+            joined.ResetPhysicsInterpolation();
+        _joined.Clear();
+        _numbersView?.Sync(frame.Numbers, camera.Position);
+        _missileView?.Sync(frame.Missile);
+        _aimView?.Sync(frame, Battle!);
+        _spellFxView?.Sync(frame, frame.Fade, _camera!.Current.GlobalPosition);
+        _ringView?.Sync(frame);
         _camera!.Sync();
-        ShowFade(battle.Fade.Brightness);
+        ShowFade(frame.Fade);
         _battleScreen!.QueueRedraw();
+
+        static IEnumerable<int> Starts(BattleFrame frame, Combatant c)
+        {
+            foreach (var start in frame.Emitters)
+            {
+                if (start.Owner == c)
+                    yield return start.Request;
+            }
+        }
     }
 
     /// <summary>
@@ -150,12 +174,12 @@ public partial class Game
     private void LightArena()
     {
         var arena = _session!.Arena!;
-        var fade = Battle!.Fade.Brightness;
+        var fade = Drawing!.Frame.Fade;
         arena.BeginLightFrame(fade);
         _arenaView!.LightActors(arena.Lights);
         foreach (var view in _combatantViews.Values)
         {
-            view.Light(arena.Lights, arena.Chunks, party: !view.Combatant.Hostile, view.Combatant.Tint.Level);
+            view.Light(arena.Lights, arena.Chunks, party: !view.Combatant.Hostile, view.Drawn.Tint.Level, view.Drawn.Centre);
             if (_spellFx)
                 view.Tinted(arena.Sky.Colors.Sky * 0.5f, fade);
         }
@@ -241,6 +265,7 @@ public partial class Game
         _arenaView?.QueueFree();
         _arenaView = null;
         _battleScreen!.Visible = false;
-        _battleScreen.Battle = null;
+        _battleScreen.Drawing = null;
+        _joined.Clear();
     }
 }

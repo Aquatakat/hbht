@@ -455,51 +455,41 @@ public sealed class CombatGui
     /// caption boxes do, and the radar in the log box or in the bottom right corner (<paramref name="radar"/>).
     /// </remarks>
     public CombatScreen Draw(Battle battle, Func<RecordId, RecordId?> portrait, RadarAnchor radar = RadarAnchor.LogBox,
-        int width = 320, int height = 240)
+        int width = 320, int height = 240) => Snapshot(battle).Draw(portrait, radar, width, height);
+
+    /// <summary>
+    /// What the screen draws now, laid out in the original's frame and before it's placed on a screen: what a battle's recording keeps
+    /// of it each tick (<see cref="BattleFrame.Gui"/>), which <see cref="CombatGuiFrame.Draw"/> places as <see cref="Draw"/> does.
+    /// </summary>
+    public CombatGuiFrame Snapshot(Battle battle)
     {
-        var right = (width - DialogueBox.FrameWidth, 0);
-        var (centreX, foot) = ((width - DialogueBox.FrameWidth) / 2, height - DialogueBox.FrameHeight);
-        (int X, int Y) Side(CombatBar bar) => bar.Party ? right : (0, 0);
-
-        var log = CombatLogBox.Layout(battle.Lines.Text, LogPortrait is { } who ? portrait(who) ?? NoPortrait : null, width, height);
-        var radarAt = radar == RadarAnchor.LogBox ? (centreX, foot) : (width - DialogueBox.FrameWidth, foot);
-        var dots = Radar.Draw(battle, radarAt.Item1, radarAt.Item2, TintState);
-
-        var frames = new List<HudSprite>();
+        var frames = new List<(HudSprite, bool)>();
         foreach (var bar in _bars.Where(b => !b.Hidden))
-        {
-            var (x, y) = Side(bar);
-            frames.Add(new HudSprite(bar.Frame, bar.FrameX + x, bar.FrameY + y, 1, bar.Tint, (bar.FrameWidth, bar.FrameHeight)));
-        }
+            frames.Add((new HudSprite(bar.Frame, bar.FrameX, bar.FrameY, 1, bar.Tint, (bar.FrameWidth, bar.FrameHeight)), bar.Party));
 
-        var portraits = new List<HudSprite>();
-        var bars = new List<HudFill>();
+        var portraits = new List<CombatGuiPortrait>();
         foreach (var entry in _portraits)
         {
             if (entry.Entity is not { } entity || entry.Bar is not { } bar)
                 continue;
-            var (x, y) = Side(bar);
-            var image = portrait(entity) ?? NoPortrait;
-            portraits.Add(new HudSprite(image, entry.X + x, entry.Y + y, 1, White, (entry.Width, entry.Height)));
-            if (entry.Skull)
-                portraits.Add(new HudSprite(SkullImage, entry.X + x, entry.Y + y, 1, White with { A = entry.SkullAlpha }, (entry.Width, entry.Height)));
+            portraits.Add(new CombatGuiPortrait(entity, entry.X, entry.Y, entry.Width, entry.Height, entry.Skull, entry.SkullAlpha, bar.Party));
         }
         // CombatGui.DrawHpBars, 0x80087168: over everything, at the frame's place at once, from the live hit points.
+        var bars = new List<(HudFill, bool)>();
         foreach (var entry in _portraits)
         {
             if (entry is not { State: PortraitState.Party or PortraitState.Enemy, Bar: { } bar, Slot: { } slot } || battle.Slots[slot] is not { } combatant)
                 continue;
-            var (x, y) = Side(bar);
-            var left = bar.X + (entry.State == PortraitState.Party ? PartyBarOffset : EnemyBarOffset) + x;
+            var left = bar.X + (entry.State == PortraitState.Party ? PartyBarOffset : EnemyBarOffset);
             var (hp, max) = (combatant.Sheet.Hp, combatant.Sheet.MaxHp);
             var fill = (int)(bar.Height * Math.Min(1f, max <= 0 ? 0 : (float)hp / max));
             var top = bar.Y + bar.Height - fill;
             if (top == bar.Y + bar.Height)
                 top--;
-            bars.Add(new HudFill(left, bar.Y + y, BarWidth, bar.Height, new Rgba(0, 0, 0, 255)));
-            bars.Add(new HudFill(left, top + y, BarWidth, bar.Y + bar.Height - top, HpColor(hp, max)));
+            bars.Add((new HudFill(left, bar.Y, BarWidth, bar.Height, new Rgba(0, 0, 0, 255)), bar.Party));
+            bars.Add((new HudFill(left, top, BarWidth, bar.Y + bar.Height - top, HpColor(hp, max)), bar.Party));
         }
-        return new CombatScreen(log, Radar.Ring(radarAt.Item1, radarAt.Item2), dots, frames, portraits, bars);
+        return new CombatGuiFrame(battle.Lines.Text, LogPortrait, Radar.Draw(battle, 0, 0, TintState), Radar.Ring(0, 0), frames, portraits, bars);
     }
 
     private static readonly Rgba White = new(255, 255, 255, 255);
@@ -507,6 +497,52 @@ public sealed class CombatGui
 
 /// <summary>A filled rectangle on the UI screen (<c>Screen.FillRect</c>, <c>0x8009CBE8</c>), its colour blended by its alpha.</summary>
 public readonly record struct HudFill(int X, int Y, int Width, int Height, Rgba Color);
+
+/// <summary>A portrait on the battle screen as <see cref="CombatGui.Snapshot"/> keeps it: whose, where in the original's frame, its skull, and its side.</summary>
+public readonly record struct CombatGuiPortrait(RecordId Entity, int X, int Y, int Width, int Height, bool Skull, byte SkullAlpha, bool Party);
+
+/// <summary>
+/// The battle screen as it stands on one tick, before it's placed on a screen (<see cref="CombatGui.Snapshot"/>): the log's line and
+/// portrait, the radar's dots and ring about its place in the original's frame, and the frames, portraits and HP bars, each by its side.
+/// </summary>
+public sealed record CombatGuiFrame(
+    string Log,
+    RecordId? LogPortrait,
+    IReadOnlyList<HudFill> RadarDots,
+    HudSprite RadarRing,
+    IReadOnlyList<(HudSprite Sprite, bool Party)> Frames,
+    IReadOnlyList<CombatGuiPortrait> Portraits,
+    IReadOnlyList<(HudFill Fill, bool Party)> HpBars)
+{
+    private static readonly Rgba White = new(255, 255, 255, 255);
+
+    /// <summary>
+    /// What the screen draws on a screen of <paramref name="width"/> × <paramref name="height"/>, in the order it's drawn, as
+    /// <see cref="CombatGui.Draw"/> lays it out: the enemies' column from the top left corner, the party's from the top right, the log box
+    /// at the bottom centre, and the radar in the log box or the bottom right corner.
+    /// </summary>
+    public CombatScreen Draw(Func<RecordId, RecordId?> portrait, RadarAnchor radar = RadarAnchor.LogBox, int width = 320, int height = 240)
+    {
+        var right = width - DialogueBox.FrameWidth;
+        var (centreX, foot) = ((width - DialogueBox.FrameWidth) / 2, height - DialogueBox.FrameHeight);
+        int Side(bool party) => party ? right : 0;
+
+        var log = CombatLogBox.Layout(Log, LogPortrait is { } who ? portrait(who) ?? CombatGui.NoPortrait : null, width, height);
+        var (rx, ry) = radar == RadarAnchor.LogBox ? (centreX, foot) : (width - DialogueBox.FrameWidth, foot);
+        var dots = RadarDots.Select(d => d with { X = d.X + rx, Y = d.Y + ry }).ToList();
+        var frames = Frames.Select(f => f.Sprite with { X = f.Sprite.X + Side(f.Party) }).ToList();
+        var portraits = new List<HudSprite>();
+        foreach (var p in Portraits)
+        {
+            var x = p.X + Side(p.Party);
+            portraits.Add(new HudSprite(portrait(p.Entity) ?? CombatGui.NoPortrait, x, p.Y, 1, White, (p.Width, p.Height)));
+            if (p.Skull)
+                portraits.Add(new HudSprite(CombatGui.SkullImage, x, p.Y, 1, White with { A = p.SkullAlpha }, (p.Width, p.Height)));
+        }
+        var bars = HpBars.Select(b => b.Fill with { X = b.Fill.X + Side(b.Party) }).ToList();
+        return new CombatScreen(log, RadarRing with { X = RadarRing.X + rx, Y = RadarRing.Y + ry }, dots, frames, portraits, bars);
+    }
+}
 
 /// <summary>What the battle screen draws, in order: the log box, the radar's ring and dots, the frames, the portraits and the HP bars.</summary>
 public sealed record CombatScreen(

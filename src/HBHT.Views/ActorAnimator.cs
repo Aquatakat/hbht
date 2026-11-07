@@ -40,7 +40,7 @@ public sealed class ActorAnimator : IActorMotion
         _root = root;
         _pivot = motion.Clips.Pivot.ToGodot();
         _mirroring = mirroring;
-        Show(0);
+        Show(Machine.State, 0);
     }
 
     /// <summary>The core's actor, which this draws.</summary>
@@ -62,12 +62,33 @@ public sealed class ActorAnimator : IActorMotion
         set => Motion.Request = value;
     }
 
-    /// <inheritdoc cref="ActorMotion.Particles"/>
+    /// <summary>
+    /// Its scene's emitters: the core's motion's (<see cref="ActorMotion.Particles"/>), which start as it enters a state; or, for an animator
+    /// that draws from a battle's recording (<see cref="Recorded"/>), its own, which the drawing starts as the recording says
+    /// (<see cref="StartEmitters"/>), so they start as the tick is drawn rather than as the core steps it (ADR 0040).
+    /// </summary>
     public ActorParticles? Particles
     {
-        get => Motion.Particles;
-        set => Motion.Particles = value;
+        get => Recorded ? _own : Motion.Particles;
+        set
+        {
+            if (Recorded)
+                _own = value;
+            else
+                Motion.Particles = value;
+        }
     }
+
+    private ActorParticles? _own;
+
+    /// <summary>
+    /// Whether it draws from a battle's recording (ADR 0040): it's posed at a recorded state and clock (<see cref="Follow(int, int)"/>), and
+    /// its emitters are its own. Set before <see cref="Particles"/>.
+    /// </summary>
+    public bool Recorded { get; set; }
+
+    /// <summary>Starts its own emitters for <paramref name="request"/>, as a battle's recording says its actor did (<see cref="Recorded"/>).</summary>
+    public void StartEmitters(int request) => _own?.Entered(request);
 
     /// <summary>Set when the owner ticks it with <see cref="Tick(int)"/> rather than it ticking with the frame.</summary>
     public bool Driven { get; set; }
@@ -113,7 +134,7 @@ public sealed class ActorAnimator : IActorMotion
             if (Motion.Step())
                 _fraction = 0;
         }
-        Show(Math.Min(Machine.Clock - 1 + _fraction, Machine.Length(Machine.State) - 1) / 60);
+        Show(Machine.State, Math.Min(Machine.Clock - 1 + _fraction, Machine.Length(Machine.State) - 1) / 60);
     }
 
     /// <summary>
@@ -137,6 +158,12 @@ public sealed class ActorAnimator : IActorMotion
     public void Follow() => ShowSeen((Machine.Clock - 1) / 60.0);
 
     /// <summary>
+    /// Poses the scene at <paramref name="state"/> and <paramref name="clock"/>, as a battle's recording has its actor on the tick drawn
+    /// (ADR 0040). Call after each tick.
+    /// </summary>
+    public void Follow(int state, int clock) => ShowSeen(state, (clock - 1) / 60.0);
+
+    /// <summary>
     /// Whether its scene isn't seen, as a wanderer's isn't while it's faded out: the core's motion plays on, but the scene isn't
     /// posed, a call into Godot a node, till it's seen again, when it's posed at once where the motion stands.
     /// </summary>
@@ -149,7 +176,7 @@ public sealed class ActorAnimator : IActorMotion
             if (!value && _stale)
             {
                 _stale = false;
-                Show((Machine.Clock - 1) / 60.0);
+                Show(_staleState, _staleSeconds);
             }
         }
     }
@@ -159,13 +186,21 @@ public sealed class ActorAnimator : IActorMotion
     /// <summary>Whether a pose was left out while it was <see cref="Unseen"/>.</summary>
     private bool _stale;
 
+    /// <summary>Where it was left unposed while <see cref="Unseen"/>.</summary>
+    private int _staleState;
+
+    private double _staleSeconds;
+
+    /// <summary>Poses the scene at its motion's state, unless it's <see cref="Unseen"/>.</summary>
+    private void ShowSeen(double seconds) => ShowSeen(Machine.State, seconds);
+
     /// <summary>Poses the scene, unless it's <see cref="Unseen"/>.</summary>
-    private void ShowSeen(double seconds)
+    private void ShowSeen(int state, double seconds)
     {
         if (_unseen)
-            _stale = true;
+            (_stale, _staleState, _staleSeconds) = (true, state, seconds);
         else
-            Show(seconds);
+            Show(state, seconds);
     }
 
     /// <summary>Plays a state from its first tick, as a branch does.</summary>
@@ -205,22 +240,22 @@ public sealed class ActorAnimator : IActorMotion
     /// <summary>The animation the player was last given (<see cref="AnimationPlayer.AssignedAnimation"/>), by this.</summary>
     private StateAnimation? _assigned;
 
-    /// <summary>Poses the scene <paramref name="seconds"/> into the state's animation.</summary>
-    private void Show(double seconds)
+    /// <summary>Poses the scene <paramref name="seconds"/> into the animation of the state numbered <paramref name="index"/>.</summary>
+    private void Show(int index, double seconds)
     {
-        var state = Machine.Actor.States[Machine.State];
-        if (!_animations.TryGetValue(Machine.State, out var animation))
+        var state = Machine.Actor.States[index];
+        if (!_animations.TryGetValue(index, out var animation))
         {
             var name = AnimationName(state);
             var playerName = new StringName(name);
-            _animations[Machine.State] = animation = new StateAnimation(name, playerName, _player?.HasAnimation(playerName) == true);
+            _animations[index] = animation = new StateAnimation(name, playerName, _player?.HasAnimation(playerName) == true);
         }
         if (_player is null || !animation.Has)
         {
             // A still animation leaves the scene as it is.
-            if (_warned != Machine.State && !_still.Contains(Convert.ToInt32(state.Animation.Key, 16)))
+            if (_warned != index && !_still.Contains(Convert.ToInt32(state.Animation.Key, 16)))
                 GD.PushWarning($"{Machine.Actor.Id} has no animation {animation.Name}.");
-            _warned = Machine.State;
+            _warned = index;
             return;
         }
         if (_assigned?.Name != animation.Name)

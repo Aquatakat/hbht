@@ -85,10 +85,10 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         options.Point(2);
         options.Accept();
         Assert.Equal(["Draw Distance", "Object Distance", "Model Detail", "Rain and Snow", "Menu Size", "Menu Filter", "Pace", "Movement",
-                "Status Auras"],
+                "Status Auras", "Combat Turns"],
             options.Rows.Rows.Select(r => r.Label));
         // A new player's are the original's, and the original's video out.
-        Assert.Equal(["Original", "Original", "Original", "Original", "Original", "Video Out", "Original", "Original", "Original"],
+        Assert.Equal(["Original", "Original", "Original", "Original", "Original", "Video Out", "Original", "Original", "Original", "Original"],
             options.Rows.Rows.Select(r => r.ValueName));
     }
 

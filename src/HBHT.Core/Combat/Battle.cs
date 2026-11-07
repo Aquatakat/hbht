@@ -67,6 +67,25 @@ public sealed partial class Battle
     /// <summary>How the combatants move: the Movement setting (<see cref="SessionSettings.Movement"/>).</summary>
     public MovementMode Movement { get; set; }
 
+    /// <summary>
+    /// How its turns are drawn: Combat Turns, the setting (<see cref="SessionSettings.CombatTurns"/>). Under Start Early A in an AI's walk
+    /// never reaches the battle (<see cref="SkipWalk"/>): the drawing only fast-forwards (ADR 0040).
+    /// </summary>
+    public CombatTurns Turns { get; set; }
+
+    /// <summary>Whether the music waited for the fade on the last tick (<c>Bgm.Update</c>): the fade as the tick began.</summary>
+    public bool MusicHeld { get; private set; } = true;
+
+    /// <summary>
+    /// Whether the battle waits on the player: a turn the player plays, from its walk and aim to its held menus and Troubadour's prompt;
+    /// the pause; Sense Aura's popup, which waits for a press; or the battle's end. Under Start Early the core runs ahead of the drawing
+    /// until it does (<see cref="BattleDrawing"/>).
+    /// </summary>
+    public bool WaitsOnPlayer => Over || Aura is not null || Menu is not null
+        || State is CombatState.Turn or CombatState.TargetAttack or CombatState.TargetThrown or CombatState.TargetSpell
+            or CombatState.PlaceArea or CombatState.TroubadourPrompt or CombatState.MenuSpells or CombatState.MenuItems
+            or CombatState.Pause or CombatState.PauseRequested;
+
     /// <summary>A one-off to whatever presents the battle.</summary>
     internal void Cue(CombatCue cue) => Host?.Cue(cue);
 
@@ -269,7 +288,6 @@ public sealed partial class Battle
     /// <c>ProcessPlayers</c>), the camera, then the state's step, and the fade.
     /// </summary>
     /// <param name="arena">The zone engine the arena is loaded in.</param>
-    /// <param name="skyDrawn">Whether the arena's sky is drawn, for its weather.</param>
     /// <param name="readInput">The player's controls, read only in a turn the player plays, once the screen has faded in.</param>
     /// <returns>Whether it goes on, its pause menu is due, or it has ended.</returns>
     /// <remarks>
@@ -277,7 +295,7 @@ public sealed partial class Battle
     /// <see cref="SpellFxVisual.Actor"/>), a missile leaves the hand's locator as the core poses it, and the visuals' emitters run as
     /// long as the core works out. So a battle plays tick for tick the same with the runtime drawing it or without.
     /// </remarks>
-    public BattleStep Tick(ZoneEngine arena, bool skyDrawn, Func<PlayerInput>? readInput = null)
+    public BattleStep Tick(ZoneEngine arena, Func<PlayerInput>? readInput = null)
     {
         // Combat.HoldForMessage: while "Enemy reinforcements flee" holds the battle, its controls and states wait.
         var held = Lines.StepHold();
@@ -303,10 +321,11 @@ public sealed partial class Battle
         }
         if (State is CombatState.TargetAttack or CombatState.TargetSpell && _aimTurn is { } aim && Current is { } aiming && aiming.Body.TurnToward(aim))
             _aimTurn = null;
-        // Bgm.Update waits for the fade, so the battle's music starts once it's in.
-        arena.Audio.HoldMusic = Fade.Fading;
-        arena.Listen();
+        // Bgm.Update waits for the fade, so the battle's music starts once it's in: the drawing holds it (BattleDrawing).
+        MusicHeld = Fade.Fading;
+        // Camera.Listener: the bodies are heard from the battle's camera as it stands, before they step.
         var keys = arena.Keys;
+        (keys.Eye, keys.Aim) = (Camera.Position, Camera.Aim);
         var crowd = Crowd();
         for (var i = 0; i < crowd.Count; i++)
         {
@@ -335,8 +354,7 @@ public sealed partial class Battle
                 StepCastStart(waiting, animation);
         }
         CombatCamera.Step(this);
-        arena.StepSounds(Camera.Aim);
-        arena.StepWeather(skyDrawn, arena.Precipitation, FogLifted);
+        // The arena's map sounds and weather go on at the drawing's pace (BattleDrawing), not the battle's (ADR 0040).
         if (!held)
             Step();
         // Combat.AfterFrame: the Shadow reaching its merger, at every frame's end.

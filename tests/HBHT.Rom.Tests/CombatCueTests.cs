@@ -95,7 +95,7 @@ public sealed class CombatCueTests(Na10Import fixture)
         var from = host.Cues.Count;
         var steps = new List<BattleStep>();
         for (var i = 0; i < 2000 && !host.Cues.Skip(from).Any(c => c.EndsWith(" begins action", StringComparison.Ordinal)); i++)
-            steps.Add(built.Battle.Tick(zone, false));
+            steps.Add(built.Battle.Tick(zone));
         Assert.EndsWith(" begins action", host.Cues[^1]);
         return steps;
     }
@@ -171,7 +171,7 @@ public sealed class CombatCueTests(Na10Import fixture)
         var alphas = new List<int>();
         for (var i = 0; i < 200 && !host.Cues.Contains("gone 7"); i++)
         {
-            battle.Tick(zone, false);
+            battle.Tick(zone);
             alphas.Add(rat.Alpha);
         }
         Assert.Equal(Battle.FadeTicks, alphas.Count);
@@ -313,7 +313,7 @@ public sealed class CombatCueTests(Na10Import fixture)
         Assert.Equal(Battle.FadeTicks, old.Fading);
         var zone = Zone(built);
         for (var i = 0; i < Battle.FadeTicks; i++)
-            battle.Tick(zone, false);
+            battle.Tick(zone);
         Assert.Equal(0, old.Fading);
         Assert.Single(host.Cues, "gone 4");
         Assert.DoesNotContain("gone 6", host.Cues);
@@ -329,7 +329,7 @@ public sealed class CombatCueTests(Na10Import fixture)
 
         // Start in a turn: the pause cued once, and the step saying so from the tick its two frames have passed.
         Assert.True(battle.Pause());
-        var steps = Enumerable.Range(0, 6).Select(_ => battle.Tick(zone, false)).ToList();
+        var steps = Enumerable.Range(0, 6).Select(_ => battle.Tick(zone)).ToList();
         Assert.Equal(["paused True True"], host.Cues);
         Assert.All(steps.Take(3), s => Assert.Same(BattleStep.Ran, s));
         Assert.All(steps.Skip(3), s => Assert.Equal(new BattleStep.Paused(PartyTab: true, CanFlee: true), s));
@@ -339,9 +339,9 @@ public sealed class CombatCueTests(Na10Import fixture)
         host.Cues.Clear();
         Assert.True(battle.Pause());
         for (var i = 0; i < 4; i++)
-            battle.Tick(zone, false);
+            battle.Tick(zone);
         battle.Unpause(flee: true);
         Assert.Equal(["paused True True", "ended Fled"], host.Cues);
-        Assert.Equal(new BattleStep.Ended(BattleOutcome.Fled), battle.Tick(zone, false));
+        Assert.Equal(new BattleStep.Ended(BattleOutcome.Fled), battle.Tick(zone));
     }
 }

@@ -82,7 +82,27 @@ public sealed class ActorMotion : IActorMotion
     public ActorParticles? Particles
     {
         get => _particles;
-        set => (_particles, _made) = (value, value is not null);
+        set => (_particles, _made) = (value, value is not null || _starts is not null);
+    }
+
+    /// <summary>
+    /// Who hears the requests its emitters start for, where <see cref="Particles"/> would start them: a battle's recording, which the
+    /// views start their own emitters from as they draw the tick (ADR 0040). Heard as it's made and on every state it enters, as
+    /// <see cref="Particles"/> is.
+    /// </summary>
+    public Action<int>? Starts
+    {
+        get => _starts;
+        set => (_starts, _made) = (value, value is not null || _particles is not null);
+    }
+
+    private Action<int>? _starts;
+
+    /// <summary>Its emitters start for <paramref name="request"/>: its own, and whoever hears of it.</summary>
+    private void Start(int request)
+    {
+        _particles?.Entered(request);
+        _starts?.Invoke(request);
     }
 
     /// <summary>
@@ -122,13 +142,13 @@ public sealed class ActorMotion : IActorMotion
         if (_made)
         {
             _made = false;
-            _particles?.Entered(Machine.Request);
+            Start(Machine.Request);
         }
         Entered = Machine.Tick();
         Posed();
         if (!Entered)
             return false;
-        _particles?.Entered(Machine.Request);
+        Start(Machine.Request);
         return true;
     }
 
@@ -141,7 +161,7 @@ public sealed class ActorMotion : IActorMotion
         if (!_made)
             return;
         _made = false;
-        _particles?.Entered(Machine.Request);
+        Start(Machine.Request);
     }
 
     /// <summary>Plays a state from its first tick, as a branch does.</summary>

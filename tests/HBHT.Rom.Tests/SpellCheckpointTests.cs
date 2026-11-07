@@ -149,7 +149,7 @@ public sealed class SpellCheckpointTests(Na10Import fixture)
         // A (Combat.ConfirmSpellTarget): the highest selected first, the caster herself: state 6, then the cast.
         Assert.True(battle.Confirm());
         Assert.Equal((CombatState.Facing, 1, 0), (battle.State, battle.Target, rheda.CastMargin));
-        battle.Tick(zone, false);
+        battle.Tick(zone);
         // 08: state 2, +0x14 = 1, the margin 4, the acted flag, the lines, two draws.
         var c08 = Combat(8);
         Assert.Equal(c08.ReadByte(0x800D9454), (byte)battle.State);
@@ -180,7 +180,7 @@ public sealed class SpellCheckpointTests(Na10Import fixture)
         var states = new List<CombatState>();
         for (var i = 0; i < 1200 && battle.Current == rheda; i++)
         {
-            battle.Tick(zone, false);
+            battle.Tick(zone);
             if (states.Count == 0 || states[^1] != battle.State)
                 states.Add(battle.State);
             if (battle.State == CombatState.Action && battle.Target == 0 && alaron.Sheet.Effects.Count == 1)
@@ -208,12 +208,12 @@ public sealed class SpellCheckpointTests(Na10Import fixture)
         rheda.Spell = Known(rheda, "Endurance");
         Poke(battle, nameof(Battle.State), CombatState.TargetSpell);
         battle.TargetsB.BeginSpell(battle, rheda);
-        battle.Tick(zone, false);
+        battle.Tick(zone);
         Assert.NotNull(rheda.Mark);
         Assert.Equal(1, rheda.Tint.Level);
 
         Assert.True(battle.Confirm());
-        battle.Tick(zone, false);
+        battle.Tick(zone);
 
         var c08 = Combat(8);
         foreach (var c in new[] { alaron, rheda })
@@ -223,7 +223,7 @@ public sealed class SpellCheckpointTests(Na10Import fixture)
             Assert.Equal(BitConverter.UInt32BitsToSingle(c08.ReadWord(body + 0x760)), c.Tint.Rate);
         }
         for (var i = 0; i < 1200 && alaron.Sheet.Effects.Count == 0; i++)
-            battle.Tick(zone, false);
+            battle.Tick(zone);
         Assert.Equal(1 / 30f, alaron.Tint.Rate, 5);
     }
 }

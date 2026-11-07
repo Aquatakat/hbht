@@ -6,7 +6,7 @@ namespace HBHT.Game;
 
 /// <summary>
 /// The settings the command line sets for one run (<c>--sky</c>, <c>--object-distance</c>, <c>--draw-distance</c>, <c>--detail</c>,
-/// <c>--precipitation</c>, <c>--ui-lines</c>, <c>--spell-auras</c>, <c>--pace</c> and <c>--movement</c>): a layer over the player's settings,
+/// <c>--precipitation</c>, <c>--ui-lines</c>, <c>--spell-auras</c>, <c>--combat-turns</c>, <c>--pace</c> and <c>--movement</c>): a layer over the player's settings,
 /// which the runtime draws by (<see cref="Over"/>) and makes each tick's <see cref="SessionSettings"/> from
 /// (<see cref="Session"/>), never written into them, so <c>settings.json</c> only ever holds the player's own. Each holds for
 /// the run until the player changes that setting, in the options menu or with a debug key (<see cref="Changed"/>), and then the
@@ -21,6 +21,7 @@ public sealed class LaunchSettings
     private float? _precipitation;
     private int? _uiLines;
     private AuraTurns? _spellAuras;
+    private CombatTurns? _combatTurns;
     private float? _pace;
     private Core.Movement.MovementMode? _movement;
 
@@ -37,6 +38,7 @@ public sealed class LaunchSettings
         _precipitation = options.PrecipitationDensity;
         _uiLines = options.UiLines;
         _spellAuras = options.SpellAuras;
+        _combatTurns = options.CombatTurns;
         _pace = options.Pace;
         _movement = options.Movement;
         _seen = player.Copy();
@@ -60,6 +62,8 @@ public sealed class LaunchSettings
             settings.UiLines = lines;
         if (_spellAuras is { } auras)
             settings.SpellAuras = auras;
+        if (_combatTurns is { } turns)
+            settings.CombatTurns = turns;
         if (_movement is { } movement)
             settings.Movement = movement;
         return settings;
@@ -89,6 +93,8 @@ public sealed class LaunchSettings
             _uiLines = null;
         if (player.SpellAuras != _seen.SpellAuras)
             _spellAuras = null;
+        if (player.CombatTurns != _seen.CombatTurns)
+            _combatTurns = null;
         if (player.BriskPace != _seen.BriskPace)
             _pace = null;
         if (player.Movement != _seen.Movement)

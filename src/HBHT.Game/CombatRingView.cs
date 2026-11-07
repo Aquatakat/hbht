@@ -33,11 +33,11 @@ public partial class CombatRingView : Node3D
     {
     }
 
-    /// <summary>Puts the teardrops where the battle's ring has them, shown unless an action plays.</summary>
-    public void Sync(Battle battle)
+    /// <summary>Puts the teardrops where the battle's recording has the ring on the tick drawn, shown unless an action plays.</summary>
+    public void Sync(BattleFrame frame)
     {
-        var points = battle.Ring.Points;
-        var shown = !battle.ActionActive;
+        var points = frame.Ring;
+        var shown = frame.RingShown;
         for (var i = 0; i < _teardrops.Count; i++)
         {
             var node = _teardrops[i].Node;

@@ -439,7 +439,9 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         Assert.Equal(battle.Leader, battle.Slots[1]);
         Assert.All(battle.Combatants, c => Assert.Equal(ArenaGrid.Taken, battle.Grid[(int)c.Cell.X, (int)c.Cell.Y] & ArenaGrid.Taken));
         Assert.Equal((76, 77), (battle.Grid.Width, battle.Grid.Depth));
-        Assert.Equal(battle.Camera, session.Arena!.Camera);
+        // The arena (its weather and sounds) goes by the camera as it's drawn, which is the battle's on the tick drawn (ADR 0040).
+        Assert.Same(session.Drawing!.Camera, session.Arena!.Camera);
+        Assert.Equal((battle.Camera.Position, battle.Camera.Aim), (session.Drawing.Camera.Position, session.Drawing.Camera.Aim));
 
         // It fades in over a second, then the turn is Alaron's, or the rats' come first: each walks at him, and bites or rests.
         for (var i = 0; i < 60; i++)

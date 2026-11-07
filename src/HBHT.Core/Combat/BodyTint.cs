@@ -48,13 +48,23 @@ public sealed class BodyTint
     /// The body's ambient (<c>+0x770</c>): <paramref name="sky"/> (half the sky colour, 0–1) moved toward the colour by the level, then
     /// scaled by the screen's fade and clamped. With nothing tinted it's the sky's alone, unfaded.
     /// </summary>
+    public Vector3 Ambient(Vector3 sky, float fade) => State.Ambient(sky, fade);
+
+    /// <summary>The tint as it stands, which a battle's recording keeps (<see cref="DrawnBody.Tint"/>).</summary>
+    public TintState State => new(Level, Rate, Colour);
+
+    /// <summary>Back to none, as a body is made (<c>Player.Reset</c>).</summary>
+    public void Reset() => (Level, Rate, Colour) = (0, 0, default);
+}
+
+/// <summary>A body's tint as it stood on one tick (<see cref="BodyTint"/>): its level, rate and colour.</summary>
+public readonly record struct TintState(float Level, float Rate, Vector3 Colour)
+{
+    /// <inheritdoc cref="BodyTint.Ambient"/>
     public Vector3 Ambient(Vector3 sky, float fade)
     {
         if (Rate == 0 && Level == 0)
             return sky;
         return Vector3.Clamp((sky + (Colour - sky) * Level) * fade, Vector3.Zero, Vector3.One);
     }
-
-    /// <summary>Back to none, as a body is made (<c>Player.Reset</c>).</summary>
-    public void Reset() => (Level, Rate, Colour) = (0, 0, default);
 }

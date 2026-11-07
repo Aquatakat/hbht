@@ -11,7 +11,8 @@ namespace HBHT.Game;
 /// <summary>
 /// Draws a combatant's body in the arena (<c>renderPlayers</c> over <c>Combat.Bodies</c>): its entity's actor at its scale,
 /// standing at its feet and facing its heading, faded by its distance from the camera's aim, with its shadow and what it holds. The core
-/// owns and steps its animations as the body moves (<see cref="Combatant.Actor"/>), and the view poses its scene where they stand. Party
+/// owns and steps its animations as the body moves (<see cref="Combatant.Actor"/>), and the view draws it as the battle's recording has it on
+/// the tick drawn (<see cref="DrawnBody"/>, ADR 0040). Party
 /// members are lit as the party is (<c>+0x70a</c>), by the arena's light map objects too, which the arenas have none of.
 /// </summary>
 public partial class CombatantView : BodyView
@@ -20,7 +21,6 @@ public partial class CombatantView : BodyView
         : base($"Combatant {combatant.Slot}", combatant.Body, combatant.Look, plugins, models, shadow, owned: combatant.Actor)
     {
         Combatant = combatant;
-        Sync();
     }
 
     public CombatantView()
@@ -30,11 +30,19 @@ public partial class CombatantView : BodyView
 
     public Combatant Combatant { get; }
 
-    /// <summary>Moves the node to where the body is, and puts in its hands what it holds (<see cref="Combatant.Held"/>). Call after each tick.</summary>
-    public override void Sync()
+    /// <summary>The body as the battle's recording has it on the tick drawn (ADR 0040).</summary>
+    public DrawnBody Drawn { get; private set; }
+
+    /// <summary>
+    /// Moves the node to where the battle's recording has the body, poses its actor there, first starting the emitters it started in that
+    /// tick, and puts in its hands what it holds (<see cref="Combatant.Held"/>). Call after each tick drawn.
+    /// </summary>
+    public void Sync(DrawnBody drawn, IEnumerable<int> starts)
     {
-        base.Sync();
-        Hold(Combatant.Held);
+        Drawn = drawn;
+        Place(drawn.Feet, drawn.Heading, drawn.Movement);
+        Follow(drawn.ActorState, drawn.ActorClock, starts);
+        Hold([drawn.Arm, drawn.Hand, drawn.Notes]);
     }
 
     /// <summary>Its actor's locators, which a spell's visual's emitters attach to; null for a body with no actor.</summary>
@@ -53,10 +61,10 @@ public partial class CombatantView : BodyView
     /// </summary>
     public void Tinted(System.Numerics.Vector3 halfSky, float fade)
     {
-        var tint = Combatant.Tint;
+        var tint = Drawn.Tint;
         System.Numerics.Vector3? ambient = tint is { Level: 0, Rate: 0 } ? null : SkyColors.ToBytes(tint.Ambient(halfSky, fade));
         N64Material.SetBodyAmbient(Meshes, ambient?.ToGodot());
-        N64Material.SetUnfogged(Meshes, Combatant.Unfogged);
+        N64Material.SetUnfogged(Meshes, Drawn.Unfogged);
     }
 
     /// <summary>
@@ -68,9 +76,10 @@ public partial class CombatantView : BodyView
     /// <param name="scenery">The scenery's tint, in on-screen values, which what it holds is tinted by (<see cref="BodyView.TintHeld"/>).</param>
     public void Draw(Core.Physics.CollisionWorld world, System.Numerics.Vector3 aim, System.Numerics.Vector3 eye, System.Numerics.Vector3 scenery)
     {
-        var alpha = Combatant.Alpha;
-        var (_, fromAim) = Fade(aim, distance: BodyShadow.CombatDistance, bodyAlpha: alpha);
-        PlaceShadow(world, BodyShadow.DrawAlpha(BodyShadow.CombatDistance, fromAim, player: Combatant.Entity == Core.GameState.Alaron, bodyAlpha: alpha));
+        var alpha = Drawn.Alpha;
+        var (_, fromAim) = Fade(aim, distance: BodyShadow.CombatDistance, bodyAlpha: alpha, at: Drawn.Centre);
+        PlaceShadow(world, Drawn.Centre,
+            BodyShadow.DrawAlpha(BodyShadow.CombatDistance, fromAim, player: Combatant.Entity == Core.GameState.Alaron, bodyAlpha: alpha));
         FaceHeld(eye.ToGodot());
         TintHeld(new Color(scenery.X, scenery.Y, scenery.Z));
     }

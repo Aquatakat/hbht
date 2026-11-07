@@ -140,8 +140,9 @@ public sealed class Models(PluginSet plugins) : IDisposable
     /// The motion its animator plays, made before it (<see cref="ActorAnimator.MotionFor"/>), in place of one rolling on
     /// <paramref name="rolls"/>; for an animated actor's (<see cref="ActorAnimator.Animated"/>).
     /// </param>
+    /// <param name="recorded">Whether it draws from a battle's recording, with emitters of its own (<see cref="ActorAnimator.Recorded"/>).</param>
     public (Node3D Node, ActorAnimator? Animator)? InstantiateActor(ActorRecord actor, N64Material.Lighting lighting = N64Material.Lighting.Body,
-        Core.Rng.IRandom? rolls = null, bool particles = true, Core.Actors.ActorMotion? motion = null)
+        Core.Rng.IRandom? rolls = null, bool particles = true, Core.Actors.ActorMotion? motion = null, bool recorded = false)
     {
         if (Instantiate(actor.Scene) is not { } node)
             return null;
@@ -162,6 +163,7 @@ public sealed class Models(PluginSet plugins) : IDisposable
         if (animator is not null)
         {
             node.AddChild(new FrameCallback(animator.Update) { Name = "ActorAnimator" });
+            animator.Recorded = recorded;
             if (particles)
                 animator.Particles = Particles?.For(actor, node);
         }
