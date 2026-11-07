@@ -20,7 +20,6 @@ namespace HBHT.Rom.Tests;
 /// its sounds and weather, what freeing and ending keep, and the game's ticker, which trek's and the cut-scene's cameras keep
 /// their place by.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class ZoneEngineTests(Na10Import fixture)
 {
     private Na10Import.Loaded Data => fixture.Data;

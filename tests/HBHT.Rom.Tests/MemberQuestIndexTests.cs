@@ -7,7 +7,6 @@ namespace HBHT.Rom.Tests;
 /// <summary>
 /// What the quest index says of party members' flags over NA 1.0's imported plugins.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class MemberQuestIndexTests(Na10Import fixture)
 {
     private Na10Import.Loaded Data => fixture.Data;

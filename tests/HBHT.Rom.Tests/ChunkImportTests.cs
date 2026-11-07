@@ -6,7 +6,6 @@ using HBHT.Plugins.Records;
 namespace HBHT.Rom.Tests;
 
 /// <summary>What NA 1.0's import makes of chunks, their map objects and what refers to them (ADRs 0035 and 0036).</summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class ChunkImportTests(Na10Import fixture)
 {
     private Na10Import.Loaded Data => fixture.Data;

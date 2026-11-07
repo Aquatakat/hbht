@@ -9,7 +9,6 @@ namespace HBHT.Rom.Tests;
 /// The combat record's weapons that fly (importer 42), and its boss flags, the Goblin Ambush's rules and the game over, the scripts'
 /// endings and the camp ambushes (importer 43), checked against the ROM and 1.0's machine code.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class CombatImportTests(Na10Import fixture)
 {
     private static RecordId Weapon(int id) => RecordId.Hex(RecordTypes.Item, id);

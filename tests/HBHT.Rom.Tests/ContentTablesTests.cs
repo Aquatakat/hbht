@@ -170,7 +170,6 @@ public class ContentTablesTests
         Assert.Equal(-1, other.AsSpan(first + 1).IndexOf(na10));
     }
 
-    [Collection(ImportedPluginCollection.Name)]
     public sealed class Imported(Na10Import fixture)
     {
         [Fact]

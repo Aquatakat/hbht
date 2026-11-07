@@ -12,7 +12,6 @@ namespace HBHT.Rom.Tests;
 /// Combat's buttons as <see cref="Battle.Press"/> dispatches them (<c>Combat.Controls</c>), headless, in the rats' battle the port
 /// sets up from checkpoint 01: A through the attack, its confirmation and the AI's walk, Start's pause, the held menus and B.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class BattlePressTests(Na10Import fixture)
 {
     private PluginSet Set => fixture.Data.Set;

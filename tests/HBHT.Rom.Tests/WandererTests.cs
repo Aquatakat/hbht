@@ -14,7 +14,6 @@ using HBHT.Plugins.Records;
 namespace HBHT.Rom.Tests;
 
 /// <summary>Monster parties and their wanderers: what NA 1.0's data holds, and the bodies a loaded chunk gives them.</summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class WandererTests(Na10Import fixture)
 {
     private static readonly ConcurrentDictionary<string, IReadOnlyList<CollisionTriangle>> Collisions = new();

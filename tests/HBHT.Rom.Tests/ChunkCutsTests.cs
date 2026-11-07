@@ -258,7 +258,6 @@ public class ChunkCutsTests
 }
 
 /// <summary>What <see cref="ChunkCuts"/> made of NA 1.0's Overworld, in the base plugin.</summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class ChunkCutsImportTests(Na10Import fixture)
 {
     private Na10Import.Loaded Data => fixture.Data;

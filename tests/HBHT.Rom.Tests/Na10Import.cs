@@ -2,16 +2,14 @@ using HBHT.Plugins;
 using HBHT.Plugins.Records;
 using HBHT.Rom.Import;
 
+[assembly: AssemblyFixture(typeof(HBHT.Rom.Tests.Na10Import))]
+
 namespace HBHT.Rom.Tests;
 
-/// <summary>The tests that share one import of NA 1.0 (<see cref="Na10Import"/>), and so run one after another.</summary>
-[CollectionDefinition(Name)]
-public sealed class ImportedPluginCollection : ICollectionFixture<Na10Import>
-{
-    public const string Name = "NA 1.0 imported";
-}
-
-/// <summary>Imports NA 1.0 once for the tests in <see cref="ImportedPluginCollection"/>, when the first test needs it.</summary>
+/// <summary>
+/// Imports NA 1.0 once for the whole assembly, when the first test needs it. Any test class takes it in its constructor; the classes still
+/// run side by side, so what they read of it must only be read (the <see cref="PluginSet"/> reads its lazy records under a lock).
+/// </summary>
 public sealed class Na10Import : IDisposable
 {
     private readonly TempPlugins _temp = new();

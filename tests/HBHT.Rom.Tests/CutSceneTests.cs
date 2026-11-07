@@ -15,7 +15,6 @@ namespace HBHT.Rom.Tests;
 /// own (<see cref="ConversationPlugins"/>): spawning, the camera's moves, turning and walking, held items, animations,
 /// the fades and the waits.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class CutSceneTests(Na10Import fixture)
 {
     /// <summary>The stage is chunk (1, 1) of a map set of 100-unit chunks, so its corner is at (100, 0, 100).</summary>

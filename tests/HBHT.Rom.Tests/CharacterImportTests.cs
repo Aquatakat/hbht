@@ -64,7 +64,6 @@ public class CharacterTablesTests
     }
 }
 
-[Collection(ImportedPluginCollection.Name)]
 public sealed class CharacterImportTests(Na10Import fixture)
 {
     private static readonly RecordId Alaron = RecordId.Hex(RecordTypes.Entity, 0x023F);

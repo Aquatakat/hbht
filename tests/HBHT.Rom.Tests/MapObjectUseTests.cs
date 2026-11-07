@@ -20,7 +20,6 @@ namespace HBHT.Rom.Tests;
 /// What map objects do in trek: the collision triangles that run them, how a chunk's objects load, and
 /// what using containers, doors, secret doors, sources and triggers does, against NA 1.0's data and a new game.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class MapObjectUseTests(Na10Import fixture)
 {
     private static readonly ConcurrentDictionary<string, IReadOnlyList<CollisionTriangle>> Collisions = new();

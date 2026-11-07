@@ -4,7 +4,6 @@ using HBHT.Plugins.Records;
 namespace HBHT.Rom.Tests;
 
 /// <summary>Where NA 1.0's chunks are, and what a map object is called there (ADR 0035).</summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class ChunkPlacementImportTests(Na10Import fixture)
 {
     [Fact]

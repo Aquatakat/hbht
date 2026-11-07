@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Numerics;
 using System.Reflection;
 using HBHT.Core;
@@ -129,7 +130,7 @@ internal static class CombatCheckpoints
     /// </summary>
     public static Built FromSetup(PluginSet set, ParityLog log, string label, Action<GameState>? beforeBegin = null)
     {
-        var ram = log.Ram(log.Entries.First(e => e.Name == "Combat.Setup"));
+        var ram = SetupRam(log);
         Assert.Equal(1, ram.ReadByte(SetupBlock));
 
         var game = GameState.Load(set, CheckpointSave.Convert(ram, set, label));
@@ -152,6 +153,20 @@ internal static class CombatCheckpoints
         game.Random.Sort.Seed = ram.ReadWord(SortState);
         return new Built(Battle.Begin(game, setup, arena, streamer.World), game, streamer, ram);
     }
+
+    /// <summary>
+    /// A parity log, read once and shared: the logs and the RAM they dumped are read-only, and the formula vectors and the replays
+    /// build a battle from one for each vector, action and turn, which re-reading each time made the suite's slowest part.
+    /// </summary>
+    public static ParityLog Log(string folder) =>
+        Logs.GetOrAdd(Path.GetFullPath(folder), f => new Lazy<ParityLog>(() => ParityLog.Read(f))).Value;
+
+    /// <summary>The RAM a log dumped at its <c>Combat.Setup</c>, read once and shared, as <see cref="Log"/>.</summary>
+    public static AresCheckpoint SetupRam(ParityLog log) =>
+        SetupRams.GetOrAdd(Path.GetFullPath(log.Folder), _ => new Lazy<AresCheckpoint>(() => log.Ram(log.Entries.First(e => e.Name == "Combat.Setup")))).Value;
+
+    private static readonly ConcurrentDictionary<string, Lazy<ParityLog>> Logs = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, Lazy<AresCheckpoint>> SetupRams = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// A logged battle with the RAM an entry point dumped laid over it (<paramref name="dump"/>, its file in the log's folder): built

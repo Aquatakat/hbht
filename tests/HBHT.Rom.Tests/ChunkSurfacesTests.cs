@@ -8,7 +8,6 @@ using HBHT.Plugins.Records;
 namespace HBHT.Rom.Tests;
 
 /// <summary>The surfaces the loaded chunks draw, which rain and snow land on, from the base plugin.</summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class ChunkSurfacesTests(Na10Import fixture)
 {
     private Na10Import.Loaded Data => fixture.Data;

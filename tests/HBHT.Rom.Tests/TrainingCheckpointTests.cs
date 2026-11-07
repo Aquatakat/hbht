@@ -12,7 +12,6 @@ namespace HBHT.Rom.Tests;
 /// The training window against NA 1.0's imported data: the common strings it reads, and what the user's
 /// captures of STAI01's training show (Oct 3, 2026), from the "Before final encounter" checkpoint.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class TrainingCheckpointTests(Na10Import fixture)
 {
     private const string Checkpoint = "Aidyn Chronicles - The First Mage (U) (V1.0) [!] - Before final encounter.bs1";

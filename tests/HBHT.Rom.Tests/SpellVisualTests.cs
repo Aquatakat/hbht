@@ -10,7 +10,6 @@ namespace HBHT.Rom.Tests;
 /// <c>combatspellvisuals.cpp</c> and the two immediates, decoded from every ROM and compared with 1.0's own functions run in the interpreter
 /// (session 10's research, <c>kind:Borg:memory</c> below), and what the import makes of them.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class SpellVisualTests(Na10Import fixture)
 {
     // The cases of each function, as kind:Borg:memory in hex, kinds in decimal.

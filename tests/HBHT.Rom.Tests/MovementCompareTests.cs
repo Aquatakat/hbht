@@ -9,7 +9,6 @@ namespace HBHT.Rom.Tests;
 /// The cut-scene comparison (<see cref="MovementCompare"/>, docs/systems/movement.md#the-cut-scene-comparison): every cut-scene
 /// played under the original's movement and Modern's, and what it found, pinned so a change to either movement shows here.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class MovementCompareTests(Na10Import fixture, ITestOutputHelper output)
 {
     private static IReadOnlyList<MovementCompare.Difference>? _differences;

@@ -16,7 +16,6 @@ namespace HBHT.Rom.Tests;
 /// Every cut-scene the base game starts, from a dialogue object or a talker, played on its real stage in a new game,
 /// pressing A through every page and taking the first choice, until it's over.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class CutSceneRealDataTests(Na10Import fixture, ITestOutputHelper output)
 {
     /// <summary>Walks and runs move a body along; every state lasts a second.</summary>

@@ -13,7 +13,6 @@ namespace HBHT.Rom.Tests;
 /// save made from a checkpoint loads into a game that matches the console's: the party, the flags,
 /// and a round trip through the save format. The tests skip without the checkpoints.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class SaveCheckpointTests(Na10Import fixture)
 {
     private PluginSet Set => fixture.Data.Set;

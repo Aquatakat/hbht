@@ -21,7 +21,6 @@ namespace HBHT.Rom.Tests;
 /// <see cref="CasterVectors"/>). The port lays the same caster over the same battle
 /// (<see cref="Battle.Recast"/>, the rat's body kept) and plays the same turn. The tests skip without the ROM and the checkpoints.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed partial class CasterCheckpointTests(Na10Import fixture, ITestOutputHelper output)
 {
     private PluginSet Set => fixture.Data.Set;

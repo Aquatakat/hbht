@@ -3,6 +3,9 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <!-- The test classes run side by side on every core and allocate hard (each builds battles and games of its own): a heap per
+         core collects in parallel, where the one workstation heap stopped every test for each collection. -->
+    <ServerGarbageCollector>true</ServerGarbageCollector>
   </PropertyGroup>
 
   <ItemGroup>

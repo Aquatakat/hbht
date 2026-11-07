@@ -97,24 +97,26 @@ public class ScriptRunnerTests
     /// <summary>
     /// Plays every script 40 times. Two things turn up, both in the data: node 24 of script 1040 lost
     /// its link (with Dougal in the party, the harbour scene reads past its nodes), and Trahern's
-    /// conversation (936) repeats forever once flags 67 and 84 are set, but nothing sets 84.
+    /// conversation (936) repeats forever once flags 67 and 84 are set, but nothing sets 84. Each play has its own seed and
+    /// state, so the scripts play side by side.
     /// </summary>
     [Fact]
     public void EveryScriptEndsExceptWhereTheDataBreaks()
     {
         var scripts = ById;
-        var found = new SortedSet<string>(StringComparer.Ordinal);
-        foreach (var script in Data.Value.Scripts)
+        var bag = new System.Collections.Concurrent.ConcurrentBag<string>();
+        Parallel.ForEach(Data.Value.Scripts, script =>
         {
             for (var seed = 0; seed < 40; seed++)
             {
                 var ending = Play(script, seed, scripts, out var trail);
                 if (ending is null)
-                    found.Add($"{script.Id} loops");
+                    bag.Add($"{script.Id} loops");
                 else if (ending.Fault is { } fault)
-                    found.Add($"{script.Id}: {fault}");
+                    bag.Add($"{script.Id}: {fault}");
             }
-        }
+        });
+        var found = new SortedSet<string>(bag, StringComparer.Ordinal);
         Assert.Equal(
         [
             "aidyn:script/0x03A8 loops",

@@ -11,7 +11,6 @@ namespace HBHT.Rom.Tests.Formulas;
 /// <see cref="Combatant.UpdateRadius"/>, <see cref="TurnOrder.TurnsPerRound"/> and <see cref="TurnOrder.Build"/> on the same state with
 /// the same draws. The tests skip without the checkpoints (and the parity logs, for the vectors on their states).
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class TurnsVectorTests(Na10Import fixture, ITestOutputHelper output)
 {
     private PluginSet Set => fixture.Data.Set;

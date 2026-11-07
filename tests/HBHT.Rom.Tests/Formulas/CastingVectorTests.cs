@@ -16,7 +16,6 @@ namespace HBHT.Rom.Tests.Formulas;
 /// target (<c>Battle.CastAt</c>, which <see cref="Battle.Cast"/> and the turn's cast call) on the same state with the same draws. The
 /// tests skip without the checkpoints (and the parity logs, for the vectors on their states).
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class CastingVectorTests(Na10Import fixture, ITestOutputHelper output)
 {
     private PluginSet Set => fixture.Data.Set;

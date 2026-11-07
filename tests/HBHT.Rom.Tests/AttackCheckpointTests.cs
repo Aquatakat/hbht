@@ -25,7 +25,6 @@ namespace HBHT.Rom.Tests;
 /// machine code gave when it was run on those checkpoints' RAM (docs/systems/combat.md "An attack": the oracle tables of the session's
 /// research). The tests skip without the ROM and the checkpoints.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class AttackCheckpointTests(Na10Import fixture, ITestOutputHelper output)
 {
     private PluginSet Set => fixture.Data.Set;

@@ -10,7 +10,6 @@ namespace HBHT.Rom.Tests;
 /// Checks equipment and the inventory against the party in the user's checkpoints, played on 1.0 and
 /// the debug ROM, with the records imported from 1.0.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class ItemCheckpointTests(Na10Import fixture)
 {
     private PluginSet Set => fixture.Data.Set;

@@ -13,7 +13,6 @@ namespace HBHT.Rom.Tests.Formulas;
 /// state with the same draws, on its loot stream. The tests skip without the checkpoints (and the parity logs, for the vectors on their
 /// states).
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class RewardsVectorTests(Na10Import fixture, ITestOutputHelper output)
 {
     private PluginSet Set => fixture.Data.Set;

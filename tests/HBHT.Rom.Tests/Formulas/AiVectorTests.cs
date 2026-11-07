@@ -18,7 +18,6 @@ namespace HBHT.Rom.Tests.Formulas;
 /// <c>tools/aivectors/formulas.py ai</c> (<see cref="AiVectors"/>), and the port's same functions on the same state with the same
 /// draws. The tests skip without the checkpoints (and the parity logs, for the vectors on their states).
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class AiVectorTests(Na10Import fixture, ITestOutputHelper output)
 {
     private PluginSet Set => fixture.Data.Set;

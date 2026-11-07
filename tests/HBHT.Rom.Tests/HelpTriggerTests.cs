@@ -10,7 +10,6 @@ namespace HBHT.Rom.Tests;
 /// help, each once while its flag is clear, and the new journal entry's notice, over a new game on NA 1.0's records; and what
 /// such an event does with an op that would take over.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class HelpTriggerTests(Na10Import fixture)
 {
     private PluginSet Set => fixture.Data.Set;

@@ -12,7 +12,6 @@ namespace HBHT.Rom.Tests;
 /// Checks the pause menu's Party tab model against the user's captures of the original's, taken from
 /// the "Before final encounter" checkpoint (NA 1.0), with the records imported from 1.0.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class PartyMenuCheckpointTests(Na10Import fixture)
 {
     private const string Checkpoint = "Aidyn Chronicles - The First Mage (U) (V1.0) [!] - Before final encounter.bs1";

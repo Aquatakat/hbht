@@ -13,7 +13,6 @@ namespace HBHT.Rom.Tests;
 /// user's captures show it at the "Before final encounter" checkpoint (day 13 of the Earth season, chunk M06, every
 /// region found). Skips without the checkpoint.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class WorldTabRomTests(Na10Import fixture)
 {
     private const string FinalEncounter = "Aidyn Chronicles - The First Mage (U) (V1.0) [!] - Before final encounter.bs1";

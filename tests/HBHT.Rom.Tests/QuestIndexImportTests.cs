@@ -5,7 +5,6 @@ using HBHT.Rom.Import;
 
 namespace HBHT.Rom.Tests;
 
-[Collection(ImportedPluginCollection.Name)]
 public sealed class QuestIndexImportTests(Na10Import fixture)
 {
     [Fact]

@@ -11,7 +11,6 @@ namespace HBHT.Rom.Tests;
 /// turn, and a member who would leave offers it in a menu: the first choice runs RemoveMember and goes back to the join node, the
 /// second stays. Here Keelin's (<c>aidyn:script/0x0382</c>), played through the runner over the 1.0 checkpoints' parties.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class FullPartyScriptTests(Na10Import fixture)
 {
     private static readonly RecordId KeelinsScript = RecordId.Hex(RecordTypes.Script, 0x0382);

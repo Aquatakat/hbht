@@ -17,7 +17,6 @@ namespace HBHT.Rom.Tests;
 /// The scenery round the 3×3 on NA 1.0's data (<see cref="SceneryRing"/>): what its chunks show, and under the Draw Distance
 /// setting's Extended the Overworld's 5×5, as scenery only, which a game plays the same with or without.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class SceneryRingTests(Na10Import fixture)
 {
     private Na10Import.Loaded Data => fixture.Data;

@@ -10,7 +10,6 @@ namespace HBHT.Rom.Tests;
 /// Where each spell lands in its effect animation (<see cref="SpellRecord.Strike"/>), which the importer works out from the Borgs and
 /// the runtime's actor machine reports again from the imported plugin.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class SpellStrikeTests(Na10Import fixture)
 {
     /// <summary>The mean length of the party casters' cast animations (91, 123, 129, 131, 161, 201 and 239), the importer's reference.</summary>

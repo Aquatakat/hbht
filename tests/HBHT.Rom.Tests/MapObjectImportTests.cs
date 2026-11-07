@@ -6,7 +6,6 @@ using HBHT.Rom.Import;
 
 namespace HBHT.Rom.Tests;
 
-[Collection(ImportedPluginCollection.Name)]
 public sealed class MapObjectImportTests(Na10Import fixture)
 {
     private Na10Import.Loaded Data => fixture.Data;

@@ -183,7 +183,6 @@ public class ItemTablesTests
     }
 }
 
-[Collection(ImportedPluginCollection.Name)]
 public sealed class ItemImportTests(Na10Import fixture)
 {
     private PluginSet Set => fixture.Data.Set;

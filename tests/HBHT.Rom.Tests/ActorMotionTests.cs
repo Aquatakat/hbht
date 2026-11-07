@@ -14,7 +14,6 @@ namespace HBHT.Rom.Tests;
 /// Actors' timing and root motion, read headlessly from their scenes' assets, against what the runtime's Godot animation
 /// player made of the same assets before the core read them (recorded from the runtime at main's e3bef38).
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class ActorMotionTests(Na10Import fixture)
 {
     private static readonly RecordId Alaron = RecordId.Hex(RecordTypes.Actor, 0x25F9);

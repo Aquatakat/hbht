@@ -12,7 +12,6 @@ namespace HBHT.Rom.Tests;
 /// The lighthouse's lit scenes (<see cref="ToggledScenes"/>, <c>CheckToggleZoneScene</c>): read from every ROM, imported as Overworld
 /// A15's and Lighthouse A05's swaps, and drawn by the chunk streamer while 5017 holds.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class ToggledScenesTests(Na10Import fixture)
 {
     private Na10Import.Loaded Data => fixture.Data;

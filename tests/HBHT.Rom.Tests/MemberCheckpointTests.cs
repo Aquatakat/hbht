@@ -12,7 +12,6 @@ namespace HBHT.Rom.Tests;
 /// become the game's kept sheets. In every one the party is Alaron, Rheda, Brenna and Sholeh or Niesen, and Arturo, Becan and Godric
 /// have left. The tests skip without the checkpoints.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class MemberCheckpointTests(Na10Import fixture)
 {
     private static readonly ushort[] Left = [0x0240, 0x0242, 0x0248];

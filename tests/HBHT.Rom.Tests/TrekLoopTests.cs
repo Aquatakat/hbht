@@ -22,7 +22,6 @@ namespace HBHT.Rom.Tests;
 /// Trek's loop, headless, on NA 1.0's data and a new game: the chunks around the player and their
 /// wanderers, a door's fade, the clock under a conversation, chunk crossings and the fade into a cut-scene.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class TrekLoopTests(Na10Import fixture)
 {
     private static readonly RecordId Overworld = RecordId.Parse("aidyn:mapset/0");

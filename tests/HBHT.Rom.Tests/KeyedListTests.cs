@@ -7,7 +7,6 @@ namespace HBHT.Rom.Tests;
 /// The keyed lists of the base plugin's records (<see cref="KeyedListAttribute"/>, ADR 0005): every element carries its key
 /// and no two share one, so a patch that names an element names exactly one.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class KeyedListTests(Na10Import fixture)
 {
     [Fact]

@@ -49,7 +49,7 @@ internal static class FormulaState
         var path = Path.Combine(LogFolder, folder);
         if (!File.Exists(Path.Combine(path, dump)))
             Assert.Skip($"No {dump} in {path}.");
-        return FromLog(set, ParityLog.Read(path), dump);
+        return FromLog(set, CombatCheckpoints.Log(path), dump);
     }
 
     public static string LogFolder => Environment.GetEnvironmentVariable("HBHT_PARITY") ?? Path.Combine(TestRoms.RepoRoot(), "out", "parity");

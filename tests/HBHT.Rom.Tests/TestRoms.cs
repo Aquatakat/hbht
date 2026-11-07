@@ -58,7 +58,11 @@ public static class TestRoms
         return data;
     }
 
-    /// <summary>The checkpoint with this file name, or a skip if there is none: the empty name <see cref="Checkpoints"/> gives, or a file that isn't there.</summary>
+    /// <summary>
+    /// The checkpoint with this file name, or a skip if there is none: the empty name <see cref="Checkpoints"/> gives, or a file that isn't there.
+    /// Each is read once and shared (<see cref="AresCheckpoint"/> is read-only): the formula vectors build a battle from one apiece, and
+    /// reading its 8.5 MB afresh each time, on every core at once, kept the collector busy.
+    /// </summary>
     public static AresCheckpoint Checkpoint(string name)
     {
         if (name.Length == 0)
@@ -66,8 +70,10 @@ public static class TestRoms
         var path = Path.Combine(Folder, name);
         if (!File.Exists(path))
             Assert.Skip($"No {name} in {Folder}.");
-        return AresCheckpoint.Read(path);
+        return ReadCheckpoints.GetOrAdd(path, p => new Lazy<AresCheckpoint>(() => AresCheckpoint.Read(p))).Value;
     }
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Lazy<AresCheckpoint>> ReadCheckpoints = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>A line as the user reads it: without the button glyphs, and trimmed.</summary>
     /// <summary>What trek says of a new journal entry, the base plugin's trigger's message, from 1.0's code.</summary>

@@ -7,7 +7,6 @@ using HBHT.Rom.Import;
 namespace HBHT.Rom.Tests;
 
 /// <summary>The spells', potions' and casting's records the importer writes as facts (ADR 0020), checked against the ROM and 1.0's code.</summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class MagicImportTests(Na10Import fixture)
 {
     private static RecordId Spell(int id) => RecordId.Hex(RecordTypes.Spell, id);

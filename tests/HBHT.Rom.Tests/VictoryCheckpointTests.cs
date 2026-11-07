@@ -15,7 +15,6 @@ namespace HBHT.Rom.Tests;
 /// expected values here (docs/systems/combat.md "Rewards"). Checkpoint 12 is the win itself. The tests skip without the ROM and
 /// the checkpoints.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class VictoryCheckpointTests(Na10Import fixture)
 {
     private const uint CombatPointer = 0x800E0BF0;

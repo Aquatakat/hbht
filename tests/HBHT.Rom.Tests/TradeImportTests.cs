@@ -8,7 +8,6 @@ using HBHT.Plugins.Records;
 namespace HBHT.Rom.Tests;
 
 /// <summary>Shops, containers and recipes run against the records imported from 1.0.</summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class TradeImportTests(Na10Import fixture)
 {
     private PluginSet Set => fixture.Data.Set;

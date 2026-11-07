@@ -127,7 +127,6 @@ public class MenuTablesTests
     }
 }
 
-[Collection(ImportedPluginCollection.Name)]
 public sealed class MenuImportTests(Na10Import fixture)
 {
     private PluginSet Set => fixture.Data.Set;

@@ -21,7 +21,6 @@ namespace HBHT.Rom.Tests;
 /// The game session, headless, on NA 1.0's data and a new game: which mode runs, and where each ending leads, the
 /// transitions recorded as the runtime would carry them out.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed partial class GameSessionTests(Na10Import fixture)
 {
     private Na10Import.Loaded Data => fixture.Data;

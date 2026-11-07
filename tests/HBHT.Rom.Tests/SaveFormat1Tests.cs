@@ -27,7 +27,6 @@ namespace HBHT.Rom.Tests;
 /// on Borg9s shared between cells, stood the player in the importer's northern sea (<c>"0,13"</c>), and added a kept sheet for a
 /// twin dialogue entity (Cadme's, <c>0x1404</c>), which no play can, before writing it with that code's <c>SaveFile</c>.
 /// </remarks>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class SaveFormat1Tests(Na10Import fixture)
 {
     private PluginSet Set => fixture.Data.Set;

@@ -13,7 +13,6 @@ namespace HBHT.Rom.Tests;
 /// The loot window against NA 1.0's imported data: the common strings it reads, the titles it draws, and
 /// opening the chest a new game starts beside, with 4 Healing Potions.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class BarterMenuRomTests(Na10Import fixture)
 {
     private static readonly RecordId Overworld = RecordId.Parse("aidyn:mapset/0");

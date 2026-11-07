@@ -17,7 +17,6 @@ namespace HBHT.Rom.Tests;
 /// turn, Rheda's): the combatants' slots, cells, directions, footprints and flags, the turn order, the leader, whether the
 /// party can flee, the arena grid and the bodies' places. The tests skip without the ROM and the checkpoints.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class BattleCheckpointTests(Na10Import fixture, ITestOutputHelper output)
 {
     private const string Before = "Aidyn Chronicles - The First Mage (U) (V1.0) [!] - Combat 01, before.bs1";

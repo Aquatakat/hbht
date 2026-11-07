@@ -12,7 +12,6 @@ namespace HBHT.Rom.Tests;
 /// Who joins and leaves the party and with what sheet (<c>Party::AddMember</c>, <c>removeAliveMemberByID</c>, <c>SaveEntity</c>),
 /// in a new game over NA 1.0's real records: the flags, the inventory, the slots and the sheets kept for rejoining.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class PartyMemberTests(Na10Import fixture)
 {
     private static readonly RecordId Abrecan = Entity(0x023E), Brenna = Entity(0x0243), Godric = Entity(0x0248), Keelin = Entity(0x0249),

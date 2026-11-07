@@ -9,7 +9,6 @@ namespace HBHT.Rom.Tests;
 /// checkpoint captured at the same place reads, and comes back to the same bytes through the port's save. The tests
 /// skip without the pak or the checkpoints.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class PakSaveTests(Na10Import fixture)
 {
     private PluginSet Set => fixture.Data.Set;

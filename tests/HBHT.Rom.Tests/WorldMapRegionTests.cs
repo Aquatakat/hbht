@@ -17,7 +17,6 @@ namespace HBHT.Rom.Tests;
 /// The World tab's fog: entering a chunk sets its world map region's flag (<c>LoadGameBorgScenes</c>, <c>0x8004960c</c>), outdoors
 /// in a map set with no minimap, and the map shows the pieces whose flags are set.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class WorldMapRegionTests(Na10Import fixture)
 {
     private Na10Import.Loaded Data => fixture.Data;

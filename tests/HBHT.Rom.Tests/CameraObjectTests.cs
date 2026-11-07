@@ -14,7 +14,6 @@ using HBHT.Plugins.Records;
 namespace HBHT.Rom.Tests;
 
 /// <summary>Camera objects: what NA 1.0's data holds, which chunks use the interiors' camera, and what touching and treading them does.</summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class CameraObjectTests(Na10Import fixture)
 {
     private static readonly ConcurrentDictionary<string, IReadOnlyList<CollisionTriangle>> Collisions = new();

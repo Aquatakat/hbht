@@ -12,7 +12,6 @@ namespace HBHT.Rom.Tests;
 /// the attack's strike while the swing plays on, and the bodies' keys sounding for the swing, the hit, the dodge and the death. Played
 /// headless with the actors' real animations over checkpoint 01's battle, the party attacking what's in reach or skipping.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class BattleTimingTests(Na10Import fixture)
 {
     private PluginSet Set => fixture.Data.Set;

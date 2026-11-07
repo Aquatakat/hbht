@@ -14,7 +14,6 @@ namespace HBHT.Rom.Tests;
 /// NA 1.0's records: skill checks honour the random flag, the gold's and experience's sounds play, and a True Name given
 /// is saved.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class TriggerOpsTests(Na10Import fixture)
 {
     /// <summary>A script no plugin has, for the triggers to be about.</summary>

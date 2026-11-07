@@ -12,7 +12,6 @@ namespace HBHT.Rom.Tests;
 /// from (10 for the rat's bite, 05 for Alaron's blow and flask, 07 for Rheda's Endurance), until the next turn's line. The tests skip
 /// without the ROM and the checkpoints.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class CombatCueTests(Na10Import fixture)
 {
     private PluginSet Set => fixture.Data.Set;

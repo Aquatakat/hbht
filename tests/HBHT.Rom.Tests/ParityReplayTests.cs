@@ -22,7 +22,6 @@ namespace HBHT.Rom.Tests;
 /// the RAM at the first turn; and each turn's first action carried out from the RAM at it and checked against the next turn's. The
 /// tests skip without logs in <c>out/parity</c> (or <c>HBHT_PARITY</c>).
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHelper output)
 {
     private PluginSet Set => fixture.Data.Set;
@@ -50,7 +49,7 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
     {
         if (battle.Length == 0)
             Assert.Skip($"No battles logged in {LogFolder}.");
-        return ParityLog.Read(Path.Combine(LogFolder, battle));
+        return CombatCheckpoints.Log(Path.Combine(LogFolder, battle));
     }
 
     // ---------------------------------------------------------------------------------------------------------------------------
@@ -326,12 +325,20 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
         var actions = log.Entries.Where(e => e.Name == "Combatant.ExecuteAction" && e.Dump is not null).ToList();
         if (actions.Count == 0)
             Assert.Skip($"{battle} has no RAM at its actions: a log from before they were dumped.");
-        var wrong = new List<string>();
-        foreach (var action in actions)
+        // Each action is laid over a battle of its own, so they replay side by side and are judged in order.
+        var replayed = new List<string>?[actions.Count];
+        Parallel.For(0, actions.Count, i =>
         {
-            if (NextTurn(log, action) is not { } next)
+            if (NextTurn(log, actions[i]) is { } next)
+                replayed[i] = ReplayAction(battle, log, actions[i], next);
+        });
+        var wrong = new List<string>();
+        for (var i = 0; i < actions.Count; i++)
+        {
+            var action = actions[i];
+            if (replayed[i] is not { } replay)
                 continue;
-            var found = ReplayAction(battle, log, action, next).Select(w => $"slot {action.Current}'s action ({action.Dump}): {w}").ToList();
+            var found = replay.Select(w => $"slot {action.Current}'s action ({action.Dump}): {w}").ToList();
             if (!KnownFixes.TryGetValue((battle.Replace('\\', '/'), action.Dump!), out var why))
                 wrong.AddRange(found);
             else if (found.Count == 0)
@@ -357,12 +364,20 @@ public sealed partial class ParityReplayTests(Na10Import fixture, ITestOutputHel
             && BitConverter.ToUInt32([.. c.AsSpan(0x44, 4).ToArray().Reverse()]) != 0).ToList();
         if (turns.Count == 0)
             Assert.Skip($"{battle} has no enemy's turn with RAM at its start.");
-        var wrong = new List<string>();
-        foreach (var turn in turns)
+        // As with the actions, each turn is laid over a battle of its own.
+        var replayed = new List<string>?[turns.Count];
+        Parallel.For(0, turns.Count, i =>
         {
-            if (NextTurn(log, turn) is not { } next)
+            if (NextTurn(log, turns[i]) is { } next)
+                replayed[i] = ReplayEnemyTurn(battle, log, turns[i], next);
+        });
+        var wrong = new List<string>();
+        for (var i = 0; i < turns.Count; i++)
+        {
+            var turn = turns[i];
+            if (replayed[i] is not { } replay)
                 continue;
-            var found = ReplayEnemyTurn(battle, log, turn, next).Select(w => $"slot {turn.Current}'s turn ({turn.Dump}): {w}").ToList();
+            var found = replay.Select(w => $"slot {turn.Current}'s turn ({turn.Dump}): {w}").ToList();
             if (!KnownCadence.TryGetValue((battle.Replace('\\', '/'), turn.Dump!), out var why)
                 && !KnownFixes.TryGetValue((battle.Replace('\\', '/'), turn.Dump!), out why))
                 wrong.AddRange(found);

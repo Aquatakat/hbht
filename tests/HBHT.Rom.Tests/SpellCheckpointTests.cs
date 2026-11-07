@@ -18,7 +18,6 @@ namespace HBHT.Rom.Tests;
 /// <c>BuildItemsMenu</c>, <c>TargetSet.BeginSpell</c>, <c>Combat.ConfirmSpellTarget</c> and <c>Combatant.ExecuteAction</c>; the
 /// session's research), and with checkpoint 08, just after the cast. The tests skip without the ROM and the checkpoints.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class SpellCheckpointTests(Na10Import fixture)
 {
     private PluginSet Set => fixture.Data.Set;
@@ -249,7 +248,6 @@ public sealed class SpellCheckpointTests(Na10Import fixture)
 /// A flask's blast (<c>Combatant.FlaskExplosion</c>, <c>0x800652F8</c>) at checkpoint 05, against 1.0's own function run on 05's RAM: Alaron's
 /// Fire flask landing on rat 4's cell (66, 56).
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class FlaskCheckpointTests(Na10Import fixture)
 {
     private PluginSet Set => fixture.Data.Set;

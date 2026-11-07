@@ -19,7 +19,6 @@ namespace HBHT.Rom.Tests;
 /// effect records, the stats, the Stamina, the reagent and the random stream as 08 and 09 hold them. The tests skip without the ROM
 /// and the checkpoints.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class MagicCheckpointTests(Na10Import fixture)
 {
     private const string Before = "Aidyn Chronicles - The First Mage (U) (V1.0) [!] - Combat 01, before.bs1";

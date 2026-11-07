@@ -9,7 +9,6 @@ namespace HBHT.Rom.Tests;
 /// The exported JSON Schema (<see cref="RecordSchema.JsonSchema"/>, <c>hbht schema</c>) against the base plugin's records:
 /// what the importer writes validates, and what strict reading refuses the schema refuses too.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class SchemaRoundTripTests(Na10Import fixture)
 {
     private static readonly EvaluationOptions Options = new() { OutputFormat = OutputFormat.List };

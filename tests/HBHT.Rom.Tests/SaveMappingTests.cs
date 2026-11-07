@@ -12,7 +12,6 @@ namespace HBHT.Rom.Tests;
 /// the party with their sheets kept. Set <c>HBHT_SAVE_DUMP</c> to a folder to write the saves' JSON there, to
 /// compare a change to the mapping with the one before it.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class SaveMappingTests(Na10Import fixture)
 {
     private PluginSet Set => fixture.Data.Set;

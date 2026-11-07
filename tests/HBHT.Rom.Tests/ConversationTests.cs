@@ -169,7 +169,6 @@ internal sealed class TalkHost : IMapObjectHost
 /// Talking to a wanderer, over a hand-made chunk of one party on flat ground, in a new game with small scripts of our own:
 /// how a conversation starts, what each press asks of the two talking, each tick, and its end.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class ConversationTests(Na10Import fixture)
 {
     private static readonly RecordId MapId = Ids.Chunk(0, "K11");

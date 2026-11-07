@@ -11,7 +11,6 @@ namespace HBHT.Rom.Tests;
 /// A shop's window against NA 1.0's imported data: the common strings it reads, and the prices the
 /// user's captures of STAI01's shop show (Oct 3, 2026), from the "Before final encounter" checkpoint.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class ShopCheckpointTests(Na10Import fixture)
 {
     private const string Checkpoint = "Aidyn Chronicles - The First Mage (U) (V1.0) [!] - Before final encounter.bs1";

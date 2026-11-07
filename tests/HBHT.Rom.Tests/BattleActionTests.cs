@@ -13,7 +13,6 @@ namespace HBHT.Rom.Tests;
 /// A member's turn played through the menus and the states, headless, in the rats' battle the port sets up from checkpoint 01: a spell
 /// from C-down, a potion from C-up, a performance, healing and a thrown flask, each ending the turn as an attack does.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class BattleActionTests(Na10Import fixture)
 {
     private PluginSet Set => fixture.Data.Set;

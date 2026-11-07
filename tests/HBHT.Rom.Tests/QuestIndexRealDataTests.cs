@@ -11,7 +11,6 @@ using HBHT.Rom.Quests;
 namespace HBHT.Rom.Tests;
 
 /// <summary>What the quest index makes of NA 1.0's imported plugins, and facts of the ROM's data that it rests on.</summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class QuestIndexRealDataTests(Na10Import fixture)
 {
     private Na10Import.Loaded Data => fixture.Data;

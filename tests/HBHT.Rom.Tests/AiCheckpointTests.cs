@@ -18,7 +18,6 @@ namespace HBHT.Rom.Tests;
 /// walk, a rat's bite at Brenna, a rat's flight), wound back to the moment its turn began. The tests skip without the ROM and the
 /// checkpoints.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class AiCheckpointTests(Na10Import fixture, ITestOutputHelper output)
 {
     private PluginSet Set => fixture.Data.Set;

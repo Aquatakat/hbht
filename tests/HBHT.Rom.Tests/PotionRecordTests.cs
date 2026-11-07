@@ -15,7 +15,6 @@ namespace HBHT.Rom.Tests;
 /// imported spells say which is an area as the combat record's list did, and a hand-written plugin's spell that heals and potion
 /// that dispels work, as the instant effects land in one place for any spell, potion or flask.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class PotionRecordTests(Na10Import fixture)
 {
     private PluginSet Set => fixture.Data.Set;

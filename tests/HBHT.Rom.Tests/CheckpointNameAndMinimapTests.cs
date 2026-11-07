@@ -8,7 +8,6 @@ namespace HBHT.Rom.Tests;
 /// Alaron's name and the minimaps' pieces, as the checkpoints' RAM holds them (<c>AresCheckpoint.Minimaps</c>, the sheets' name
 /// pointer) and as <c>CheckpointSave.Convert</c> carries them. The tests skip without the checkpoints.
 /// </summary>
-[Collection(ImportedPluginCollection.Name)]
 public sealed class CheckpointNameAndMinimapTests(Na10Import fixture)
 {
     private PluginSet Set => fixture.Data.Set;
