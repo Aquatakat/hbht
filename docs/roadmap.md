@@ -18,8 +18,6 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 **M4: the prologue** is done: the user played it side by side with the emulator, what differed is fixed, and the user has played the fixes. Next, by the phases' order, is **Phase 4: content parity**.
 
-- **Combat parity (2.9):** the formula vectors and the replay are done. Left is one place the replay shows but doesn't check: a reserve's walk that 1.0 gave up near its spawn ([combat parity](systems/combat-parity.md#whats-left)).
-
 ### Left over from finished work
 
 - **The menus' mouse:** the mouse choosing a row, and on the World tab ([pause menu](systems/pause-menu.md)); the user has set it aside for now. The menus' motion is otherwise 1.0's: their slides, fades and scroll, a battle's pause on a wide screen and the details' edge.
@@ -92,7 +90,7 @@ Where a task names the original's code, the file names are the debug build's.
 | **2.6 Enemy AI.** | L | `combatengine/aiInfo.cpp`, `aiscores.cpp` | Done Oct 19, 2026, with M3 ([combat](systems/combat-ai.md)) |
 | **2.7 Time & camping.** See [camping](systems/camping.md). | S | `sundial.cpp`, `menus/campmenucontroller.cpp` | Done Oct 18, 2026 |
 | **2.8 Save/load** in the engine's own format. See [saves](systems/saves.md). | S | `questdata.cpp`, `saveParty.cpp` | Done Oct 1, 2026 |
-| **2.9 Differential tests.** Capture the random values the emulator consumed (ADR 0006), replay them into the core, and compare damage and turn logs. | L, ongoing | | Started: the Combat checkpoints and 13 played setups replay into the port, and the formula vectors of melee, the turns, the setup and the rewards agree ([combat parity](systems/combat-parity.md)) |
+| **2.9 Differential tests.** Capture the random values the emulator consumed (ADR 0006), replay them into the core, and compare damage and turn logs. | L | | Done Nov 7, 2026: the Combat checkpoints and 13 played setups replay into the port, every formula family's vectors agree with 1.0's functions, and every difference left is the logger's cadence, a fix or a place left unchecked, by the user's choice ([combat parity](systems/combat-parity.md)) |
 | **2.10 Events and triggers.** The core's named event list, and trigger records (*on event, if condition, do effects*) in Borg13's condition and effect vocabulary. Engine features that replace bespoke code (ADR 0008 layer 3) land with their system. | M | The 1H audit | Done Oct 19, 2026, with the cinematics' ([events](systems/events.md)); what else could move onto them is [above](#left-over-from-finished-work) |
 
 ### Phase 3: Godot runtime

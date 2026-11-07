@@ -77,6 +77,7 @@ Setup 9's setup block, as each battle began:
 
 - Setup 2's 0018 and second session's 0016, setup 4's 0006 and setup 8's 0037: the first corner lies astern, and 1.0's body, turning 20° a frame at the logger's long frames, walks a wide curve away and gives up near its start; the port's turns round and walks on. At 4–6-tick frames the port's gives up too; at the second session's 0016 it curves the other way. Which way a body whose first corner is dead astern first curves is left unsettled, the user's choice: 1.0's own `Facing.Turn` turns as the port's does, so the difference lies elsewhere in the walk's first frames, and in play a body turning left or right from a corner straight behind it looks the same.
 - Setup 2's 0096, setup 6's 0040, setup 7's 0024, setup 8's 0018, setup 11's 0009 and setup 13's 0062: 1.0 decides two frames after a walk arrives, and the logger's frames carry its body on into (or out of) reach before it does; the port decides 2–3 ticks after, as 1.0 does at 30 fps.
+- The second trial's slot 5, a reserve rat on its first turn, whose turn has no action, so the replay shows it rather than listing it: its first corner lay a quarter-turn off, and 1.0's body, idle as its turn began (state 0, clock 3, no fidget in a rat's actor), came no nearer than its start (`+0x258` 5.657) within the 30 ticks the stuck test counts over the whole point at the logger's 3-tick frames, drifting 0.26 back along its way in, and gave up by its spawn at (17, 43); the port's turns round and runs its leg toward (23, 49), 4.6 on. It's taken as the cadence's, the user's choice, without playing it at 1.0's frame lengths.
 - Setup 11's 0068 isn't the cadence: 1.0's Hobgoblin was mid-fidget (its actor's state 12, clock 27 of 101), which takes no run request, so its walk gave up on its cell. The replay starts every body idle; seeded in that state, the port's does as 1.0's. Laying each actor's state and clock from the RAM would take it off the list, which the user judged not worth the scaffolding: the port's actors fidget and refuse a run mid-fidget as 1.0's do, so only the replay's starting state differs.
 
 **Places left unchecked**, by the user's choice:
@@ -176,6 +177,6 @@ A family is one Python module and one C# test class, which touch nothing of the 
 
 ## What's left
 
-- **Positions shown but not checked:**
-  - A reserve's walk with no action ends 4.6 from the original's (the second trial's slot 5): 1.0's body moved 0.26 from its spawn at (17, 43) and gave up after 12 frames, while the port's runs its leg toward (23, 49).
+Nothing is open: every difference the logs show is listed above, as the cadence's, a fix or a place left unchecked.
+
 - **Not in a log**, by the user's choice: the Shadow's and the Goblin Ambush's battles, which the user played in 1.0 and the port and found alike, their outcomes being the code's rules rather than the draws' ([combat](combat.md#the-special-battles)); the Antidote drunk in battle (its cure is Remove Poison's, which passed); a spell's level rising from 0, which the pak can't hold; and setup 14, Sense Aura at level 9, whose popup was compared by eye.
