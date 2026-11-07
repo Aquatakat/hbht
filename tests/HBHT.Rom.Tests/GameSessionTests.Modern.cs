@@ -142,6 +142,7 @@ public sealed partial class GameSessionTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public void TheReachabilityCheckFindsEveryBattleArenaSpawnReachableFromTheOthersUnderBothMovementsAndNothingBetweenThem()
     {
         // Every place combat makes a body (an arena's 40 spawns) can reach the party's first and the enemies' first on foot, under
