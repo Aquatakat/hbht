@@ -32,6 +32,7 @@ This is the one list of what's open. A task's status is in its phase's table bel
   3. **Overlap the AI's turns.** Each turn's recording is an action, with the bodies it touches and the paths it sweeps. An action starts drawing as soon as it shares neither with one still drawing. An idle body waits between its actions. HP, the log and the radar are drawn from the recording, and a battle's ending waits for the drawing.
   4. **Open the player's turns early.** A player's turn opens once its combatant is free in the drawing. Whatever it touches that's still drawing fast-forwards first. A in a walk only fast-forwards.
   5. **The camera,** last: shots that hold overlapping actions.
+  - **After the stages: throws and missiles feel late.** The user played stage 1 and found the ambient sounds, the music and the casting sounds right, but a throw's or a shot's timing late. Whether stage 1 moved it, or it was late against 1.0 before, isn't checked. To tighten afterwards, the user's choice.
 
 ## Phases
 
