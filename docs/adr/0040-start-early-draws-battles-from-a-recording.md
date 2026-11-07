@@ -1,6 +1,6 @@
 # 0040. Combat Turns' Start Early runs a battle ahead and draws it from a recording
 
-Status: Proposed · Nov 7, 2026
+Status: Accepted · Nov 7, 2026
 
 ## Context
 
