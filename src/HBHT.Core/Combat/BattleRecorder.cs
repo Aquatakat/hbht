@@ -23,6 +23,7 @@ public sealed class BattleRecorder : ICombatHost, ISoundOutput
     private List<EmitterStart> _emitters = [];
     private readonly List<Combatant> _onField = [];
     private readonly Dictionary<SoundHandle, (double Out, double Cut)> _book = [];
+    private readonly Dictionary<SoundHandle, Combatant> _owners = [];
     private int _tick;
     private int _handles;
     private System.Numerics.Vector3[] _ring = [];
@@ -33,6 +34,15 @@ public sealed class BattleRecorder : ICombatHost, ISoundOutput
         _out = output;
         _audio = output as GameAudio;
     }
+
+    /// <summary>
+    /// The bodies' keys whose sounds it takes, which say whose body each sound is (<see cref="AudioKeys.Keying"/>), so a drawing that
+    /// draws bodies from different ticks plays each body's sounds with it; none to leave every sound to its tick's action.
+    /// </summary>
+    public AudioKeys? Keys { get; set; }
+
+    /// <summary>The combatant whose body's keys are being processed now, if any.</summary>
+    private Combatant? Keying => Keys?.Keying is { } body ? _onField.FirstOrDefault(c => c.Audio == body) : null;
 
     /// <summary>The battle's ticks recorded.</summary>
     public int Ticks => _tick;
@@ -81,7 +91,10 @@ public sealed class BattleRecorder : ICombatHost, ISoundOutput
             return default;
         var handle = new SoundHandle(-2, ++_handles);
         _book[handle] = (loop ? double.PositiveInfinity : Now + ms, Cut(durationMs));
-        _sounds.Add(new SoundCall.Start(handle, sequence, volume, pan, loop, durationMs));
+        var owner = Keying;
+        if (owner is not null)
+            _owners[handle] = owner;
+        _sounds.Add(new SoundCall.Start(handle, sequence, volume, pan, loop, durationMs) { Owner = owner });
         return handle;
     }
 
@@ -98,7 +111,7 @@ public sealed class BattleRecorder : ICombatHost, ISoundOutput
     public void Set(SoundHandle handle, byte volume, byte pan)
     {
         if (!handle.IsNone)
-            _sounds.Add(new SoundCall.Set(handle, volume, pan));
+            _sounds.Add(new SoundCall.Set(handle, volume, pan) { Owner = Of(handle) });
     }
 
     public void SetDuration(SoundHandle handle, int ms)
@@ -107,7 +120,7 @@ public sealed class BattleRecorder : ICombatHost, ISoundOutput
             return;
         if (_book.TryGetValue(handle, out var heard))
             _book[handle] = heard with { Cut = Cut(ms) };
-        _sounds.Add(new SoundCall.Duration(handle, ms));
+        _sounds.Add(new SoundCall.Duration(handle, ms) { Owner = Of(handle) });
     }
 
     public void Stop(SoundHandle handle)
@@ -115,10 +128,14 @@ public sealed class BattleRecorder : ICombatHost, ISoundOutput
         if (handle.IsNone)
             return;
         _book.Remove(handle);
-        _sounds.Add(new SoundCall.Stop(handle));
+        _owners.Remove(handle, out var owner);
+        _sounds.Add(new SoundCall.Stop(handle) { Owner = owner });
     }
 
-    public void Play(OneShot sound) => _sounds.Add(new SoundCall.Play(sound));
+    public void Play(OneShot sound) => _sounds.Add(new SoundCall.Play(sound) { Owner = Keying });
+
+    /// <summary>Whose body started the sound <paramref name="handle"/>, if a body's did.</summary>
+    private Combatant? Of(SoundHandle handle) => _owners.GetValueOrDefault(handle);
 
     private double Cut(int ms) => ms < 0 ? double.PositiveInfinity : Now + ms + 1;
 
@@ -140,7 +157,7 @@ public sealed class BattleRecorder : ICombatHost, ISoundOutput
             var held = c.Held;
             var actor = c.Actor?.Machine;
             bodies[i++] = new DrawnBody(c, c.Body.Sphere.Position, c.Body.Heading, c.Body.Movement, c.Alpha, c.Tint.State, c.Unfogged,
-                actor?.State ?? 0, actor?.Clock ?? 0, held[0], held[1], held[2]);
+                actor?.State ?? 0, actor?.Clock ?? 0, held[0], held[1], held[2], c.Sheet.Hp);
         }
         var camera = battle.Camera;
         var frame = new BattleFrame
@@ -152,7 +169,7 @@ public sealed class BattleRecorder : ICombatHost, ISoundOutput
             Bodies = bodies,
             Missile = battle.Flight is { } f ? new DrawnMissile(f, f.Drawn, f.Rotation, f.Scale) : null,
             Visuals = [.. battle.Fx.Visuals.Select(v => new DrawnVisual(v, v.Position, v.Showing, v.Alpha, v.Actor?.Machine.State ?? 0,
-                v.Actor?.Machine.Clock ?? 0))],
+                v.Actor?.Machine.Clock ?? 0, v.Played, v.Struck))],
             Numbers = [.. battle.Numbers.Shown.Select(n => new DrawnNumber(n, n.Ticks))],
             Ring = Ring(battle.Ring.Points),
             RingShown = !battle.ActionActive,

@@ -35,13 +35,14 @@ public partial class CombatantView : BodyView
 
     /// <summary>
     /// Moves the node to where the battle's recording has the body, poses its actor there, first starting the emitters it started in that
-    /// tick, and puts in its hands what it holds (<see cref="Combatant.Held"/>). Call after each tick drawn.
+    /// tick, and puts in its hands what it holds (<see cref="Combatant.Held"/>). Call after each tick drawn. A body drawn from a tick other
+    /// than the one after its last (<paramref name="jumped"/>, under Start Early) blends from its pose over <see cref="BattleComposer.BlendTicks"/>.
     /// </summary>
-    public void Sync(DrawnBody drawn, IEnumerable<int> starts)
+    public void Sync(DrawnBody drawn, IEnumerable<int> starts, bool jumped = false)
     {
         Drawn = drawn;
         Place(drawn.Feet, drawn.Heading, drawn.Movement);
-        Follow(drawn.ActorState, drawn.ActorClock, starts);
+        Follow(drawn.ActorState, drawn.ActorClock, starts, jumped ? BattleComposer.BlendTicks : 0);
         Hold([drawn.Arm, drawn.Hand, drawn.Notes]);
     }
 

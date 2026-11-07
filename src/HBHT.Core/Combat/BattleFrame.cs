@@ -98,6 +98,26 @@ public sealed class BattleFrame
 
     /// <summary>Whether this is an AI's walk (state 5), which A only fast-forwards under Start Early.</summary>
     public bool Walking => State == CombatState.Moving;
+
+    /// <summary>
+    /// Every arrow, thrown weapon or flask in flight: the battle's one (<see cref="Missile"/>) on a frame it recorded, or under Start Early
+    /// as many as the actions drawing at once have in flight (<see cref="BattleDrawing"/>).
+    /// </summary>
+    public IReadOnlyList<DrawnMissile> Missiles
+    {
+        get => _missiles ?? (Missile is { } m ? [m] : []);
+        init => _missiles = value;
+    }
+
+    private readonly IReadOnlyList<DrawnMissile>? _missiles;
+
+    /// <summary>
+    /// The bodies whose actors are drawn from a different tick than the one after the last drawn (an idle body meeting its next action
+    /// under Start Early), whose views blend from the pose they had (ADR 0040). None on a frame the battle recorded.
+    /// </summary>
+    public IReadOnlySet<Combatant> Jumped { get; init; } = Empty;
+
+    private static readonly IReadOnlySet<Combatant> Empty = new HashSet<Combatant>();
 }
 
 /// <summary>
@@ -116,7 +136,8 @@ public readonly record struct DrawnBody(
     int ActorClock,
     HeldModel? Arm,
     HeldModel? Hand,
-    HeldModel? Notes)
+    HeldModel? Notes,
+    int Hp)
 {
     /// <summary>Where its feet are.</summary>
     public Vector3 Feet => Centre - new Vector3(0, Combatant.Body.Sphere.Radius, 0);
@@ -129,7 +150,10 @@ public readonly record struct DrawnBody(
 public readonly record struct DrawnMissile(MissileFlight Flight, Vector3 Drawn, Matrix4x4 Rotation, float Scale);
 
 /// <summary>A spell's or potion's visual as it's drawn: where, whether a lasting scene shows and at what alpha, and its actor's state and clock.</summary>
-public readonly record struct DrawnVisual(SpellFxVisual Visual, Vector3 Position, bool Showing, byte Alpha, int ActorState, int ActorClock);
+/// <param name="Played">Whether an actor's animation has run its length.</param>
+/// <param name="Struck">Whether it has played to the share of its cast state where its cast lands, or has nothing to play to it.</param>
+public readonly record struct DrawnVisual(SpellFxVisual Visual, Vector3 Position, bool Showing, byte Alpha, int ActorState, int ActorClock,
+    bool Played, bool Struck);
 
 /// <summary>A number over a head as it's drawn: how long it has shown, which says where it is and how it looks.</summary>
 public readonly record struct DrawnNumber(CombatNumber Number, int Ticks);
@@ -143,6 +167,9 @@ public readonly record struct EmitterStart(object Owner, int Request);
 /// <summary>One call the bodies' sounds made (<see cref="ISoundOutput"/>), with the recording's own handle for the sound.</summary>
 public abstract record SoundCall
 {
+    /// <summary>The combatant whose body's keys made it, or null if none was keying (<see cref="AudioKeys.Keying"/>).</summary>
+    public Combatant? Owner { get; init; }
+
     public sealed record Start(SoundHandle Handle, RecordId Sequence, byte Volume, byte Pan, bool Loop, int DurationMs) : SoundCall;
 
     public sealed record Set(SoundHandle Handle, byte Volume, byte Pan) : SoundCall;

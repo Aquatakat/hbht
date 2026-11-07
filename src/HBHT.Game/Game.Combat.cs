@@ -116,8 +116,8 @@ public partial class Game
             case MissileLaunched launched:
                 _missileView?.Launch(launched.Flight);
                 break;
-            case MissileLanded:
-                _missileView?.Land();
+            case MissileLanded landed:
+                _missileView?.Land(landed.Flight);
                 break;
             case SpellVisualStarted started:
                 _spellFxView?.Started(started.Visual);
@@ -141,14 +141,14 @@ public partial class Game
         {
             if (!_combatantViews.TryGetValue(drawn.Combatant, out var view))
                 continue;
-            view.Sync(drawn, Starts(frame, drawn.Combatant));
+            view.Sync(drawn, Starts(frame, drawn.Combatant), frame.Jumped.Contains(drawn.Combatant));
             view.Draw(_world, camera.Aim, camera.Position, scenery);
         }
         foreach (var joined in _joined)
             joined.ResetPhysicsInterpolation();
         _joined.Clear();
         _numbersView?.Sync(frame.Numbers, camera.Position);
-        _missileView?.Sync(frame.Missile);
+        _missileView?.Sync(frame.Missiles);
         _aimView?.Sync(frame, Battle!);
         _spellFxView?.Sync(frame, frame.Fade, _camera!.Current.GlobalPosition);
         _ringView?.Sync(frame);

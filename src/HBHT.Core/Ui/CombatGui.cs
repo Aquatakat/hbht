@@ -464,18 +464,24 @@ public sealed class CombatGui
     public CombatGuiFrame Snapshot(Battle battle)
     {
         var frames = new List<(HudSprite, bool)>();
+        var frameSlots = new List<int?>();
         foreach (var bar in _bars.Where(b => !b.Hidden))
+        {
             frames.Add((new HudSprite(bar.Frame, bar.FrameX, bar.FrameY, 1, bar.Tint, (bar.FrameWidth, bar.FrameHeight)), bar.Party));
+            frameSlots.Add(_portraits.FirstOrDefault(p => p.Bar == bar && p.Slot is not null)?.Slot);
+        }
 
         var portraits = new List<CombatGuiPortrait>();
         foreach (var entry in _portraits)
         {
             if (entry.Entity is not { } entity || entry.Bar is not { } bar)
                 continue;
-            portraits.Add(new CombatGuiPortrait(entity, entry.X, entry.Y, entry.Width, entry.Height, entry.Skull, entry.SkullAlpha, bar.Party));
+            portraits.Add(new CombatGuiPortrait(entity, entry.X, entry.Y, entry.Width, entry.Height, entry.Skull, entry.SkullAlpha, bar.Party)
+                { Slot = entry.Slot });
         }
         // CombatGui.DrawHpBars, 0x80087168: over everything, at the frame's place at once, from the live hit points.
         var bars = new List<(HudFill, bool)>();
+        var barSlots = new List<int>();
         foreach (var entry in _portraits)
         {
             if (entry is not { State: PortraitState.Party or PortraitState.Enemy, Bar: { } bar, Slot: { } slot } || battle.Slots[slot] is not { } combatant)
@@ -488,8 +494,16 @@ public sealed class CombatGui
                 top--;
             bars.Add((new HudFill(left, bar.Y, BarWidth, bar.Height, new Rgba(0, 0, 0, 255)), bar.Party));
             bars.Add((new HudFill(left, top, BarWidth, bar.Y + bar.Height - top, HpColor(hp, max)), bar.Party));
+            barSlots.Add(slot);
+            barSlots.Add(slot);
         }
-        return new CombatGuiFrame(battle.Lines.Text, LogPortrait, Radar.Draw(battle, 0, 0, TintState), Radar.Ring(0, 0), frames, portraits, bars);
+        var radar = Radar.Entries(battle, TintState);
+        return new CombatGuiFrame(battle.Lines.Text, LogPortrait, CombatRadar.Dots(radar, 0, 0), Radar.Ring(0, 0), frames, portraits, bars)
+        {
+            FrameSlots = frameSlots,
+            HpSlots = barSlots,
+            Radar = radar,
+        };
     }
 
     private static readonly Rgba White = new(255, 255, 255, 255);
@@ -499,7 +513,11 @@ public sealed class CombatGui
 public readonly record struct HudFill(int X, int Y, int Width, int Height, Rgba Color);
 
 /// <summary>A portrait on the battle screen as <see cref="CombatGui.Snapshot"/> keeps it: whose, where in the original's frame, its skull, and its side.</summary>
-public readonly record struct CombatGuiPortrait(RecordId Entity, int X, int Y, int Width, int Height, bool Skull, byte SkullAlpha, bool Party);
+public readonly record struct CombatGuiPortrait(RecordId Entity, int X, int Y, int Width, int Height, bool Skull, byte SkullAlpha, bool Party)
+{
+    /// <summary>The combatant's slot it follows, once in play.</summary>
+    public int? Slot { get; init; }
+}
 
 /// <summary>
 /// The battle screen as it stands on one tick, before it's placed on a screen (<see cref="CombatGui.Snapshot"/>): the log's line and
@@ -515,6 +533,18 @@ public sealed record CombatGuiFrame(
     IReadOnlyList<(HudFill Fill, bool Party)> HpBars)
 {
     private static readonly Rgba White = new(255, 255, 255, 255);
+
+    /// <summary>The slot whose portrait each of <see cref="Frames"/> holds, or null for a frame no one in play has.</summary>
+    public IReadOnlyList<int?> FrameSlots { get; init; } = [];
+
+    /// <summary>The slot each of <see cref="HpBars"/> is for, two fills a slot.</summary>
+    public IReadOnlyList<int> HpSlots { get; init; } = [];
+
+    /// <summary>
+    /// What <see cref="RadarDots"/> was drawn from (<see cref="CombatRadar.Entries"/>), so a drawing that composes bodies from different
+    /// ticks can place each dot where its body is drawn (ADR 0040's stage 3).
+    /// </summary>
+    public CombatRadarEntries? Radar { get; init; }
 
     /// <summary>
     /// What the screen draws on a screen of <paramref name="width"/> × <paramref name="height"/>, in the order it's drawn, as
@@ -604,28 +634,53 @@ public sealed class CombatRadar
     /// 18), the dots of set B's selected pulse and the rest are dimmed. The frame's place is moved by
     /// (<paramref name="x"/>, <paramref name="y"/>).
     /// </summary>
-    public IReadOnlyList<HudFill> Draw(Battle battle, int x, int y, CombatState? state = null)
+    public IReadOnlyList<HudFill> Draw(Battle battle, int x, int y, CombatState? state = null) => Dots(Entries(battle, state), x, y);
+
+    /// <summary>
+    /// What <see cref="Draw"/> draws its dots from: the camera's owner and where it stands, which way the camera looks, and each body on
+    /// the field with where it stands and its colour within the radar and held at its edge; none without an owner.
+    /// </summary>
+    public CombatRadarEntries? Entries(Battle battle, CombatState? state = null)
     {
-        var dots = new List<HudFill>();
         if ((battle.CameraOwner is { Freed: false } o ? o : battle.Current) is not { } owner)
-            return dots;
+            return null;
         var look = battle.CombatCamera is { } camera ? camera.Camera.LookXZ : Vector2.UnitX;
-        var centre = owner.Body.Sphere.Position;
         var targeting = (state ?? battle.State) is CombatState.TargetSpell or CombatState.PlaceArea or CombatState.TargetThrown;
+        var bodies = new List<CombatRadarEntry>();
         foreach (var c in battle.Combatants.Where(c => !c.Freed))
         {
-            var (dx, dy, far) = Place(c.Body.Sphere.Position - centre, look);
-            var color = c == owner ? Owner : c.Slot < battle.PartySize ? Party : Others;
-            if (far)
-                color = Halve(color);
+            var near = c == owner ? Owner : c.Slot < battle.PartySize ? Party : Others;
+            var far = Halve(near);
             if (targeting)
-                color = battle.Marks(c.Slot).HasFlag(TargetMarks.SpellSelected) ? Throb(color) : Halve(color);
-            dots.Add(new HudFill(X + dx + x, Y - dy + y, 2, 2, color));
+            {
+                var selected = battle.Marks(c.Slot).HasFlag(TargetMarks.SpellSelected);
+                (near, far) = selected ? (Throb(near), Throb(far)) : (Halve(near), Halve(far));
+            }
+            bodies.Add(new CombatRadarEntry(c.Slot, c.Body.Sphere.Position, near, far));
+        }
+        return new CombatRadarEntries(owner.Slot, owner.Body.Sphere.Position, look, bodies);
+    }
+
+    /// <summary>
+    /// The dots for <paramref name="entries"/>, about the owner's place (or <paramref name="centre"/>), each body where
+    /// <paramref name="at"/> has it (its own by default); the frame's place is moved by (<paramref name="x"/>, <paramref name="y"/>).
+    /// </summary>
+    public static IReadOnlyList<HudFill> Dots(CombatRadarEntries? entries, int x, int y, Func<CombatRadarEntry, Vector3>? at = null,
+        Vector3? centre = null)
+    {
+        var dots = new List<HudFill>();
+        if (entries is null)
+            return dots;
+        var middle = centre ?? entries.Centre;
+        foreach (var e in entries.Bodies)
+        {
+            var (dx, dy, far) = Place((at?.Invoke(e) ?? e.Centre) - middle, entries.Look);
+            dots.Add(new HudFill(X + dx + x, Y - dy + y, 2, 2, far ? e.Far : e.Near));
         }
         return dots;
-
-        static Rgba Halve(Rgba c) => c with { R = (byte)(c.R >> 1), G = (byte)(c.G >> 1), B = (byte)(c.B >> 1) };
     }
+
+    private static Rgba Halve(Rgba c) => c with { R = (byte)(c.R >> 1), G = (byte)(c.G >> 1), B = (byte)(c.B >> 1) };
 
     /// <summary>
     /// Where a body <paramref name="offset"/> from the camera's owner goes on the radar, in pixels right and up from the
@@ -650,3 +705,9 @@ public sealed class CombatRadar
         B = c.B == 0 ? (byte)0 : (byte)(c.B + Pulse),
     };
 }
+
+/// <summary>A body's dot on the radar: its slot, where it stands, and its colour within the radar and held at its edge.</summary>
+public readonly record struct CombatRadarEntry(int Slot, Vector3 Centre, Rgba Near, Rgba Far);
+
+/// <summary>The radar's dots as <see cref="CombatRadar.Entries"/> found them: the camera's owner's slot and place, the camera's look, and the bodies.</summary>
+public sealed record CombatRadarEntries(int Owner, Vector3 Centre, Vector2 Look, IReadOnlyList<CombatRadarEntry> Bodies);

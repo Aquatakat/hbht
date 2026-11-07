@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Numerics;
 using HBHT.Core.Audio;
 using HBHT.Core.Cameras;
 using HBHT.Core.Chunks;
@@ -16,18 +17,23 @@ namespace HBHT.Core.Combat;
 /// <para>Under Original each tick's frame is drawn on the tick it's made, and the battle plays as it always has.</para>
 /// <para>
 /// Under Start Early, while the battle doesn't wait on the player (<see cref="Battle.WaitsOnPlayer"/>), it's stepped ahead of the drawing,
-/// as many ticks a tick as <see cref="Budget"/> allows, up to <see cref="MaxAhead"/> frames ahead, and the drawing plays the frames back
-/// in order, one a tick. Once it waits on the player it's stepped no further till the drawing has caught up, so a turn the player plays
-/// opens, and the battle's end comes, only as the drawing reaches them; from there it steps a tick a tick, as under Original. The rules
-/// run tick for tick in Original's order with the same random numbers either way; only when each tick is drawn differs.
+/// as many ticks a tick as <see cref="Budget"/> allows, up to <see cref="MaxAhead"/> frames ahead. The recording is cut into actions, one
+/// a turn (<see cref="BattleActions"/>), and each starts drawing as soon as it shares no body still drawing with an earlier one and no
+/// body it draws comes within reach of one another action draws where the recording didn't have them so (<see cref="Schedule"/>). Each
+/// drawn tick is composed (<see cref="Compose"/>): every body from the action it's involved in then, or idling on its own clock; the
+/// numbers, missiles and spells' actors from the action that began them; the camera, the fade and the rest of the battle's own from the
+/// newest action drawing; and every one-off once, as its timeline reaches it. Once the battle waits on the player it's stepped no further
+/// till the drawing has caught up, so a turn the player plays opens, and the battle's end comes, only as the drawing reaches them. The
+/// rules run tick for tick in Original's order with the same random numbers either way; only when each tick is drawn differs.
 /// </para>
 /// </remarks>
 public sealed class BattleDrawing
 {
-    private readonly Queue<BattleFrame> _ahead = new();
     private readonly ICombatHost? _host;
     private readonly ISoundOutput? _audio;
     private readonly Dictionary<SoundHandle, SoundHandle> _playing = [];
+    private readonly BattleComposer _composer;
+    private int _stepped = -1;
 
     /// <param name="battle">The battle, begun with <paramref name="recorder"/> as its host.</param>
     /// <param name="host">What presents the battle's one-offs as they're drawn: the runtime, or none.</param>
@@ -39,7 +45,9 @@ public sealed class BattleDrawing
         _host = host;
         _audio = audio;
         // What Battle.Begin cued, the bodies made: drawn at once, before the first tick.
-        Draw(recorder.Sample(battle, BattleStep.Ran), sounds: true);
+        var first = recorder.Sample(battle, BattleStep.Ran);
+        _composer = new BattleComposer(first, () => Battle.WaitsOnPlayer);
+        Draw(first, sounds: true);
     }
 
     /// <summary>
@@ -49,7 +57,7 @@ public sealed class BattleDrawing
     public static BattleDrawing Begin(ZoneEngine arena, ICombatHost? host, Func<ICombatHost, Battle> begin)
     {
         var audio = arena.Keys.Output;
-        var recorder = new BattleRecorder(audio);
+        var recorder = new BattleRecorder(audio) { Keys = arena.Keys };
         arena.Keys.Output = recorder;
         var battle = begin(recorder);
         battle.Host = recorder;
@@ -69,6 +77,12 @@ public sealed class BattleDrawing
 
     public BattleRecorder Recorder { get; }
 
+    /// <summary>What schedules and composes the battle's actions as they're drawn.</summary>
+    public BattleComposer Composer => _composer;
+
+    /// <summary>The recording cut into actions, with where the drawing has each.</summary>
+    public BattleActions Actions => _composer.Actions;
+
     /// <summary>How its turns are drawn (<see cref="Battle.Turns"/>).</summary>
     public CombatTurns Turns
     {
@@ -76,14 +90,20 @@ public sealed class BattleDrawing
         set => Battle.Turns = value;
     }
 
-    /// <summary>The frame drawn now, which the views draw.</summary>
+    /// <summary>The frame drawn now, which the views draw: the battle's own under Original, composed of its actions under Start Early.</summary>
     public BattleFrame Frame { get; private set; } = null!;
 
-    /// <summary>The frames stepped and not yet drawn: how far the battle is ahead of the drawing.</summary>
-    public int Ahead => _ahead.Count;
+    /// <summary>The drawn ticks so far: the session's ticks of the battle.</summary>
+    public int Drawn => _composer.Drawn;
 
-    /// <summary>Whether the drawing has caught up with the battle.</summary>
-    public bool CaughtUp => _ahead.Count == 0;
+    /// <summary>Called with each frame the battle records, as it's recorded.</summary>
+    public Action<BattleFrame>? Recorded { get; set; }
+
+    /// <summary>How many ticks the battle is ahead of the slowest part of the drawing.</summary>
+    public int Ahead => _composer.Ahead;
+
+    /// <summary>Whether the drawing has caught up with the battle: every action and every body drawn to its present.</summary>
+    public bool CaughtUp => _composer.CaughtUp;
 
     /// <summary>The camera as it's drawn, which the arena (its weather and sounds) and the views go by.</summary>
     public FollowCamera Camera { get; } = new(default, System.Numerics.Vector2.UnitY);
@@ -97,6 +117,9 @@ public sealed class BattleDrawing
     /// <summary>How many frames the battle may be ahead of the drawing.</summary>
     public int MaxAhead { get; set; } = 60 * 60 * 5;
 
+    /// <summary>Whether an action drawn now is an AI's walk (state 5), which A only fast-forwards under Start Early.</summary>
+    public bool Walking => _composer.Walking;
+
     /// <summary>
     /// One tick of the drawing: the battle steps as the setting says, and the next frame is drawn, then the arena's music hold, map sounds
     /// and weather step at the drawing's pace by its camera. Returns the drawn frame's step, but its end only once the drawing has caught
@@ -106,33 +129,50 @@ public sealed class BattleDrawing
     /// <param name="readInput">The player's controls, read only in a turn the player plays.</param>
     public BattleStep Tick(ZoneEngine arena, bool skyDrawn, Func<PlayerInput>? readInput)
     {
-        if (CaughtUp)
+        BattleStep step;
+        if (Turns == CombatTurns.Original && CaughtUp)
         {
-            if (Turns == CombatTurns.Original || Battle.WaitsOnPlayer)
-                Step(arena, readInput);
-            else
+            // Drawn as it's made, as the battle has always been.
+            var frame = Step(arena, readInput);
+            _composer.Settle(frame);
+            Draw(frame, sounds: true);
+            step = frame.Step;
+        }
+        else
+        {
+            if (CaughtUp)
+            {
+                if (Turns == CombatTurns.Original || Battle.WaitsOnPlayer)
+                    Step(arena, readInput);
+                else
+                    RunAhead(arena);
+            }
+            else if (Turns == CombatTurns.StartEarly && !Battle.WaitsOnPlayer)
             {
                 RunAhead(arena);
             }
+            Draw(_composer.Next(), sounds: true);
+            step = Frame.Step switch
+            {
+                BattleStep.Ended when !CaughtUp => BattleStep.Ran,
+                // A pause is returned once, as its tick is drawn.
+                BattleStep.Paused when !CaughtUp || _stepped == Frame.Tick => BattleStep.Ran,
+                var s => s,
+            };
+            _stepped = Frame.Tick;
         }
-        else if (Turns == CombatTurns.StartEarly && !Battle.WaitsOnPlayer)
-        {
-            RunAhead(arena);
-        }
-        if (_ahead.TryDequeue(out var frame))
-            Draw(frame, sounds: true);
         // Bgm.Update, ProcessAudioBubbles and the weather, as the zone engine draws the arena.
         arena.Audio.HoldMusic = Frame.MusicHeld;
         arena.StepSounds(Camera.Aim);
         arena.StepWeather(skyDrawn, arena.Precipitation, Frame.FogLifted);
-        return Frame.Step is BattleStep.Ended && !CaughtUp ? BattleStep.Ran : Frame.Step;
+        return step;
     }
 
     /// <summary>Steps the battle ahead without drawing, till it waits on the player or the tick's budget is spent.</summary>
     private void RunAhead(ZoneEngine arena)
     {
         var clock = Budget is not null ? Stopwatch.StartNew() : null;
-        for (var n = 0; n < TicksAhead && _ahead.Count < MaxAhead && !Battle.WaitsOnPlayer; n++)
+        for (var n = 0; n < TicksAhead && _composer.Actions.Last - _composer.Slowest() < MaxAhead && !Battle.WaitsOnPlayer; n++)
         {
             Step(arena, readInput: null);
             if (clock is not null && clock.Elapsed > Budget)
@@ -140,11 +180,14 @@ public sealed class BattleDrawing
         }
     }
 
-    private void Step(ZoneEngine arena, Func<PlayerInput>? readInput)
+    private BattleFrame Step(ZoneEngine arena, Func<PlayerInput>? readInput)
     {
         Recorder.BeginTick();
         var step = Battle.Tick(arena, readInput);
-        _ahead.Enqueue(Recorder.Sample(Battle, step));
+        var frame = Recorder.Sample(Battle, step);
+        _composer.Record(frame);
+        Recorded?.Invoke(frame);
+        return frame;
     }
 
     /// <summary>
@@ -160,7 +203,7 @@ public sealed class BattleDrawing
             case MenuAction.Start:
                 FastForward();
                 return Battle.Press(action);
-            case MenuAction.Accept when Frame.Walking:
+            case MenuAction.Accept when Walking:
                 FastForward();
                 return true;
             default:
@@ -169,14 +212,16 @@ public sealed class BattleDrawing
     }
 
     /// <summary>
-    /// Draws every frame the battle is ahead by at once, to the last: their one-offs go to the host, so the views come and go as they
-    /// would have, but their sounds and emitters don't start (a sound's stop still goes through).
+    /// Draws every action to the battle's present at once: the one-offs go to the host, so the views come and go as they would have, but
+    /// the sounds and emitters don't start (a sound's stop still goes through).
     /// </summary>
     public void FastForward()
     {
-        while (_ahead.TryDequeue(out var frame))
-            Draw(frame, sounds: false);
+        if (CaughtUp)
+            return;
+        Draw(_composer.FastForward(), sounds: false);
     }
+
 
     private void Draw(BattleFrame frame, bool sounds)
     {

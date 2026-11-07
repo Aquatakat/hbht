@@ -88,8 +88,7 @@ public partial class CombatNumbersView : Node3D
 public partial class MissileView : Node3D
 {
     private readonly Models _models;
-    private MissileFlight? _flight;
-    private Node3D? _scene;
+    private readonly Dictionary<MissileFlight, Node3D?> _flying = [];
 
     public MissileView(Models models)
     {
@@ -97,34 +96,38 @@ public partial class MissileView : Node3D
         Name = "Missile";
     }
 
-    /// <summary>An arrow, thrown weapon or flask leaves (<see cref="MissileLaunched"/>): its scene is made.</summary>
+    /// <summary>
+    /// An arrow, thrown weapon or flask leaves (<see cref="MissileLaunched"/>): its scene is made. Under Start Early another action's may
+    /// still be flying (ADR 0040), so each flight has its own.
+    /// </summary>
     public void Launch(MissileFlight flight)
     {
-        Land();
-        _flight = flight;
-        _scene = _models.Instantiate(flight.Scene);
-        if (_scene is null)
-            return;
-        AddChild(_scene);
+        Land(flight);
+        var scene = _models.Instantiate(flight.Scene);
+        _flying[flight] = scene;
+        if (scene is not null)
+            AddChild(scene);
     }
 
     /// <summary>It has landed (<see cref="MissileLanded"/>): its scene goes.</summary>
-    public void Land()
+    public void Land(MissileFlight flight)
     {
-        _scene?.QueueFree();
-        _scene = null;
-        _flight = null;
+        if (_flying.Remove(flight, out var scene))
+            scene?.QueueFree();
     }
 
-    /// <summary>Draws the flight where the battle's recording has it on its arc on the tick drawn, if one is flying.</summary>
-    public void Sync(DrawnMissile? drawn)
+    /// <summary>Draws each flight where the battle's recording has it on its arc on the tick drawn.</summary>
+    public void Sync(IReadOnlyList<DrawnMissile> drawn)
     {
-        if (_scene is null || drawn is not { } flight || flight.Flight != _flight)
-            return;
-        // The rotation's rows are where the scene's axes go, Godot's basis's columns.
-        var r = flight.Rotation;
-        var basis = new Basis(new Vector3(r.M11, r.M12, r.M13), new Vector3(r.M21, r.M22, r.M23), new Vector3(r.M31, r.M32, r.M33));
-        _scene.Transform = new Transform3D(basis.Scaled(Vector3.One * flight.Scale), flight.Drawn.ToGodot());
+        foreach (var flight in drawn)
+        {
+            if (_flying.GetValueOrDefault(flight.Flight) is not { } scene)
+                continue;
+            // The rotation's rows are where the scene's axes go, Godot's basis's columns.
+            var r = flight.Rotation;
+            var basis = new Basis(new Vector3(r.M11, r.M12, r.M13), new Vector3(r.M21, r.M22, r.M23), new Vector3(r.M31, r.M32, r.M33));
+            scene.Transform = new Transform3D(basis.Scaled(Vector3.One * flight.Scale), flight.Drawn.ToGodot());
+        }
     }
 }
 

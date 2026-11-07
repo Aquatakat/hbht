@@ -257,12 +257,15 @@ public abstract partial class BodyView : Node3D
     /// Poses the actor the core owns at a battle's recorded <paramref name="state"/> and <paramref name="clock"/>, first starting the
     /// emitters the recording says it started for <paramref name="starts"/>' requests (ADR 0040).
     /// </summary>
-    protected void Follow(int state, int clock, IEnumerable<int> starts)
+    /// <param name="blend">Ticks to blend from the pose it has, for a recording that jumps (<see cref="ActorAnimator.BlendFrom"/>); 0 for none.</param>
+    protected void Follow(int state, int clock, IEnumerable<int> starts, int blend = 0)
     {
         if (_follower is null)
             return;
         foreach (var request in starts)
             _follower.StartEmitters(request);
+        if (blend > 0)
+            _follower.BlendFrom(blend);
         _follower.Follow(state, clock);
     }
 

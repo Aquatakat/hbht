@@ -75,7 +75,7 @@ public sealed class StartEarlyTests(Na10Import fixture)
     {
         var early = Play(host => Plain(Set, 1, host), CombatTurns.StartEarly, Skipping, stopAtWalk: true);
         Assert.False(early.Drawing.CaughtUp);
-        Assert.True(early.Drawing.Frame.Walking);
+        Assert.True(early.Drawing.Walking);
         var walker = early.Drawing.Frame.Current!;
         var at = walker.Body.Sphere.Position;
         Assert.True(early.Drawing.Press(MenuAction.Accept));
@@ -109,9 +109,16 @@ public sealed class StartEarlyTests(Na10Import fixture)
         public required BattleDrawing Drawing { get; init; }
         public required BattleRecorder Recorder { get; init; }
         public Battle Battle => Built.Battle;
-        public List<string> Drawn { get; } = [];
+        /// <summary>The battle's frames as it recorded them, tick by tick: what the rules did.</summary>
+        public List<string> Recorded { get; } = [];
+
+        /// <summary>The session's ticks the battle took to draw.</summary>
+        public int Drawn { get; set; }
         public int MostAhead { get; set; }
         public bool Paused { get; set; }
+
+        /// <summary>What checks the drawing under Start Early.</summary>
+        public Watch? Watch { get; set; }
 
         /// <summary>The player's turn the script last acted in, and whether its attack was refused there.</summary>
         public (Combatant? Turn, bool Refused) Acting { get; set; }
@@ -124,10 +131,20 @@ public sealed class StartEarlyTests(Na10Import fixture)
         var built = build(recorder);
         var zone = new ZoneEngine(built.Game, built.Streamer);
         zone.Keys.Output = recorder;
+        recorder.Keys = zone.Keys;
         var drawing = new BattleDrawing(built.Battle, recorder, null, audio) { Budget = null, TicksAhead = 97, Turns = turns };
         zone.Camera = drawing.Camera;
         var run = new Run { Built = built, Drawing = drawing, Recorder = recorder };
-        run.Drawn.Add(Digest(drawing.Frame));
+        var watch = turns == CombatTurns.StartEarly ? new Watch(drawing) : null;
+        run.Watch = watch;
+        run.Recorded.Add(Digest(drawing.Frame));
+        watch?.Recorded(drawing.Frame);
+        watch?.Drew(drawing.Frame);
+        drawing.Recorded = frame =>
+        {
+            run.Recorded.Add(Digest(frame));
+            watch?.Recorded(frame);
+        };
         for (var tick = 0; tick < Most; tick++)
         {
             if (drawing.CaughtUp && built.Battle.WaitsOnPlayer && !built.Battle.Over)
@@ -138,8 +155,9 @@ public sealed class StartEarlyTests(Na10Import fixture)
             }
             var step = drawing.Tick(zone, skyDrawn: false, readInput: null);
             run.MostAhead = Math.Max(run.MostAhead, drawing.Ahead);
-            run.Drawn.Add(Digest(drawing.Frame));
-            if (stopAtWalk && drawing.Frame.Walking && drawing.Ahead > 30)
+            run.Drawn++;
+            watch?.Drew(drawing.Frame);
+            if (stopAtWalk && drawing.Walking && drawing.Ahead > 30)
                 return run;
             if (step is BattleStep.Paused)
             {
@@ -148,7 +166,12 @@ public sealed class StartEarlyTests(Na10Import fixture)
                 run.Paused = true;
             }
             if (step is BattleStep.Ended)
+            {
+                // The battle's end comes only once the drawing has caught up.
+                Assert.True(drawing.CaughtUp, "the battle ended before the drawing caught up");
+                watch?.Done();
                 return run;
+            }
         }
         Assert.Fail($"The battle didn't end in {Most} ticks ({turns}).");
         return run;
@@ -189,22 +212,171 @@ public sealed class StartEarlyTests(Na10Import fixture)
     }
 
     // ---------------------------------------------------------------------------------------------------------------------------
+    // What's checked of the drawing under Start Early
+
+    /// <summary>
+    /// Checks a battle's drawing under Start Early as it's drawn (ADR 0040's stage 3): every body is drawn from a tick of the recording
+    /// no earlier than the last it was drawn from, as the recording has it there; no body is in two actions' episodes at once; no two
+    /// bodies drawn from different ticks come nearer than either tick recorded them, where they touch; a turn the player plays shows only
+    /// once the drawing has caught up; and every cue, sound call and emitter start recorded is played once.
+    /// </summary>
+    private sealed class Watch(BattleDrawing drawing)
+    {
+        private readonly Dictionary<int, Dictionary<Combatant, System.Numerics.Vector3>> _places = [];
+        private readonly Dictionary<object, int> _recorded = new(ReferenceEqualityComparer.Instance);
+        private readonly Dictionary<object, int> _drawn = new(ReferenceEqualityComparer.Instance);
+        private readonly Dictionary<(object, int), int> _emittersRecorded = [], _emittersDrawn = [];
+        private readonly Dictionary<Combatant, int> _ticks = [];
+        private readonly HashSet<DrawnAction> _started = [];
+
+        /// <summary>Drawn ticks on which two actions drew their own ticks at once.</summary>
+        public int Overlapping { get; private set; }
+
+        /// <summary>Actions that started while an earlier one they share a body with still drew its own ticks.</summary>
+        public int SharedEarly { get; private set; }
+
+        /// <summary>Drawn ticks on which a body was drawn from a different tick than the newest action's.</summary>
+        public int Apart { get; private set; }
+
+        public Dictionary<DrawnAction, int> Starts { get; } = [];
+
+        public void Recorded(BattleFrame f)
+        {
+            _places[f.Tick] = f.Bodies.ToDictionary(b => b.Combatant, b => b.Centre);
+            foreach (var cue in f.Cues)
+                _recorded[cue] = _recorded.GetValueOrDefault(cue) + 1;
+            foreach (var call in f.Sounds)
+                _recorded[call] = _recorded.GetValueOrDefault(call) + 1;
+            foreach (var e in f.Emitters)
+                _emittersRecorded[(e.Owner, e.Request)] = _emittersRecorded.GetValueOrDefault((e.Owner, e.Request)) + 1;
+        }
+
+        public void Drew(BattleFrame f)
+        {
+            foreach (var cue in f.Cues)
+                _drawn[cue] = _drawn.GetValueOrDefault(cue) + 1;
+            foreach (var call in f.Sounds)
+                _drawn[call] = _drawn.GetValueOrDefault(call) + 1;
+            foreach (var e in f.Emitters)
+                _emittersDrawn[(e.Owner, e.Request)] = _emittersDrawn.GetValueOrDefault((e.Owner, e.Request)) + 1;
+
+            var composer = drawing.Composer;
+            var now = composer.DrawingNow().ToList();
+            var d = drawing.Drawn;
+            var ticks = new Dictionary<Combatant, int>();
+            foreach (var b in f.Bodies)
+            {
+                var c = b.Combatant;
+                // Each body is drawn from its own tick, never an earlier one than before, as the recording has it there.
+                var t = composer.DrawnTickOf(c) ?? throw new Xunit.Sdk.XunitException($"{c} is drawn but has no tick");
+                if (_ticks.TryGetValue(c, out var before))
+                    Assert.True(t >= before, $"{c} went back from tick {before} to {t} at drawn tick {d}");
+                _ticks[c] = t;
+                ticks[c] = t;
+                Assert.Equal(_places[t][c], b.Centre);
+                if (t != f.Tick)
+                    Apart++;
+                // No body is in two actions' episodes at once.
+                var holding = now.Count(a => a.Episodes.Any(e => e.Body == c && e.From <= a.TickAt(d) && a.TickAt(d) <= e.To));
+                Assert.True(holding <= 1, $"{c} is in {holding} actions' episodes at drawn tick {d}");
+            }
+            // No two bodies drawn from different ticks touch nearer than either tick had them.
+            for (var i = 0; i < f.Bodies.Length; i++)
+            {
+                for (var j = i + 1; j < f.Bodies.Length; j++)
+                {
+                    var (x, y) = (f.Bodies[i], f.Bodies[j]);
+                    var (tx, ty) = (ticks[x.Combatant], ticks[y.Combatant]);
+                    if (tx == ty)
+                        continue;
+                    var reach = x.Combatant.Body.Sphere.Radius + y.Combatant.Body.Sphere.Radius;
+                    var apart = System.Numerics.Vector3.Distance(x.Centre, y.Centre);
+                    if (apart >= reach)
+                        continue;
+                    var then = Math.Min(Between(x.Combatant, y.Combatant, tx), Between(x.Combatant, y.Combatant, ty));
+                    Assert.True(apart >= then - BattleComposer.Slack - 0.01f,
+                        $"At drawn tick {d}, {x.Combatant} (tick {tx}) and {y.Combatant} (tick {ty}) are drawn {apart:F3} apart, " +
+                        $"where the recording had them {then:F3}");
+                }
+            }
+            if (now.Count(a => a.First <= a.TickAt(d) && a.TickAt(d) <= a.Last) >= 2)
+                Overlapping++;
+            foreach (var a in now)
+            {
+                if (!_started.Add(a))
+                    continue;
+                Starts[a] = d;
+                foreach (var e in now)
+                {
+                    if (e.Index < a.Index && e.TickAt(d) <= e.Last
+                        && a.Episodes.Any(x => e.Episodes.Any(y => y.Body == x.Body)))
+                    {
+                        SharedEarly++;
+                        break;
+                    }
+                }
+            }
+            // A turn the player plays opens only once the drawing has caught up.
+            if (f.State == CombatState.Turn && _state != CombatState.Turn)
+                Assert.True(drawing.CaughtUp, $"the player's turn opened at drawn tick {d} before the drawing caught up: frame {f.Tick} of " +
+                    $"{drawing.Actions.Last}, {f.Current} ({f.Current?.Controlled}), battle {drawing.Battle.State}; drawing " +
+                    string.Join("; ", now.Select(a => $"{a} at {a.TickAt(d)} tail {a.TailEnd}")) + "; bodies " +
+                    string.Join(", ", f.Bodies.Select(b => $"{b.Combatant.Slot}@{composer.DrawnTickOf(b.Combatant)}")));
+            _state = f.State;
+        }
+
+        private CombatState _state;
+
+        private float Between(Combatant x, Combatant y, int t) =>
+            _places[t].TryGetValue(x, out var a) && _places[t].TryGetValue(y, out var b) ? System.Numerics.Vector3.Distance(a, b) : float.PositiveInfinity;
+
+        /// <summary>The battle is over: every cue, sound call and emitter start recorded was played once.</summary>
+        public void Done()
+        {
+            foreach (var (item, n) in _recorded)
+                Assert.True(n == 1 && _drawn.GetValueOrDefault(item) == 1, $"{item} was recorded {n} times and played {_drawn.GetValueOrDefault(item)}");
+            Assert.Equal(_recorded.Count, _drawn.Count);
+            foreach (var (start, n) in _emittersRecorded)
+                Assert.True(_emittersDrawn.GetValueOrDefault(start) == n, $"{start}'s emitters were started {n} times and drawn {_emittersDrawn.GetValueOrDefault(start)}");
+            Assert.Equal(_emittersRecorded.Count, _emittersDrawn.Count);
+            if (Environment.GetEnvironmentVariable("HBHT_ACTIONS") is not null)
+            {
+                foreach (var a in drawing.Actions.Actions.Take(60))
+                {
+                    TestContext.Current.TestOutputHelper?.WriteLine(
+                        $"  {a} ({a.Last - a.First + 1}) drawn from {(Starts.TryGetValue(a, out var s) ? s : -1)}: " +
+                        string.Join(", ", a.Episodes.Select(e => $"{e.Body.Slot} {e.From - a.First}–{e.To - a.First}")) +
+                        " things " + string.Join(",", a.Things.Select(t => $"{t.Key.GetType().Name}–{t.Value - a.First}")));
+                }
+            }
+            TestContext.Current.TestOutputHelper?.WriteLine(
+                $"Start Early: {Overlapping} drawn ticks with two actions' own ticks at once, {SharedEarly} actions began while an earlier one " +
+                $"sharing a body still drew, bodies drawn from another tick than the newest action's {Apart} times");
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------------------------------------------
     // What's compared
 
     private static void Same(Run original, Run early)
     {
         TestContext.Current.TestOutputHelper?.WriteLine(
-            $"{original.Drawn.Count} ticks drawn, {original.Battle.Log.Count} lines, {original.Battle.Outcome}; Start Early ran up to {early.MostAhead} ahead");
+            $"{original.Recorded.Count} ticks recorded, {original.Battle.Log.Count} lines, {original.Battle.Outcome}; Start Early ran up to " +
+            $"{early.MostAhead} ahead; drawn in {original.Drawn} ticks under Original and {early.Drawn} under Start Early, " +
+            $"{100.0 * (original.Drawn - early.Drawn) / original.Drawn:F1}% shorter");
         Assert.True(early.MostAhead > 0, "Start Early never ran ahead");
         Assert.Equal(0, original.MostAhead);
-        var n = Math.Min(original.Drawn.Count, early.Drawn.Count);
+        var n = Math.Min(original.Recorded.Count, early.Recorded.Count);
         for (var i = 0; i < n; i++)
         {
-            if (original.Drawn[i] != early.Drawn[i])
-                Assert.Fail($"The drawn frames part at tick {i}:\nOriginal:    {original.Drawn[i]}\nStart Early: {early.Drawn[i]}");
+            if (original.Recorded[i] != early.Recorded[i])
+                Assert.Fail($"The recorded frames part at tick {i}:\nOriginal:    {original.Recorded[i]}\nStart Early: {early.Recorded[i]}");
         }
-        Assert.Equal(original.Drawn.Count, early.Drawn.Count);
+        Assert.Equal(original.Recorded.Count, early.Recorded.Count);
         Assert.Equal(original.Recorder.Ticks, early.Recorder.Ticks);
+        // Under Original each tick is drawn as it's recorded; under Start Early the actions overlap, so it's drawn in no more.
+        Assert.Equal(original.Recorded.Count - 1, original.Drawn);
+        Assert.True(early.Drawn <= original.Drawn, $"Start Early drew in {early.Drawn} ticks, Original in {original.Drawn}");
 
         var (a, b) = (original.Battle, early.Battle);
         Assert.Equal(a.State, b.State);

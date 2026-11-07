@@ -161,7 +161,55 @@ public sealed class ActorAnimator : IActorMotion
     /// Poses the scene at <paramref name="state"/> and <paramref name="clock"/>, as a battle's recording has its actor on the tick drawn
     /// (ADR 0040). Call after each tick.
     /// </summary>
-    public void Follow(int state, int clock) => ShowSeen(state, (clock - 1) / 60.0);
+    public void Follow(int state, int clock)
+    {
+        ShowSeen(state, (clock - 1) / 60.0);
+        Blend();
+    }
+
+    /// <summary>
+    /// Blends the next <paramref name="ticks"/> poses from the one it has now, as a body drawn from a battle's recording meets its next
+    /// action from an idle frame other than the one before it (ADR 0040): each posed node eases from where it was to where the animation
+    /// has it, so the jump doesn't show. Call before the <see cref="Follow(int, int)"/> that jumps.
+    /// </summary>
+    public void BlendFrom(int ticks)
+    {
+        if (_player?.GetNodeOrNull(_player.RootNode) is not { } root || ticks <= 0)
+            return;
+        var nodes = new List<(Node3D, Transform3D)>();
+        var stack = new Stack<Node>([root]);
+        while (stack.Count > 0)
+        {
+            var node = stack.Pop();
+            if (node is Node3D n3 && node != root)
+                nodes.Add((n3, n3.Transform));
+            foreach (var child in node.GetChildren())
+                stack.Push(child);
+        }
+        (_blend, _blendTicks, _blended) = (nodes, ticks, 0);
+    }
+
+    private List<(Node3D Node, Transform3D From)>? _blend;
+    private int _blendTicks, _blended;
+
+    /// <summary>Eases the posed nodes from where a blend began, a tick further each call, till it's done.</summary>
+    private void Blend()
+    {
+        if (_blend is not { } nodes)
+            return;
+        _blended++;
+        if (_blended >= _blendTicks || _unseen)
+        {
+            _blend = null;
+            return;
+        }
+        var w = (float)_blended / _blendTicks;
+        foreach (var (node, from) in nodes)
+        {
+            if (GodotObject.IsInstanceValid(node))
+                node.Transform = from.InterpolateWith(node.Transform, w);
+        }
+    }
 
     /// <summary>
     /// Whether its scene isn't seen, as a wanderer's isn't while it's faded out: the core's motion plays on, but the scene isn't

@@ -90,6 +90,25 @@ public sealed class AudioKeys(ISoundOutput audio, SoundsRecord sounds, IRandom r
     public void Process(BodyAudio body, BodySounds? profile, int request, int frame, int length, Vector3 position, int surface,
         Vector3 eye, Vector3 aim)
     {
+        Keying = body;
+        try
+        {
+            Keys(body, profile, request, frame, length, position, surface, eye, aim);
+        }
+        finally
+        {
+            Keying = null;
+        }
+    }
+
+    /// <summary>
+    /// The body whose keys are being processed, while they are: what a recording of a battle tells each sound's owner by (ADR 0040).
+    /// </summary>
+    public BodyAudio? Keying { get; private set; }
+
+    private void Keys(BodyAudio body, BodySounds? profile, int request, int frame, int length, Vector3 position, int surface,
+        Vector3 eye, Vector3 aim)
+    {
         if (frame == 1)
             body.Request = request;
         if (surface >= 3)
