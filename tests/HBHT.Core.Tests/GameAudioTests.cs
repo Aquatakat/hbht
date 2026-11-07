@@ -163,4 +163,38 @@ public class GameAudioTests
             audio.Play(Tune, lifetime: 100);
         Assert.Equal(GameAudio.MaxSounds, audio.SoundsPlaying);
     }
+
+    [Fact]
+    public void WhetherASoundPlaysOnIsKeptByTheGamesTicksNotTheMixers()
+    {
+        // 1001 rows a 20 ms period apart, the first read on the sequencer's first step: it stops on the step that reads the last, the
+        // 20,001st millisecond, which the game's 1,201st tick passes (ADR 0040).
+        var audio = Audio();
+        Assert.Equal(20_001, AudioEngine.StopsAfter(LongNote(1000)));
+        var once = audio.Start(Tune, 0xFF, 0x80, loop: false);
+        var looped = audio.Start(Other, 0xFF, 0x80, loop: true);
+        var cut = audio.Start(Tune, 0xFF, 0x80, loop: false, durationMs: 100);
+        // However far the mixer runs ahead, nothing ends before its ticks.
+        var frames = new short[2 * 44100];
+        for (var i = 0; i < 30; i++)
+            audio.Render(frames);
+        Assert.True(audio.IsPlaying(once));
+        Assert.True(audio.IsPlaying(cut));
+
+        // A duration of 100 ms ends on the sequencer's step after: past the 6th tick's 100 ms, at the 7th's.
+        for (var i = 0; i < 6; i++)
+            audio.Step();
+        Assert.True(audio.IsPlaying(cut));
+        audio.Step();
+        Assert.False(audio.IsPlaying(cut));
+
+        for (var i = 7; i < 1200; i++)
+            audio.Step();
+        Assert.True(audio.IsPlaying(once));
+        audio.Step();
+        Assert.False(audio.IsPlaying(once));
+        Assert.True(audio.IsPlaying(looped));
+        audio.Stop(looped);
+        Assert.False(audio.IsPlaying(looped));
+    }
 }

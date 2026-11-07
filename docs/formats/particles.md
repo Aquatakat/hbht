@@ -11,6 +11,9 @@ The Borg5's emitter records, and the particle pool that runs them and code's own
 
 ## The simulation
 
+The runtime steps one head for trek, cut-scenes and battles (`ParticlesView`), whose actors' emitters start from the core's motions (`ActorMotion.Particles`). A battle's spells' visuals also run their emitters on a head of `SpellFx`'s own, with anchors the core poses, for how long each visual's particles last (`SpellFx.Emitting`): the battle asks the runtime's head nothing ([combat](../systems/combat.md#the-port)).
+
+
 Addresses are 1.0's; the constants are 0.006 at `0x800d5970`, 0.6 at `0x800d58f8`, ±353.55 at `0x800d5914` and 0.001 at `0x800d5940`. In the port `ParticleHead` is the pool and its frame, `ActorParticles` an actor's start, and the views' `ParticlesView` draws it.
 
 - **The pool** (`Particles.Head`, `0x800d84b8`, made by `InitParticleHead`, `0x800a7e2c`, from `InitZoneEngine` for trek, combat and a cut-scene, freed with the zone engine): 16 emitters and 384 particles with the Expansion Pak, or 64 in trek, 96 in combat and 16 in a cut-scene without it (u16 `0x800d7ea4`, 1 in every checkpoint). Both are stacks of free ids. A full pool hands out a sentinel particle, which is written to and never linked or drawn, so a new particle is dropped silently, after its random draws. An emitter needs a slot and a particle for its head, or it doesn't start.
