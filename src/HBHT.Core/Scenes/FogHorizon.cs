@@ -185,6 +185,9 @@ public sealed class FogHorizon
         return MathF.Min(limit, reach);
     }
 
+    /// <summary>The spans' least values while <see cref="Smooth"/> works, kept from call to call.</summary>
+    [ThreadStatic] private static float[]? _least;
+
     /// <summary>
     /// Rounds the edges round the circle without taking any further out: each becomes the least within half of
     /// <paramref name="width"/> either side, and then the mean of those within a quarter of it either side, twice. So each
@@ -194,7 +197,7 @@ public sealed class FogHorizon
     internal static void Smooth(float[] edges, int width)
     {
         var n = edges.Length;
-        var least = new float[n];
+        var least = _least is { } kept && kept.Length == n ? kept : _least = new float[n];
         for (var i = 0; i < n; i++)
         {
             var m = float.MaxValue;

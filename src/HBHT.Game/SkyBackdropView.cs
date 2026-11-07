@@ -73,6 +73,9 @@ public partial class SkyBackdropView : Control
         """;
 
     private static readonly Shader Dome = new() { Code = DomeShader };
+
+    // The dome's parameters set every frame, as Godot's names, made once.
+    private static readonly StringName RightName = "right", UpName = "up", BackName = "back", TanHalfName = "tan_half", AspectName = "aspect";
     private readonly ShaderMaterial _domeMaterial = new() { Shader = Dome };
     private readonly System.Numerics.Vector3[] _domeLines = new System.Numerics.Vector3[SkyBackdrop.DomeLines];
     private readonly Image _domeImage = Image.CreateEmpty(1, SkyBackdrop.DomeLines, false, Image.Format.Rgb8);
@@ -99,18 +102,13 @@ public partial class SkyBackdropView : Control
         {
             SkyBackdrop.Dome(state.Current!, state.Next, state.Change, _sky.Sky.TimeOfDay, _sky.Sky.Colors.Fog, _domeLines,
                 _sky.Sky.FogTime, _sky.Sky.LensFlareValue);
-            for (var y = 0; y < _domeLines.Length; y++)
-            {
-                var c = _domeLines[y] * _sky.Sky.Dim;
-                _domeImage.SetPixel(0, y, new Color(c.X, c.Y, c.Z));
-            }
-            _domeTexture.Update(_domeImage);
+            Upload(_domeLines, _domeImage, _domeTexture, _domeBytes);
             var basis = camera!.GetGlobalTransformInterpolated().Basis;
-            _domeMaterial.SetShaderParameter("right", basis.X.Normalized());
-            _domeMaterial.SetShaderParameter("up", basis.Y.Normalized());
-            _domeMaterial.SetShaderParameter("back", basis.Z.Normalized());
-            _domeMaterial.SetShaderParameter("tan_half", MathF.Tan(Mathf.DegToRad(camera.Fov) / 2));
-            _domeMaterial.SetShaderParameter("aspect", Size.X / MathF.Max(Size.Y, 1));
+            _domeMaterial.SetShaderParameter(RightName, basis.X.Normalized());
+            _domeMaterial.SetShaderParameter(UpName, basis.Y.Normalized());
+            _domeMaterial.SetShaderParameter(BackName, basis.Z.Normalized());
+            _domeMaterial.SetShaderParameter(TanHalfName, MathF.Tan(Mathf.DegToRad(camera.Fov) / 2));
+            _domeMaterial.SetShaderParameter(AspectName, Size.X / MathF.Max(Size.Y, 1));
         }
         // What's behind the scenery, which Draw Distance's Extended fogs toward (N64Material.SkyLinesParameter): the dome, or
         // the screen's lines, which _Draw fills this frame. No gradient where the sky's black or the lightning's white.
@@ -121,6 +119,42 @@ public partial class SkyBackdropView : Control
             N64Material.SetSkyBehind(_gradient, drawn ? SkyBehind.Screen : SkyBehind.None);
         QueueRedraw();
     }
+
+    private readonly byte[] _bytes = new byte[SkyBackdrop.ScreenLines * 3];
+    private readonly byte[] _domeBytes = new byte[SkyBackdrop.DomeLines * 3];
+
+    /// <summary>
+    /// Writes a gradient's lines, dimmed, into its one-pixel-wide image and texture: in one call, as bytes as
+    /// <see cref="Image.SetPixel"/> stores them in an RGB8 image (each channel × 255, clamped, truncated), and only if one
+    /// changed. A line a pixel was a call into Godot each, every frame.
+    /// </summary>
+    private void Upload(System.Numerics.Vector3[] lines, Image image, ImageTexture texture, byte[] bytes)
+    {
+        var dim = _sky.Sky.Dim;
+        var changed = false;
+        for (var y = 0; y < lines.Length; y++)
+        {
+            var c = lines[y] * dim;
+            changed |= Put(bytes, y * 3, c.X) | Put(bytes, y * 3 + 1, c.Y) | Put(bytes, y * 3 + 2, c.Z);
+        }
+        if (!changed && _uploaded.Contains(texture))
+            return;
+        _uploaded.Add(texture);
+        image.SetData(1, lines.Length, false, Image.Format.Rgb8, bytes);
+        texture.Update(image);
+
+        static bool Put(byte[] bytes, int at, float value)
+        {
+            var b = (byte)Math.Clamp(value * 255.0, 0, 255);
+            if (bytes[at] == b)
+                return false;
+            bytes[at] = b;
+            return true;
+        }
+    }
+
+    /// <summary>The textures <see cref="Upload"/> has written at least once.</summary>
+    private readonly HashSet<ImageTexture> _uploaded = [];
 
     public override void _Draw()
     {
@@ -144,12 +178,7 @@ public partial class SkyBackdropView : Control
         {
             SkyBackdrop.Draw(state.Current, state.Next, state.Change, _sky.Sky.TimeOfDay, look, colors.Fog, _lines,
                 _sky.Sky.FogTime, _sky.Sky.LensFlareValue);
-            for (var y = 0; y < _lines.Length; y++)
-            {
-                var c = _lines[y] * _sky.Sky.Dim;
-                _image.SetPixel(0, y, new Color(c.X, c.Y, c.Z));
-            }
-            _gradient.Update(_image);
+            Upload(_lines, _image, _gradient, _bytes);
             DrawTextureRect(_gradient, GetRect(), false);
         }
 
@@ -169,7 +198,7 @@ public partial class SkyBackdropView : Control
         var scale = size.Y / SkyScreen.Height;
         var origin = new Vector2((size.X - SkyScreen.Width * scale) / 2, 0);
         var item = canvas.GetCanvasItem();
-        var batch = new PatchBatch();
+        var batch = Batch;
         foreach (var sprite in sprites)
         {
             if (sky.Image(sprite.Image) is not { } texture)
@@ -186,6 +215,9 @@ public partial class SkyBackdropView : Control
         }
         batch.Flush(item);
     }
+
+    /// <summary>The batch every canvas draws its patches with, one after another on the main thread, emptied by each flush.</summary>
+    private static readonly PatchBatch Batch = new();
 
     /// <summary>How many cells a side a sky patch is drawn in, so its texture follows the perspective.</summary>
     private const int PatchCells = 4;

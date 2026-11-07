@@ -62,6 +62,16 @@ public partial class Game
         _controlsApplied = bindings.Version;
     }
 
+    /// <summary>An input action's name as Godot's, made once: a string handed to Godot is made into one each call, every tick.</summary>
+    private static StringName Action(string name)
+    {
+        if (!ActionNames.TryGetValue(name, out var action))
+            ActionNames[name] = action = name;
+        return action;
+    }
+
+    private static readonly Dictionary<string, StringName> ActionNames = [];
+
     /// <summary>
     /// The controls as the original reads them: the stick walks under 80% tilt and runs above, and R with the stick orbits the
     /// camera, holding him still. On a PC, Shift walks and Ctrl sneaks, and the camera turns by the sources Camera takes alone, by
@@ -70,18 +80,18 @@ public partial class Game
     /// </summary>
     private PlayerInput ReadInput()
     {
-        var hold = Input.IsActionPressed(GameControls.CameraHold);
+        var hold = Input.IsActionPressed(Action(GameControls.CameraHold));
         var own = Vector(InputBindings.Move);
         var shared = Vector(InputBindings.Steer);
         var move = hold ? own : (own + shared).LimitLength(1);
         var stick = new System.Numerics.Vector2(move.X, -move.Y);
-        if (Input.IsActionPressed(GameControls.Walk) && stick.Length() > 0.5f)
+        if (Input.IsActionPressed(Action(GameControls.Walk)) && stick.Length() > 0.5f)
             stick = System.Numerics.Vector2.Normalize(stick) * 0.5f;
 
         var orbit = false;
         var orbitStick = System.Numerics.Vector2.Zero;
         // What turns the camera while what moves him still does: Camera's own sources and its turning keys.
-        var look = Vector(InputBindings.Look) + new Vector2(Input.GetAxis(GameControls.CameraLeft, GameControls.CameraRight), 0);
+        var look = Vector(InputBindings.Look) + new Vector2(Input.GetAxis(Action(GameControls.CameraLeft), Action(GameControls.CameraRight)), 0);
         if (look != Vector2.Zero)
         {
             orbit = true;
@@ -102,10 +112,10 @@ public partial class Game
         }
         // He stands still only while what would move him steers, as with R; a source of Move's alone still walks him.
         var free = !(hold && shared != Vector2.Zero) || own != Vector2.Zero;
-        return new PlayerInput(stick, Input.IsActionPressed(GameControls.Sneak), orbit, orbitStick, Free: free);
+        return new PlayerInput(stick, Input.IsActionPressed(Action(GameControls.Sneak)), orbit, orbitStick, Free: free);
 
         // Up, down, left and right as Godot's vector: up is negative y.
-        static Vector2 Vector(string[] actions) => Input.GetVector(actions[2], actions[3], actions[0], actions[1]);
+        static Vector2 Vector(string[] actions) => Input.GetVector(Action(actions[2]), Action(actions[3]), Action(actions[0]), Action(actions[1]));
     }
 
     /// <summary>

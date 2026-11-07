@@ -167,7 +167,7 @@ public partial class ChunkStreamerView : Node3D
         {
             foreach (var placed in scenery.Objects)
             {
-                if (placed.Object.Flags.HasFlag(SceneObjectFlags.Fullbright))
+                if ((placed.Object.Flags & SceneObjectFlags.Fullbright) != 0)
                     continue;
                 foreach (var level in placed.Levels)
                 {

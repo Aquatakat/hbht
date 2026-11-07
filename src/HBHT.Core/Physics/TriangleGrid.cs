@@ -22,12 +22,40 @@ internal sealed class TriangleGrid<T> where T : struct, IGridTriangle
 {
     private const float CellSize = 4;
 
+    /// <summary>How many cells a part's box may have and still keep them in an array, whatever it fills: a chunk's is 50 × 50.</summary>
+    private const long DenseCells = 16384;
+
     private readonly Dictionary<ChunkKey, Part> _parts = [];
+
+    /// <summary>
+    /// The parts in the order the dictionary lists them, taken again after each change: a query walks this rather than the
+    /// dictionary, whose enumerator cost more than the cells it found on a busy 3×3.
+    /// </summary>
+    private KeyValuePair<ChunkKey, Part>[]? _ordered;
+
+    private KeyValuePair<ChunkKey, Part>[] Ordered => _ordered ??= [.. _parts];
 
     /// <summary>The triangles a query has listed so far, one set a thread, so threads may query a grid nothing changes at once.</summary>
     [ThreadStatic] private static HashSet<int>? _seen;
 
-    private sealed record Part(T[] Triangles, Dictionary<(int X, int Z), int[]> Cells, float MinX, float MinZ, float MaxX, float MaxZ);
+    /// <summary>
+    /// A part's triangles, and the cells of its box: <see cref="Width"/> a row, from cell (<see cref="CellX"/>, <see cref="CellZ"/>),
+    /// row by row in Z, each the indices of its triangles or null for none. A part whose box is far bigger than the cells it fills,
+    /// as one with a stray triangle far out is, keeps them by cell in <see cref="Sparse"/> instead.
+    /// </summary>
+    private sealed record Part(T[] Triangles, int[]?[] Cells, Dictionary<(int X, int Z), int[]>? Sparse, int CellX, int CellZ,
+        int Width, int Height, float MinX, float MinZ, float MaxX, float MaxZ)
+    {
+        /// <summary>The indices of the triangles in cell (<paramref name="x"/>, <paramref name="z"/>), or null for none or outside the box.</summary>
+        public int[]? Cell(int x, int z)
+        {
+            if (Sparse is not null)
+                return Sparse.TryGetValue((x, z), out var cell) ? cell : null;
+            var column = x - CellX;
+            var row = z - CellZ;
+            return (uint)column < (uint)Width && (uint)row < (uint)Height ? Cells[row * Width + column] : null;
+        }
+    }
 
     public int Count => _parts.Values.Sum(p => p.Triangles.Length);
 
@@ -54,12 +82,35 @@ internal sealed class TriangleGrid<T> where T : struct, IGridTriangle
                 }
             }
         }
-        _parts[key] = new Part([.. triangles], cells.ToDictionary(c => c.Key, c => c.Value.ToArray()), minX, minZ, maxX, maxZ);
+        var (cellX, cellZ) = triangles.Count > 0 ? (Cell(minX), Cell(minZ)) : (0, 0);
+        var width = triangles.Count > 0 ? (long)Cell(maxX) - cellX + 1 : 0;
+        var height = triangles.Count > 0 ? (long)Cell(maxZ) - cellZ + 1 : 0;
+        if (width * height <= Math.Max(DenseCells, 4L * cells.Count))
+        {
+            var grid = new int[]?[width * height];
+            foreach (var ((x, z), cell) in cells)
+                grid[(z - cellZ) * width + (x - cellX)] = [.. cell];
+            _parts[key] = new Part([.. triangles], grid, null, cellX, cellZ, (int)width, (int)height, minX, minZ, maxX, maxZ);
+        }
+        else
+        {
+            _parts[key] = new Part([.. triangles], [], cells.ToDictionary(c => c.Key, c => c.Value.ToArray()), cellX, cellZ, 0, 0,
+                minX, minZ, maxX, maxZ);
+        }
+        _ordered = null;
     }
 
-    public bool Remove(ChunkKey key) => _parts.Remove(key);
+    public bool Remove(ChunkKey key)
+    {
+        _ordered = null;
+        return _parts.Remove(key);
+    }
 
-    public void Clear() => _parts.Clear();
+    public void Clear()
+    {
+        _ordered = null;
+        _parts.Clear();
+    }
 
     /// <summary>The triangles under <paramref name="key"/>, which the caller may change in place, or null.</summary>
     public T[]? Triangles(ChunkKey key) => _parts.TryGetValue(key, out var part) ? part.Triangles : null;
@@ -73,18 +124,35 @@ internal sealed class TriangleGrid<T> where T : struct, IGridTriangle
     {
         into.Clear();
         var seen = _seen ??= [];
-        foreach (var (key, part) in _parts)
+        foreach (var (key, part) in Ordered)
         {
             if (only is { } one && one != key)
                 continue;
             if (maxX < part.MinX || minX > part.MaxX || maxZ < part.MinZ || minZ > part.MaxZ)
                 continue;
-            seen.Clear();
-            for (var x = Cell(minX); x <= Cell(maxX); x++)
+            // Only the part's own cells hold anything: the box is cut to them, which keeps the cells' order.
+            var (fromX, toX, fromZ, toZ) = (Cell(minX), Cell(maxX), Cell(minZ), Cell(maxZ));
+            if (part.Sparse is null)
             {
-                for (var z = Cell(minZ); z <= Cell(maxZ); z++)
+                (fromX, toX) = (Math.Max(fromX, part.CellX), Math.Min(toX, part.CellX + part.Width - 1));
+                (fromZ, toZ) = (Math.Max(fromZ, part.CellZ), Math.Min(toZ, part.CellZ + part.Height - 1));
+            }
+            if (fromX == toX && fromZ == toZ)
+            {
+                // One cell lists each of its triangles once.
+                if (part.Cell(fromX, fromZ) is { } only1)
                 {
-                    if (!part.Cells.TryGetValue((x, z), out var cell))
+                    foreach (var i in only1)
+                        into.Add(part.Triangles[i]);
+                }
+                continue;
+            }
+            seen.Clear();
+            for (var x = fromX; x <= toX; x++)
+            {
+                for (var z = fromZ; z <= toZ; z++)
+                {
+                    if (part.Cell(x, z) is not { } cell)
                         continue;
                     foreach (var i in cell)
                     {
@@ -112,7 +180,7 @@ internal sealed class TriangleGrid<T> where T : struct, IGridTriangle
         var minZ = Math.Min(from.Y, to.Y) - widen;
         var maxZ = Math.Max(from.Y, to.Y) + widen;
         var delta = to - from;
-        foreach (var part in _parts.Values)
+        foreach (var (_, part) in Ordered)
         {
             if (maxX < part.MinX || minX > part.MaxX || maxZ < part.MinZ || minZ > part.MaxZ)
                 continue;
@@ -137,7 +205,7 @@ internal sealed class TriangleGrid<T> where T : struct, IGridTriangle
                 var zTo = Math.Min(Cell(highZ + widen), highZCell);
                 for (var z = zFrom; z <= zTo; z++)
                 {
-                    if (!part.Cells.TryGetValue((x, z), out var cell))
+                    if (part.Cell(x, z) is not { } cell)
                         continue;
                     foreach (var i in cell)
                     {
@@ -163,7 +231,7 @@ internal sealed class TriangleGrid<T> where T : struct, IGridTriangle
         var highZ = Math.Max(triangle.A.Z, Math.Max(triangle.B.Z, triangle.C.Z)) + tolerance;
         var squared = tolerance * tolerance;
         var seen = _seen ??= [];
-        foreach (var (key, part) in _parts)
+        foreach (var (key, part) in Ordered)
         {
             if (key == except || highX < part.MinX || lowX > part.MaxX || highZ < part.MinZ || lowZ > part.MaxZ)
                 continue;
@@ -172,7 +240,7 @@ internal sealed class TriangleGrid<T> where T : struct, IGridTriangle
             {
                 for (var z = Cell(lowZ); z <= Cell(highZ); z++)
                 {
-                    if (!part.Cells.TryGetValue((x, z), out var cell))
+                    if (part.Cell(x, z) is not { } cell)
                         continue;
                     foreach (var i in cell)
                     {

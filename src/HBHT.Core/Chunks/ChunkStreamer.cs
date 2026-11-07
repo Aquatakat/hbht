@@ -107,7 +107,9 @@ public sealed class ChunkStreamer
     {
         Focus = position;
         var centre = Centre = CellAt(position);
-        var wanted = new HashSet<ChunkKey>();
+        // Kept from call to call, as it runs every frame: a set emptied lists what's added in the order it's added, as a new one does.
+        var wanted = _wanted;
+        wanted.Clear();
         for (var r = centre.Row - 1; r <= centre.Row + 1; r++)
         {
             for (var c = centre.Column - 1; c <= centre.Column + 1; c++)
@@ -118,19 +120,30 @@ public sealed class ChunkStreamer
             }
         }
 
-        var changed = false;
-        foreach (var cell in _maps.Keys.Where(k => !wanted.Contains(k) || Redrawn(k)).ToList())
+        var going = _changing;
+        going.Clear();
+        foreach (var k in _maps.Keys)
         {
+            if (!wanted.Contains(k) || Redrawn(k))
+                going.Add(k);
+        }
+        var changed = going.Count > 0;
+        foreach (var cell in going)
             Unload(cell);
-            changed = true;
-        }
-        foreach (var cell in wanted.Where(k => !_maps.ContainsKey(k)).ToList())
+        going.Clear();
+        foreach (var k in wanted)
         {
-            Load(Chunk(cell)!);
-            changed = true;
+            if (!_maps.ContainsKey(k))
+                going.Add(k);
         }
+        changed |= going.Count > 0;
+        foreach (var cell in going)
+            Load(Chunk(cell)!);
         return changed;
     }
+
+    private readonly HashSet<ChunkKey> _wanted = [];
+    private readonly List<ChunkKey> _changing = [];
 
     /// <summary>
     /// Reads what loading a chunk of the map set reads ahead of time, from any thread: the triangles of the surfaces it draws,

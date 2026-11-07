@@ -46,11 +46,45 @@ public static class TransformTracks
         {
             if (root.GetNodeOrNull<Node3D>(n.Path) is not { } node)
                 continue;
-            var position = n.Position >= 0 ? animation.PositionTrackInterpolate(n.Position, time) : n.RestPosition ?? node.Position;
-            var rotation = n.Rotation >= 0 ? animation.RotationTrackInterpolate(n.Rotation, time) : n.RestRotation ?? KeptRotation(node);
-            var scale = n.Scale >= 0 ? animation.ScaleTrackInterpolate(n.Scale, time) : n.RestScale ?? node.Scale;
-            node.Transform = new Transform3D(new Basis(rotation) * Basis.FromScale(scale), position);
+            Set(animation, n, node, time);
         }
+    }
+
+    /// <summary>
+    /// What <see cref="Apply"/> poses for one animation of one instance, with its nodes found once: for an animator that poses its
+    /// scene every tick, where finding the animation and each node by its path again each time cost more than posing them.
+    /// </summary>
+    public sealed class Pose
+    {
+        private readonly Animation _animation;
+        private readonly (Posed Posed, Node3D Node)[] _nodes;
+
+        private Pose(Animation animation, (Posed, Node3D)[] nodes) => (_animation, _nodes) = (animation, nodes);
+
+        /// <summary>What the player's animation <paramref name="name"/> poses, or null if it has none or no root.</summary>
+        public static Pose? For(AnimationPlayer player, StringName name, DrivenNodes driven)
+        {
+            if (!player.HasAnimation(name) || player.GetNodeOrNull(player.RootNode) is not { } root)
+                return null;
+            var animation = player.GetAnimation(name);
+            var posed = Posing.GetValue(animation, a => Find(a, root, driven.Of(name)));
+            return new Pose(animation, [.. posed.Select(n => (n, root.GetNodeOrNull<Node3D>(n.Path))).Where(n => n.Item2 is not null)!]);
+        }
+
+        /// <summary>Poses the nodes at <paramref name="time"/> into the animation, as <see cref="Apply"/> does.</summary>
+        public void Apply(double time)
+        {
+            foreach (var (n, node) in _nodes)
+                Set(_animation, n, node, time);
+        }
+    }
+
+    private static void Set(Animation animation, Posed n, Node3D node, double time)
+    {
+        var position = n.Position >= 0 ? animation.PositionTrackInterpolate(n.Position, time) : n.RestPosition ?? node.Position;
+        var rotation = n.Rotation >= 0 ? animation.RotationTrackInterpolate(n.Rotation, time) : n.RestRotation ?? KeptRotation(node);
+        var scale = n.Scale >= 0 ? animation.ScaleTrackInterpolate(n.Scale, time) : n.RestScale ?? node.Scale;
+        node.Transform = new Transform3D(new Basis(rotation) * Basis.FromScale(scale), position);
     }
 
     /// <summary>

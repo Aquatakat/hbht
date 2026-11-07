@@ -360,6 +360,16 @@ public abstract partial class BodyView : Node3D
         return (alpha, fromAim);
     }
 
+    /// <summary>
+    /// Leaves its scene unposed while it isn't drawn, and poses it as it's drawn again (<see cref="ActorAnimator.Unseen"/>): call
+    /// after <see cref="Fade"/>, before the frame is drawn.
+    /// </summary>
+    protected void PoseOnlyWhenSeen(byte alpha)
+    {
+        if (_model?.Animator is { } animator)
+            animator.Unseen = alpha == 0;
+    }
+
     /// <summary>Whether its actor starts its emitters as it enters a state (<see cref="Core.Particles.ActorParticles.Starting"/>).</summary>
     protected void StartsEmitters(bool starting)
     {

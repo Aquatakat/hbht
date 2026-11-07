@@ -126,8 +126,40 @@ public sealed class ActorAnimator : IActorMotion
     public System.Numerics.Vector3 TickMotion(int request)
     {
         var moved = Motion.TickMotion(request);
-        Show((Machine.Clock - 1) / 60.0);
+        ShowSeen((Machine.Clock - 1) / 60.0);
         return moved;
+    }
+
+    /// <summary>
+    /// Whether its scene isn't seen, as a wanderer's isn't while it's faded out: the core's motion plays on, but the scene isn't
+    /// posed, a call into Godot a node, till it's seen again, when it's posed at once where the motion stands.
+    /// </summary>
+    public bool Unseen
+    {
+        get => _unseen;
+        set
+        {
+            _unseen = value;
+            if (!value && _stale)
+            {
+                _stale = false;
+                Show((Machine.Clock - 1) / 60.0);
+            }
+        }
+    }
+
+    private bool _unseen;
+
+    /// <summary>Whether a pose was left out while it was <see cref="Unseen"/>.</summary>
+    private bool _stale;
+
+    /// <summary>Poses the scene, unless it's <see cref="Unseen"/>.</summary>
+    private void ShowSeen(double seconds)
+    {
+        if (_unseen)
+            _stale = true;
+        else
+            Show(seconds);
     }
 
     /// <summary>Plays a state from its first tick, as a branch does.</summary>
@@ -135,7 +167,7 @@ public sealed class ActorAnimator : IActorMotion
     {
         Motion.Enter(state);
         _fraction = 0;
-        Show(0);
+        ShowSeen(0);
     }
 
     /// <inheritdoc/>
@@ -146,29 +178,58 @@ public sealed class ActorAnimator : IActorMotion
     {
         Motion.Join(request, clock);
         _fraction = 0;
-        Show((Machine.Clock - 1) / 60.0);
+        ShowSeen((Machine.Clock - 1) / 60.0);
     }
+
+    /// <summary>
+    /// A state's animation as the player knows it, found once: its name, whether the player has it, and what
+    /// <see cref="TransformTracks"/> poses in it, found the first time it plays.
+    /// </summary>
+    private sealed class StateAnimation(string name, StringName playerName, bool has)
+    {
+        public string Name { get; } = name;
+        public StringName PlayerName { get; } = playerName;
+        public bool Has { get; } = has;
+        public TransformTracks.Pose? Pose { get; set; }
+        public bool PoseFound { get; set; }
+    }
+
+    private readonly Dictionary<int, StateAnimation> _animations = [];
+
+    /// <summary>The animation the player was last given (<see cref="AnimationPlayer.AssignedAnimation"/>), by this.</summary>
+    private StateAnimation? _assigned;
 
     /// <summary>Poses the scene <paramref name="seconds"/> into the state's animation.</summary>
     private void Show(double seconds)
     {
         var state = Machine.Actor.States[Machine.State];
-        var name = AnimationName(state);
-        if (_player is null || !_player.HasAnimation(name))
+        if (!_animations.TryGetValue(Machine.State, out var animation))
+        {
+            var name = AnimationName(state);
+            var playerName = new StringName(name);
+            _animations[Machine.State] = animation = new StateAnimation(name, playerName, _player?.HasAnimation(playerName) == true);
+        }
+        if (_player is null || !animation.Has)
         {
             // A still animation leaves the scene as it is.
             if (_warned != Machine.State && !_still.Contains(Convert.ToInt32(state.Animation.Key, 16)))
-                GD.PushWarning($"{Machine.Actor.Id} has no animation {name}.");
+                GD.PushWarning($"{Machine.Actor.Id} has no animation {animation.Name}.");
             _warned = Machine.State;
             return;
         }
-        if (_player.AssignedAnimation != name)
+        if (_assigned?.Name != animation.Name)
         {
-            _player.Play(name);
+            _player.Play(animation.PlayerName);
             _player.Pause();
+            _assigned = animation;
         }
         _player.Seek(seconds, update: true);
-        TransformTracks.Apply(_player, _driven);
+        if (!animation.PoseFound)
+        {
+            animation.Pose = TransformTracks.Pose.For(_player, animation.PlayerName, _driven);
+            animation.PoseFound = true;
+        }
+        animation.Pose?.Apply(_player.CurrentAnimationPosition);
         if (_root is not null)
             HoldRoot(_root, _pivot);
         _mirroring?.Update();

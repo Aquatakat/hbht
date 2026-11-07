@@ -715,7 +715,9 @@ public sealed class PluginSet
     /// core places sprites and centres the minimap's pieces by it.
     /// </summary>
     public (int Width, int Height) ImageSize(RecordId image) =>
-        _imageSizes.GetOrAdd(image, id => FindAsset(id, "png") is { } png && HBHT.Plugins.Assets.PngHeader.Size(png) is { } size ? size : (0, 0));
+        // Looked up before it's added: the sky asks every frame, and the factory is a new delegate each call.
+        _imageSizes.TryGetValue(image, out var known) ? known
+            : _imageSizes.GetOrAdd(image, id => FindAsset(id, "png") is { } png && HBHT.Plugins.Assets.PngHeader.Size(png) is { } size ? size : (0, 0));
 
     private void AddRecords(Plugin plugin)
     {

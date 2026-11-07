@@ -174,7 +174,7 @@ public static class SceneObjectFade
     public static byte ViewAlpha(Vector2 position, float distance, float radius, SceneObjectFlags flags, in SceneView view)
     {
         byte alpha = 0xFF;
-        if ((!flags.HasFlag(SceneObjectFlags.DrawWhenNear) || radius * 0.5f < distance) && view.Look != Vector2.Zero)
+        if (((flags & SceneObjectFlags.DrawWhenNear) == 0 || radius * 0.5f < distance) && view.Look != Vector2.Zero)
         {
             var toward = position - view.Camera;
             var cos = toward == Vector2.Zero ? 1 : Vector2.Dot(view.Look, Vector2.Normalize(toward));
@@ -188,7 +188,7 @@ public static class SceneObjectFade
                 alpha = ColorBytes.Double((double)((cos - gone) / (fadeFrom - gone)) * 255.0);
             }
         }
-        if (!flags.HasFlag(SceneObjectFlags.Solid) && Between(position, view) is { } between)
+        if ((flags & SceneObjectFlags.Solid) == 0 && Between(position, view) is { } between)
             alpha = between;
         return alpha;
     }

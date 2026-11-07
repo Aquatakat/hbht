@@ -48,7 +48,7 @@ public static class Crowd
         var pushed = false;
         for (var i = 0; i < bodies.Count; i++)
         {
-            if (i == self || bodies[i] is not { } other || !Equals(other.Chunk, body.Chunk)
+            if (i == self || bodies[i] is not { } other || other.Chunk != body.Chunk
                 || MathF.Abs(other.Sphere.Position.Y - body.Sphere.Position.Y) > Height)
                 continue;
             var index = i;

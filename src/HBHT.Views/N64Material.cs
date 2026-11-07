@@ -196,10 +196,10 @@ public static class N64Material
         if (!sky.Applied)
             return;
         DeclareGlobals();
-        RenderingServer.GlobalShaderParameterSet(TintParameter, sky.Colors.Tint.ToGodot());
-        RenderingServer.GlobalShaderParameterSet(FogColorParameter, sky.Colors.Fog.ToGodot());
-        RenderingServer.GlobalShaderParameterSet(FogParameter, new Vector4(sky.SceneryFogStart, 1000, near, far));
-        RenderingServer.GlobalShaderParameterSet(RadialParameter, radial);
+        RenderingServer.GlobalShaderParameterSet(Names.TintParameter, sky.Colors.Tint.ToGodot());
+        RenderingServer.GlobalShaderParameterSet(Names.FogColorParameter, sky.Colors.Fog.ToGodot());
+        RenderingServer.GlobalShaderParameterSet(Names.FogParameter, new Vector4(sky.SceneryFogStart, 1000, near, far));
+        RenderingServer.GlobalShaderParameterSet(Names.RadialParameter, radial);
         SetSkyLight(sky);
     }
 
@@ -216,12 +216,12 @@ public static class N64Material
         if (lines is not null && lines != _skyLines)
         {
             _skyLines = lines;
-            RenderingServer.GlobalShaderParameterSet(SkyLinesParameter, lines);
+            RenderingServer.GlobalShaderParameterSet(Names.SkyLinesParameter, lines);
         }
         if (behind != _skyBehind)
         {
             _skyBehind = behind;
-            RenderingServer.GlobalShaderParameterSet(SkyBehindParameter, (int)behind);
+            RenderingServer.GlobalShaderParameterSet(Names.SkyBehindParameter, (int)behind);
         }
     }
 
@@ -234,7 +234,7 @@ public static class N64Material
     {
         DeclareGlobals();
         Horizon(edges);
-        RenderingServer.GlobalShaderParameterSet(HorizonCentreParameter, centre);
+        RenderingServer.GlobalShaderParameterSet(Names.HorizonCentreParameter, centre);
     }
 
     private static Image? _horizonImage;
@@ -284,9 +284,9 @@ public static class N64Material
         if (!sky.Applied)
             return;
         DeclareGlobals();
-        RenderingServer.GlobalShaderParameterSet(BodyAmbientParameter, sky.BodyAmbient.ToGodot());
-        RenderingServer.GlobalShaderParameterSet(SunColorParameter, sky.SunColor.ToGodot());
-        RenderingServer.GlobalShaderParameterSet(SunDirectionParameter, sky.SunDirection.ToGodot());
+        RenderingServer.GlobalShaderParameterSet(Names.BodyAmbientParameter, sky.BodyAmbient.ToGodot());
+        RenderingServer.GlobalShaderParameterSet(Names.SunColorParameter, sky.SunColor.ToGodot());
+        RenderingServer.GlobalShaderParameterSet(Names.SunDirectionParameter, sky.SunDirection.ToGodot());
     }
 
     /// <summary>Replaces the imported materials of <paramref name="scene"/>, loaded from the glTF whose JSON is <paramref name="root"/>.</summary>
@@ -380,11 +380,11 @@ public static class N64Material
     /// <summary>Moves a scrolling texture's image, in its material and the material's faded and mirrored copies.</summary>
     public static void SetScroll(ShaderMaterial material, float scroll)
     {
-        material.SetShaderParameter(ScrollParameter, scroll);
+        material.SetShaderParameter(Names.ScrollParameter, scroll);
         if (FadedCopies.TryGetValue(material, out var copy))
-            copy.SetShaderParameter(ScrollParameter, scroll);
+            copy.SetShaderParameter(Names.ScrollParameter, scroll);
         if (MirroredCopies.TryGetValue(material, out var mirrored))
-            mirrored.SetShaderParameter(ScrollParameter, scroll);
+            mirrored.SetShaderParameter(Names.ScrollParameter, scroll);
     }
 
     /// <summary>A copy of a material for a copy of a scene, which fades and mirrors as the original does.</summary>
@@ -506,14 +506,14 @@ public static class N64Material
     {
         var value = onScreen is { } c ? new Vector4(c.X, c.Y, c.Z, 1) : Vector4.Zero;
         foreach (var mesh in meshes)
-            mesh.SetInstanceShaderParameter(BodyAmbientInstanceParameter, value);
+            mesh.SetInstanceShaderParameter(Names.BodyAmbientInstanceParameter, value);
     }
 
     /// <summary>Turns a body's fog off or back on (its scene's flag <c>0x100</c>), as a cast's glow does.</summary>
     public static void SetUnfogged(IEnumerable<GeometryInstance3D> meshes, bool unfogged)
     {
         foreach (var mesh in meshes)
-            mesh.SetInstanceShaderParameter(UnfoggedParameter, unfogged ? 1f : 0f);
+            mesh.SetInstanceShaderParameter(Names.UnfoggedParameter, unfogged ? 1f : 0f);
     }
 
     private static void SetOnMeshes(Node root, StringName parameter, Variant value)
@@ -846,6 +846,27 @@ public static class N64Material
                 """,
         };
         return shader;
+    }
+
+    /// <summary>
+    /// The parameters set every frame or tick, as Godot's names: a string handed to Godot is made into one each call, which
+    /// cost more than setting the parameter.
+    /// </summary>
+    private static class Names
+    {
+        public static readonly StringName BodyAmbientInstanceParameter = N64Material.BodyAmbientInstanceParameter;
+        public static readonly StringName BodyAmbientParameter = N64Material.BodyAmbientParameter;
+        public static readonly StringName FogColorParameter = N64Material.FogColorParameter;
+        public static readonly StringName FogParameter = N64Material.FogParameter;
+        public static readonly StringName HorizonCentreParameter = N64Material.HorizonCentreParameter;
+        public static readonly StringName RadialParameter = N64Material.RadialParameter;
+        public static readonly StringName ScrollParameter = N64Material.ScrollParameter;
+        public static readonly StringName SkyBehindParameter = N64Material.SkyBehindParameter;
+        public static readonly StringName SkyLinesParameter = N64Material.SkyLinesParameter;
+        public static readonly StringName SunColorParameter = N64Material.SunColorParameter;
+        public static readonly StringName SunDirectionParameter = N64Material.SunDirectionParameter;
+        public static readonly StringName TintParameter = N64Material.TintParameter;
+        public static readonly StringName UnfoggedParameter = N64Material.UnfoggedParameter;
     }
 }
 

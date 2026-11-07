@@ -857,6 +857,8 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         }
     }
 
+    private static readonly StringName FastForward = "fast_forward";
+
     /// <summary>Debug: the tick rate while a thumbstick is held down, to cross the map quickly (4×).</summary>
     private const int FastTicksPerSecond = 240;
 
@@ -867,7 +869,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     /// </summary>
     private void SetTickRate()
     {
-        var fast = Input.IsActionPressed("fast_forward") && _session is not { MenuOpen: true };
+        var fast = Input.IsActionPressed(FastForward) && _session is not { MenuOpen: true };
         var rate = fast ? FastTicksPerSecond : HBHT.Core.Calendar.GameClock.TicksPerSecond;
         if (Engine.PhysicsTicksPerSecond != rate)
             Engine.PhysicsTicksPerSecond = rate;
@@ -876,6 +878,12 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     public override void _Process(double delta)
     {
         BenchFrame();
+        BenchProcess(() => Process(delta));
+    }
+
+    /// <summary>A frame of the game's own: the chunks streamed round where it's watched from, faded and faced to the eye.</summary>
+    private void Process(double delta)
+    {
         _resizesUndrawn = 0;
         SetTickRate();
         CaptureMouse();
