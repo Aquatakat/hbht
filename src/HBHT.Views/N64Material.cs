@@ -144,16 +144,27 @@ public static class N64Material
     public static bool OnScreenFramebuffer { get; set; }
 
     private enum Wrap { Repeat, Clamp, Mirror }
-    private enum Blend { Opaque, Mask, Blend }
+    /// <summary>
+    /// How a material blends: as its glTF says, opaque, cut out or blended; or <see cref="Fade"/>, an opaque material's copy while its
+    /// model is faded, which blends by the fade alone (<see cref="Faded"/>).
+    /// </summary>
+    private enum Blend { Opaque, Mask, Blend, Fade }
+
+    /// <summary>What a material's shader was made from, so its faded and mirrored copies are made from the same.</summary>
+    private sealed record Spec(bool Unlit, bool Cull, bool Nearest, Blend Blend, bool Textured, bool TexGen, bool Mirrored)
+    {
+        public Shader Shader() => ShaderFor(Unlit, Cull, Nearest, Blend, Textured, TexGen, Mirrored);
+    }
+
+    /// <summary>Per instance: how faded its model is, 1 whole (<see cref="SetFade"/>).</summary>
+    public const string FadeParameter = "fade";
 
     private const int Nearest = 9728, ClampToEdge = 33071, MirroredRepeat = 33648;
     private static readonly Dictionary<string, Shader> Shaders = [];
-    /// <summary>Cut-out materials' blended shaders, for drawing them faded.</summary>
-    private static readonly ConditionalWeakTable<Material, Shader> FadedShaders = [];
+    /// <summary>What each material's shader was made from, for its faded and mirrored copies.</summary>
+    private static readonly ConditionalWeakTable<Material, Spec> Specs = [];
     /// <summary>Cut-out materials' blended copies, made as they're first faded.</summary>
     private static readonly ConditionalWeakTable<Material, ShaderMaterial> FadedCopies = [];
-    /// <summary>One-sided materials' shaders that cull the other side, for drawing them mirrored.</summary>
-    private static readonly ConditionalWeakTable<Material, Shader> MirroredShaders = [];
     /// <summary>One-sided materials' copies that cull the other side, made as they're first mirrored.</summary>
     private static readonly ConditionalWeakTable<Material, ShaderMaterial> MirroredCopies = [];
     private static bool _declared;
@@ -343,21 +354,73 @@ public static class N64Material
     /// </summary>
     /// <remarks>
     /// The original draws a faded scene blended, texel alpha times the fade, with no alpha test
-    /// (<c>FUN_800a1184</c>'s <c>0x1049D8</c>), so its cut-outs blend too. Godot draws an alpha-scissor
-    /// material at full alpha wherever it passes the test, whatever the instance's transparency, so
-    /// a cut-out gets a copy that blends instead. Blended and opaque materials fade as they are.
+    /// (<c>FUN_800a1184</c>'s <c>0x1049D8</c>), so its cut-outs blend too. A cut-out gets a copy that blends
+    /// instead of cutting, and an opaque material one that blends by the fade alone, as the port always has drawn
+    /// them; a blended material fades as it is. The fade is the shader's own (<see cref="SetFade"/>), not Godot's
+    /// instance transparency, which only Forward+ draws: under Mobile and Compatibility, a faded opaque model drew whole.
     /// </remarks>
     public static ShaderMaterial? Faded(Material material)
     {
-        if (!FadedShaders.TryGetValue(material, out var shader))
+        if (!Specs.TryGetValue(material, out var spec) || spec.Blend is not (Blend.Opaque or Blend.Mask))
             return null;
         // Atomically, as scenery is built off the main thread too.
         return FadedCopies.GetValue(material, m =>
         {
             var copy = (ShaderMaterial)m.Duplicate();
-            copy.Shader = shader;
+            copy.Shader = (spec with { Blend = spec.Blend == Blend.Mask ? Blend.Blend : Blend.Fade }).Shader();
             return copy;
         });
+    }
+
+    /// <summary>A mesh's own materials, a surface each, and whether its model is mirrored and faded now.</summary>
+    private sealed class SurfaceState(Material?[] own)
+    {
+        public readonly Material?[] Own = own;
+        public bool Mirrored;
+        public bool Faded;
+    }
+
+    private static readonly ConditionalWeakTable<MeshInstance3D, SurfaceState> States = [];
+
+    /// <summary>Draws a mesh with its materials' mirrored copies or its own (<see cref="Mirrored"/>), faded or not as it is.</summary>
+    public static void SetMirrored(MeshInstance3D mesh, bool mirrored) => SetState(mesh, mirrored, null);
+
+    /// <summary>Draws a mesh with its materials' faded copies or its own (<see cref="Faded"/>), mirrored or not as it is.</summary>
+    public static void SetFaded(MeshInstance3D mesh, bool faded) => SetState(mesh, null, faded);
+
+    /// <summary>
+    /// Gives each surface the material for whether its model is mirrored and faded: its own, its mirrored copy, and that one's faded
+    /// copy. One place for both, so mirroring and fading don't each put back what the other took away.
+    /// </summary>
+    private static void SetState(MeshInstance3D mesh, bool? mirrored, bool? faded)
+    {
+        var state = States.GetValue(mesh, m => new SurfaceState([.. Enumerable.Range(0, m.GetSurfaceOverrideMaterialCount()).Select(m.GetSurfaceOverrideMaterial)]));
+        var (wasMirrored, wasFaded) = (state.Mirrored, state.Faded);
+        state.Mirrored = mirrored ?? state.Mirrored;
+        state.Faded = faded ?? state.Faded;
+        if (state.Mirrored == wasMirrored && state.Faded == wasFaded)
+            return;
+        for (var surface = 0; surface < state.Own.Length; surface++)
+        {
+            if (state.Own[surface] is not { } material)
+                continue;
+            if (state.Mirrored)
+                material = Mirrored(material) ?? material;
+            if (state.Faded)
+                material = Faded(material) ?? material;
+            if (mesh.GetSurfaceOverrideMaterial(surface) != material)
+                mesh.SetSurfaceOverrideMaterial(surface, material);
+        }
+    }
+
+    /// <summary>
+    /// Fades the given meshes to <paramref name="alpha"/>, 0 to 1, drawn through their faded copies (<see cref="Faded"/>) and their
+    /// blended materials; 1 draws them whole.
+    /// </summary>
+    public static void SetFade(IEnumerable<GeometryInstance3D> meshes, float alpha)
+    {
+        foreach (var mesh in meshes)
+            mesh.SetInstanceShaderParameter(Names.FadeParameter, alpha);
     }
 
     /// <summary>
@@ -366,13 +429,16 @@ public static class N64Material
     /// </summary>
     public static ShaderMaterial? Mirrored(Material material)
     {
-        if (!MirroredShaders.TryGetValue(material, out var shader))
+        if (!Specs.TryGetValue(material, out var spec) || !spec.Cull || spec.Mirrored)
             return null;
         // Atomically, as scenery is built off the main thread too.
         return MirroredCopies.GetValue(material, m =>
         {
             var copy = (ShaderMaterial)m.Duplicate();
-            copy.Shader = shader;
+            var mirrored = spec with { Mirrored = true };
+            copy.Shader = mirrored.Shader();
+            // It fades as the material does.
+            Specs.AddOrUpdate(copy, mirrored);
             return copy;
         });
     }
@@ -384,17 +450,19 @@ public static class N64Material
         if (FadedCopies.TryGetValue(material, out var copy))
             copy.SetShaderParameter(Names.ScrollParameter, scroll);
         if (MirroredCopies.TryGetValue(material, out var mirrored))
+        {
             mirrored.SetShaderParameter(Names.ScrollParameter, scroll);
+            if (FadedCopies.TryGetValue(mirrored, out var mirroredFaded))
+                mirroredFaded.SetShaderParameter(Names.ScrollParameter, scroll);
+        }
     }
 
     /// <summary>A copy of a material for a copy of a scene, which fades and mirrors as the original does.</summary>
     public static ShaderMaterial Copy(ShaderMaterial material)
     {
         var copy = (ShaderMaterial)material.Duplicate();
-        if (FadedShaders.TryGetValue(material, out var shader))
-            FadedShaders.Add(copy, shader);
-        if (MirroredShaders.TryGetValue(material, out var mirrored))
-            MirroredShaders.Add(copy, mirrored);
+        if (Specs.TryGetValue(material, out var spec))
+            Specs.AddOrUpdate(copy, spec);
         return copy;
     }
 
@@ -581,10 +649,7 @@ public static class N64Material
             material.SetShaderParameter("alpha_scissor", cutoff.GetSingle());
         if (m.TryGetProperty("extras", out var extras) && extras.TryGetProperty(ExtrasKeys.Borg1, out var borg1))
             material.SetMeta(Borg1Meta, borg1.GetInt32());
-        if (blend == Blend.Mask)
-            FadedShaders.Add(material, ShaderFor(unlit, cull, nearest, Blend.Blend, albedo is not null, texgen));
-        if (cull)
-            MirroredShaders.Add(material, ShaderFor(unlit, cull, nearest, blend, albedo is not null, texgen, mirrored: true));
+        Specs.AddOrUpdate(material, new Spec(unlit, cull, nearest, blend, albedo is not null, texgen, Mirrored: false));
         return material;
 
         static Wrap ToWrap(JsonElement sampler, string name) =>
@@ -643,7 +708,7 @@ public static class N64Material
         // Godot turns the culling round for a mirrored instance; a mirrored copy turns it back (see MirroredMeshes).
         var modes = new List<string> { !cull ? "cull_disabled" : mirrored ? "cull_front" : "cull_back" };
         modes.AddRange(unlit || rsp ? ["unshaded"] : ["diffuse_lambert", "specular_disabled"]);
-        if (blend == Blend.Blend)
+        if (blend is Blend.Blend or Blend.Fade)
             modes.Add("depth_draw_opaque");
 
         var texel = textured
@@ -685,14 +750,17 @@ public static class N64Material
         var dome = (Core.Sky.SkyBackdrop.DomeLines, Core.Sky.SkyScreen.Middle.Y, Core.Sky.SkyScreen.Focal,
             Core.Sky.SkyBackdrop.DomePitch, Core.Sky.SkyBackdrop.DomeDown);
         static string F(float x) => x.ToString("R", System.Globalization.CultureInfo.InvariantCulture) + (x == MathF.Floor(x) ? ".0" : "");
-        // ALPHA starts as 1 − the instance's transparency, which fades scene objects, so it's
-        // multiplied rather than set, and a cut-out's threshold fades with it to keep its shape.
+        // A blended draw fades by its model's fade (SetFade), an opaque one's faded copy by that alone.
         var alpha = blend switch
         {
-            Blend.Blend => "ALPHA *= alpha;",
-            Blend.Mask => "ALPHA_SCISSOR_THRESHOLD = alpha_scissor * ALPHA;\n\tALPHA *= alpha;",
+            Blend.Blend => "ALPHA = alpha * fade;",
+            Blend.Fade => "ALPHA = fade;",
+            Blend.Mask => "ALPHA_SCISSOR_THRESHOLD = alpha_scissor;\n\tALPHA = alpha;",
             _ => "",
         };
+        var fadeUniform = blend is Blend.Blend or Blend.Fade
+            ? "\n// How faded its model is, 1 whole (N64Material.SetFade).\ninstance uniform float fade = 1.0;"
+            : "";
 
         shader = new Shader
         {
@@ -734,7 +802,7 @@ public static class N64Material
                 instance uniform vec3 light2_color = vec3(0.0);
                 instance uniform vec3 light2_direction = vec3(0.0, 1.0, 0.0);
                 instance uniform vec3 light3_color = vec3(0.0);
-                instance uniform vec3 light3_direction = vec3(0.0, 1.0, 0.0);
+                instance uniform vec3 light3_direction = vec3(0.0, 1.0, 0.0);{{fadeUniform}}
 
                 // On-screen colour and alpha: the mesh's tint when untextured, and its alpha.
                 uniform vec4 prim = vec4(1.0);
@@ -867,6 +935,7 @@ public static class N64Material
         public static readonly StringName SunDirectionParameter = N64Material.SunDirectionParameter;
         public static readonly StringName TintParameter = N64Material.TintParameter;
         public static readonly StringName UnfoggedParameter = N64Material.UnfoggedParameter;
+        public static readonly StringName FadeParameter = N64Material.FadeParameter;
     }
 }
 

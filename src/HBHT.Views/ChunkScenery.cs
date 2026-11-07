@@ -212,14 +212,6 @@ public sealed class Level(Node3D node, ScrollingScene? scrolling)
     /// <summary>Whether <see cref="Show"/> has drawn it at <see cref="Alpha"/> yet.</summary>
     private bool _shown;
 
-    /// <summary>The surfaces whose materials change while the model is faded: its cut-outs.</summary>
-    private readonly (MeshInstance3D Mesh, int Surface, Material Opaque, Material Faded)[] _cutOuts =
-    [
-        .. Nodes.FindAll<MeshInstance3D>(node).SelectMany(mesh => Enumerable.Range(0, mesh.GetSurfaceOverrideMaterialCount())
-            .Select(surface => (mesh, surface, material: mesh.GetSurfaceOverrideMaterial(surface)))
-            .Where(s => s.material is not null && N64Material.Faded(s.material) is not null)
-            .Select(s => (s.mesh, s.surface, s.material, (Material)N64Material.Faded(s.material)!))),
-    ];
 
     /// <summary>
     /// Shows the model at an alpha, hiding it at 0, and its actor's particles with it: drawn at that alpha, and not at all
@@ -236,13 +228,15 @@ public sealed class Level(Node3D node, ScrollingScene? scrolling)
         var faded = alpha is > 0 and < 0xFF;
         if (faded != (Alpha is > 0 and < 0xFF))
         {
-            foreach (var (mesh, surface, opaque, fadedMaterial) in _cutOuts)
-                mesh.SetSurfaceOverrideMaterial(surface, faded ? fadedMaterial : opaque);
+            // Its opaque surfaces and cut-outs are drawn through their faded copies (N64Material.Faded).
+            foreach (var mesh in Meshes)
+            {
+                if (mesh is MeshInstance3D instance)
+                    N64Material.SetFaded(instance, faded);
+            }
         }
         Node.Visible = alpha != 0;
         Alpha = alpha;
-        var transparency = faded ? 1 - alpha / 255f : 0;
-        foreach (var mesh in Meshes)
-            mesh.Transparency = transparency;
+        N64Material.SetFade(Meshes, faded ? alpha / 255f : 1);
     }
 }

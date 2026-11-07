@@ -16,7 +16,7 @@ public sealed class MirroredMeshes
 {
     private readonly List<MeshInstance3D> _meshes;
     /// <summary>The materials a mirrored mesh had, to give back.</summary>
-    private readonly Dictionary<MeshInstance3D, Material?[]> _mirrored = [];
+    private readonly HashSet<MeshInstance3D> _mirrored = [];
 
     private MirroredMeshes(Node root) => _meshes = Nodes.FindAll<MeshInstance3D>(root);
 
@@ -34,25 +34,14 @@ public sealed class MirroredMeshes
             if (!mesh.IsInsideTree())
                 continue;
             var mirrored = mesh.GlobalBasis.Determinant() < 0;
-            if (mirrored == _mirrored.ContainsKey(mesh))
+            if (mirrored == _mirrored.Contains(mesh))
                 continue;
             if (mirrored)
-            {
-                var own = Enumerable.Range(0, mesh.GetSurfaceOverrideMaterialCount()).Select(mesh.GetSurfaceOverrideMaterial).ToArray();
-                _mirrored[mesh] = own;
-                for (var surface = 0; surface < own.Length; surface++)
-                {
-                    if (own[surface] is { } material && N64Material.Mirrored(material) is { } copy)
-                        mesh.SetSurfaceOverrideMaterial(surface, copy);
-                }
-            }
+                _mirrored.Add(mesh);
             else
-            {
-                var own = _mirrored[mesh];
-                for (var surface = 0; surface < own.Length; surface++)
-                    mesh.SetSurfaceOverrideMaterial(surface, own[surface]);
                 _mirrored.Remove(mesh);
-            }
+            // Faded or not as its model is (N64Material.SetState).
+            N64Material.SetMirrored(mesh, mirrored);
         }
     }
 }
