@@ -112,7 +112,7 @@ public class ScriptImportTests
 
         // Each source op is in the records once, or accounted for: a SetSpeaker is its node's speaker, and the rest go unwritten
         // as the game never reads them, never runs them, or has no record for what they name.
-        var source = borgs.SelectMany(i => Borg13Script.Parse(archive.Read(i)).Nodes).SelectMany(n => n.Ops).ToList();
+        var source = borgs.SelectMany(i => ScriptImporter.Split(Borg13Script.Parse(archive.Read(i))).Nodes).SelectMany(n => n.Ops).ToList();
         var unused = new[] { Borg13Opcode.Unknown1, Borg13Opcode.Unknown2, Borg13Opcode.Backdrop, Borg13Opcode.Unknown55, Borg13Opcode.Unknown59 };
         var kept = source.Where(op => !unused.Contains(op.Opcode)).ToList();
         var speakers = kept.Count(op => op.Opcode == Borg13Opcode.SetSpeaker);
@@ -177,8 +177,8 @@ public class ScriptImportTests
     {
         var (_, _, records, report) = Build(RomVersionId.Na10);
 
-        // Two lines the ways to them disagree on, both chosen by hand: Alaron's.
-        Assert.Equal([(1446, 6, (RecordId?)Alaron, true), (1470, 37, Alaron, true)], report.Disagreements.OrderBy(d => d.Script));
+        // One line the ways to it disagree on, chosen by hand: Alaron's. Cadme's "Farewell." is split instead (below).
+        Assert.Equal([(1470, 37, (RecordId?)Alaron, true)], report.Disagreements);
         // Second effects 1.0 never runs.
         Assert.Equal([(1076, 33), (1901, 88), (1906, 78), (3626, 78)], report.DeadEffects.OrderBy(d => d));
         Assert.Equal(212, report.Unknown53);
@@ -195,14 +195,33 @@ public class ScriptImportTests
         var (_, _, records, _) = Build(RomVersionId.Na10);
         var nodes = records.SelectMany(r => r.Nodes).ToList();
 
-        Assert.Equal(26_684, nodes.Count);
-        Assert.Equal(17_568, nodes.Count(n => n.Text.Length > 0));
+        Assert.Equal(26_685, nodes.Count);
+        Assert.Equal(17_569, nodes.Count(n => n.Text.Length > 0));
         Assert.Equal(3_043, nodes.Count(n => n.Text.Length > 0 && n.Speaker is null));
         // A choice with no speaker of its own takes the one before it, as 1.0 shows them in turn.
         Assert.Equal(Alaron, ByNumber(1091).Nodes[65].Speaker);
         Assert.Equal(Alaron, ByNumber(10922).Nodes[10].Speaker);
         Assert.Contains(65, ByNumber(1091).Nodes[18].Links!);
         Assert.Contains(10, ByNumber(10922).Nodes[4].Links!);
+    }
+
+    /// <summary>
+    /// Cadme's "Farewell." (1446 node 6) is Alaron's after his "I have no time to tell it now." and hers after her closing lines, as
+    /// 1.0 shows it: node 5 goes to a copy after the last node, which is his, and the node itself is hers.
+    /// </summary>
+    [Fact]
+    public void CadmesFarewellIsSplitBetweenItsSpeakers()
+    {
+        var cadme = ByNumber(1446);
+        var copy = cadme.Nodes[^1];
+        Assert.Equal(cadme.Nodes.Count - 1, copy.Index);
+        Assert.Equal("Farewell.", copy.Text);
+        Assert.Equal(Alaron, copy.Speaker);
+        Assert.Equal(cadme.Nodes[6].Effect, copy.Effect);
+        Assert.Equal([copy.Index], cadme.Nodes[5].Links!);
+        Assert.Equal("Farewell.", cadme.Nodes[6].Text);
+        Assert.Equal(Ids.Entity(0x02DD), cadme.Nodes[6].Speaker);
+        Assert.DoesNotContain(cadme.Nodes, n => n.Index != 5 && n.Links?.Contains(copy.Index) == true);
     }
 
     [Theory]
@@ -263,7 +282,8 @@ public class ScriptImportTests
         var blanks = records.ToDictionary(r => r.Id, r => Borg13Script.Parse(archive.Read(Convert.ToInt32(r.Id.Key, 16))).BlankNodes);
         Assert.Equal(153, blanks.Values.Count(b => b == 1));
         Assert.All(blanks.Values, b => Assert.InRange(b, 0, 1));
-        Assert.Equal(26_837, records.Sum(r => r.Nodes.Count + blanks[r.Id]));
+        // With Cadme's split "Farewell." (CadmesFarewellIsSplitBetweenItsSpeakers), which no random line draws from.
+        Assert.Equal(26_838, records.Sum(r => r.Nodes.Count + blanks[r.Id]));
 
         var lines = Ops(records).OfType<ScriptOp.ScriptRandomLine>().ToList();
         Assert.All(lines, line => Assert.Equal(blanks[line.From] == 1 ? 2 : (int?)null, line.FirstLineWeight));

@@ -152,8 +152,9 @@ public static class BasePlugin
     /// 79 lays a floor of sea under the islands' water, below the deepest seabed, so the sky doesn't show under the shallows (<c>SeaFloors</c>).
     /// 80 closes that gap instead of hiding it: ground just under a shore, where see-through water turns opaque, rises onto it, Namer's
     /// Isle's seabed's rim (<c>SeamWelds</c>), and the floor goes.
+    /// 81 gives Cadme's "Farewell." (1446 node 6) a copy for Alaron's way in, so it's hers after her closing lines, as 1.0 shows it.
     /// </summary>
-    public const int ImporterVersion = 80;
+    public const int ImporterVersion = 81;
 
     /// <summary>
     /// What's wrong with the imported base plugin under <paramref name="pluginsDirectory"/>, worded for the player, or null if

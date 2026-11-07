@@ -27,15 +27,34 @@ internal static class ScriptImporter
     }
 
     /// <summary>
-    /// The hand choices of speaker where the ways to a line disagree, by the script's number and the node: 1446's "Farewell."
-    /// follows Alaron's own line at node 5 and closes his talk with Cadme, and 1470's "Let's see what the old man has." is
-    /// framed on Alaron (<c>CameraOnActor</c> him). docs/systems/scripts.md has both.
+    /// The hand choice of speaker where the ways to a line disagree, by the script's number and the node: 1470's "Let's see what
+    /// the old man has." is framed on Alaron (<c>CameraOnActor</c> him). docs/systems/scripts.md has it.
     /// </summary>
     internal static readonly IReadOnlyDictionary<(int Script, int Node), ushort> HandSpeakers = new Dictionary<(int, int), ushort>
     {
-        [(1446, 6)] = 0x023F,
         [(1470, 37)] = 0x023F,
     };
+
+    /// <summary>
+    /// Lines reached with different speakers in force, given a copy for one way in so each shows the speaker 1.0 shows there, the
+    /// user's choice: by the script's number, the node, and the node whose link goes to the copy instead, which is added after the
+    /// script's last node. 1446's "Farewell." (Cadme's talk, node 6) is Alaron's after his "I have no time to tell it now." (node 5)
+    /// and Cadme's after her closing lines.
+    /// </summary>
+    internal static readonly IReadOnlyList<(int Script, int Node, int From)> SplitNodes = [(1446, 6, 5)];
+
+    /// <summary>The script with a copy of each node <see cref="SplitNodes"/> names, and the way in it names pointed at the copy.</summary>
+    internal static Borg13Script Split(Borg13Script script)
+    {
+        foreach (var (_, node, from) in SplitNodes.Where(s => s.Script == script.Id))
+        {
+            var nodes = script.Nodes.ToList();
+            nodes.Add(nodes[node] with { Index = nodes.Count });
+            nodes[from] = nodes[from] with { Links = nodes[from].Links.Select(l => l == node ? nodes.Count - 1 : l).ToList() };
+            script = script with { Nodes = nodes };
+        }
+        return script;
+    }
 
     /// <summary>What the import left out or chose, for the tests and the docs.</summary>
     internal sealed class Report
@@ -67,7 +86,7 @@ internal static class ScriptImporter
         RecordId Arena(int number) => arenas is { Count: > 0 } a ? a[(number & 0xFF) < a.Count ? number & 0xFF : 0] : ChunkRecord.IdOf(16, 1, 1);
         var rules = CombatImporter.BattleRules(tables);
         var parsed = archive.Listings.Where(l => l.Type == BorgType.Dialogue)
-            .Select(l => (l.Index, Script: Borg13Script.Parse(archive.Read(l.Index)))).ToList();
+            .Select(l => (l.Index, Script: Split(Borg13Script.Parse(archive.Read(l.Index))))).ToList();
         var blanks = parsed.ToDictionary(p => p.Index, p => p.Script.BlankNodes);
         var records = new List<ScriptRecord>();
         foreach (var (index, script) in parsed)
