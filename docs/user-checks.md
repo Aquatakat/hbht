@@ -8,7 +8,7 @@ A check far into the story needn't be played to: Claude writes a save at the pla
 
 ### The renderers (ADR 0038)
 
-Choose Mobile, then Compatibility, on the Video page, restart each time, and play a while: a town (Port Saiid's streets, Gwernia), the Overworld's roads and a battle. Look for roads and shadows flickering against the ground under them (Mobile has no depth prepass), shadows under Compatibility (a flat square there, which can sink into rising ground), and anything darker, paler or missing against Forward+. Also try the Intel graphics under Compatibility: Windows' Settings › System › Display › Graphics, the game's Godot executable set to Power saving ([rendering](systems/rendering.md#the-renderers)).
+Choose Mobile, then Compatibility, on the Video page (the game restarts and comes back to the options), and play a while: a town (Port Saiid's streets, Gwernia), the Overworld's roads and a battle. Look for roads and shadows flickering against the ground under them (Mobile has no depth prepass), shadows under Compatibility (a flat square there, which can sink into rising ground), and anything darker, paler or missing against Forward+. Also try the Intel graphics under Compatibility: Windows' Settings › System › Display › Graphics, the game's Godot executable set to Power saving ([rendering](systems/rendering.md#the-renderers)).
 
 ### Combat parity (2.9)
 

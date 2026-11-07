@@ -29,6 +29,9 @@ public enum OptionLink
     Enhancements,
     Controls,
     RenameCharacter,
+
+    /// <summary>The Video page's Renderer, which asks whether to restart on another (<see cref="SystemMenu"/>).</summary>
+    Renderer,
 }
 
 /// <summary>
@@ -55,7 +58,7 @@ public sealed record OptionRow(string Label, OptionKind Kind, Func<int> Get, Act
 /// The screen the game is on, as the options open, which the Video page's sizes are listed from: the screen's size, the
 /// part of it a window can take (less the taskbar), the window's size now, and the refresh rate.
 /// </summary>
-/// <param name="Renderer">The renderer the game runs with, which a change of the setting takes the place of only as it next starts.</param>
+/// <param name="Renderer">The renderer the game runs with, which the Video page's Renderer shows.</param>
 public sealed record ScreenInfo(int Width, int Height, int UsableWidth, int UsableHeight, int WindowWidth, int WindowHeight, int RefreshRate,
     Renderer Renderer = Renderer.ForwardPlus)
 {
@@ -111,13 +114,22 @@ public sealed partial class OptionsMenu
     public Rgba HighlightNow => Pulse.Now(TextColor, HighlightColor);
 
     private readonly bool _inGame;
+    private readonly bool _renderer;
+
+    /// <summary>The Video page's row that shows the renderer, and asks whether to change it.</summary>
+    public const string RendererRow = "Renderer";
     private ScreenInfo _screen;
 
     /// <param name="screen">The screen the game is on, or <see cref="ScreenInfo.Default"/>.</param>
-    public OptionsMenu(Settings settings, bool inGame, ScreenInfo? screen = null)
+    /// <param name="renderer">
+    /// Whether the Video page lists the renderer: not in combat, which can't be saved, and so can't come back through the restart a
+    /// change takes.
+    /// </param>
+    public OptionsMenu(Settings settings, bool inGame, ScreenInfo? screen = null, bool renderer = true)
     {
         Settings = settings;
         _inGame = inGame;
+        _renderer = renderer;
         _screen = screen ?? ScreenInfo.Default;
         Rows = new MenuList<OptionRow>(MainRows());
     }
@@ -150,7 +162,7 @@ public sealed partial class OptionsMenu
     /// <summary>A copy on the same page with the cursor on the same row, which the page fading out draws as it was.</summary>
     public OptionsMenu Copy()
     {
-        var copy = new OptionsMenu(Settings, _inGame, _screen) { Device = Device };
+        var copy = new OptionsMenu(Settings, _inGame, _screen, _renderer) { Device = Device };
         if (Page != OptionsPage.Main)
             copy.Open(Page);
         copy.Rows.Point(Rows.Cursor);
@@ -244,6 +256,13 @@ public sealed partial class OptionsMenu
         _ => null,
     };
 
+    /// <summary>Opens <paramref name="page"/> with the cursor on the row labelled <paramref name="row"/>, as a restart comes back to it.</summary>
+    public void Show(OptionsPage page, string row)
+    {
+        Open(page);
+        Rows.Point(Math.Max(0, Rows.Rows.ToList().FindIndex(r => r.Label == row)));
+    }
+
     private void Open(OptionsPage page)
     {
         Page = page;
@@ -308,10 +327,13 @@ public sealed partial class OptionsMenu
             Choice("V-Sync", ["On", "Off"], () => s.VSync ? 0 : 1, v => s.VSync = v == 0),
             Choice("Anti-Aliasing", ["Off", "2x", "4x", "8x"], () => Array.IndexOf(Samples, s.Antialiasing) is var i and >= 0 ? i : 0,
                 v => s.Antialiasing = Samples[v]),
-            Choice("Renderer", [.. Renderers.Select(r => RendererName(r) + (r != _screen.Renderer ? "*" : ""))],
-                () => Array.IndexOf(Renderers, s.Renderer) is var i and >= 0 ? i : 0, v => s.Renderer = Renderers[v]),
+            .. (IEnumerable<OptionRow>)(_renderer ? [RendererLink()] : []),
         ];
     }
+
+    /// <summary>The Renderer row, showing the renderer running, which A asks whether to change (<see cref="OptionLink.Renderer"/>).</summary>
+    private OptionRow RendererLink() =>
+        new(RendererRow, OptionKind.Link, () => 0, _ => { }, [], OptionLink.Renderer, Shown: () => _screen.Renderer.Name());
 
     /// <summary>
     /// What the 3D world is scaled to: the screen in fullscreen, the window as it is when it's maximized, else the window at its
@@ -387,18 +409,6 @@ public sealed partial class OptionsMenu
     /// </summary>
     private static readonly int[] RenderLineCounts = [240, 480];
 
-    /// <summary>
-    /// The renderers, in the order the Renderer row steps through them. A renderer other than the one running is marked with an
-    /// asterisk: choosing it takes effect as the game next starts.
-    /// </summary>
-    private static readonly Renderer[] Renderers = [Renderer.ForwardPlus, Renderer.Mobile, Renderer.Compatibility];
-
-    private static string RendererName(Renderer renderer) => renderer switch
-    {
-        Renderer.Mobile => "Mobile",
-        Renderer.Compatibility => "Compatibility",
-        _ => "Forward+",
-    };
 
     private static readonly float[] Scales = [0.5f, 0.75f, 1, 1.5f, 2];
 

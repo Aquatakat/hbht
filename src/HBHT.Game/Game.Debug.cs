@@ -66,6 +66,9 @@ public partial class Game
                 break;
         }
 
+        if (options.Restarted is { } asked)
+            ComeBack(asked, options);
+
         if (options.Fly is { } p)
         {
             _camera!.ToggleFly();

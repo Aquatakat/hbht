@@ -1118,6 +1118,9 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
             case Transition.ToTitle:
                 ToTitle();
                 break;
+            case Transition.Restart restart:
+                Restart(restart);
+                break;
             case Transition.ShowTitle title:
                 ShowTitle(title.Title);
                 break;

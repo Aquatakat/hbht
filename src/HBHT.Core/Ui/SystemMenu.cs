@@ -131,6 +131,23 @@ public sealed class SystemMenu
     /// <summary>The space between the quit box's warning and its choices.</summary>
     public const int QuitGap = 8;
 
+    /// <summary>What the Renderer's box says above its choices, as the user wrote it.</summary>
+    public const string RendererQuestion = "Changing the renderer requires a restart, which will happen automatically.";
+
+    /// <summary>The Renderer's box's choice to stay on the renderer running.</summary>
+    public static string Remain(Renderer renderer) => $"Remain on {renderer.Name()}";
+
+    /// <summary>The Renderer's box's choice to change to another renderer.</summary>
+    public static string ChangeTo(Renderer renderer) => $"Change to {renderer.Name()}";
+
+    /// <summary>
+    /// What the box says as the game comes back from the restart: that it runs on the renderer asked for, or that Godot couldn't start
+    /// it and started another (Compatibility, where Vulkan and Direct3D 12 won't start).
+    /// </summary>
+    public static string Restarted(Renderer asked, Renderer running) => asked == running
+        ? $"Renderer changed to {asked.Name()}."
+        : $"Renderer failed to change to {asked.Name()} and is on {running.Name()}.";
+
     private readonly PluginSet _plugins;
     private readonly MenuText _text;
     private readonly string _savesFolder;
@@ -138,7 +155,11 @@ public sealed class SystemMenu
     private readonly Func<RecordId, bool> _isSet;
     private readonly Func<ScreenInfo> _screen;
     private readonly Func<bool> _unsaved;
+    private readonly bool _renderer;
     private ISystemPage _page;
+
+    /// <summary>The renderers the Renderer's box offers, in its choices' order: the one running, then the others.</summary>
+    private Renderer[] _renderers = [];
 
     /// <param name="party">The party, whose Alaron the options menu renames.</param>
     /// <param name="savesFolder">Where the save and load screens find saves.</param>
@@ -162,6 +183,8 @@ public sealed class SystemMenu
         _isSet = isSet ?? (_ => false);
         _screen = screen ?? (() => ScreenInfo.Default);
         _unsaved = unsaved ?? (() => true);
+        // A change of renderer restarts the game from a save, which a battle can't be.
+        _renderer = combat is null;
         _plugins = plugins;
         _text = MenuText.From(plugins);
         Settings = settings;
@@ -307,6 +330,42 @@ public sealed class SystemMenu
         {
             Gap = unsaved ? QuitGap : 0,
         });
+    }
+
+    /// <summary>
+    /// Puts the Renderer's question up, its cursor on staying on the renderer running, with a choice to change to each of the others,
+    /// in the quit box's colours.
+    /// </summary>
+    private void AskRenderer()
+    {
+        var running = _screen().Renderer;
+        _renderers = [running, .. RendererNames.All.Where(r => r != running)];
+        Overlay.Ask(MenuChoice.Question(RendererQuestion, [.. _renderers.Select((r, i) => i == 0 ? Remain(r) : ChangeTo(r))]) with { Gap = QuitGap });
+    }
+
+    /// <summary>A on the Renderer's box: staying takes it down, and another renderer ends the menu to restart on it.</summary>
+    private PauseExit? AnswerRenderer(int choice)
+    {
+        Overlay.CloseChoice();
+        if (choice <= 0 || choice >= _renderers.Length)
+            return null;
+        var exit = PauseExit.Restart(_renderers[choice]);
+        // The title's menu ends as its Quit Game does, at once.
+        return Title ? Ended = exit : exit;
+    }
+
+    /// <summary>
+    /// The game has come back from a change of renderer: the options open at the Video page's Renderer, with a box over them saying
+    /// whether Godot started the renderer asked for (<see cref="Restarted"/>), which a press closes.
+    /// </summary>
+    public void ShowRestarted(Renderer asked, Renderer running)
+    {
+        Items.Point(Math.Max(0, Items.Rows.ToList().IndexOf(SystemItem.Options)));
+        Options = new OptionsMenu(Settings, inGame: !Title, _screen(), _renderer);
+        Options.Show(Ui.OptionsPage.Video, OptionsMenu.RendererRow);
+        _page = new OptionsPage(this);
+        (Outgoing, PageAlpha, OutgoingAlpha) = (null, 255, 0);
+        Overlay.Say(Restarted(asked, running));
     }
 
     /// <summary>A on the quit box: the program ends or the title shows, or Cancel takes the box down.</summary>
@@ -463,7 +522,7 @@ public sealed class SystemMenu
                     return null;
                 case SystemItem.Options:
                     menu.FadeFrom();
-                    menu.Options = new OptionsMenu(menu.Settings, inGame: !menu.Title, menu._screen());
+                    menu.Options = new OptionsMenu(menu.Settings, inGame: !menu.Title, menu._screen(), menu._renderer);
                     menu._page = new OptionsPage(menu);
                     return null;
                 case SystemItem.Theater:
@@ -501,34 +560,63 @@ public sealed class SystemMenu
         }
     }
 
-    /// <summary>The options, and their pages: A follows a link, and Rename Character opens the name entry.</summary>
+    /// <summary>
+    /// The options, and their pages: A follows a link, Rename Character opens the name entry, and Renderer asks whether to restart on
+    /// another, in a box that takes the presses while it's up, as does the box saying how the restart went.
+    /// </summary>
     private sealed class OptionsPage(SystemMenu menu) : ISystemPage
     {
         public SystemPage Kind => SystemPage.Options;
 
-        public void MoveCursor(int by) => menu.Options!.MoveCursor(by);
+        public void MoveCursor(int by)
+        {
+            if (!menu.Overlay.HasPopup)
+                menu.Options!.MoveCursor(by);
+            else
+                menu.Overlay.MoveCursor(by);
+        }
 
-        public void Sideways(int by) => menu.Options!.Change(by);
+        public void Sideways(int by)
+        {
+            if (!menu.Overlay.HasPopup)
+                menu.Options!.Change(by);
+        }
 
         public PauseExit? Accept()
         {
+            if (menu.Overlay.Dismiss())
+                return null;
+            if (menu.Overlay.Choice is { } choice)
+                return menu.AnswerRenderer(choice.Choices.Cursor);
             var options = menu.Options!;
             var before = options.Copy();
-            if (options.Accept() == OptionLink.RenameCharacter && menu.Alaron is { } alaron)
+            switch (options.Accept())
             {
-                menu.FadeFrom(before);
-                menu.Rename = new NameEntry(alaron.Name);
-                menu._page = new RenamePage(menu);
-            }
-            else if (options.Page != before.Page)
-            {
-                menu.FadeFrom(before);
+                case OptionLink.RenameCharacter when menu.Alaron is { } alaron:
+                    menu.FadeFrom(before);
+                    menu.Rename = new NameEntry(alaron.Name);
+                    menu._page = new RenamePage(menu);
+                    break;
+                case OptionLink.Renderer:
+                    menu.AskRenderer();
+                    break;
+                default:
+                    if (options.Page != before.Page)
+                        menu.FadeFrom(before);
+                    break;
             }
             return null;
         }
 
         public bool Back()
         {
+            if (menu.Overlay.Dismiss())
+                return true;
+            if (menu.Overlay.Choice is not null)
+            {
+                menu.Overlay.CloseChoice();
+                return true;
+            }
             var options = menu.Options!;
             var before = options.Copy();
             if (!options.Back())
@@ -538,7 +626,11 @@ public sealed class SystemMenu
             return true;
         }
 
-        public void Point(int row) => menu.Options!.Point(row);
+        public void Point(int row)
+        {
+            if (!menu.Overlay.HasPopup)
+                menu.Options!.Point(row);
+        }
     }
 
     /// <summary>The save and load screens, which go back to the list once they're done.</summary>

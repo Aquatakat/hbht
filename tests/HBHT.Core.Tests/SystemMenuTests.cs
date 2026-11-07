@@ -129,26 +129,6 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     }
 
     [Fact]
-    public void TheRendererRowMarksTheRenderersThatWaitForTheNextStart()
-    {
-        var settings = new Settings();
-        var options = new OptionsMenu(settings, inGame: true, ScreenInfo.Default with { Renderer = Renderer.Mobile });
-        options.Point(1);
-        options.Accept();
-        OptionRow Row() => options.Rows.Rows.Single(r => r.Label == "Renderer");
-
-        // Mobile runs: the others are marked.
-        Assert.Equal(["Forward+*", "Mobile", "Compatibility*"], Row().Values);
-        Assert.Equal("Forward+*", Row().ValueName);
-        options.Point(options.Rows.Rows.ToList().IndexOf(Row()));
-        options.Change(1);
-        Assert.Equal(Renderer.Mobile, settings.Renderer);
-        Assert.Equal("Mobile", Row().ValueName);
-        options.Change(1);
-        Assert.Equal(Renderer.Compatibility, settings.Renderer);
-    }
-
-    [Fact]
     public void OlderRenderSettingsReadAsTheirScale()
     {
         using var folder = new TempPlugins();
@@ -453,6 +433,108 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         system.Items.Point(1);
         Assert.Equal(PauseExit.Flee, system.Accept());
         Assert.Equal([SystemItem.Options, SystemItem.Quit], new SystemMenu(fixture.Plugins, new Settings(), party, _saves, combat: false).Items.Rows);
+    }
+
+    // The renderer, which restarts the game to change.
+
+    /// <summary>Opens the System tab's Options at the Video page's Renderer, as the stick and A would.</summary>
+    private static OptionRow OpenRenderer(SystemMenu system)
+    {
+        system.Items.Point(system.Items.Rows.ToList().IndexOf(SystemItem.Options));
+        system.Accept();
+        system.Point(1);
+        system.Accept();
+        var rows = system.Options!.Rows.Rows.ToList();
+        system.Point(rows.FindIndex(r => r.Label == OptionsMenu.RendererRow));
+        return system.Options.Rows.Current!;
+    }
+
+    [Fact]
+    public void TheRendererAsksWhetherToRestartOnAnother()
+    {
+        var party = TradeData.PartyOf(TradeData.Catalog(), ItemData.Flags(), Characters.Create(Characters.Alaron()));
+        var settings = new Settings();
+        var system = new SystemMenu(fixture.Plugins, settings, party, _saves, screen: () => ScreenInfo.Default with { Renderer = Renderer.Mobile });
+
+        // The row shows the renderer running; the stick doesn't change it.
+        var row = OpenRenderer(system);
+        Assert.Equal("Mobile", row.ValueName);
+        system.Sideways(1);
+        Assert.Equal(Renderer.ForwardPlus, settings.Renderer);
+
+        // A asks, its cursor on staying, then the other two in the options' order.
+        Assert.Null(system.Accept());
+        var box = Assert.IsType<MenuChoice>(system.Overlay.Choice);
+        Assert.Equal(SystemMenu.RendererQuestion, box.Text);
+        Assert.Equal(["Remain on Mobile", "Change to Forward+", "Change to Compatibility"], box.Choices.Rows);
+        Assert.Equal(0, box.Choices.Cursor);
+        // Staying, or B, takes it down with nothing changed; the options' cursor stays put under it.
+        Assert.Null(system.Accept());
+        Assert.Null(system.Overlay.Choice);
+        system.Accept();
+        Assert.True(system.Back());
+        Assert.Null(system.Overlay.Choice);
+        Assert.Equal(OptionsMenu.RendererRow, system.Options!.Rows.Current!.Label);
+
+        // Another ends the menu to restart on it, and leaves the setting to the run that starts on it.
+        system.Accept();
+        system.MoveCursor(2);
+        Assert.Equal(PauseExit.Restart(Renderer.Compatibility), system.Accept());
+        Assert.Equal(Renderer.ForwardPlus, settings.Renderer);
+        Assert.Null(system.Ended);
+    }
+
+    [Fact]
+    public void TheTitlesRendererEndsItsMenuAtOnce()
+    {
+        var party = TradeData.PartyOf(TradeData.Catalog(), ItemData.Flags(), Characters.Create(Characters.Alaron()));
+        var system = new SystemMenu(fixture.Plugins, new Settings(), party, _saves, title: true);
+        OpenRenderer(system);
+        system.Accept();
+        system.MoveCursor(1);
+
+        Assert.Equal(PauseExit.Restart(Renderer.Mobile), system.Accept());
+        Assert.Equal(PauseExit.Restart(Renderer.Mobile), system.Ended);
+    }
+
+    [Fact]
+    public void CombatsOptionsLeaveTheRendererOut()
+    {
+        var party = TradeData.PartyOf(TradeData.Catalog(), ItemData.Flags(), Characters.Create(Characters.Alaron()));
+        var system = new SystemMenu(fixture.Plugins, new Settings(), party, _saves, combat: true);
+        OpenRenderer(system);
+
+        Assert.DoesNotContain(system.Options!.Rows.Rows, r => r.Label == OptionsMenu.RendererRow);
+        Assert.Contains(system.Options.Rows.Rows, r => r.Label == "Anti-Aliasing");
+    }
+
+    [Theory]
+    [InlineData(Renderer.Mobile, Renderer.Mobile, "Renderer changed to Mobile.")]
+    [InlineData(Renderer.Mobile, Renderer.Compatibility, "Renderer failed to change to Mobile and is on Compatibility.")]
+    public void ComingBackSaysHowTheRestartWent(Renderer asked, Renderer running, string said)
+    {
+        var party = TradeData.PartyOf(TradeData.Catalog(), ItemData.Flags(), Characters.Create(Characters.Alaron()));
+        var system = new SystemMenu(fixture.Plugins, new Settings(), party, _saves, screen: () => ScreenInfo.Default with { Renderer = running });
+
+        system.ShowRestarted(asked, running);
+
+        Assert.Equal(SystemPage.Options, system.Page);
+        Assert.Equal(OptionsPage.Video, system.Options!.Page);
+        Assert.Equal(OptionsMenu.RendererRow, system.Options.Rows.Current!.Label);
+        Assert.Equal(running.Name(), system.Options.Rows.Current.ValueName);
+        Assert.Equal(said, system.Overlay.Message!.Text);
+        // A press closes it once it has faded in, and the options take the presses again.
+        for (var i = 0; i < 5; i++)
+            system.Step();
+        Assert.Null(system.Accept());
+        Assert.Null(system.Overlay.Choice);
+        // Back goes to the main page on Video, then the list on Options.
+        for (var i = 0; i < 10; i++)
+            system.Step();
+        Assert.True(system.Back());
+        Assert.Equal(OptionsPage.Main, system.Options.Page);
+        Assert.True(system.Back());
+        Assert.Equal(SystemItem.Options, system.Items.Current);
     }
 
     // Quit Game, the port's.

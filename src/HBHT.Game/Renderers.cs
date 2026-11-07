@@ -47,6 +47,30 @@ internal static class Renderers
         _ => null,
     };
 
+    /// <summary>Godot's own options that a restart keeps, each with its value: where the project is, and which GPU and drivers it used.</summary>
+    private static readonly string[] Kept = ["--path", "--main-pack", "--gpu-index", "--display-driver", "--audio-driver"];
+
+    /// <summary>
+    /// Of a run's arguments (<c>OS.GetCmdlineArgs</c>), Godot's own that a restart keeps (<see cref="Kept"/>), as <c>--path x</c> or
+    /// <c>--path=x</c>. The renderer and its driver are the restart's to say, and the game's own options would play again.
+    /// </summary>
+    public static IEnumerable<string> GodotArgs(IReadOnlyList<string> args)
+    {
+        for (var i = 0; i < args.Count; i++)
+        {
+            var arg = args[i];
+            if (Kept.Any(k => arg.StartsWith(k + "=", StringComparison.Ordinal)))
+            {
+                yield return arg;
+            }
+            else if (Kept.Contains(arg) && i + 1 < args.Count)
+            {
+                yield return arg;
+                yield return args[++i];
+            }
+        }
+    }
+
     /// <summary>Writes <paramref name="renderer"/> for Godot to start with next time, unless it's there already.</summary>
     public static void Choose(Renderer renderer)
     {

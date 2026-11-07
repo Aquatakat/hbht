@@ -55,6 +55,12 @@ public enum PauseExitCode
 
     /// <summary>Quit Game's Return to Title: this game ends, and the title shows over a new one, at its logo. The port's own.</summary>
     ToTitle = 9,
+
+    /// <summary>
+    /// The options' Renderer, another chosen: the game restarts on it and comes back where it was, from a save in trek, or to the
+    /// title (<see cref="Transition.Restart"/>). The port's own.
+    /// </summary>
+    Restart = 10,
 }
 
 /// <summary>
@@ -64,7 +70,9 @@ public enum PauseExitCode
 /// <param name="Cinematic">The cinematic the Theatre chose, for <see cref="PauseExitCode.Theatre"/>.</param>
 /// <param name="SavePath">The save the load screen chose, for <see cref="PauseExitCode.Load"/>.</param>
 /// <param name="Name">Alaron's name, for <see cref="PauseExitCode.NewGame"/>.</param>
-public sealed record PauseExit(PauseExitCode Code, CinematicRecord? Cinematic = null, string? SavePath = null, string? Name = null)
+/// <param name="Renderer">The renderer to restart on, for <see cref="PauseExitCode.Restart"/>.</param>
+public sealed record PauseExit(PauseExitCode Code, CinematicRecord? Cinematic = null, string? SavePath = null, string? Name = null,
+    Renderer? Renderer = null)
 {
     public static readonly PauseExit Close = new(PauseExitCode.Close);
 
@@ -90,4 +98,7 @@ public sealed record PauseExit(PauseExitCode Code, CinematicRecord? Cinematic = 
 
     /// <summary>The title's name entry confirmed <paramref name="name"/> for a new game.</summary>
     public static PauseExit NewGame(string name) => new(PauseExitCode.NewGame, Name: name);
+
+    /// <summary>The options' Renderer chose <paramref name="renderer"/>, to restart on.</summary>
+    public static PauseExit Restart(Renderer renderer) => new(PauseExitCode.Restart, Renderer: renderer);
 }

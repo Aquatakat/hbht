@@ -171,7 +171,7 @@ A Borg2 display list with flag 0x1 has `G_TEXTURE_GEN` on: its texture coordinat
 
 ## The renderers
 
-The player chooses Godot's renderer on the Video page, from the next time the game starts ([ADR 0038](../adr/0038-the-renderer-is-the-players-choice.md), `Settings.Renderer`, `Renderers`). The original's look is the same under all three; they differ in cost and in what else they can draw, which mods may use.
+The player chooses Godot's renderer on the Video page ([ADR 0038](../adr/0038-the-renderer-is-the-players-choice.md), `Settings.Renderer`, `Renderers`). Godot can't change it while it runs, so a change saves the game, restarts on the renderer chosen and comes back to the options, saying whether Godot started it ([ADR 0039](../adr/0039-changing-the-renderer-restarts-the-game.md), `Game.Restart`, `Game.ComeBack`). The original's look is the same under all three; they differ in cost and in what else they can draw, which mods may use.
 
 - **Forward+**, the default: Vulkan or Direct3D 12, lights clustered over the screen, and a depth prepass, which draws the opaque scene twice. Everything Godot can draw.
 - **Mobile**: the same APIs, each object drawn once with at most 8 omni and 8 spot lights of its own, and no screen-space effects, global illumination or volumetric fog. Its 3D image is 10-bit rather than 16-bit floats, and without the prepass coplanar surfaces settle by draw order: the comparison scenes match Forward+ to a level or two of 255, but a rain splash's blend can differ by 8.

@@ -658,6 +658,11 @@ public sealed class GameSession
             Send(new Transition.Quit());
             return;
         }
+        if (exit is { Code: PauseExitCode.Restart, Renderer: { } renderer })
+        {
+            Send(new Transition.Restart(renderer, FromTitle: true));
+            return;
+        }
         if (Game.Party.Slots.FirstOrDefault(m => m?.Entity == GameState.Alaron) is { } alaron && exit.Name is { } name)
             alaron.Name = name;
         EndScenery();
@@ -924,10 +929,23 @@ public sealed class GameSession
     /// </summary>
     public void OpenMenu(PauseTab? tab = null)
     {
-        if (Mode != GameMode.Trek || Trek.Teleporting || Trek.Cued is not null || Trek.CutSceneFade.Fading)
-            return;
-        Send(new Transition.OpenMenu(tab));
+        if (CanOpenMenu)
+            Send(new Transition.OpenMenu(tab));
     }
+
+    /// <summary>
+    /// The game has come back in trek from a change of renderer: the pause menu opens at the options' Renderer, saying whether Godot
+    /// started the renderer asked for (<see cref="Ui.SystemMenu.ShowRestarted"/>). False if trek can't open the menu now.
+    /// </summary>
+    public bool OpenRestarted(Renderer asked, Renderer running)
+    {
+        if (!CanOpenMenu)
+            return false;
+        Send(new Transition.OpenMenu(PauseTab.System, (asked, running)));
+        return true;
+    }
+
+    private bool CanOpenMenu => Mode == GameMode.Trek && !Trek.Teleporting && Trek.Cued is null && !Trek.CutSceneFade.Fading;
 
     /// <summary>The loot window opens on a pile, as a container's does (<see cref="Transition.OpenLoot"/>).</summary>
     public void OpenLoot(ItemPile loot, int gold) => Send(new Transition.OpenLoot(loot, gold));
@@ -948,6 +966,12 @@ public sealed class GameSession
         if (exit.Code is PauseExitCode.Quit or PauseExitCode.ToTitle)
         {
             Send(exit.Code == PauseExitCode.Quit ? new Transition.Quit() : new Transition.ToTitle());
+            return;
+        }
+        // A change of renderer: the host saves the game as it stands and restarts on it.
+        if (exit is { Code: PauseExitCode.Restart, Renderer: { } renderer })
+        {
+            Send(new Transition.Restart(renderer, FromTitle: false));
             return;
         }
         // Trek's world is freed while a battle plays.
@@ -996,6 +1020,9 @@ public sealed class GameSession
     {
         switch (next)
         {
+            case Transition.OpenMenu { Restarted: var (asked, running) }:
+                Menu.OpenRestarted(asked, running);
+                break;
             case Transition.OpenMenu open:
                 Menu.Open(open.Tab);
                 break;

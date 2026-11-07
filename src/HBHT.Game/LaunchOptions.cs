@@ -57,6 +57,12 @@ public sealed class LaunchOptions(Dictionary<string, string> values)
     /// <summary>A save to start from.</summary>
     public string? Save => Text("save");
 
+    /// <summary>
+    /// The renderer a change of renderer restarted on (<c>--restarted Mobile</c>), which the run keeps if Godot started it and says
+    /// so in the options (<c>Game.ComeBack</c>); null for any other run.
+    /// </summary>
+    public Renderer? Restarted => Enum.TryParse<Renderer>(Text("restarted"), out var renderer) ? renderer : null;
+
     /// <summary>The map set, by number.</summary>
     public int? Set => Integer("set");
 

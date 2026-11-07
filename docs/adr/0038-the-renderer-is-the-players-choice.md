@@ -1,6 +1,6 @@
 # 0038. The renderer is the player's choice
 
-Status: Accepted · Nov 7, 2026
+Status: Accepted · Nov 7, 2026 · Taking effect as the game next starts is superseded by [0039](0039-changing-the-renderer-restarts-the-game.md)
 
 ## Context
 

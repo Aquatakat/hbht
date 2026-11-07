@@ -193,6 +193,16 @@ public sealed class PauseMenu
         Open(partyTab ? PauseTab.Party : PauseTab.System, tabsLocked: false, rules: rules);
     }
 
+    /// <summary>
+    /// Opens the menu on the options' Video page, at its Renderer, saying how the restart a change took went
+    /// (<see cref="SystemMenu.ShowRestarted"/>).
+    /// </summary>
+    public void OpenRestarted(Renderer asked, Renderer running)
+    {
+        Open(PauseTab.System);
+        System.ShowRestarted(asked, running);
+    }
+
     /// <summary>Opens the menu on the Theatre's page, as it reopens after a cinematic the Theatre played (<c>Theatre.Reopen</c>).</summary>
     public void OpenTheatre()
     {
@@ -586,7 +596,7 @@ public sealed class PauseMenu
                 // codes 3, 5 and 2). Quit Game's choices don't wait for the scroll.
                 if (System.Accept() is not { } exit)
                     return true;
-                if (exit.Code is PauseExitCode.Quit or PauseExitCode.ToTitle)
+                if (exit.Code is PauseExitCode.Quit or PauseExitCode.ToTitle or PauseExitCode.Restart)
                 {
                     _exit = exit;
                     CloseNow();

@@ -39,8 +39,11 @@ public abstract record Transition
     /// <summary>A container's loot opens, with any gold in it: the pause menu in its barter state (<see cref="IMapObjectHost.OpenLoot"/>).</summary>
     public sealed record OpenLoot(ItemPile Loot, int Gold) : Transition;
 
-    /// <summary>The pause menu opens in trek, as Start asks (<see cref="GameSession.OpenMenu"/>), on a tab or the one it last showed.</summary>
-    public sealed record OpenMenu(PauseTab? Tab = null) : Transition;
+    /// <summary>
+    /// The pause menu opens in trek, as Start asks (<see cref="GameSession.OpenMenu"/>), on a tab or the one it last showed; or, as the
+    /// game comes back from a change of renderer, at the options' Renderer, saying how it went (<see cref="GameSession.OpenRestarted"/>).
+    /// </summary>
+    public sealed record OpenMenu(PauseTab? Tab = null, (Renderer Asked, Renderer Running)? Restarted = null) : Transition;
 
     /// <summary>
     /// A battle is to start, as a script's end or a map object decides it. Trek cues it (<see cref="TrekLoop.CueBattle"/>),
@@ -78,6 +81,13 @@ public abstract record Transition
 
     /// <summary>Quit Game's Return to Title (<see cref="PauseExit.ToTitle"/>): this game ends, and the title shows over a new one, at its logo.</summary>
     public sealed record ToTitle : Transition;
+
+    /// <summary>
+    /// The options' Renderer chose another (<see cref="PauseExit.Restart"/>): the program restarts on <paramref name="Renderer"/>,
+    /// and comes back where it was, the game saved to come back to from trek, or the title from the title's menu
+    /// (<paramref name="FromTitle"/>), with the options open at the Renderer row saying how it went.
+    /// </summary>
+    public sealed record Restart(Renderer Renderer, bool FromTitle) : Transition;
 
     /// <summary>The title shows (<see cref="GameSession.ShowTitle"/>): its cards, or the title over its fly-throughs, with trek's world gone.</summary>
     public sealed record ShowTitle(TitleScreen Title) : Transition;

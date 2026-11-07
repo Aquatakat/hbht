@@ -87,4 +87,40 @@ public sealed partial class GameSessionTests
         Tick(session);
         Assert.IsType<Transition.Quit>(host.Transitions[^1]);
     }
+
+    [Fact]
+    public void ChangingTheRendererClosesTheMenuAtOnceAndRestartsFromTrek()
+    {
+        var (session, host) = Start("G14", 40, 40);
+        Tick(session);
+        OpenMenu(session);
+        var menu = session.Menu;
+        menu.System.Items.Point((int)SystemItem.Options);
+        session.Press(MenuAction.Accept);
+        menu.System.Point(1);
+        session.Press(MenuAction.Accept);
+        menu.System.Point(menu.System.Options!.Rows.Rows.ToList().FindIndex(r => r.Label == OptionsMenu.RendererRow));
+        session.Press(MenuAction.Accept);
+        menu.System.MoveCursor(1);
+        session.Press(MenuAction.Accept);
+
+        Assert.False(menu.IsOpen);
+        Assert.Equal(SessionStep.MenuClosed, Tick(session));
+        Assert.Equal(new Transition.Restart(Renderer.Mobile, FromTitle: false), host.Transitions[^1]);
+    }
+
+    [Fact]
+    public void ComingBackToTrekOpensTheMenuAtTheRenderer()
+    {
+        var (session, host) = Start("G14", 40, 40);
+        Tick(session);
+
+        Assert.True(session.OpenRestarted(Renderer.Mobile, Renderer.Compatibility));
+        var system = session.Menu.System;
+        Assert.True(session.Menu.IsOpen);
+        Assert.Equal(PauseTab.System, session.Menu.Tab);
+        Assert.Equal(OptionsMenu.RendererRow, system.Options!.Rows.Current!.Label);
+        Assert.Equal(SystemMenu.Restarted(Renderer.Mobile, Renderer.Compatibility), system.Overlay.Message!.Text);
+        Assert.IsType<Transition.OpenMenu>(host.Transitions[^1]);
+    }
 }

@@ -237,9 +237,9 @@ public sealed class TitleScreen
                     Menu.Sideways(by);
             }
             Menu.Step();
-            if (Menu.Ended is { Code: PauseExitCode.Quit } quit)
+            if (Menu.Ended is { Code: PauseExitCode.Quit or PauseExitCode.Restart } quit)
             {
-                // Quit Game, the port's, ends the title at once, with no fade.
+                // Quit Game, the port's, ends the title at once, with no fade, and so does a change of renderer, which restarts.
                 Phase = TitlePhase.Leaving;
                 Exit = quit;
             }
@@ -285,6 +285,26 @@ public sealed class TitleScreen
         SceneryBrightness = 0;
         _sceneryEnding = false;
         FlycamStarted = true;
+    }
+
+    /// <summary>
+    /// Brings the menu up at once, as a press on PRESS START does, without its sound, for a restart to come back to; the cards, if
+    /// they're playing, end. Returns it.
+    /// </summary>
+    public SystemMenu ShowMenu()
+    {
+        if (Phase == TitlePhase.Cards)
+        {
+            Cards = null;
+            Phase = TitlePhase.Title;
+            _startPending = true;
+        }
+        if (Menu is null)
+        {
+            Menu = _menu();
+            Menu.FadeIn();
+        }
+        return Menu;
     }
 
     /// <summary>
