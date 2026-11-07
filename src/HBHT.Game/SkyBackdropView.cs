@@ -168,6 +168,8 @@ public partial class SkyBackdropView : Control
         var size = canvas.Size;
         var scale = size.Y / SkyScreen.Height;
         var origin = new Vector2((size.X - SkyScreen.Width * scale) / 2, 0);
+        var item = canvas.GetCanvasItem();
+        var batch = new PatchBatch();
         foreach (var sprite in sprites)
         {
             if (sky.Image(sprite.Image) is not { } texture)
@@ -175,16 +177,20 @@ public partial class SkyBackdropView : Control
             var color = new Color(sprite.Color.X, sprite.Color.Y, sprite.Color.Z, sprite.Alpha);
             if (sprite.Patch is { } patch)
             {
-                DrawPatch(canvas, texture, patch, color, origin, scale);
+                batch.Add(item, texture, patch, color, origin, scale);
                 continue;
             }
+            batch.Flush(item);
             var rect = new Rect2(origin + sprite.At.ToGodot() * scale, texture.GetSize() * sprite.Scale * scale);
             canvas.DrawTextureRect(texture, rect, false, color);
         }
+        batch.Flush(item);
     }
 
     /// <summary>How many cells a side a sky patch is drawn in, so its texture follows the perspective.</summary>
     private const int PatchCells = 4;
+
+    private const int PatchPoints = (PatchCells + 1) * (PatchCells + 1);
 
     private static readonly int[] PatchIndices = [.. Enumerable.Range(0, PatchCells * PatchCells).SelectMany(cell =>
     {
@@ -193,25 +199,68 @@ public partial class SkyBackdropView : Control
         return new[] { corner, corner + 1, corner + PatchCells + 2, corner, corner + PatchCells + 2, corner + PatchCells + 1 };
     })];
 
-    private static readonly Vector2[] PatchPoints = new Vector2[(PatchCells + 1) * (PatchCells + 1)];
-    private static readonly Vector2[] PatchUvs = [.. Enumerable.Range(0, PatchPoints.Length)
+    private static readonly Vector2[] PatchUvs = [.. Enumerable.Range(0, PatchPoints)
         .Select(i => new Vector2(i % (PatchCells + 1), i / (PatchCells + 1)) / PatchCells)];
-    private static readonly Color[] PatchColors = new Color[PatchPoints.Length];
+
+    /// <summary>The arrays a batch of so many patches is handed to Godot in, kept from frame to frame.</summary>
+    private static readonly Dictionary<int, (int[] Indices, Vector2[] Points, Color[] Colors, Vector2[] Uvs)> Batches = [];
 
     /// <summary>
-    /// Draws a sprite over its patch's projection, as a grid of triangles: projection doesn't keep
-    /// a patch's texture even across it, which two triangles would kink along their diagonal.
+    /// The sprites drawn over their patches' projections, as grids of triangles: projection doesn't keep a patch's texture even
+    /// across it, which two triangles would kink along their diagonal. Patches one after another with the same texture, as the
+    /// clouds are, go to Godot in one call, in the order they were added, which is the order they're drawn in.
     /// </summary>
-    private static void DrawPatch(Control canvas, Texture2D texture, SkyPatch patch, Color color, Vector2 origin, float scale)
+    private sealed class PatchBatch
     {
-        for (var i = 0; i < PatchPoints.Length; i++)
+        private readonly List<Vector2> _points = [];
+        private readonly List<Color> _colors = [];
+        private Texture2D? _texture;
+
+        public void Add(Rid item, Texture2D texture, SkyPatch patch, Color color, Vector2 origin, float scale)
         {
-            if (patch.At(PatchUvs[i].X, PatchUvs[i].Y) is not { } at)
-                return;
-            PatchPoints[i] = origin + at.ToGodot() * scale;
-            PatchColors[i] = color;
+            if (texture != _texture)
+                Flush(item);
+            var start = _points.Count;
+            for (var i = 0; i < PatchPoints; i++)
+            {
+                // A patch with a corner behind the camera isn't drawn.
+                if (patch.At(PatchUvs[i].X, PatchUvs[i].Y) is not { } at)
+                {
+                    _points.RemoveRange(start, _points.Count - start);
+                    _colors.RemoveRange(start, _colors.Count - start);
+                    return;
+                }
+                _points.Add(origin + at.ToGodot() * scale);
+                _colors.Add(color);
+            }
+            _texture = texture;
         }
-        RenderingServer.CanvasItemAddTriangleArray(canvas.GetCanvasItem(), PatchIndices, PatchPoints, PatchColors, PatchUvs,
-            texture: texture.GetRid());
+
+        public void Flush(Rid item)
+        {
+            var count = _points.Count / PatchPoints;
+            if (count > 0 && _texture is not null)
+            {
+                if (!Batches.TryGetValue(count, out var arrays))
+                {
+                    arrays = (new int[count * PatchIndices.Length], new Vector2[count * PatchPoints], new Color[count * PatchPoints],
+                        new Vector2[count * PatchPoints]);
+                    for (var p = 0; p < count; p++)
+                    {
+                        for (var i = 0; i < PatchIndices.Length; i++)
+                            arrays.Indices[p * PatchIndices.Length + i] = PatchIndices[i] + p * PatchPoints;
+                        PatchUvs.CopyTo(arrays.Uvs, p * PatchPoints);
+                    }
+                    Batches[count] = arrays;
+                }
+                _points.CopyTo(arrays.Points);
+                _colors.CopyTo(arrays.Colors);
+                RenderingServer.CanvasItemAddTriangleArray(item, arrays.Indices, arrays.Points, arrays.Colors, arrays.Uvs,
+                    texture: _texture.GetRid());
+            }
+            _points.Clear();
+            _colors.Clear();
+            _texture = null;
+        }
     }
 }

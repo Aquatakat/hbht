@@ -240,6 +240,9 @@ public abstract partial class BodyView : Node3D
         N64Material.SetLights(Meshes, lights.ForBody(centre, chunks.MapAt(centre), party, tint));
     }
 
+    /// <summary>Whether it was last drawn at all, rather than faded out (<see cref="Fade"/>).</summary>
+    public bool Shown => _model is { Alpha: > 0 };
+
     /// <summary>The meshes of its actor's scene and of what it holds, none for a body without an actor.</summary>
     protected IReadOnlyList<GeometryInstance3D> Meshes =>
         _meshes ??= _model is null ? [] : [.. _model.Meshes, .. _held.Where(h => h is not null).SelectMany(h => h!.Value.Level.Meshes)];

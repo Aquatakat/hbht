@@ -100,6 +100,52 @@ public class SpherePhysicsTests
         Assert.True(SpherePhysics.Sweep(world, new Vector3(0, 1, 0), new Vector3(4, 1, 0), 0.25f, false, out _, out _));
     }
 
+    /// <summary>
+    /// <see cref="SpherePhysics.Blocked"/> looks only in the cells along a sweep, and answers as <see cref="SpherePhysics.Sweep"/>
+    /// does over every cell of the box round it: on a clutter of triangles of every lean and size across four parts, for sweeps
+    /// short and across the whole of it, along the axes, straight up and down, and standing still.
+    /// </summary>
+    [Fact]
+    public void BlockedAnswersAsSweepDoes()
+    {
+        var random = new Random(17);
+        float Next(float min, float max) => min + (float)random.NextDouble() * (max - min);
+        Vector3 Point(float spread) => new(Next(-spread, spread), Next(-5, 15), Next(-spread, spread));
+        var world = new CollisionWorld();
+        for (var part = 0; part < 4; part++)
+        {
+            var triangles = new List<CollisionTriangle>();
+            for (var i = 0; i < 150; i++)
+            {
+                var a = Point(80);
+                var size = i % 10 == 0 ? 30 : 3;
+                triangles.Add(Worlds.Triangle(a, a + new Vector3(Next(-size, size), Next(-size, size), Next(-size, size)),
+                    a + new Vector3(Next(-size, size), Next(-size, size), Next(-size, size))));
+            }
+            world.Add(Worlds.Chunk(part), triangles, new Vector3(part * 20, 0, 0));
+        }
+        var hits = 0;
+        for (var i = 0; i < 4000; i++)
+        {
+            var start = Point(100);
+            var end = (i % 8) switch
+            {
+                0 => start with { X = start.X + Next(-200, 200) },
+                1 => start with { Z = start.Z + Next(-200, 200) },
+                2 => start with { Y = start.Y + Next(-20, 20) },
+                3 => start,
+                4 => start + new Vector3(Next(-3, 3), Next(-3, 3), Next(-3, 3)),
+                _ => Point(200),
+            };
+            var radius = i % 3 == 0 ? 0.05f : Next(0.05f, 2);
+            var swept = SpherePhysics.Sweep(world, start, end, radius, false, out _, out _);
+            Assert.Equal(swept, SpherePhysics.Blocked(world, start, end, radius));
+            hits += swept ? 1 : 0;
+        }
+        // Enough of both answers to mean something.
+        Assert.InRange(hits, 400, 3600);
+    }
+
     [Fact]
     public void PlainCollisionKeepsVelocity()
     {

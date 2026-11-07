@@ -42,13 +42,20 @@ public sealed class LensFlare(SkyRecord sky)
         Value = 0;
         if (!outdoor)
             return;
-        var onScreen = clear && sunMiddle.X > 10 && sunMiddle.X < SkyScreen.Width - 10 && sunMiddle.Y > 10 && sunMiddle.Y < SkyScreen.Height - 10;
+        var onScreen = clear && Watches(sunMiddle);
         var step = Cadence.PerTick(10) * ticks;
         Fade = Math.Clamp(Fade + (onScreen ? step : -step), 0, 50);
         var distance = Vector2.Distance(sunMiddle, SkyScreen.Middle);
         if (Fade > 0 && distance <= Reach)
             Value = tintRed * (1 - distance / Reach) * 0.5f * Fade / 50;
     }
+
+    /// <summary>
+    /// Whether the flare looks for the sky at the sun's middle: only where it's on the screen, 10 pixels in from its edges. Elsewhere
+    /// whether the sky shows there is never asked, and the caller needn't look.
+    /// </summary>
+    public static bool Watches(Vector2 sunMiddle) =>
+        sunMiddle.X > 10 && sunMiddle.X < SkyScreen.Width - 10 && sunMiddle.Y > 10 && sunMiddle.Y < SkyScreen.Height - 10;
 
     /// <summary>Adds the flare's sprites to <paramref name="sprites"/>, if it shows.</summary>
     public void Draw(List<SkySprite> sprites, Vector2 sunMiddle, float tintRed, ImageSize size)

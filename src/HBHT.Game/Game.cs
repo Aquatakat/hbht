@@ -617,7 +617,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     /// <summary>One 60 Hz tick: the game's, which steps the pause menu too, then the menu's view on what it left.</summary>
     public override void _PhysicsProcess(double delta)
     {
-        Tick();
+        BenchTick(Tick);
         _menu?.Sync();
     }
 
@@ -809,7 +809,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         var pixel = new Vector2((size.X - Core.Sky.SkyScreen.Width * scale) / 2, 0) + at.ToGodot() * scale;
         var from = camera.ProjectRayOrigin(pixel);
         var to = from + camera.ProjectRayNormal(pixel) * SkyView.Far;
-        return !SpherePhysics.Sweep(_world, from.ToNumerics(), to.ToNumerics(), 0.05f, false, out _, out _);
+        return !SpherePhysics.Blocked(_world, from.ToNumerics(), to.ToNumerics(), 0.05f);
     }
 
     /// <summary>The player's shadow, placed after he and the camera move, as the original draws it.</summary>
@@ -875,6 +875,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
 
     public override void _Process(double delta)
     {
+        BenchFrame();
         _resizesUndrawn = 0;
         SetTickRate();
         CaptureMouse();

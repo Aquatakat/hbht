@@ -69,7 +69,7 @@ public sealed class LaunchOptions(Dictionary<string, string> values)
         "on" => true,
         "off" => false,
         _ => !values.Keys.Any(k => k is "save" or "set" or "chunk" or "at" or "fly" or "flags" or "hold" or "press" or "menu"
-            or "cutscene" or "cinematic" or "battle" or "screenshot" or "ui-screenshot" or "frames"),
+            or "cutscene" or "cinematic" or "battle" or "screenshot" or "ui-screenshot" or "frames" or "bench"),
     };
 
     /// <summary>
@@ -213,6 +213,9 @@ public sealed class LaunchOptions(Dictionary<string, string> values)
 
     /// <summary>How many frames to save, as rendered, from the screenshot on, or none for just the one.</summary>
     public int Frames => Integer("frames") ?? 0;
+
+    /// <summary><c>--bench &lt;seconds&gt;</c>: measure the run that long, print what it cost and quit.</summary>
+    public double? Bench => Number("bench");
 
     /// <summary>
     /// <c>--weather rain|snow|fog|clear[,intensity[,fog]]</c>: the weather at once, already set in, for screenshots. Rain

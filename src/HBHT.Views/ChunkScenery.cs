@@ -209,6 +209,9 @@ public sealed class Level(Node3D node, ScrollingScene? scrolling)
 
     public byte Alpha { get; private set; }
 
+    /// <summary>Whether <see cref="Show"/> has drawn it at <see cref="Alpha"/> yet.</summary>
+    private bool _shown;
+
     /// <summary>The surfaces whose materials change while the model is faded: its cut-outs.</summary>
     private readonly (MeshInstance3D Mesh, int Surface, Material Opaque, Material Faded)[] _cutOuts =
     [
@@ -226,6 +229,10 @@ public sealed class Level(Node3D node, ScrollingScene? scrolling)
     {
         if (Animator?.Particles is { } particles)
             particles.Alpha = alpha;
+        // Shown at this alpha already: its meshes are as they were. Each change is a call into Godot a mesh.
+        if (_shown && alpha == Alpha)
+            return;
+        _shown = true;
         var faded = alpha is > 0 and < 0xFF;
         if (faded != (Alpha is > 0 and < 0xFF))
         {

@@ -195,7 +195,9 @@ public sealed class SkyDirector
         Clouds.Wind = Weather.Wind;
         Clouds.Step();
         var sun = Objects.SunMiddle;
-        Flare.Step(sun, SkyShows?.Invoke(sun) ?? false, Colors.Tint.X, State.Drawn);
+        // The sky is looked for only where the flare would use it: an outdoor sky, with the sun on the screen.
+        var clear = State.Drawn && LensFlare.Watches(sun) && (SkyShows?.Invoke(sun) ?? false);
+        Flare.Step(sun, clear, Colors.Tint.X, State.Drawn);
         Apply();
     }
 

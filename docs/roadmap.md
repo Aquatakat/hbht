@@ -1,6 +1,6 @@
 # Aidyn Chronicles Reimplementation: Roadmap
 
-Sep 26, 2026 · Updated Nov 4, 2026
+Sep 26, 2026 · Updated Nov 6, 2026
 
 ## Summary
 
@@ -27,10 +27,10 @@ This is the one list of what's open. A task's status is in its phase's table bel
 - **The plugin data format's overhaul** (importers 67–70, ADRs 0031–0037) is done: its concepts are the game's as the player meets them ([plugins](systems/plugins.md)), and saves are format 2, a format-1 save brought up as it's read ([saves](systems/saves.md#older-formats)). Left from it: a mod's own skills, stats and weapon skills load and validate, but the core holds the original's 24 skill slots and 7 stats, so a mod's isn't played (ADR 0032). What only play confirms is in [user-checks](user-checks.md).
 - **2.10:** what else could move onto triggers, each with its event ([events](systems/events.md#what-else-could-move-onto-triggers)): the camp scenes (`camp.started`), the Shadow's cinematic and the Goblin Ambush's end (`battle.ended` with its outcome), and a conversation's end as `script.ended`. The editor has no view of the triggers of its own, and the quest atlas doesn't show what they read and set.
 - **Rendering:** the items in [rendering](systems/rendering.md#whats-left).
+- **Performance:** the runtime's tick is down from 9.6 ms to 1.3 ms among the Overworld's wanderers ([runtime](systems/runtime.md#measuring-it)). Next, by the last profile: the frame's drawing, which is most of what's left; the sky's dome and the fog's edge written a pixel at a time into textures every frame (`SkyBackdropView`, `Game.PullInFog`); `StringName`s and node paths made from strings each tick; the collision grid's queries walking every part's dictionary; and about 14 MB allocated a second. Places the user found slow: Port Saiid's streets (about 220 fps where its outskirts draw 310), and the Talewok shore toward it under fast-forward, which may have been the same flare and lights.
 
 ### Maybe
 
-- A profile of trek on the Talewok shore toward Port Saiid, where fast-forward once fell from about 120 fps to 25 while it was fine elsewhere: something there costs far more per tick.
 - **Faster battles,** a setting, after combat's parity fixes: the next combatant starts moving while the last action plays, once nothing it touches is still in that action, as Ogre Battle 64 does. The rules and their random numbers stay as they are, since an attack's outcome is rolled when it's chosen; only what's drawn overlaps. The camera can pick shots that hold both, scoring angles by raycast.
 
 ## Phases

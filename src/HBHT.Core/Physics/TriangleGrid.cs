@@ -97,6 +97,59 @@ internal sealed class TriangleGrid<T> where T : struct, IGridTriangle
     }
 
     /// <summary>
+    /// The triangles that may lie within <paramref name="widen"/> of the segment from <paramref name="from"/> to
+    /// <paramref name="to"/> in X and Z, each once a part: only the cells along it, where <see cref="Near"/> takes every cell
+    /// of the box round it, which for a long segment across the world is most of it. Their order isn't <see cref="Near"/>'s, so
+    /// it's for questions that don't hang on the order, such as whether anything is in the way. Replaces what
+    /// <paramref name="into"/> held.
+    /// </summary>
+    public void Along(Vector2 from, Vector2 to, float widen, List<T> into)
+    {
+        into.Clear();
+        var seen = _seen ??= [];
+        var minX = Math.Min(from.X, to.X) - widen;
+        var maxX = Math.Max(from.X, to.X) + widen;
+        var minZ = Math.Min(from.Y, to.Y) - widen;
+        var maxZ = Math.Max(from.Y, to.Y) + widen;
+        var delta = to - from;
+        foreach (var part in _parts.Values)
+        {
+            if (maxX < part.MinX || minX > part.MaxX || maxZ < part.MinZ || minZ > part.MaxZ)
+                continue;
+            seen.Clear();
+            var lowZCell = Cell(Math.Max(minZ, part.MinZ));
+            var highZCell = Cell(Math.Min(maxZ, part.MaxZ));
+            for (var x = Cell(Math.Max(minX, part.MinX)); x <= Cell(Math.Min(maxX, part.MaxX)); x++)
+            {
+                // Where the segment runs within this column, widened: the Z it spans there, widened again.
+                float lowZ, highZ;
+                if (MathF.Abs(delta.X) < 1e-6f)
+                    (lowZ, highZ) = (Math.Min(from.Y, to.Y), Math.Max(from.Y, to.Y));
+                else
+                {
+                    var t0 = Math.Clamp((x * CellSize - widen - from.X) / delta.X, 0, 1);
+                    var t1 = Math.Clamp(((x + 1) * CellSize + widen - from.X) / delta.X, 0, 1);
+                    var z0 = from.Y + delta.Y * t0;
+                    var z1 = from.Y + delta.Y * t1;
+                    (lowZ, highZ) = (Math.Min(z0, z1), Math.Max(z0, z1));
+                }
+                var zFrom = Math.Max(Cell(lowZ - widen), lowZCell);
+                var zTo = Math.Min(Cell(highZ + widen), highZCell);
+                for (var z = zFrom; z <= zTo; z++)
+                {
+                    if (!part.Cells.TryGetValue((x, z), out var cell))
+                        continue;
+                    foreach (var i in cell)
+                    {
+                        if (seen.Add(i))
+                            into.Add(part.Triangles[i]);
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
     /// The triangles of the parts other than <paramref name="except"/> with the same corners as <paramref name="triangle"/>, in any
     /// order, each within <paramref name="tolerance"/>: its copies where chunks overlap. Replaces what <paramref name="into"/> held
     /// with each copy's part and index, which the caller may change in place.

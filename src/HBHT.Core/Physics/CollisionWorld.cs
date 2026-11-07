@@ -97,4 +97,10 @@ public sealed class CollisionWorld
     /// </summary>
     internal void Near(float minX, float minZ, float maxX, float maxZ, List<Triangle> into, ChunkKey? only = null) =>
         _grid.Near(minX, minZ, maxX, maxZ, into, only);
+
+    /// <summary>
+    /// The triangles that may lie within <paramref name="widen"/> of a segment in X and Z, in no order that's behaviour
+    /// (<see cref="TriangleGrid{T}.Along"/>).
+    /// </summary>
+    internal void Along(Vector2 from, Vector2 to, float widen, List<Triangle> into) => _grid.Along(from, to, widen, into);
 }

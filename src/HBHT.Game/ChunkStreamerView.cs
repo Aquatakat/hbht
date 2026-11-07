@@ -181,8 +181,12 @@ public partial class ChunkStreamerView : Node3D
     /// <summary>Lights the wanderers' bodies by the dynamic lights that reach them: they aren't the party's, so map lights don't.</summary>
     public void LightWanderers(WorldLights lights, ChunkStreamer chunks)
     {
+        // Trek draws its wanderers before it lights them: one faded out isn't drawn, and is lit the tick it shows.
         foreach (var view in _views.Values)
-            view.Light(lights, chunks);
+        {
+            if (view.Shown)
+                view.Light(lights, chunks);
+        }
     }
 
     /// <summary>Every chunk's scenery drawn: the 3×3's, the ring's, and what stands in while a chunk's builds.</summary>

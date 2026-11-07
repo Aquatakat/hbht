@@ -430,18 +430,56 @@ public static class N64Material
     /// Lights the given meshes by up to <see cref="MaxLights"/> directional lights besides the sun and ambient: a body's or
     /// actor's point lights this tick (<c>HBHT.Core.Lights.WorldLights</c>), in on-screen values, the rest black.
     /// </summary>
+    /// <remarks>
+    /// The lights each list of meshes was last given are remembered, by the list, and a list whose lights haven't changed isn't
+    /// set again: setting an instance's parameters is a call into Godot each. A light's colour is in whole bytes, and counts as
+    /// changed by any of them. A black light's direction doesn't count, and a lit one's counts once it's moved a byte's step,
+    /// 1/255, from what was last set, as the moon's creeps across the sky each tick: less moves no lit colour by more than a
+    /// byte, finer than the RSP's own lights (a signed byte to the unit). Pass the same list each time, one its owner keeps,
+    /// and a new one when its meshes change.
+    /// </remarks>
     public static void SetLights(IEnumerable<GeometryInstance3D> meshes, IReadOnlyList<Core.Lights.DirectionalLight> lights)
     {
+        var applied = AppliedLights.GetOrCreateValue(meshes);
+        var same = applied.Set;
+        for (var i = 0; same && i < MaxLights; i++)
+        {
+            var light = i < lights.Count ? lights[i] : Unlit;
+            var last = applied.Lights[i];
+            // A black light lights nothing from any way, as the moon's does outside combat.
+            same = light.Colour == last.Colour
+                && (light.Colour == System.Numerics.Vector3.Zero
+                    || System.Numerics.Vector3.Abs(light.Toward - last.Toward) is var moved
+                    && MathF.Max(moved.X, MathF.Max(moved.Y, moved.Z)) < LightStep);
+        }
+        if (same)
+            return;
+        applied.Set = true;
+        for (var i = 0; i < MaxLights; i++)
+            applied.Lights[i] = i < lights.Count ? lights[i] : Unlit;
         foreach (var mesh in meshes)
         {
             for (var i = 0; i < MaxLights; i++)
             {
-                var (colour, toward) = i < lights.Count ? (lights[i].Colour.ToGodot(), lights[i].Toward.ToGodot()) : (Vector3.Zero, Vector3.Up);
-                mesh.SetInstanceShaderParameter(LightColor[i], colour);
-                mesh.SetInstanceShaderParameter(LightDirection[i], toward);
+                mesh.SetInstanceShaderParameter(LightColor[i], applied.Lights[i].Colour.ToGodot());
+                mesh.SetInstanceShaderParameter(LightDirection[i], applied.Lights[i].Toward.ToGodot());
             }
         }
     }
+
+    /// <summary>How far a light's direction moves before it's set again: a byte's step.</summary>
+    private const float LightStep = 1f / 255;
+
+    /// <summary>A light slot no light fills: black, from above.</summary>
+    private static readonly Core.Lights.DirectionalLight Unlit = new(System.Numerics.Vector3.Zero, System.Numerics.Vector3.UnitY);
+
+    private sealed class Applied
+    {
+        public readonly Core.Lights.DirectionalLight[] Lights = new Core.Lights.DirectionalLight[MaxLights];
+        public bool Set;
+    }
+
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, Applied> AppliedLights = new();
 
     private static readonly StringName[] LightColor = [.. Enumerable.Range(0, MaxLights).Select(i => new StringName($"light{i}_color"))];
     private static readonly StringName[] LightDirection = [.. Enumerable.Range(0, MaxLights).Select(i => new StringName($"light{i}_direction"))];

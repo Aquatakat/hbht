@@ -81,6 +81,7 @@ public partial class Game
             BattleFromCommandLine(battle);
         if (options.Radar == "box")
             _battleScreen!.Radar = Core.Ui.RadarAnchor.LogBox;
+        StartBench(options);
         if (options.Screenshot is { } png)
             _ = Screenshot(png, hold, options.Frames, options.UiScreenshot);
     }
