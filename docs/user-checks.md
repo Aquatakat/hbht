@@ -14,9 +14,7 @@ Battles the user plays in 1.0 from written saves, logged with `tools/parity.ps1`
 
 Each node now names its speaker, which the importer works out from the links into it ([scripts](systems/scripts.md#speakers)).
 
-- **The cut-scenes' camera at the merge nodes**: 138 textless nodes are reached with more than one speaker in force, every one holding only camera moves onto marks, so no op's actor depends on the speaker. All 262 cut-scene launches replayed tick for tick as before against the old import, but none has been watched since. Play one or two in the game or the editor, and the camera should move as it did. Two that have such nodes:
-  - 1384 (`aidyn:script/0x03B2`, "Take a long look..."): plays from the script object `byecastle` in Overworld M07, on leaving Gwernia once two of the three errands are done (flag 5049: 5004 set, 98 not yet).
-  - 1391 (`aidyn:script/0x03B4`, "The road is different here."): plays from `stage1391.` in Overworld H08 or the Shadow in K08, after the spirit in the forest and the throne room scene and before the party reaches C09 (flag 5050: 9 and 67 set, 100 and 194 clear).
+- **The cut-scenes' camera at the merge nodes**: 138 textless nodes are reached with more than one speaker in force, every one holding only camera moves onto marks, so no op's actor depends on the speaker. All 262 cut-scene launches replayed tick for tick as before against the old import, but none has been watched since. Watch one in the game, and the camera should move as it did: 1384 (`aidyn:script/0x03B2`, "Take a long look..."), which plays from the script object `byecastle` in Overworld M07 on leaving Gwernia once two of the three errands are done (flag 5049: 5004 set, 98 not yet). `out/user-checks/hbht-saves/Before Take a long look.json` is a new game with Abrecan, Rheda and Godric joined (89–91 set, and 67 for the throne room), standing at the castle's exit in M06: walk on into M07.
 
 ### The data format's fourth slice (importer 70)
 
