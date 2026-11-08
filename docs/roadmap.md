@@ -33,7 +33,7 @@ This is the one list of what's open. A task's status is in its phase's table bel
   - the player's turns open early.
 
   The five `StartEarlyTests` battles draw up to 59% shorter than Original, and their rules and random numbers stay Original's tick for tick. The user played it: no one walks through anyone, the sounds and health bars are right, and it's faster than expected, perhaps too fast, which piece A slows a little. The rest is in three pieces. A and B touch different code and can run side by side; C needs both.
-  - **A. Start Early's pacing**, in the composer.
+  - **A. Start Early's pacing**, in the composer. Done Nov 7, 2026 ([combat](systems/combat.md#pacing-beats-and-the-players-wait)): the five battles now draw 22–56% shorter than Original. What's left for the user to play is in [user-checks](user-checks.md).
     - **Beats.** A result is a beat: damage, a miss or dodge, a defeat, or an effect added (a buff or debuff, such as Mirror, Weakness or Haste). It runs from its strike to the end of its reaction.
       - Beats may play at once as long as one shot can hold them all. The user expects that's usually possible with shots the original never takes: a low shot across the field from one end, or a top-down one.
       - Where no shot can hold them, the later action starts later, so its beat lands once the camera is free. Its walk still starts early where it can.

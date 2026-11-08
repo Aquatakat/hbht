@@ -37,7 +37,7 @@ public readonly record struct FramedBeat(Beat Beat, int Tick, Vector3 Subject, V
 /// </summary>
 public sealed class SpreadFraming(float spread = SpreadFraming.DefaultSpread) : IBeatFraming
 {
-    /// <summary>How far apart, across the ground, the stand-in's shot holds subjects: about the original's camera's width at a body.</summary>
+    /// <summary>How far apart, across the ground, the stand-in's shot holds subjects by default: a guess, about a dozen bodies' widths, for C to replace.</summary>
     public const float DefaultSpread = 6;
 
     /// <summary>How far apart, across the ground, the bodies one shot holds may be.</summary>
