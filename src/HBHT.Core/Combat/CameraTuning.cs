@@ -55,18 +55,19 @@ public sealed record CameraTuning
     /// </summary>
     public float HandAcceleration { get; init; } = 10;
 
-    /// <summary>
-    /// The aim's cap times this while the player aims, with the reticle's speed followed up to <see cref="AimingFollowSpeed"/>, so the
-    /// reticle stays in the middle of the screen as it moves.
-    /// </summary>
+    /// <summary>The aim's cap times this while the player aims, so the reticle stays near the middle of the screen as it moves.</summary>
     public float AimingAcceleration { get; init; } = 6;
 
-    /// <summary>The most of the reticle's own speed followed while aiming, units a second.</summary>
-    public float AimingFollowSpeed { get; init; } = 30;
+    /// <summary>
+    /// The caps times this in the player's own turn, as they walk the character about (the settle by its square root): slower than the
+    /// rest, so the view drifts round after them rather than following every step.
+    /// </summary>
+    public float WalkPace { get; init; } = 0.5f;
 
     /// <summary>
-    /// The most of a moving goal's own speed the camera follows at, units a second: a running body's. A goal that lunges and stops, as the
-    /// original's camera does chasing a far aim, is then never overshot by more than the cap can stop in.
+    /// The most of a moving goal's own speed followed at while the player has the camera in their hand, units a second: a running body's.
+    /// The director's own shots follow none of it: they trail a moving goal, by as much as it takes to stop on it, so the view never
+    /// overshoots a goal that stops and swings back.
     /// </summary>
     public float FollowSpeed { get; init; } = 6;
 
@@ -94,6 +95,9 @@ public sealed record CameraTuning
     /// moved to under the caps spends seconds looking at the ground between.
     /// </summary>
     public float CutPitch { get; init; } = 35;
+
+    /// <summary>How far beyond the battlefield's grid a director's shot may put its eye: the walls and cliffs round it are scenery without collision.</summary>
+    public float FieldMargin { get; init; } = 1;
 
     /// <summary>How far above the ground the eye is kept.</summary>
     public float FloorClearance { get; init; } = 1;
@@ -149,16 +153,49 @@ public sealed record CameraTuning
     // ---- The player's targets
 
     /// <summary>Half the cone, about the way the character points (or walks), an enemy must be in to be a target.</summary>
-    public float ConeAngle { get; init; } = 40;
+    public float ConeAngle { get; init; } = 20;
 
     /// <summary>Half the cone the target held stays in, wider, so the stick's wobble doesn't drop it.</summary>
-    public float ConeHold { get; init; } = 75;
+    public float ConeHold { get; init; } = 45;
 
     /// <summary>
     /// The farthest across the ground an enemy may be to be a target. Farther, no shot over the shoulder holds both within
     /// <see cref="MaxDistance"/>, and the camera follows behind the character as the original's does.
     /// </summary>
     public float TargetRange { get; init; } = 30;
+
+    /// <summary>The farthest the target held may be and stay it, further, so walking at the edge of the range doesn't flick it.</summary>
+    public float TargetRangeHold { get; init; } = 38;
+
+    /// <summary>
+    /// Ticks the target held stays it once it has left its cone or its range, unless the player turns back to it: a stick held across
+    /// the edge doesn't flick the camera between it and nothing.
+    /// </summary>
+    public int LoseHold { get; init; } = 45;
+
+    /// <summary>Enemies within this of the target, across the ground, are framed with it: a pack is shown whole, centred.</summary>
+    public float ClusterRadius { get; init; } = 8;
+
+    /// <summary>The weight of the target's pack, each, beside the character's and the target's 1.</summary>
+    public float ClusterWeight { get; init; } = 0.5f;
+
+    /// <summary>
+    /// Taken off a shot, up to this, for framing a party member on the other side of whom they deal with from the side they had the
+    /// first time: each keeps a side of the screen against their enemies (<see cref="ScreenSide"/>).
+    /// </summary>
+    public float SideCost { get; init; } = 1.5f;
+
+    /// <summary>
+    /// How far right of their enemy a party member is framed on the right before it costs nothing, as a share of the lens's half-width
+    /// (on the left, as far left): over the shoulder, off to their side.
+    /// </summary>
+    public float SideAcross { get; init; } = 0.3f;
+
+    /// <summary>
+    /// How much how near the cone's middle an enemy is counts, <c>1 − (angle/ConeAngle)²</c> times this, beside how near it is
+    /// (<see cref="NearScale"/>): within the cone, the nearer is likelier.
+    /// </summary>
+    public float AngleWeight { get; init; } = 0.5f;
 
     /// <summary>How fast a target's worth falls with its distance: nearer is likelier.</summary>
     public float NearScale { get; init; } = 6;
@@ -220,6 +257,18 @@ public sealed record CameraTuning
 
     /// <summary>An area placed is held with this times its radius round its centre.</summary>
     public float AreaMargin { get; init; } = 1.6f;
+
+    /// <summary>
+    /// The weight of a spell's reach, a point of its ring beyond its targets, as the spell is aimed at targets (state 10): some of the ring is
+    /// shown where it can be, beside all of the targets and the caster.
+    /// </summary>
+    public float ReachWeight { get; init; } = 0.5f;
+
+    /// <summary>
+    /// The most the reach may draw an aimed spell's shot back, times the distance holding the caster and the targets alone: a wider
+    /// spell's ring, far beyond its targets, isn't shown, so they aren't small and at the screen's edge.
+    /// </summary>
+    public float ReachStretch { get; init; } = 1.4f;
 
     /// <summary>The caps on the camera's motion.</summary>
     public MotionCaps Caps => new(AimAcceleration, TurnAcceleration, ZoomAcceleration, Settle, ZoomSettle);

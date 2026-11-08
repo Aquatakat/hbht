@@ -17,7 +17,7 @@ public sealed class EnhancedCameraTests
     // ---- The target cone
 
     // The character at the origin pointing +Z; two enemies ahead, a near one slightly off the middle and a far one nearer it.
-    private static readonly TargetCandidate Near = new("near", new Vector3(1.2f, 0, 3));
+    private static readonly TargetCandidate Near = new("near", new Vector3(0.8f, 0, 3));
     private static readonly TargetCandidate Far = new("far", new Vector3(-1.5f, 0, 16));
 
     [Fact]
@@ -41,14 +41,14 @@ public sealed class EnhancedCameraTests
     [Fact]
     public void TheStickWobblingBetweenTwoBanditsDoesntFlickTheTarget()
     {
-        // Two bandits 8 away, 20° either side of the middle; the stick wobbles ±25° about the middle every few ticks.
-        var left = new TargetCandidate("left", 8 * new Vector3(MathF.Sin(-0.35f), 0, MathF.Cos(-0.35f)));
-        var right = new TargetCandidate("right", 8 * new Vector3(MathF.Sin(0.35f), 0, MathF.Cos(0.35f)));
+        // Two bandits 8 away, 15° either side of the middle; the stick wobbles ±20° about the middle every few ticks.
+        var left = new TargetCandidate("left", 8 * new Vector3(MathF.Sin(-0.26f), 0, MathF.Cos(-0.26f)));
+        var right = new TargetCandidate("right", 8 * new Vector3(MathF.Sin(0.26f), 0, MathF.Cos(0.26f)));
         var cone = new TargetCone();
         var changes = 0;
         for (var tick = 0; tick < 600; tick++)
         {
-            var wobble = 0.44f * MathF.Sin(tick * 0.3f);
+            var wobble = 0.35f * MathF.Sin(tick * 0.3f);
             var heading = new Vector2(MathF.Sin(wobble), MathF.Cos(wobble));
             if (cone.Pick(Vector3.Zero, heading, [left, right], T) && tick > 0)
                 changes++;
@@ -63,9 +63,9 @@ public sealed class EnhancedCameraTests
         var cone = new TargetCone();
         cone.Pick(Vector3.Zero, Vector2.UnitY, [Near, Far], T);
         Assert.Equal("near", cone.Target);
-        // The character turns to point straight at the far one: near is now 40° off, within the held cone but much less likely.
+        // The character turns to point straight at the far one: near is now 42° off, within the held cone but much less likely.
         var heading = Vector2.Normalize(new Vector2(-1.5f, 16));
-        var near = Near with { At = new Vector3(2.6f, 0, 3) };
+        var near = Near with { At = new Vector3(2.2f, 0, 3) };
         for (var tick = 1; tick < T.TargetHold; tick++)
         {
             cone.Pick(Vector3.Zero, heading, [near, Far], T);
@@ -73,6 +73,41 @@ public sealed class EnhancedCameraTests
         }
         Assert.True(cone.Pick(Vector3.Zero, heading, [near, Far], T));
         Assert.Equal("far", cone.Target);
+    }
+
+    [Fact]
+    public void ATargetThatLeavesTheConeIsHeldAWhileBeforeItsLetGo()
+    {
+        // The stick swung away from the only enemy ahead: the camera keeps it for a while rather than flicking to no one and back.
+        var cone = new TargetCone();
+        cone.Pick(Vector3.Zero, Vector2.UnitY, [Near], T);
+        Assert.Equal("near", cone.Target);
+        for (var tick = 1; tick < T.LoseHold; tick++)
+        {
+            cone.Pick(Vector3.Zero, Vector2.UnitX, [Near], T);
+            Assert.Equal("near", cone.Target);
+        }
+        Assert.True(cone.Pick(Vector3.Zero, Vector2.UnitX, [Near], T));
+        Assert.Null(cone.Target);
+    }
+
+    [Fact]
+    public void ATargetHeldStaysItFurtherThanATargetIsTaken()
+    {
+        var cone = new TargetCone();
+        var edge = new TargetCandidate("edge", new Vector3(0, 0, T.TargetRange - 1));
+        cone.Pick(Vector3.Zero, Vector2.UnitY, [edge], T);
+        Assert.Equal("edge", cone.Target);
+        // Walking back from it, past the range: still held, without a tick of no one.
+        for (var back = 0; back < 5; back++)
+        {
+            cone.Pick(new Vector3(0, 0, -back), Vector2.UnitY, [edge], T);
+            Assert.Equal("edge", cone.Target);
+        }
+        // A new one that far isn't taken.
+        var fresh = new TargetCone();
+        fresh.Pick(new Vector3(0, 0, -4), Vector2.UnitY, [edge], T);
+        Assert.Null(fresh.Target);
     }
 
     // ---- Shots that hide neither
@@ -149,6 +184,22 @@ public sealed class EnhancedCameraTests
         Assert.Equal(0, finder.HiddenWeight(shot, subjects));
         // The eye is on the character's side, nearer it than the target.
         Assert.True(Vector3.Distance(shot.Eye, subjects[0].At) < Vector3.Distance(shot.Eye, subjects[1].At));
+    }
+
+    [Fact]
+    public void APartyMemberIsFramedOnTheirOwnSideOfTheirEnemy()
+    {
+        // Straight over the shoulder the character hides the target, so the shot goes to one side; which, is the character's side.
+        var (finder, subjects) = TwoApart(Worlds.Flat());
+        var behind = -MathF.PI / 2;
+        var (me, target) = (subjects[0].At, subjects[1].At);
+        var (right, _) = finder.Best(subjects, behind, behind, [new ScreenSide(me, target)])!.Value;
+        var (left, _) = finder.Best(subjects, behind, behind, [new ScreenSide(target, me)])!.Value;
+        TestContext.Current.TestOutputHelper?.WriteLine($"right {ShotFinder.Across(right, new ScreenSide(me, target), T.Lens):F3} yaw {right.Yaw * 180 / MathF.PI:F0} pitch {right.Pitch * 180 / MathF.PI:F0}; left {ShotFinder.Across(left, new ScreenSide(me, target), T.Lens):F3} yaw {left.Yaw * 180 / MathF.PI:F0} pitch {left.Pitch * 180 / MathF.PI:F0}");
+        Assert.True(ShotFinder.Across(right, new ScreenSide(me, target), T.Lens) > 0, "framed on the right");
+        Assert.True(ShotFinder.Across(left, new ScreenSide(me, target), T.Lens) < 0, "framed on the left");
+        Assert.Equal(0, finder.HiddenWeight(right, subjects));
+        Assert.Equal(0, finder.HiddenWeight(left, subjects));
     }
 
     [Fact]
@@ -278,6 +329,30 @@ public sealed class EnhancedCameraTests
         // Following at most 6 a second, it stops within 6² / (2 × 12) of the goal, and some for the settling.
         Assert.True(most < 1.5f, $"overshot by {most}");
         Assert.True(Vector3.Distance(motion.Current.Aim, goal.Aim) < 0.05f);
+    }
+
+    [Fact]
+    public void ADirectorsGoalThatMovesAndStopsIsTrailedNeverOvershot()
+    {
+        // The director follows none of a goal's own speed: a reticle or a framing that slides for two seconds and stops is trailed, closing
+        // on it without passing it and swinging back. Its yaw the same.
+        var motion = new CappedMotion(new Shot(Vector3.Zero, 0, 0.5f, 12), T.Caps) { MostFollowed = (0, 0) };
+        var goal = new Shot(Vector3.Zero, 0, 0.5f, 12);
+        var (overshoot, overturn, lag) = (0f, 0f, 0f);
+        for (var tick = 0; tick < 600; tick++)
+        {
+            if (tick < 120)
+                goal = goal with { Aim = goal.Aim + new Vector3(0.1f, 0, 0), Yaw = goal.Yaw + 0.01f };
+            motion.Step(goal);
+            overshoot = MathF.Max(overshoot, motion.Current.Aim.X - goal.Aim.X);
+            overturn = MathF.Max(overturn, Shot.Wrap(motion.Current.Yaw - goal.Yaw));
+            lag = MathF.Max(lag, goal.Aim.X - motion.Current.Aim.X);
+        }
+        TestContext.Current.TestOutputHelper?.WriteLine($"overshot by {overshoot:F3} and {overturn * 180 / MathF.PI:F2}°, {lag:F1} behind at most");
+        Assert.True(overshoot < 0.01f, $"overshot by {overshoot}");
+        Assert.True(overturn < 0.002f, $"turned past by {overturn}");
+        Assert.True(Vector3.Distance(motion.Current.Aim, goal.Aim) < 0.05f);
+        Assert.True(lag < 4, $"{lag} behind");
     }
 
     [Fact]

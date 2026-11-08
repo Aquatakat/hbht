@@ -150,11 +150,16 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
     [Fact]
     public void ThePlayersTurnFramesTheCharacterWithItsTargetHidingNeither()
     {
-        var (framed, hidden, held, low) = (0, 0, 0, 0);
+        var (framed, hidden, held, low, walkingCuts) = (0, 0, 0, 0, 0);
+        var (cuts, walked) = (0, (Combatant?)null);
         Play(host => Plain(Set, 1, host), CameraStyle.Enhanced, "*=stick:0:1:40/wait:40/accept/accept", run =>
         {
             var battle = run.Battle;
             var e = battle.CombatCamera.Enhanced!;
+            // It never cuts while the player walks the character, but on the tick their turn begins.
+            if (e.Cuts != cuts && e.Walking && walked == battle.Current)
+                walkingCuts++;
+            (cuts, walked) = (e.Cuts, e.Walking ? battle.Current : null);
             if (battle.State != CombatState.Turn || battle.Current is not { Controlled: false } me || e.Target is not { } target || e.Finder is not { } finder)
                 return;
             framed++;
@@ -168,7 +173,8 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
             // Only enemies are targets.
             Assert.NotEqual(me.Hostile, target.Hostile);
         });
-        TestContext.Current.TestOutputHelper?.WriteLine($"{framed} ticks framed with a target: {held} holding both, {hidden} hiding one, {low} low");
+        TestContext.Current.TestOutputHelper?.WriteLine($"{framed} ticks framed with a target: {held} holding both, {hidden} hiding one, {low} low; {walkingCuts} cuts walking");
+        Assert.Equal(0, walkingCuts);
         Assert.True(framed > 200, $"{framed} ticks framed");
         Assert.True(held >= framed * 0.98, $"{held} of {framed} held both");
         Assert.True(hidden <= framed * 0.02, $"{hidden} of {framed} hid one");
@@ -196,7 +202,11 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
                     turns++;
                 return;
             }
-            if (turn is not { Controlled: true } || !e.Kind.EndsWith("planned", StringComparison.Ordinal))
+            if (!e.Kind.EndsWith("planned", StringComparison.Ordinal))
+                return;
+            // Never from beyond the battlefield, behind the scenery round it.
+            Assert.False(e.Finder!.Outside(e.Goal.Eye), $"{e.Goal.Eye} beyond the field");
+            if (turn is not { Controlled: true })
                 return;
             if (planned != e.Goal)
             {
@@ -210,6 +220,38 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
         TestContext.Current.TestOutputHelper?.WriteLine($"{turns} AI turns, {plans} plans, {moved} ticks moving");
         Assert.True(turns > 5, $"{turns} AI turns");
         Assert.True(plans <= turns * 1.2, $"{plans} plans in {turns} turns");
+    }
+
+    [Fact]
+    public void EachPartyMemberKeepsTheirSideOfTheScreenAgainstTheirEnemies()
+    {
+        // Through every action at an enemy, the player's and the AI's, the party member is framed on the side they had the first time.
+        var (pairs, kept) = (0, 0);
+        var sides = new Dictionary<Combatant, int>();
+        Play(host => Plain(Set, 1, host), CameraStyle.Enhanced, Attacking, run =>
+        {
+            var battle = run.Battle;
+            var e = battle.CombatCamera.Enhanced!;
+            if (battle.Current is not { } current || !e.Kind.EndsWith("planned", StringComparison.Ordinal))
+                return;
+            var slot = current.Controlled ? current.Ai?.Target ?? -1 : battle.Target;
+            if (slot < 0 || slot >= battle.Slots.Count || battle.Slots[slot] is not { Freed: false } other || other.Hostile == current.Hostile)
+                return;
+            var (member, enemy) = current.Hostile ? (other, current) : (current, other);
+            if (e.SideOf(member) is var side and not 0)
+            {
+                sides.TryAdd(member, side);
+                // Once had, a side is never changed.
+                Assert.Equal(sides[member], side);
+                pairs++;
+                var across = ShotFinder.Across(e.Goal, new ScreenSide(member.Body.Sphere.Position, enemy.Body.Sphere.Position), CameraTuning.Default.Lens);
+                if (across * side >= 0)
+                    kept++;
+            }
+        });
+        TestContext.Current.TestOutputHelper?.WriteLine($"{sides.Count} party members with sides; {kept} of {pairs} action ticks framed them on their side");
+        Assert.True(sides.Count >= 3, $"{sides.Count} with sides");
+        Assert.True(kept >= pairs * 0.9, $"{kept} of {pairs} on their side");
     }
 
     // ---------------------------------------------------------------------------------------------------------------------------
