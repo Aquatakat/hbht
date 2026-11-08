@@ -39,8 +39,16 @@ public sealed class BattleComposer
     /// <summary>The reach of a missile in flight, and of a spell's actor between its two bodies, for the path check.</summary>
     public const float MissileRadius = 0.3f, VisualRadius = 0.5f;
 
+    /// <summary>
+    /// How much nearer than touching a shape the player's turn draws on the present may come to one still drawn behind it, which then
+    /// fast-forwards, so it's drawn where it is before they meet.
+    /// </summary>
+    public const float WalkMargin = 0.5f;
+
     private readonly BattleActions _actions;
     private readonly Dictionary<Combatant, Track> _tracks = [];
+    /// <summary>What a fast-forward passed over since the last frame composed: its cues are handed over, its sounds and emitters skipped.</summary>
+    private readonly List<Moment> _skipped = [];
     private readonly Func<bool> _waits;
     private int _drawn;
     private int _unscheduled = 1;
@@ -145,6 +153,148 @@ public sealed class BattleComposer
     /// <summary>The tick of the recording a body is drawn from now, or null for one not drawn.</summary>
     public int? DrawnTickOf(Combatant body) => _tracks.TryGetValue(body, out var t) && !t.Gone ? t.Cursor : null;
 
+    /// <summary>
+    /// The turn the player plays, opened early and drawn on the battle's present (ADR 0040's stage 4): the newest action, opened once its
+    /// combatant was free, while its turn goes on. Null if none.
+    /// </summary>
+    public DrawnAction? Live
+    {
+        get
+        {
+            var all = _actions.Actions;
+            return all[^1] is { Opened: true, Closed: false, Start: { } s } a && s <= _drawn ? a : null;
+        }
+    }
+
+    /// <summary>
+    /// Whether the player's turn is drawn up to the battle's present, so the battle steps with the drawing and takes the player's presses.
+    /// </summary>
+    public bool AtPresent => Live is { } live && live.TickAt(_drawn) >= _actions.Last;
+
+    /// <summary>
+    /// Whether a body has nothing left to draw in an action before the turn being played (the player's, or whichever is still open):
+    /// every earlier episode of it drawn.
+    /// </summary>
+    public bool Free(Combatant body)
+    {
+        foreach (var e in _actions.EpisodesOf(body))
+        {
+            if (!e.Action.Closed)
+                break;
+            if (!Played(e))
+                return false;
+        }
+        return true;
+    }
+
+    /// <summary>How many times an action has been fast-forwarded on its own (<see cref="Release"/>, <see cref="SkipWalks"/>, the guard).</summary>
+    public int Forwarded { get; private set; }
+
+    /// <summary>Whether an episode has been drawn to its end: its action is past its last tick.</summary>
+    private bool Played(Episode e) => e.Action.Start is { } s && s <= _drawn && e.Action.TickAt(_drawn) > e.To;
+
+    /// <summary>
+    /// What the player's turn touches is drawn where it is (ADR 0040's stage 4): each action still drawing one of these bodies, before the
+    /// player's, is fast-forwarded to its end, with what it depends on. What they pass is handed over with the next frame, its sounds
+    /// and emitters skipped.
+    /// </summary>
+    public void Release(IEnumerable<Combatant> bodies)
+    {
+        foreach (var body in bodies)
+            Release(body);
+    }
+
+    /// <summary>
+    /// Brings a body on: the actions holding its earlier parts to their ends, then, idling, as far as its next part or the newest action.
+    /// Whether it moved.
+    /// </summary>
+    private bool Release(Combatant body)
+    {
+        if (!_tracks.TryGetValue(body, out var track) || track.Gone)
+            return false;
+        var was = track.Cursor;
+        Episode? next = null;
+        foreach (var e in _actions.EpisodesOf(body))
+        {
+            if (!e.Action.Closed)
+            {
+                next = e;
+                break;
+            }
+            if (!Played(e))
+                Finish(e.Action);
+        }
+        var newest = Newest();
+        var cap = Math.Min(newest is null || newest.Start > _drawn ? _actions.Last : Own(newest), _actions.Last);
+        if (next is not null)
+            cap = Math.Min(cap, next.From - 1);
+        if (cap > track.Cursor && !track.Gone)
+            Go(body, track, cap, _skipped);
+        return track.Cursor > was;
+    }
+
+    /// <summary>
+    /// A in an AI's walk under Start Early: each action drawing that's in its walk is fast-forwarded to its walk's last tick, as Original's
+    /// A skips one walk, and plays on from there; what one depends on first is brought as far as it needs. The rest plays on.
+    /// </summary>
+    public void SkipWalks()
+    {
+        var live = Live;
+        foreach (var a in DrawingNow().ToList())
+        {
+            var t = a.TickAt(_drawn);
+            if (a == live || t > a.Last || t < Math.Max(a.First, _actions.Kept) || !_actions[t].Walking)
+                continue;
+            var end = t;
+            while (end < Math.Min(a.Last, _actions.Last) && _actions[end + 1].Walking)
+                end++;
+            Forward(a, end);
+        }
+    }
+
+    /// <summary>Fast-forwards an action past its end: its timeline and its bodies' to the last tick it plays.</summary>
+    private void Finish(DrawnAction a) => Forward(a, (a.TailEnd ?? _actions.Last) + 1);
+
+    /// <summary>
+    /// Puts an action's timeline at <paramref name="to"/> now, and each body it has reached there at that tick (or its episode's end),
+    /// what they pass handed over with the next frame (<see cref="_skipped"/>). The whole timeline moves, so each of its episodes is
+    /// reached sooner: every earlier part of each body it involves, in an earlier action, is brought far enough first to be drawn by the
+    /// time it's reached (started sooner, if it was yet to start), so no body is in two actions at once and none goes back.
+    /// </summary>
+    private void Forward(DrawnAction a, int to)
+    {
+        if (a.Start is null)
+            return;
+        // The tick its timeline has now: before its first while it's yet to start.
+        if (a.TickAt(_drawn) >= to)
+            return;
+        _search = null;
+        foreach (var e in a.Episodes)
+        {
+            // It reaches this episode's first tick so many drawn ticks from now.
+            var lead = Math.Max(0, e.From - to);
+            foreach (var earlier in _actions.EpisodesOf(e.Body))
+            {
+                if (earlier.Action.Index >= a.Index)
+                    break;
+                Forward(earlier.Action, earlier.To + 1 - lead);
+            }
+        }
+        a.Start = _drawn - (to - a.First);
+        Forwarded++;
+        if (to < a.First)
+            return;
+        Advance(a, Math.Min(to, _actions.Last), _skipped);
+        foreach (var e in a.Episodes)
+        {
+            if (e.From > to || !_tracks.TryGetValue(e.Body, out var track))
+                continue;
+            var t = Math.Min(Math.Min(to, e.To), _actions.Last);
+            if (t > track.Cursor)
+                Go(e.Body, track, t, _skipped);
+        }
+    }
+
     /// <summary>The next drawn tick: what can start is scheduled, every timeline moves to it, and the frame composed of them is returned.</summary>
     public BattleFrame Next()
     {
@@ -153,18 +303,17 @@ public sealed class BattleComposer
     }
 
     /// <summary>
-    /// Every action at the battle's present at once: the frame composed there, with the one-offs passed on the way, but no emitter
-    /// starts (<paramref name="emitters"/> false).
+    /// Every action at the battle's present at once: the frame composed there, with the one-offs passed on the way handed over but their
+    /// sounds and emitters skipped (<see cref="BattleFrame.SkippedSounds"/>).
     /// </summary>
-    public BattleFrame FastForward(bool emitters = false)
+    public BattleFrame FastForward()
     {
-        var played = new List<Moment>();
         _search = null;
         for (var i = _unscheduled; i < _actions.Actions.Count; i++)
             _actions.Actions[i].Start = _drawn;
         _unscheduled = _actions.Actions.Count;
-        Snap(_actions.Last, played);
-        return Frame = Composed(played, emitters);
+        Snap(_actions.Last, _skipped);
+        return Frame = Composed([]);
     }
 
     // ---------------------------------------------------------------------------------------------------------------------------
@@ -218,6 +367,14 @@ public sealed class BattleComposer
                     return;
                 b.Start = start;
             }
+            else if (PlayersTurn(b))
+            {
+                // A turn the player plays opens once its combatant, and any body it has reached, has drawn its earlier parts.
+                if (!Opens(b))
+                    return;
+                b.Start = _drawn;
+                b.Opened = true;
+            }
             else if (!Busy(b))
             {
                 Snap(b.First - 1, played);
@@ -231,6 +388,34 @@ public sealed class BattleComposer
         }
     }
 
+    /// <summary>Whether an action not yet settled is a turn the player plays, the battle waiting on them in it.</summary>
+    private bool PlayersTurn(DrawnAction b) =>
+        !b.Closed && b.Index == _actions.Actions.Count - 1 && b.Current is not null && _actions[_actions.Last].PlayersTurn && _waits();
+
+    /// <summary>
+    /// Whether the player's turn can open now: every earlier action has started, and every body the turn has reached has drawn its
+    /// episodes in them.
+    /// </summary>
+    private bool Opens(DrawnAction b)
+    {
+        for (var i = _live; i < b.Index; i++)
+        {
+            if (_actions.Actions[i].Start is not { } s || s > _drawn)
+                return false;
+        }
+        foreach (var e in b.Episodes)
+        {
+            foreach (var earlier in _actions.EpisodesOf(e.Body))
+            {
+                if (earlier.Action.Index >= b.Index)
+                    break;
+                if (!Played(earlier))
+                    return false;
+            }
+        }
+        return true;
+    }
+
     /// <summary>How long a drawn tick may spend searching for actions' starts.</summary>
     public static readonly TimeSpan SearchBudget = TimeSpan.FromMilliseconds(2);
 
@@ -239,7 +424,7 @@ public sealed class BattleComposer
         b.Closed && (_actions.Last >= b.Last + BattleActions.TailCap || _waits());
 
     /// <summary>
-    /// Whether any action is due to start, or has ticks before <paramref name="b"/>'s left to draw: its own, or its tail's (what it began
+    /// Whether any action is due to start, or has ticks before <paramref name="b"/>'s not yet drawn on an earlier drawn tick: its own, or its tail's (what it began
     /// that lives into <paramref name="b"/>'s ticks is drawn alongside it).
     /// </summary>
     private bool Busy(DrawnAction b)
@@ -247,7 +432,7 @@ public sealed class BattleComposer
         for (var i = _live; i < _unscheduled; i++)
         {
             var a = _actions.Actions[i];
-            if (a.Start > _drawn || a.TickAt(_drawn) < Math.Min(a.TailEnd ?? int.MaxValue, b.First - 1))
+            if (a.Start > _drawn || a.TickAt(_drawn) <= Math.Min(a.TailEnd ?? int.MaxValue, b.First - 1))
                 return true;
         }
         return false;
@@ -704,6 +889,9 @@ public sealed class BattleComposer
     {
         var played = new List<Moment>();
         Schedule(played);
+        var live = Live;
+        if (live is not null)
+            Guard(live);
         var last = _actions.Last;
         var newest = Newest();
         var newestTick = newest is null ? last : Math.Min(newest.TickAt(_drawn), last);
@@ -716,13 +904,153 @@ public sealed class BattleComposer
             Advance(a, Math.Min(a.TickAt(_drawn), last), played);
         }
         foreach (var (body, track) in _tracks)
-            Move(body, track, newestTick, played);
+            Move(body, track, newestTick, live, played);
+        Resolve();
 
-        if (newest is not null && newest.TickAt(_drawn) >= last && _unscheduled == _actions.Actions.Count)
+        // Once the newest action reaches the present, everything is put there; but the player's turn draws on the present while the
+        // earlier actions draw on behind it.
+        if (newest is not null && newest != live && newest.TickAt(_drawn) >= last && _unscheduled == _actions.Actions.Count)
             Snap(last, played);
         var frame = Composed(played);
         Retire();
         return frame;
+    }
+
+    /// <summary>
+    /// What the player's turn reaches on the present is drawn where it is first (ADR 0040's stage 4):
+    /// <list type="bullet">
+    /// <item>a body the turn has reached (a target hit, one pushed) that still has an earlier part to draw;</item>
+    /// <item>a body still drawn behind whose remaining path comes within reach of what the turn draws now (its combatant walking, its
+    /// missile, its spell's actor), within <see cref="WalkMargin"/> of touching and nearer than the recording had them, or which the
+    /// core has standing within that reach while it's drawn elsewhere, since the core collides with where it is;</item>
+    /// <item>a missile or spell's actor of an earlier action still drawn whose remaining path comes that near.</item>
+    /// </list>
+    /// Each fast-forwards the actions holding it to their ends.
+    /// </summary>
+    private void Guard(DrawnAction live)
+    {
+        var at = Math.Min(live.TickAt(_drawn), _actions.Last);
+        if (at < _actions.Kept)
+            return;
+        var touched = new HashSet<Combatant>();
+        var mine = new List<Placed>();
+        foreach (var e in live.Episodes)
+        {
+            if (e.From > at)
+                continue;
+            if (!Free(e.Body))
+                touched.Add(e.Body);
+            else if (e.To >= at && Centre(e.Body, at) is { } c)
+                mine.Add(new Placed(e.Body, new Shape(c, c, e.Body.Body.Sphere.Radius), at, true));
+        }
+        foreach (var (thing, ended) in live.Things)
+        {
+            if (thing is (MissileFlight or SpellFxVisual) && (ended is null || ended > at) && Look(thing, at) is { } shape)
+                mine.Add(new Placed(thing, shape, at, true));
+        }
+        if (mine.Count > 0)
+        {
+            foreach (var (body, track) in _tracks)
+            {
+                if (track.Gone || track.Cursor >= at || touched.Contains(body) || mine.Exists(m => m.Key == body))
+                    continue;
+                if (Reaches(mine, body, track.Cursor, at))
+                    touched.Add(body);
+            }
+        }
+        foreach (var body in touched)
+            Release(body);
+        if (mine.Count == 0)
+            return;
+        // An earlier action's missile or spell's actor still drawn in the way.
+        for (var i = _live; i < _actions.Actions.Count; i++)
+        {
+            var a = _actions.Actions[i];
+            if (a == live || a.Start is not { } s || s > _drawn)
+                continue;
+            var t = a.TickAt(_drawn);
+            foreach (var (thing, ended) in a.Things)
+            {
+                if (thing is not (MissileFlight or SpellFxVisual) || (ended is { } end && end < t))
+                    continue;
+                if (Reaches(mine, thing, Math.Max(t, _actions.Kept), Math.Min(ended ?? at, at)))
+                {
+                    Finish(a);
+                    break;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Whether what the player's turn draws now (<paramref name="mine"/>) comes near <paramref name="key"/>'s path over the ticks it's
+    /// still drawn at, <paramref name="from"/> to <paramref name="to"/>: within reach and <see cref="WalkMargin"/>, nearer than the
+    /// recording had them; or the turn's combatant coming nearer, within that reach, to where the core has it now (<paramref name="to"/>),
+    /// where the core pushes it and is blocked by it.
+    /// </summary>
+    private bool Reaches(List<Placed> mine, object key, int from, int to)
+    {
+        foreach (var x in mine)
+        {
+            var before = x.Key is Combatant && x.Tick > _actions.Kept ? Look(x.Key, x.Tick - 1) : null;
+            for (var u = from; u <= to; u++)
+            {
+                if (Look(key, u) is not { } y)
+                    continue;
+                var reach = x.Shape.Radius + y.Radius + WalkMargin;
+                var drawn = Distance(x.Shape, y);
+                if (drawn >= reach)
+                    continue;
+                if (u == to && before is { } b && drawn < Distance(b, y) - 1e-4f)
+                    return true;
+                var then = Look(x.Key, u) is { } xThen ? Distance(xThen, y) : float.PositiveInfinity;
+                if (drawn < then - Slack)
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// The last word on a drawn tick (ADR 0040's stage 4): two bodies drawn from different ticks that touch nearer than either tick
+    /// recorded them, as a fast-forward of one action can leave them (a walk skipped to its end where a body drawn behind still stands),
+    /// have the one drawn behind brought on (<see cref="Release"/>) till none do.
+    /// </summary>
+    private void Resolve()
+    {
+        for (var pass = 0; pass < 8; pass++)
+        {
+            var drawn = new List<(Combatant Body, int Tick, Vector3 At)>();
+            foreach (var (body, track) in _tracks)
+            {
+                if (!track.Gone && track.Cursor >= _actions.Kept && Centre(body, Math.Min(track.Cursor, _actions.Last)) is { } at)
+                    drawn.Add((body, Math.Min(track.Cursor, _actions.Last), at));
+            }
+            Combatant? behind = null;
+            for (var i = 0; i < drawn.Count && behind is null; i++)
+            {
+                for (var j = i + 1; j < drawn.Count; j++)
+                {
+                    var (x, y) = (drawn[i], drawn[j]);
+                    if (x.Tick == y.Tick)
+                        continue;
+                    var apart = Vector3.Distance(x.At, y.At);
+                    if (apart >= x.Body.Body.Sphere.Radius + y.Body.Body.Sphere.Radius)
+                        continue;
+                    var then = Math.Min(Between(x.Body, y.Body, x.Tick), Between(x.Body, y.Body, y.Tick));
+                    if (apart < then - Slack)
+                    {
+                        behind = x.Tick < y.Tick ? x.Body : y.Body;
+                        break;
+                    }
+                }
+            }
+            if (behind is null || !Release(behind))
+                return;
+        }
+
+        float Between(Combatant x, Combatant y, int t) =>
+            Centre(x, t) is { } a && Centre(y, t) is { } b ? Vector3.Distance(a, b) : float.PositiveInfinity;
     }
 
     /// <summary>The newest action drawing its own ticks now, or the newest started.</summary>
@@ -751,8 +1079,12 @@ public sealed class BattleComposer
             played.Add(a.Moments[a.MomentsPlayed++]);
     }
 
-    /// <summary>Moves a body's timeline: with the action it's in an episode of, else a tick on, no further than its next episode or the newest action.</summary>
-    private void Move(Combatant body, Track track, int newestTick, List<Moment> played)
+    /// <summary>
+    /// Moves a body's timeline: with the action it's in an episode of, else a tick on, no further than its next episode or the newest
+    /// action. While the player's turn (<paramref name="live"/>) draws on the present, a body with nothing left to draw before it is
+    /// drawn there too, its pose blending from where it idled.
+    /// </summary>
+    private void Move(Combatant body, Track track, int newestTick, DrawnAction? live, List<Moment> played)
     {
         var episodes = _actions.EpisodesOf(body);
         var cap = Math.Min(newestTick, _actions.Last);
@@ -780,7 +1112,10 @@ public sealed class BattleComposer
             break;
         }
         if (to < 0 || track.Episode >= episodes.Count || to < episodes[track.Episode].From)
-            to = Math.Max(to, Math.Min(track.Cursor + 1, cap));
+        {
+            var free = live is not null && (track.Episode >= episodes.Count || episodes[track.Episode].Action == live);
+            to = Math.Max(to, free ? cap : Math.Min(track.Cursor + 1, cap));
+        }
         Go(body, track, Math.Max(track.Cursor, to), played);
     }
 
@@ -861,14 +1196,25 @@ public sealed class BattleComposer
     /// <summary>The tick of an action's own the drawing has now: its timeline's, no further than its last.</summary>
     private int Own(DrawnAction a) => Math.Clamp(a.TickAt(_drawn), Math.Max(a.First, _actions.Kept), a.Closed ? a.Last : _actions.Last);
 
-    /// <summary>The frame composed of the actions and bodies where they are now, with <paramref name="played"/>'s one-offs.</summary>
-    private BattleFrame Composed(List<Moment> played, bool emitters = true)
+    /// <summary>
+    /// The frame composed of the actions and bodies where they are now, with <paramref name="played"/>'s one-offs, and those a
+    /// fast-forward passed over (<see cref="_skipped"/>): their cues handed over in the recording's order, their sounds and emitters skipped.
+    /// </summary>
+    private BattleFrame Composed(List<Moment> played)
     {
-        played.Sort((x, y) => x.Seq.CompareTo(y.Seq));
+        var all = new List<(Moment Item, bool Skipped)>(played.Count + _skipped.Count);
+        foreach (var m in _skipped)
+            all.Add((m, true));
+        foreach (var m in played)
+            all.Add((m, false));
+        _skipped.Clear();
+        all.Sort((x, y) => x.Item.Seq.CompareTo(y.Item.Seq));
         var cues = new List<CombatCue>();
         var calls = new List<SoundCall>();
         var starts = new List<EmitterStart>();
-        foreach (var item in played)
+        var skippedCalls = new List<SoundCall>();
+        var skippedStarts = new List<EmitterStart>();
+        foreach (var (item, skipped) in all)
         {
             switch (item.Payload)
             {
@@ -878,10 +1224,10 @@ public sealed class BattleComposer
                         _log = line.Text;
                     break;
                 case SoundCall call:
-                    calls.Add(call);
+                    (skipped ? skippedCalls : calls).Add(call);
                     break;
-                case EmitterStart start when emitters:
-                    starts.Add(start);
+                case EmitterStart start:
+                    (skipped ? skippedStarts : starts).Add(start);
                     break;
             }
         }
@@ -978,6 +1324,8 @@ public sealed class BattleComposer
             Cues = cues,
             Sounds = calls,
             Emitters = starts,
+            SkippedSounds = skippedCalls,
+            SkippedEmitters = skippedStarts,
             Jumped = jumped,
         };
     }

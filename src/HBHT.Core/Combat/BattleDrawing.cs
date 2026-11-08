@@ -47,7 +47,7 @@ public sealed class BattleDrawing
         // What Battle.Begin cued, the bodies made: drawn at once, before the first tick.
         var first = recorder.Sample(battle, BattleStep.Ran);
         _composer = new BattleComposer(first, () => Battle.WaitsOnPlayer);
-        Draw(first, sounds: true);
+        Draw(first);
     }
 
     /// <summary>
@@ -138,26 +138,22 @@ public sealed class BattleDrawing
             // Drawn as it's made, as the battle has always been.
             var frame = Step(arena, readInput);
             _composer.Settle(frame);
-            Draw(frame, sounds: true);
+            Draw(frame);
             step = frame.Step;
         }
         else
         {
-            if (CaughtUp)
-            {
-                if (Turns == CombatTurns.Original || Battle.WaitsOnPlayer)
-                    Step(arena, readInput);
-                else
-                    RunAhead(arena);
-            }
-            else if (Turns == CombatTurns.StartEarly && !Battle.WaitsOnPlayer)
-            {
+            if (Turns == CombatTurns.StartEarly && !Battle.WaitsOnPlayer)
                 RunAhead(arena);
-            }
+            else if (CaughtUp || Turns == CombatTurns.StartEarly && _composer.AtPresent)
+                // The battle waits on the player: it steps with the drawing once the drawing has caught up, or under Start Early once
+                // the player's turn is drawn up to the present (ADR 0040's stage 4).
+                Step(arena, readInput);
+            Touch();
             var clock = Stopwatch.StartNew();
             var next = _composer.Next();
             SlowestCompose = clock.Elapsed > SlowestCompose ? clock.Elapsed : SlowestCompose;
-            Draw(next, sounds: true);
+            Draw(next);
             step = Frame.Step switch
             {
                 BattleStep.Ended when !CaughtUp => BattleStep.Ran,
@@ -197,24 +193,72 @@ public sealed class BattleDrawing
     }
 
     /// <summary>
-    /// A press, as the setting has it: to the battle, while the drawing has caught up; otherwise Start fast-forwards the drawing to the battle
-    /// first (the Party tab reads the live sheets) and then pauses it, A in an AI's walk only fast-forwards the drawing, and the rest wait.
+    /// Whether the battle takes the player's presses now: the drawing has caught up with it, or under Start Early the player's turn is
+    /// drawn up to the present (<see cref="BattleComposer.AtPresent"/>), though earlier actions may still draw behind it.
+    /// </summary>
+    public bool TakesPresses => CaughtUp || Turns == CombatTurns.StartEarly && _composer.AtPresent;
+
+    /// <summary>
+    /// A press, as the setting has it: Start fast-forwards the drawing to the battle first, whatever is drawing (the Party tab reads the
+    /// live sheets), then goes to the battle; the rest go to the battle while it takes presses (<see cref="TakesPresses"/>), and what the
+    /// player's turn then touches is fast-forwarded (<see cref="Touch"/>); otherwise A in an AI's walk fast-forwards the walks drawing
+    /// (<see cref="BattleComposer.SkipWalks"/>), and the rest wait.
     /// </summary>
     public bool Press(MenuAction action)
     {
-        if (CaughtUp)
-            return Battle.Press(action);
-        switch (action)
+        if (action == MenuAction.Start && !CaughtUp)
         {
-            case MenuAction.Start:
-                FastForward();
-                return Battle.Press(action);
-            case MenuAction.Accept when Walking:
-                FastForward();
-                return true;
-            default:
-                return false;
+            FastForward();
+            return Battle.Press(action);
         }
+        if (TakesPresses)
+        {
+            var taken = Battle.Press(action);
+            Touch();
+            return taken;
+        }
+        if (action == MenuAction.Accept && Walking)
+        {
+            _composer.SkipWalks();
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Under Start Early, what the player's turn touches that's still drawing is fast-forwarded first, so the player sees it as it is
+    /// (ADR 0040's stage 4): the target the cursor is on while an attack, a throw or a spell is aimed and every target it selects, and
+    /// while an area is placed every body in it. The menus touch nothing; the player's walk, its missile and its spell's actor coming near
+    /// a body or missile drawn behind are the composer's (<see cref="BattleComposer"/>'s guard).
+    /// </summary>
+    private void Touch()
+    {
+        if (Turns != CombatTurns.StartEarly || _composer.Live is null)
+            return;
+        var battle = Battle;
+        var set = battle.State switch
+        {
+            CombatState.TargetAttack or CombatState.TargetThrown => battle.TargetsA,
+            CombatState.TargetSpell or CombatState.PlaceArea => battle.TargetsB,
+            _ => null,
+        };
+        if (set is null)
+            return;
+        var touched = new List<Combatant>();
+        foreach (var slot in set.SelectedSlots.Append(set.Cursor))
+        {
+            if (slot >= 0 && slot < battle.Slots.Count && battle.Slots[slot] is { } c)
+                touched.Add(c);
+        }
+        if (battle.State == CombatState.PlaceArea && battle.Aim is { } area)
+        {
+            foreach (var c in battle.Combatants)
+            {
+                if (System.Numerics.Vector2.Distance(c.Cell, area.Centre) <= area.Radius + c.Body.ScaledRadius)
+                    touched.Add(c);
+            }
+        }
+        _composer.Release(touched);
     }
 
     /// <summary>
@@ -225,16 +269,18 @@ public sealed class BattleDrawing
     {
         if (CaughtUp)
             return;
-        Draw(_composer.FastForward(), sounds: false);
+        Draw(_composer.FastForward());
     }
 
 
-    private void Draw(BattleFrame frame, bool sounds)
+    private void Draw(BattleFrame frame)
     {
         Frame = frame;
         foreach (var cue in frame.Cues)
             _host?.Cue(cue);
-        Play(frame.Sounds, sounds);
+        // What a fast-forward passed over first: a sound already started still stops, but none starts.
+        Play(frame.SkippedSounds, heard: false);
+        Play(frame.Sounds, heard: true);
         Camera.Position = frame.Camera.Position;
         Camera.Aim = frame.Camera.Aim;
         Camera.LookXZ = frame.Camera.LookXZ;

@@ -3,6 +3,7 @@ using System.Text;
 using HBHT.Core.Audio;
 using HBHT.Core.Chunks;
 using HBHT.Core.Combat;
+using HBHT.Core.Trek;
 using HBHT.Core.Ui;
 using HBHT.Plugins;
 using static HBHT.Rom.Tests.CombatCheckpoints;
@@ -64,8 +65,9 @@ public sealed class StartEarlyTests(Na10Import fixture)
     {
         var early = Play(host => Plain(Set, 1, host), CombatTurns.StartEarly, Skipping, stopAtFirstTurn: true);
         Assert.True(early.MostAhead > 10, $"it ran {early.MostAhead} ticks ahead");
-        // The player's turn opened only once the drawing had caught up, and the battle waits there for the press.
-        Assert.True(early.Drawing.CaughtUp);
+        // The player's turn opened once its combatant was free in the drawing, and the battle waits there for the press.
+        Assert.True(early.Drawing.TakesPresses);
+        Assert.True(early.Drawing.Composer.Free(early.Battle.Current!));
         Assert.Equal(CombatState.Turn, early.Battle.State);
         Assert.Equal(CombatState.Turn, early.Drawing.Frame.State);
     }
@@ -74,16 +76,69 @@ public sealed class StartEarlyTests(Na10Import fixture)
     public void UnderStartEarlyAInAnAisWalkOnlyFastForwardsTheDrawing()
     {
         var early = Play(host => Plain(Set, 1, host), CombatTurns.StartEarly, Skipping, stopAtWalk: true);
-        Assert.False(early.Drawing.CaughtUp);
-        Assert.True(early.Drawing.Walking);
-        var walker = early.Drawing.Frame.Current!;
+        var drawing = early.Drawing;
+        Assert.False(drawing.CaughtUp);
+        Assert.True(drawing.Walking);
+        var walker = early.Battle.Current!;
         var at = walker.Body.Sphere.Position;
-        Assert.True(early.Drawing.Press(MenuAction.Accept));
-        // The drawing is at the battle's present, and the battle went on as if A weren't pressed: it's where it was.
-        Assert.True(early.Drawing.CaughtUp);
-        Assert.Equal(early.Recorder.Ticks, early.Drawing.Frame.Tick);
+        var d = drawing.Drawn;
+        var before = drawing.Composer.DrawingNow().ToDictionary(a => a, a => a.TickAt(d));
+        // Each action drawing in its walk, and the last tick of that walk.
+        var walks = before.Where(p => p.Value <= p.Key.Last && drawing.Actions[p.Value].Walking).ToDictionary(p => p.Key, p =>
+        {
+            var end = p.Value;
+            while (end < p.Key.Last && drawing.Actions[end + 1].Walking)
+                end++;
+            return end;
+        });
+        Assert.NotEmpty(walks);
+        Assert.True(drawing.Press(MenuAction.Accept));
+        // Each walk drawing is at its end; an action sharing no body with one is where it was (ADR 0040's stage 4).
+        foreach (var (a, end) in walks)
+            Assert.Equal(end, a.TickAt(d));
+        foreach (var (a, tick) in before)
+        {
+            if (!walks.ContainsKey(a) && !walks.Keys.Any(w => w.Episodes.Any(x => a.Episodes.Any(y => y.Body == x.Body))))
+                Assert.Equal(tick, a.TickAt(d));
+        }
+        // The battle went on as if A weren't pressed: the walker is where it was, and 1.0's skip isn't Start Early's.
         Assert.Equal(at, walker.Body.Sphere.Position);
         Assert.False(early.Battle.SkipWalk());
+        // And it plays on to the end, every one-off once, no body going back.
+        Finish(early);
+    }
+
+    [Fact]
+    public void AInEveryAiWalkChangesOnlyTheDrawing()
+    {
+        // The rats, the party attacking, A pressed in every AI walk drawn under Start Early: the battle plays tick for tick as Original's,
+        // and the drawing still never draws a body back, in two actions at once, through another, or a one-off twice.
+        var original = Play(host => Plain(Set, 1, host), CombatTurns.Original, Attacking);
+        var early = Play(host => Plain(Set, 1, host), CombatTurns.StartEarly, Attacking, meanwhile: SkippingWalks);
+        Same(original, early);
+        TestContext.Current.TestOutputHelper?.WriteLine($"{early.Drawing.Composer.Forwarded} actions fast-forwarded on their own");
+    }
+
+    [Fact]
+    public void ThePlayersWalksInTurnsOpenedEarlyAreDrawnThroughNoOne()
+    {
+        // The rats, each party member walking forward 40 ticks of its turn before attacking: the same battle either way, and under Start
+        // Early no body drawn through another (the watch checks every drawn tick).
+        var (original, early) = Both(host => Plain(Set, 1, host), Walking);
+        Same(original, early);
+        Assert.True(early.Watch!.OpenedEarly > 0);
+        TestContext.Current.TestOutputHelper?.WriteLine($"{early.Drawing.Composer.Forwarded} actions fast-forwarded on their own");
+    }
+
+    [Fact]
+    public void UnderStartEarlyAimingAtAnEnemyStillDrawnDrawsItWhereItIs()
+    {
+        // The rats, the party attacking: wherever a target is aimed at in a turn opened early, it's drawn where it is (the watch checks).
+        var early = Play(host => Plain(Set, 1, host), CombatTurns.StartEarly, Attacking);
+        Assert.True(early.Watch!.OpenedEarly > 10, $"{early.Watch.OpenedEarly} player's turns opened early");
+        Assert.True(early.Watch.Aimed > 0, $"{early.Watch.Aimed} drawn ticks aimed");
+        TestContext.Current.TestOutputHelper?.WriteLine($"{early.Watch.Aimed} drawn ticks aimed in turns opened early, " +
+            $"{early.Watch.AimForwarded} of them fast-forwarding; {early.Drawing.Composer.Forwarded} actions fast-forwarded on their own");
     }
 
     // ---------------------------------------------------------------------------------------------------------------------------
@@ -108,6 +163,7 @@ public sealed class StartEarlyTests(Na10Import fixture)
         public required Built Built { get; init; }
         public required BattleDrawing Drawing { get; init; }
         public required BattleRecorder Recorder { get; init; }
+        public required ZoneEngine Zone { get; init; }
         public Battle Battle => Built.Battle;
         /// <summary>The battle's frames as it recorded them, tick by tick: what the rules did.</summary>
         public List<string> Recorded { get; } = [];
@@ -123,11 +179,39 @@ public sealed class StartEarlyTests(Na10Import fixture)
         /// <summary>What checks the drawing under Start Early.</summary>
         public Watch? Watch { get; set; }
 
+        /// <summary>The player's controls the drawing steps the battle with, if the script holds any.</summary>
+        public Func<PlayerInput>? Input { get; set; }
+
+        /// <summary>Ticks of the player's turn the script has walked in.</summary>
+        public int TurnTicks { get; set; }
+
+        /// <summary>What the script does while the battle doesn't take its presses (A in an AI's walk).</summary>
+        public Action<Run>? Meanwhile { get; set; }
+
         /// <summary>The player's turn the script last acted in, and whether its attack was refused there.</summary>
         public (Combatant? Turn, bool Refused) Acting { get; set; }
     }
 
-    private Run Play(Func<ICombatHost, Built> build, CombatTurns turns, Action<Run> player, bool stopAtFirstTurn = false, bool stopAtWalk = false)
+    /// <summary>Plays a run stopped early on to its end, the player attacking.</summary>
+    private static void Finish(Run run)
+    {
+        for (var tick = 0; tick < Most; tick++)
+        {
+            if (run.Drawing.TakesPresses && run.Battle.WaitsOnPlayer && !run.Battle.Over)
+                Attacking(run);
+            var step = run.Drawing.Tick(run.Zone, skyDrawn: false, readInput: null);
+            run.Watch?.Drew(run.Drawing.Frame);
+            if (step is BattleStep.Ended)
+            {
+                run.Watch?.Done();
+                return;
+            }
+        }
+        Assert.Fail("The battle didn't end.");
+    }
+
+    private Run Play(Func<ICombatHost, Built> build, CombatTurns turns, Action<Run> player, bool stopAtFirstTurn = false, bool stopAtWalk = false,
+        Action<Run>? meanwhile = null)
     {
         var audio = GameAudio.Silent(Set);
         var recorder = new BattleRecorder(audio);
@@ -137,7 +221,7 @@ public sealed class StartEarlyTests(Na10Import fixture)
         recorder.Keys = zone.Keys;
         var drawing = new BattleDrawing(built.Battle, recorder, null, audio) { Budget = null, TicksAhead = 97, Turns = turns };
         zone.Camera = drawing.Camera;
-        var run = new Run { Built = built, Drawing = drawing, Recorder = recorder };
+        var run = new Run { Built = built, Drawing = drawing, Recorder = recorder, Zone = zone, Meanwhile = meanwhile };
         var watch = turns == CombatTurns.StartEarly ? new Watch(drawing) : null;
         run.Watch = watch;
         run.Recorded.Add(Digest(drawing.Frame));
@@ -150,14 +234,18 @@ public sealed class StartEarlyTests(Na10Import fixture)
         };
         for (var tick = 0; tick < Most; tick++)
         {
-            if (drawing.CaughtUp && built.Battle.WaitsOnPlayer && !built.Battle.Over)
+            if (drawing.TakesPresses && built.Battle.WaitsOnPlayer && !built.Battle.Over)
             {
                 if (stopAtFirstTurn && built.Battle.State == CombatState.Turn)
                     return run;
                 player(run);
             }
+            else if (!drawing.TakesPresses)
+            {
+                run.Meanwhile?.Invoke(run);
+            }
             var clock = System.Diagnostics.Stopwatch.StartNew();
-            var step = drawing.Tick(zone, skyDrawn: false, readInput: null);
+            var step = drawing.Tick(zone, skyDrawn: false, readInput: run.Input);
             run.Slowest = Math.Max(run.Slowest, clock.Elapsed.TotalMilliseconds);
             run.MostAhead = Math.Max(run.MostAhead, drawing.Ahead);
             run.Drawn++;
@@ -209,6 +297,34 @@ public sealed class StartEarlyTests(Na10Import fixture)
         }
     }
 
+    /// <summary>The player walks forward for 40 ticks of each turn, lets go of the stick, then attacks as <see cref="Attacking"/> does.</summary>
+    private static void Walking(Run run)
+    {
+        var battle = run.Battle;
+        run.Input = null;
+        if (battle.Fade.Fading)
+            return;
+        if (run.Acting.Turn != battle.Current)
+        {
+            run.Acting = (battle.Current, false);
+            run.TurnTicks = 0;
+        }
+        if (battle.State == CombatState.Turn && run.TurnTicks < 42)
+        {
+            if (++run.TurnTicks <= 40)
+                run.Input = () => new PlayerInput(new System.Numerics.Vector2(0, 1));
+            return;
+        }
+        Attacking(run);
+    }
+
+    /// <summary>A in every AI's walk the drawing shows, while the battle doesn't take presses.</summary>
+    private static void SkippingWalks(Run run)
+    {
+        if (run.Drawing.Walking)
+            Assert.True(run.Drawing.Press(MenuAction.Accept));
+    }
+
     /// <summary>The player pauses at the first turn and flees.</summary>
     private static void Fleeing(Run run)
     {
@@ -243,6 +359,22 @@ public sealed class StartEarlyTests(Na10Import fixture)
         /// <summary>Drawn ticks on which a body was drawn from a different tick than the newest action's.</summary>
         public int Apart { get; private set; }
 
+        /// <summary>Drawn ticks of a turn the player plays, opened early, with a target aimed at, each target drawn where it is.</summary>
+        public int Aimed { get; private set; }
+
+        /// <summary>Drawn ticks aimed on which something was fast-forwarded first.</summary>
+        public int AimForwarded { get; private set; }
+
+        private int _forwarded;
+
+        /// <summary>Turns the player plays that opened before the drawing had caught up.</summary>
+        public int OpenedEarly { get; private set; }
+
+        /// <summary>Drawn frames that a fast-forward passed sounds or emitters over in, and the sound calls it skipped.</summary>
+        public int FastForwarded { get; private set; }
+
+        public int SkippedSounds { get; private set; }
+
         public Dictionary<DrawnAction, int> Starts { get; } = [];
 
         public void Recorded(BattleFrame f)
@@ -264,6 +396,16 @@ public sealed class StartEarlyTests(Na10Import fixture)
                 _drawn[call] = _drawn.GetValueOrDefault(call) + 1;
             foreach (var e in f.Emitters)
                 _emittersDrawn[(e.Owner, e.Request)] = _emittersDrawn.GetValueOrDefault((e.Owner, e.Request)) + 1;
+            // What a fast-forward passed over is drawn once too, its sounds and emitters skipped.
+            foreach (var call in f.SkippedSounds)
+            {
+                _drawn[call] = _drawn.GetValueOrDefault(call) + 1;
+                SkippedSounds++;
+            }
+            foreach (var e in f.SkippedEmitters)
+                _emittersDrawn[(e.Owner, e.Request)] = _emittersDrawn.GetValueOrDefault((e.Owner, e.Request)) + 1;
+            if (f.SkippedSounds.Count > 0 || f.SkippedEmitters.Count > 0)
+                FastForwarded++;
 
             var composer = drawing.Composer;
             var now = composer.DrawingNow().ToList();
@@ -283,7 +425,9 @@ public sealed class StartEarlyTests(Na10Import fixture)
                     Apart++;
                 // No body is in two actions' episodes at once.
                 var holding = now.Count(a => a.Episodes.Any(e => e.Body == c && e.From <= a.TickAt(d) && a.TickAt(d) <= e.To));
-                Assert.True(holding <= 1, $"{c} is in {holding} actions' episodes at drawn tick {d}");
+                Assert.True(holding <= 1, $"{c} is in {holding} actions' episodes at drawn tick {d}: " + string.Join("; ", now.Where(a =>
+                    a.Episodes.Any(e => e.Body == c)).Select(a => $"{a} start {a.Start} at {a.TickAt(d)} tail {a.TailEnd} episodes " +
+                    string.Join(",", a.Episodes.Where(e => e.Body == c).Select(e => $"{e.From}-{e.To}")))));
             }
             // No two bodies drawn from different ticks touch nearer than either tick had them.
             for (var i = 0; i < f.Bodies.Length; i++)
@@ -321,12 +465,31 @@ public sealed class StartEarlyTests(Na10Import fixture)
                     }
                 }
             }
-            // A turn the player plays opens only once the drawing has caught up.
+            // What a turn the player plays aims at is drawn where it is: no earlier action still draws it.
+            var battle = drawing.Battle;
+            if (composer.Live is not null && battle.State is CombatState.TargetAttack or CombatState.TargetThrown or CombatState.TargetSpell)
+            {
+                var set = battle.State == CombatState.TargetSpell ? battle.TargetsB : battle.TargetsA;
+                foreach (var slot in set.SelectedSlots.Append(set.Cursor))
+                {
+                    if (slot >= 0 && slot < battle.Slots.Count && battle.Slots[slot] is { } target)
+                        Assert.True(composer.Free(target), $"{target} is aimed at at drawn tick {d} but still drawn in an earlier action");
+                }
+                Aimed++;
+                if (composer.Forwarded > _forwarded)
+                    AimForwarded++;
+            }
+            _forwarded = composer.Forwarded;
+            // A turn the player plays opens only once its combatant has drawn its earlier parts (ADR 0040's stage 4).
             if (f.State == CombatState.Turn && _state != CombatState.Turn)
-                Assert.True(drawing.CaughtUp, $"the player's turn opened at drawn tick {d} before the drawing caught up: frame {f.Tick} of " +
-                    $"{drawing.Actions.Last}, {f.Current} ({f.Current?.Controlled}), battle {drawing.Battle.State}; drawing " +
-                    string.Join("; ", now.Select(a => $"{a} at {a.TickAt(d)} tail {a.TailEnd}")) + "; bodies " +
-                    string.Join(", ", f.Bodies.Select(b => $"{b.Combatant.Slot}@{composer.DrawnTickOf(b.Combatant)}")));
+            {
+                var c = f.Current!;
+                var held = drawing.Actions.Actions.Where(a => a.Index < drawing.Actions.Actions.Count - 1 && a.Episodes.Any(e =>
+                    e.Body == c && (a.Start is not { } s || s > d || a.TickAt(d) <= e.To))).ToList();
+                Assert.True(held.Count == 0, $"the player's turn opened at drawn tick {d} while {c} was still drawn in {string.Join(", ", held)}");
+                if (!drawing.CaughtUp)
+                    OpenedEarly++;
+            }
             _state = f.State;
         }
 
@@ -356,7 +519,8 @@ public sealed class StartEarlyTests(Na10Import fixture)
             }
             TestContext.Current.TestOutputHelper?.WriteLine(
                 $"Start Early: {Overlapping} drawn ticks with two actions' own ticks at once, {SharedEarly} actions began while an earlier one " +
-                $"sharing a body still drew, bodies drawn from another tick than the newest action's {Apart} times");
+                $"sharing a body still drew, bodies drawn from another tick than the newest action's {Apart} times; {OpenedEarly} player's turns " +
+                $"opened before the drawing caught up; {FastForwarded} frames fast-forwarded over {SkippedSounds} sound calls");
         }
     }
 

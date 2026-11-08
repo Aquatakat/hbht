@@ -96,8 +96,24 @@ public sealed class BattleFrame
     /// </summary>
     public required IReadOnlyList<EmitterStart> Emitters { get; init; }
 
+    /// <summary>
+    /// The sound calls a fast-forward passed over under Start Early (ADR 0040): none starts, sets or plays, but a sound already started
+    /// still stops or takes its duration. Each recorded call is drawn once, in <see cref="Sounds"/> or here.
+    /// </summary>
+    public IReadOnlyList<SoundCall> SkippedSounds { get; init; } = [];
+
+    /// <summary>The emitter starts a fast-forward passed over under Start Early: none is started.</summary>
+    public IReadOnlyList<EmitterStart> SkippedEmitters { get; init; } = [];
+
     /// <summary>Whether this is an AI's walk (state 5), which A only fast-forwards under Start Early.</summary>
     public bool Walking => State == CombatState.Moving;
+
+    /// <summary>
+    /// Whether this is a turn the player plays, waiting on them: its walk and aim, its held menus and the Troubadour's prompt (ADR 0040's
+    /// stage 4 opens one early).
+    /// </summary>
+    public bool PlayersTurn => State is CombatState.Turn or CombatState.TargetAttack or CombatState.TargetThrown or CombatState.TargetSpell
+        or CombatState.PlaceArea or CombatState.TroubadourPrompt or CombatState.MenuSpells or CombatState.MenuItems;
 
     /// <summary>
     /// Every arrow, thrown weapon or flask in flight: the battle's one (<see cref="Missile"/>) on a frame it recorded, or under Start Early

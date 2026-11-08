@@ -405,6 +405,12 @@ public sealed class DrawnAction
     /// <summary>Whether it's scheduled to start, or has started.</summary>
     public bool Scheduled => Start is not null;
 
+    /// <summary>
+    /// Whether it's a turn the player plays, opened once its combatant was free in the drawing (ADR 0040's stage 4): drawn on the
+    /// battle's present while it waits on the player, the earlier actions drawing on behind it.
+    /// </summary>
+    public bool Opened { get; internal set; }
+
     /// <summary>The last of its timeline's ticks played: its frames, then its tail.</summary>
     public int Played { get; internal set; }
 
