@@ -40,6 +40,12 @@ public sealed record CameraTuning
     /// <summary>How far a goal may move in a tick and be followed at its own speed; further, it jumped.</summary>
     public float GoalJump { get; init; } = 1;
 
+    /// <summary>
+    /// The caps times this while the player has the camera in their turn, so the view follows their own hand closely and still swoops,
+    /// quicker, from a wide shot.
+    /// </summary>
+    public float HandAcceleration { get; init; } = 4;
+
     /// <summary>A goal whose aim is further than this from the camera's is cut to rather than moved to. Rare by design.</summary>
     public float CutDistance { get; init; } = 80;
 

@@ -140,7 +140,9 @@ public sealed class EnhancedCamera
         }
         var originalShot = Shot.Of(original.Position, original.Aim, _motion?.Current.Yaw ?? Shot.YawOf(original.LookXZ));
         _motion ??= new CappedMotion(originalShot, t.Caps);
-        _motion.Caps = t.Caps;
+        var caps = t.Caps;
+        _motion.Caps = Released ? new MotionCaps(caps.Aim * t.HandAcceleration, caps.Turn * t.HandAcceleration, caps.Zoom * t.HandAcceleration,
+            caps.Settle * MathF.Sqrt(t.HandAcceleration)) : caps;
         _motion.GoalJump = t.GoalJump;
         if (battle.Current != _turnOf)
         {
