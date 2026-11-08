@@ -362,16 +362,32 @@ public sealed class EnhancedCameraTests
     }
 
     [Fact]
-    public void AnAreaIsPlacedFromAboveHoldingItsArea()
+    public void AnAreaIsPlacedFromAboveItsRingDownToTheBoxWhateverItsSize()
     {
-        // A wide area, 9 across: the shot stands back far enough to hold it with its margin round it.
+        // Two rings, 5 and 10 across the ground: each fills the screen above the conversation box, its near side at the box's top, so the
+        // two look the same size.
         var finder = new ShotFinder(new SightLines(null), T);
         var centre = new Vector3(5, 0, 5);
-        var radius = 9 * T.AreaMargin;
-        var shot = finder.Aimed(centre, radius, yaw: 0, pitch: ShotFinder.Rad(T.TopDownPitch));
-        Assert.True(shot.Pitch >= ShotFinder.Rad(79));
-        Assert.True(ShotFraming.Holds(shot, new ShotSubject(centre, radius), T.Lens));
-        Assert.True(shot.Distance > T.AimDistance);
+        var pitch = ShotFinder.Rad(T.TopDownPitch);
+        var lens = T.Lens with { Floor = T.AreaFloor };
+        var sizes = new List<float>();
+        foreach (var radius in new[] { 5f, 10f })
+        {
+            var ring = Enumerable.Range(0, 16).Select(i => MathF.SinCos(MathF.Tau * i / 16))
+                .Select(a => new ShotSubject(centre + new Vector3(a.Cos, 0, a.Sin) * radius)).ToList();
+            var shot = finder.Placed(centre, ring, yaw: 0.3f, pitch);
+            Assert.True(shot.Pitch >= ShotFinder.Rad(79));
+            var (x, y, _) = ShotFraming.OnScreen(shot, centre, T.Lens);
+            Assert.True(MathF.Abs(x) < 1e-3f && MathF.Abs(y) < 1e-3f, $"the centre at {x}, {y}");
+            Assert.All(ring, p => Assert.True(ShotFraming.Holds(shot, p, lens)));
+            // The nearest of it at the box's top, the rest above.
+            var lowest = ring.Min(p => ShotFraming.OnScreen(shot, p.At, lens).Y);
+            Assert.InRange(lowest, -1.001f, -0.98f);
+            sizes.Add(shot.Distance / radius);
+        }
+        Assert.Equal(sizes[0], sizes[1], 0.01f);
+        // Nearer than the old sphere round it, half again its radius under the frame's margins: the ring nearly twice the size.
+        Assert.True(sizes[0] < 4.5f, $"{sizes[0]} times its radius away");
     }
 
     // ---- Motion
@@ -462,6 +478,48 @@ public sealed class EnhancedCameraTests
         Assert.True(overturn < 0.002f, $"turned past by {overturn}");
         Assert.True(Vector3.Distance(motion.Current.Aim, goal.Aim) < 0.05f);
         Assert.True(lag < 4, $"{lag} behind");
+    }
+
+    [Fact]
+    public void AShotCarriedAndTurnedWithWhomItFollowsKeepsUpCappingOnlyTheRest()
+    {
+        // A character walking round its target: the goal moves 0.1 a tick and turns 1° a tick for two seconds. Carried and turned along
+        // with them, the shot keeps its goal exactly, never trailing it, and none of it is speed the caps must take off again.
+        var motion = new CappedMotion(new Shot(Vector3.Zero, 0, 0.3f, 10), T.Caps) { MostFollowed = (0, 0) };
+        var goal = motion.Current;
+        var (trail, turned) = (0f, 0f);
+        for (var tick = 0; tick < 120; tick++)
+        {
+            var (step, turn) = (new Vector3(0.1f, 0, 0), ShotFinder.Rad(1));
+            goal = goal with { Aim = goal.Aim + step, Yaw = Shot.Wrap(goal.Yaw + turn) };
+            motion.Carry(step);
+            motion.Turn(turn);
+            motion.Step(goal);
+            trail = MathF.Max(trail, Vector3.Distance(motion.Current.Aim, goal.Aim));
+            turned = MathF.Max(turned, MathF.Abs(Shot.Wrap(motion.Current.Yaw - goal.Yaw)));
+        }
+        Assert.True(trail < 1e-3f, $"{trail} behind");
+        Assert.True(turned < 1e-4f, $"{turned} turned behind");
+        Assert.True(motion.AimSpeed.Length() < 1e-3f && MathF.Abs(motion.Speeds.Yaw) < 1e-3f);
+    }
+
+    [Fact]
+    public void ANewShotsAngleArrivesWithItsPlace()
+    {
+        // A new shot 6 along and 40° round: the turn lands no later than the aim does, rather than the view orbiting on once it's there.
+        var motion = new CappedMotion(new Shot(Vector3.Zero, 0, 0.3f, 10), T.Caps) { MostFollowed = (0, 0) };
+        var goal = new Shot(new Vector3(6, 0, 0), ShotFinder.Rad(40), 0.3f, 10);
+        int? aimed = null, turned = null;
+        for (var tick = 0; tick < 600 && (aimed is null || turned is null); tick++)
+        {
+            motion.Step(goal);
+            if (aimed is null && Vector3.Distance(motion.Current.Aim, goal.Aim) < 6 * 0.05f)
+                aimed = tick;
+            if (turned is null && MathF.Abs(Shot.Wrap(motion.Current.Yaw - goal.Yaw)) < ShotFinder.Rad(40) * 0.05f)
+                turned = tick;
+        }
+        TestContext.Current.TestOutputHelper?.WriteLine($"the aim within 5% after {aimed} ticks, the turn after {turned}");
+        Assert.True(turned <= aimed, $"the turn landed {turned - aimed} ticks after the aim");
     }
 
     [Fact]

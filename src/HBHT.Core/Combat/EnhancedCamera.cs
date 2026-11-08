@@ -9,9 +9,10 @@ namespace HBHT.Core.Combat;
 /// <summary>
 /// Camera: Enhanced, a battle's camera for turns played the original's way (docs/systems/cameras.md, "The enhanced battle camera"). It
 /// runs on top of the original's (<see cref="CombatCamera"/>), which goes on moving its own camera underneath, and shows a shot of its
-/// own: in the player's turn low over the character's shoulder at the enemy it heads for, and its pack; once anyone acts, one shot
-/// holding all of it, planned as it acts; an arrow, a throw or a spell at someone further off as two shots, the loosing and the hit; in
-/// aiming the reticle in the middle, a spell's targets with some of its reach, or an area from above; and the original's again once the
+/// own: in the player's turn low over the character's shoulder at the enemy it heads for, and its pack, or with none ahead the view
+/// kept and its aim leading them; once anyone acts, one shot holding all of it, planned as it acts; an arrow, a throw or a spell at
+/// someone further off as two shots, the loosing and the hit; in aiming the reticle in the middle, a spell's targets with some of its
+/// reach, or an area from above, its ring down to the conversation box; and the original's again once the
 /// player turns the camera themselves, until they aim. Every shot is taken from the side of the battle's vantage (<see cref="Vantage"/>),
 /// and no one is framed under the conversation box. It moves to each shot with its acceleration capped, not its speed
 /// (<see cref="CappedMotion"/>), trailing a moving goal rather than overshooting it, quicker while the character is out of view, and cuts
@@ -80,6 +81,22 @@ public sealed class EnhancedCamera
     /// <summary>The character the shot is carried with in the player's turn, and where it stood last tick.</summary>
     private (Combatant Who, Vector3 At)? _carry;
 
+    /// <summary>The target the shot over the shoulder looked at last tick and the yaw over the shoulder at it; how far the view turns with it this tick.</summary>
+    private (Combatant Target, float Behind)? _behind;
+
+    private float _turnBy;
+
+    /// <summary>
+    /// Whether the player's turn has opened, and where the character stood and faced as it did, until they move or turn: till then its
+    /// target is held, the one ahead or else the nearest enemy, whom the action before planned toward (<see cref="NextYaw"/>).
+    /// </summary>
+    private bool _opened;
+
+    private (Vector3 At, Vector2 Heading)? _opening;
+
+    /// <summary>The shot with no enemy ahead: its yaw, pitch and distance, kept from the shot as the target was lost while its aim leads the character.</summary>
+    private (float Yaw, float Pitch, float Distance)? _ahead;
+
     /// <summary>
     /// The vantage, its side of the way from the party to the enemies (<see cref="Vantage.Place"/>), the way it was placed for, and how
     /// many of each were on the field last tick.
@@ -119,7 +136,7 @@ public sealed class EnhancedCamera
     /// </summary>
     public bool Quick { get; private set; }
 
-    /// <summary>Whether the player walks the character this tick: the caps are lowered (<see cref="CameraTuning.WalkPace"/>), and it never cuts.</summary>
+    /// <summary>Whether the player walks the character this tick: the aim's and distance's caps are lowered (<see cref="CameraTuning.WalkPace"/>), and it never cuts.</summary>
     public bool Walking { get; private set; }
 
     /// <summary>Whom the player heads for in their turn, its representative target.</summary>
@@ -195,6 +212,10 @@ public sealed class EnhancedCamera
         _aiming = null;
         _plan = null;
         _volley = null;
+        _opened = false;
+        _opening = null;
+        _ahead = null;
+        _behind = null;
     }
 
     /// <summary>A tick, after the original's camera has stepped.</summary>
@@ -239,6 +260,7 @@ public sealed class EnhancedCamera
         var aimed = _aiming;
         _aiming = null;
         _cutNow = false;
+        _turnBy = 0;
         var goal = Decide(battle, originalShot, glide, aimed);
         // The player's own camera is the original's as it is; the director's shots keep their distance.
         if (!Released)
@@ -270,10 +292,14 @@ public sealed class EnhancedCamera
         }
         var hand = MathF.Sqrt(t.HandAcceleration);
         var settle = MathF.Sqrt(pace);
+        // The turn isn't slowed for the walk: with the shot carried along, a turn slower than its place trails in after it.
+        var turnPace = MathF.Max(pace, 1);
         _motion.Caps = Released
-            ? new MotionCaps(caps.Aim * t.HandAcceleration, caps.Turn * t.HandAcceleration, caps.Zoom * t.HandAcceleration, caps.Settle * hand, caps.ZoomSettle * hand)
+            ? new MotionCaps(caps.Aim * t.HandAcceleration, caps.Turn * t.HandAcceleration, caps.Zoom * t.HandAcceleration, caps.Settle * hand,
+                caps.TurnSettle * hand, caps.ZoomSettle * hand)
             : _aiming is not null ? caps with { Aim = caps.Aim * t.AimingAcceleration, Settle = caps.Settle * MathF.Sqrt(t.AimingAcceleration) }
-            : new MotionCaps(caps.Aim * pace, caps.Turn * pace, caps.Zoom * pace, caps.Settle * settle, caps.ZoomSettle * settle);
+            : new MotionCaps(caps.Aim * pace, caps.Turn * turnPace, caps.Zoom * pace, caps.Settle * settle, caps.TurnSettle * MathF.Sqrt(turnPace),
+                caps.ZoomSettle * settle);
         _motion.GoalJump = t.GoalJump;
         // Only the player's own hand is followed at its speed; the director's shots are trailed, so a goal that stops isn't overshot.
         _motion.MostFollowed = Released ? (t.FollowSpeed, Rad(t.FollowTurn)) : (0, 0);
@@ -286,6 +312,9 @@ public sealed class EnhancedCamera
             if (_carry is { } c && c.Who == walker && Vector3.Distance(at, c.At) <= t.GoalJump)
                 _motion.Carry(at - c.At);
             _carry = (walker, at);
+            // And turned with the way to its target as they walk round it, so the angle doesn't trail them either.
+            if (_turnBy != 0)
+                _motion.Turn(_turnBy);
         }
         else
         {
@@ -343,6 +372,11 @@ public sealed class EnhancedCamera
         }
         if (battle.State != CombatState.Turn && battle.State != CombatState.TargetSpell)
             _framing = null;
+        if (battle.State != CombatState.Turn)
+        {
+            _ahead = null;
+            _behind = null;
+        }
         if (battle.State != CombatState.TargetSpell)
             _spellAim = null;
         if (acting)
@@ -355,7 +389,7 @@ public sealed class EnhancedCamera
                 var level = Casting.Level(current.Sheet, source);
                 var marker = battle.Aim ?? new AimMarker(battle.AreaAim, level, Spell: true);
                 Kind = "placing an area, from above";
-                return Aimed(battle, current, aimed, Ground(battle, marker.Centre, current), marker.Radius * t.AreaMargin, Rad(t.TopDownPitch));
+                return AreaShot(battle, current, aimed, marker);
             }
             case CombatState.TargetThrown:
                 Kind = "aiming a throw";
@@ -425,17 +459,40 @@ public sealed class EnhancedCamera
     // ---------------------------------------------------------------------------------------------------------------------------
     // The player's turn: low over the shoulder at the enemy they head for, and its pack
 
+    /// <summary>
+    /// The player's turn: low over the character's shoulder at the enemy they head for (<see cref="TargetCone"/>) and its pack, near the
+    /// character, turned along with the way to it as they walk round it. It opens on the enemy ahead, else the nearest within
+    /// <see cref="CameraTuning.TargetRange"/>, held until they move or turn, so the opening shot isn't changed under the player before
+    /// they've done anything. With no enemy ahead, the view as it
+    /// was, its aim leading the character the way they face (<see cref="CameraTuning.LookAhead"/>): it doesn't swing round behind them,
+    /// for the stick is read against it, and a view turning after their heading would turn the stick under them.
+    /// </summary>
     private Shot TurnShot(Battle battle, Combatant current, Shot originalShot)
     {
         var t = Tuning;
         var me = current.Body.Sphere.Position;
+        var heading = current.Body.Heading;
         _candidates.Clear();
         foreach (var c in battle.Combatants)
         {
             if (c.Hostile != current.Hostile && !c.Freed && !c.Sheet.IsDead && c.Active)
                 _candidates.Add(new TargetCandidate(c, c.Body.Sphere.Position));
         }
-        if (_cone.Pick(me, current.Body.Heading, _candidates, t))
+        if (!_opened)
+        {
+            _opened = true;
+            _opening = (me, heading);
+            _cone.Pick(me, heading, _candidates, t);
+            if (Target is null && Nearest(battle, current) is { } nearest && Flat(nearest.Body.Sphere.Position - me) <= t.TargetRange)
+                _cone.Hold(nearest);
+            _sinceDecide = int.MaxValue / 2;
+            _framing = null;
+        }
+        else if (_opening is { } o && (Flat(me - o.At) > 0.05f || Vector2.Dot(heading, o.Heading) < MathF.Cos(Rad(2))))
+        {
+            _opening = null;
+        }
+        if (_opening is null && _cone.Pick(me, heading, _candidates, t))
         {
             _sinceDecide = int.MaxValue / 2;
             _framing = null;
@@ -445,13 +502,28 @@ public sealed class EnhancedCamera
         if (Target is not { } target)
         {
             _framing = null;
-            // The original's shot, where it holds the character; at the turn's start it's still on the last one's, gliding over.
-            if (ShotFraming.Holds(originalShot, _subjects[0] with { Radius = 0 }, t.Lens))
-                return Cleared(originalShot, _subjects, "following, no enemy ahead");
-            var follow = new Shot(me, originalShot.Yaw, Rad(t.PreferredPitch), 0);
-            follow = follow with { Distance = Math.Clamp(ShotFraming.DistanceToHold(_subjects, me, follow.Yaw, follow.Pitch, t.Lens), t.MinDistance, t.ShoulderDistance) };
-            return Cleared(follow, _subjects, "following, no enemy ahead, the original's on its way");
+            _behind = null;
+            // The view kept as it was when the target was lost, low and near; only its aim moves, leading the character.
+            var was = _motion?.Current ?? originalShot;
+            _ahead ??= (was.Yaw, was.Pitch, was.Distance);
+            var lead = Lead(me, me + new Vector3(heading.X, 0, heading.Y) * t.LookAhead);
+            var follow = Ahead(lead);
+            // A body or a wall hiding the character turns, raises or draws the view back, and it stays so: swinging back once they're
+            // clear would turn the stick under the player twice.
+            if (++_sinceDecide >= t.DecideEvery)
+            {
+                _sinceDecide = 0;
+                if (_finder!.HiddenWeight(follow, _subjects) > 0 && _finder.Clearing(follow, _subjects) is { } by)
+                {
+                    var cleared = _finder.Corrected(follow, by, _subjects);
+                    _ahead = (cleared.Yaw, cleared.Pitch, cleared.Distance);
+                    follow = Ahead(lead);
+                }
+            }
+            Kind = "no enemy ahead, leading the way they face";
+            return follow;
         }
+        _ahead = null;
         _subjects.Add(Sphere(target.Body));
         // The target's pack: the shot looks at the middle of them all, and holds them while they're near.
         var at = target.Body.Sphere.Position;
@@ -470,11 +542,25 @@ public sealed class EnhancedCamera
         _pairs.Clear();
         AddPair(current, target);
         var ahead = pack / n;
-        var behind = Look(me, ahead);
+        // Among the pack, near its middle, the way over the shoulder at it means nothing and swings wildly: the one held stays.
+        var behind = _behind is { } held && held.Target == target && Flat(ahead - me) < t.ShoulderNear ? held.Behind : Look(me, ahead);
+        var most = Rad(t.CarryTurn) / 60;
+        _turnBy = _behind is { } b && b.Target == target ? Math.Clamp(Shot.Wrap(behind - b.Behind), -most, most) : 0;
+        _behind = (target, behind);
         _frameBy = (Lead(me, ahead), t.ShoulderDistance);
         Frame(behind, force: false);
         Kind = n == 1 ? "over the shoulder" : near ? $"over the shoulder at a pack of {n}" : $"over the shoulder toward a pack of {n}";
         return FramedNow(behind);
+    }
+
+    /// <summary>The shot with no enemy ahead (<see cref="_ahead"/>) aimed at <paramref name="lead"/>, low and near, as far as holds the character.</summary>
+    private Shot Ahead(Vector3 lead)
+    {
+        var t = Tuning;
+        var (yaw, pitch, distance) = _ahead!.Value;
+        pitch = Math.Clamp(pitch, Rad(t.Pitches.Min()), Rad(t.Pitches.Max()));
+        var hold = ShotFraming.DistanceToHold(_subjects, lead, yaw, pitch, t.Lens);
+        return new Shot(lead, yaw, pitch, Math.Clamp(MathF.Max(distance, hold), t.MinDistance, t.ShoulderDistance));
     }
 
     /// <summary>
@@ -819,11 +905,39 @@ public sealed class EnhancedCamera
     // Aiming
 
     /// <summary>An aim's shot (<see cref="ShotFinder.Aimed"/>), from the yaw the view had as the aim began.</summary>
-    private Shot Aimed(Battle battle, Combatant c, (CombatState State, Combatant Who, float Yaw)? aimed, Vector3 reticle, float radius, float pitch)
+    private Shot Aimed(Battle battle, Combatant c, (CombatState State, Combatant Who, float Yaw)? aimed, Vector3 reticle, float radius, float pitch) =>
+        _finder!.Aimed(reticle, radius, AimYaw(battle, c, aimed), pitch);
+
+    /// <summary>The yaw the view had as the aim began, now the aim's.</summary>
+    private float AimYaw(Battle battle, Combatant c, (CombatState State, Combatant Who, float Yaw)? aimed)
     {
         var yaw = aimed is { } a && a.State == battle.State && a.Who == c ? a.Yaw : _from;
         _aiming = (battle.State, c, yaw);
-        return _finder!.Aimed(reticle, radius, yaw, pitch);
+        return yaw;
+    }
+
+    /// <summary>How much wider than its radius the runtime draws an aim's marker (<c>CombatNumbersView</c>).</summary>
+    private const float MarkerRim = 0.2f;
+
+    /// <summary>
+    /// An area placed (state 11): from above, its centre in the middle of the screen, as near as holds the ring drawn round it with its
+    /// near side down to the conversation box's top (<see cref="ShotFinder.Placed"/>), so the ring is as big as the screen allows
+    /// whatever its size.
+    /// </summary>
+    private Shot AreaShot(Battle battle, Combatant c, (CombatState State, Combatant Who, float Yaw)? aimed, AimMarker marker)
+    {
+        var t = Tuning;
+        var centre = Ground(battle, marker.Centre, c);
+        var yaw = AimYaw(battle, c, aimed);
+        var pitch = Rad(t.TopDownPitch);
+        _subjects.Clear();
+        const int points = 16;
+        for (var i = 0; i < points; i++)
+        {
+            var (sin, cos) = MathF.SinCos(MathF.Tau * i / points);
+            _subjects.Add(new ShotSubject(Ground(battle, marker.Centre + new Vector2(cos, sin) * (marker.Radius + MarkerRim), c)));
+        }
+        return _finder!.Placed(centre, _subjects, yaw, pitch);
     }
 
     /// <summary>

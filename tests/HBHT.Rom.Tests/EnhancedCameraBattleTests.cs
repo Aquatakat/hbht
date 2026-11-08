@@ -97,6 +97,97 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
     }
 
     [Fact]
+    public void ATurnOpensOnOneShotHeldTillThePlayerMoves()
+    {
+        // Each member's turn: a second standing still, then a walk and an attack. The shot the turn opens on, over the shoulder at the enemy
+        // ahead or the nearest in range, doesn't change under the player while they've done nothing.
+        var t = CameraTuning.Default;
+        var (turns, onEnemy, ranged, changed, standing) = (0, 0, 0, 0, 0);
+        (Combatant Who, Vector3 At, Vector2 Heading, Shot Goal)? opened = null;
+        Play(host => Plain(Set, 1, host), CameraStyle.Enhanced, "*=wait:60/stick:0:1:40/wait:40/accept/accept", run =>
+        {
+            var battle = run.Battle;
+            var e = battle.CombatCamera.Enhanced!;
+            // From the tick the camera has seen the turn (the battle's state may change after it steps).
+            if (battle.State != CombatState.Turn || battle.Current is not { Controlled: false } me || !e.Walking)
+            {
+                opened = null;
+                return;
+            }
+            var at = me.Body.Sphere.Position;
+            if (opened is not { } o || o.Who != me)
+            {
+                opened = (me, at, me.Body.Heading, e.Goal);
+                turns++;
+                var inRange = battle.Combatants.Any(c => c.Hostile != me.Hostile && !c.Freed && !c.Sheet.IsDead && c.Active
+                    && Vector2.Distance(new(c.Body.Sphere.Position.X, c.Body.Sphere.Position.Z), new(at.X, at.Z)) <= t.TargetRange);
+                if (inRange)
+                    ranged++;
+                if (inRange && e.Target is not null)
+                    onEnemy++;
+                return;
+            }
+            if (Vector3.Distance(at, o.At) > 0.05f || Vector2.Dot(me.Body.Heading, o.Heading) < 0.999f)
+                return;
+            standing++;
+            // It may follow the bodies settling by hundredths, but never jumps nor drifts far.
+            var g = e.Goal;
+            if (Vector3.Distance(g.Aim, o.Goal.Aim) > 0.5f || MathF.Abs(Shot.Wrap(g.Yaw - o.Goal.Yaw)) > ShotFinder.Rad(5)
+                || MathF.Abs(g.Pitch - o.Goal.Pitch) > ShotFinder.Rad(1) || MathF.Abs(g.Distance - o.Goal.Distance) > 0.5f)
+                changed++;
+        });
+        TestContext.Current.TestOutputHelper?.WriteLine(
+            $"{turns} turns, {onEnemy} of the {ranged} with an enemy in range opened on one; the shot changed on {changed} of {standing} ticks standing");
+        Assert.True(turns > 20, $"{turns} turns");
+        Assert.True(standing > turns * 30, $"{standing} ticks standing");
+        Assert.Equal(ranged, onEnemy);
+        Assert.Equal(0, changed);
+    }
+
+    [Fact]
+    public void WithNoEnemyAheadTheViewKeepsItsAngleAndLeadsTheWayTheCharacterFaces()
+    {
+        // Each member's turn: half a second walking toward the camera, away from the enemies, then back and an attack. With no enemy ahead
+        // the view doesn't swing round behind the character, which would turn the stick under the player; its aim leads them.
+        var t = CameraTuning.Default;
+        var (ticks, kept, led, stretches, turns) = (0, 0, 0, 0, 0);
+        float? yaw = null;
+        Combatant? whose = null;
+        Play(host => Plain(Set, 1, host), CameraStyle.Enhanced, "*=stick:0:-1:30/stick:0:1:30/wait:30/accept/accept", run =>
+        {
+            var battle = run.Battle;
+            var e = battle.CombatCamera.Enhanced!;
+            if (battle.State != CombatState.Turn || battle.Current is not { Controlled: false } me || !e.Walking || e.Target is not null)
+            {
+                yaw = null;
+                return;
+            }
+            ticks++;
+            var g = e.Goal;
+            if (yaw is null || whose != me)
+            {
+                stretches++;
+                (yaw, whose) = (g.Yaw, me);
+            }
+            // Turned to see past a body hiding the character, it keeps the new angle rather than swinging back.
+            if (MathF.Abs(Shot.Wrap(g.Yaw - yaw.Value)) < 1e-3f)
+                kept++;
+            else
+                turns++;
+            yaw = g.Yaw;
+            var at = me.Body.Sphere.Position;
+            var lead = MathF.Min(t.AimLead * t.LookAhead, t.AimLeadMost);
+            if (Vector3.Distance(g.Aim, at + new Vector3(me.Body.Heading.X, 0, me.Body.Heading.Y) * lead) < 0.01f)
+                led++;
+        });
+        TestContext.Current.TestOutputHelper?.WriteLine(
+            $"{ticks} ticks with no enemy ahead in {stretches} stretches: the angle kept on {kept}, turned clear {turns} times; the aim leading on {led}");
+        Assert.True(stretches > 5 && ticks > 200, $"{ticks} ticks in {stretches} stretches");
+        Assert.True(turns <= stretches, $"the angle turned {turns} times in {stretches} stretches");
+        Assert.Equal(ticks, led);
+    }
+
+    [Fact]
     public void TheCameraStickLetsGoOfTheDirectorUntilThePlayerAimsOrTheTurnEnds()
     {
         // Each member's turn: wait, turn the camera with its stick, wait, then attack.
@@ -155,10 +246,24 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
         var (nearTicks, nearHidden, farTicks, farHidden) = (0, 0, 0, 0);
         var (turnTicks, shown, close) = (0, 0, 0);
         var (cuts, walked) = (0, (Combatant?)null);
+        var (landed, trailing, trail, longest) = (0, 0, 0, 0);
         Play(host => Plain(Set, 1, host), CameraStyle.Enhanced, "*=stick:0:1:40/wait:40/accept/accept", run =>
         {
             var battle = run.Battle;
             var e = battle.CombatCamera.Enhanced!;
+            // The view's angle doesn't trail in after its place: where the aim has landed, the yaw lands soon after, even from a new
+            // framing chosen as the character walks among the pack.
+            var trailed = false;
+            if (battle.State == CombatState.Turn && e.Target is not null && !e.Quick && e.Motion is { } m
+                && Vector3.Distance(m.Current.Aim, e.Goal.Aim) < 0.3f)
+            {
+                landed++;
+                trailed = MathF.Abs(Shot.Wrap(m.Current.Yaw - e.Goal.Yaw)) > ShotFinder.Rad(5);
+                if (trailed)
+                    trailing++;
+            }
+            trail = trailed ? trail + 1 : 0;
+            longest = Math.Max(longest, trail);
             // It never cuts while the player walks the character, but on the tick their turn begins.
             if (e.Cuts != cuts && e.Walking && walked == battle.Current)
                 walkingCuts++;
@@ -191,7 +296,10 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
             Assert.NotEqual(me.Hostile, target.Hostile);
         });
         TestContext.Current.TestOutputHelper?.WriteLine($"{framed} ticks framed with a target: {held} holding both, {low} low, {close} near the character; " +
-            $"hidden on {nearHidden} of {nearTicks} near, {farHidden} of {farTicks} far; {walkingCuts} cuts walking; the character shown on {shown} of {turnTicks} turn ticks");
+            $"hidden on {nearHidden} of {nearTicks} near, {farHidden} of {farTicks} far; {walkingCuts} cuts walking; the character shown on {shown} of {turnTicks} turn ticks; " +
+            $"the angle more than 5° off on {trailing} of {landed} ticks its aim had landed, {longest} in a row at most");
+        Assert.True(longest <= 45, $"the angle trailed {longest} ticks in a row");
+        Assert.True(trailing <= landed * 0.1, $"the angle trailing on {trailing} of {landed}");
         Assert.Equal(0, walkingCuts);
         Assert.True(shown >= turnTicks * 0.98, $"the character shown on {shown} of {turnTicks}");
         Assert.Equal(framed, close);

@@ -34,8 +34,11 @@ public sealed record CameraTuning
     /// <summary>The cap on the aim's acceleration, and its deceleration (units a second squared). Speed isn't capped.</summary>
     public float AimAcceleration { get; init; } = 12;
 
-    /// <summary>The cap on how fast the view's turn and pitch speed up and slow down (degrees a second squared).</summary>
-    public float TurnAcceleration { get; init; } = 100;
+    /// <summary>
+    /// The cap on how fast the view's turn and pitch speed up and slow down (degrees a second squared): quick enough that a new shot's
+    /// angle comes in with its place, rather than the view orbiting on once it's there.
+    /// </summary>
+    public float TurnAcceleration { get; init; } = 200;
 
     /// <summary>
     /// The cap on how fast its distance from the aim speeds up and slows down, by proportion: its logarithm's acceleration, a second squared.
@@ -45,6 +48,9 @@ public sealed record CameraTuning
 
     /// <summary>How quickly the last of a move closes, a second's share: a gentle landing rather than a wobble round the goal.</summary>
     public float Settle { get; init; } = 2.5f;
+
+    /// <summary>The same for the turn and pitch, quicker, so the last of a turn doesn't trail in after the aim has landed.</summary>
+    public float TurnSettle { get; init; } = 4;
 
     /// <summary>
     /// The same for the distance, gentler: how fast it closes on its goal by proportion, near it. It bounds how far a zoom carries on once its
@@ -56,6 +62,12 @@ public sealed record CameraTuning
     public float GoalJump { get; init; } = 1;
 
     /// <summary>
+    /// The most a shot over the shoulder is turned a second along with the way from the character to its target as they walk round it,
+    /// degrees: as the shot is carried with the character, so the view doesn't trail them. Faster, the rest is caught up under the caps.
+    /// </summary>
+    public float CarryTurn { get; init; } = 90;
+
+    /// <summary>
     /// The caps times this while the player has the camera in their turn, so the view follows their own hand closely and still swoops,
     /// quicker, from a wide shot.
     /// </summary>
@@ -65,8 +77,9 @@ public sealed record CameraTuning
     public float AimingAcceleration { get; init; } = 6;
 
     /// <summary>
-    /// The caps times this in the player's own turn, as they walk the character about (the settle by its square root): slower than the
-    /// rest, so the view drifts round after them rather than following every step.
+    /// The aim's and the distance's caps times this in the player's own turn, as they walk the character about (the settle by its square
+    /// root): slower than the rest, so the view's framing drifts round after them rather than following every step. The turn's aren't:
+    /// the shot is carried with the character, and a turn slower than that would trail in after it.
     /// </summary>
     public float WalkPace { get; init; } = 0.5f;
 
@@ -294,6 +307,12 @@ public sealed record CameraTuning
     /// <summary>Pitches tried, degrees: low first, over the shoulder. None from high above, which loses the third person's feel.</summary>
     public float[] Pitches { get; init; } = [4, 8, 12, 18, 24, 30];
 
+    /// <summary>
+    /// Nearer the middle of the target's pack than this, among them, the way over the character's shoulder at it is kept as it was: it
+    /// means nothing there, and would swing round as they pass through.
+    /// </summary>
+    public float ShoulderNear { get; init; } = 3;
+
     /// <summary>Turns tried from straight over the character's shoulder at the target (or from the view now, with none), degrees.</summary>
     public float[] Yaws { get; init; } = [0, 15, -15, 30, -30, 50, -50, 80, -80, 120, -120];
 
@@ -321,6 +340,12 @@ public sealed record CameraTuning
     /// <inheritdoc cref="AimLead"/>
     public float AimLeadMost { get; init; } = 3;
 
+    /// <summary>
+    /// With no enemy ahead, the shot leads toward a point this far along the way the character faces (by <see cref="AimLead"/>, at most
+    /// <see cref="AimLeadMost"/>), so there's room ahead of them on the screen.
+    /// </summary>
+    public float LookAhead { get; init; } = 10;
+
     /// <summary>Taken off for each radian a framing turns the view from where it is.</summary>
     public float TurnCost { get; init; } = 0.4f;
 
@@ -347,14 +372,14 @@ public sealed record CameraTuning
     /// <summary>The pitch an area spell's placement looks down from, degrees: near enough straight down, with the screen's up still the stick's.</summary>
     public float TopDownPitch { get; init; } = 80;
 
-    /// <summary>
-    /// How far an aiming shot stands from the reticle, which it keeps in the middle of the screen; further only to hold an area
-    /// (<see cref="AreaMargin"/>).
-    /// </summary>
+    /// <summary>How far an aiming shot stands from the reticle, which it keeps in the middle of the screen; further only to hold its ring.</summary>
     public float AimDistance { get; init; } = 20;
 
-    /// <summary>An area placed is held with this times its radius round its centre.</summary>
-    public float AreaMargin { get; init; } = 1.6f;
+    /// <summary>
+    /// The share of the half-height below the middle an area's ring may come down to as it's placed, as near as holds it: to the
+    /// conversation box's top (<see cref="FrameFloor"/> is above it), so the ring fills the screen above the box.
+    /// </summary>
+    public float AreaFloor { get; init; } = 0.64f;
 
     /// <summary>
     /// The weight of a spell's reach, a point of its ring beyond its targets, as the spell is aimed at targets (state 10): some of the ring is
@@ -369,7 +394,7 @@ public sealed record CameraTuning
     public float ReachStretch { get; init; } = 1.4f;
 
     /// <summary>The caps on the camera's motion.</summary>
-    public MotionCaps Caps => new(AimAcceleration, TurnAcceleration, ZoomAcceleration, Settle, ZoomSettle);
+    public MotionCaps Caps => new(AimAcceleration, TurnAcceleration, ZoomAcceleration, Settle, TurnSettle, ZoomSettle);
 
     /// <summary>The lens shots are judged by.</summary>
     public Lens Lens => new(FieldOfView, Aspect, FrameMargin) { Floor = FrameFloor };

@@ -174,6 +174,14 @@ public sealed class ShotFinder(SightLines sight, CameraTuning tuning)
     }
 
     /// <summary>
+    /// An area's shot as it's placed: from <paramref name="yaw"/> and <paramref name="pitch"/>, its centre in the middle of the screen, as
+    /// near as holds every point of its <paramref name="ring"/>, the nearest coming down to <see cref="CameraTuning.AreaFloor"/> of the
+    /// half-height (the conversation box's top), but no nearer than <see cref="CameraTuning.MinDistance"/>.
+    /// </summary>
+    public Shot Placed(Vector3 centre, IReadOnlyList<ShotSubject> ring, float yaw, float pitch) =>
+        new(centre, yaw, pitch, MathF.Max(Tuning.MinDistance, ShotFraming.DistanceToHold(ring, centre, yaw, pitch, Tuning.Lens with { Floor = Tuning.AreaFloor })));
+
+    /// <summary>
     /// The original's shot <paramref name="original"/> turned, raised and drawn back by <paramref name="by"/> (radians, radians, times its
     /// distance), still holding <paramref name="held"/>.
     /// </summary>
@@ -340,6 +348,14 @@ public sealed class TargetCone
     public void Clear()
     {
         Target = null;
+        _challenger = null;
+        _lostTicks = 0;
+    }
+
+    /// <summary>Holds <paramref name="who"/> as the target, whether or not it's in the cone: a turn opening on its nearest enemy.</summary>
+    public void Hold(object who)
+    {
+        Target = who;
         _challenger = null;
         _lostTicks = 0;
     }

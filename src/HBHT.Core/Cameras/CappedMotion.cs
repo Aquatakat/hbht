@@ -5,11 +5,12 @@ namespace HBHT.Core.Cameras;
 /// <summary>
 /// How fast a camera's motion may change: the aim's acceleration in units a second squared, the turn's (yaw and pitch) in degrees a
 /// second squared, and the distance's by its proportion: how fast its logarithm may change, a second squared, so a zoom is even at
-/// every scale and a reversal close in costs little ground. Speed isn't capped. <see cref="Settle"/> is how quickly the last of a
+/// every scale and a reversal close in costs little ground. Speed isn't capped. <see cref="Settle"/> is how quickly the last of the aim's
 /// move closes, a second's share, so it eases onto its goal rather than wobbling round it.
 /// </summary>
+/// <param name="TurnSettle">The same for the yaw and pitch: quicker than the aim's, so a new shot's angle doesn't trail in after its place.</param>
 /// <param name="ZoomSettle">The same for the distance, gentler, so a zoom turned round close in gives up little ground.</param>
-public readonly record struct MotionCaps(float Aim, float Turn, float Zoom, float Settle, float ZoomSettle = 2);
+public readonly record struct MotionCaps(float Aim, float Turn, float Zoom, float Settle, float TurnSettle, float ZoomSettle);
 
 /// <summary>
 /// A camera moved toward a goal shot with its acceleration capped, and its deceleration too, so it neither whips into a move nor stops
@@ -89,6 +90,17 @@ public sealed class CappedMotion
             _lastGoal = last with { Aim = last.Aim + by };
     }
 
+    /// <summary>
+    /// Turns the shot by <paramref name="by"/> radians about its aim as it is, its speeds kept: turned along with what it looks over the
+    /// shoulder at as the body walks round it, so only what's left of the turn past that is capped.
+    /// </summary>
+    public void Turn(float by)
+    {
+        Current = Current with { Yaw = Shot.Wrap(Current.Yaw + by) };
+        if (_lastGoal is { } last)
+            _lastGoal = last with { Yaw = Shot.Wrap(last.Yaw + by) };
+    }
+
     /// <summary>A tick toward <paramref name="goal"/>.</summary>
     public void Step(Shot goal)
     {
@@ -127,9 +139,9 @@ public sealed class CappedMotion
         Channel(ref aim, ref _aimSpeed, goal.Aim, _goalAimSpeed, caps.Aim, caps.Settle);
         var turn = caps.Turn * MathF.PI / 180;
         var yaw = c.Yaw;
-        Channel(ref yaw, ref _yawSpeed, yaw + Shot.Wrap(goal.Yaw - yaw), _goalYawSpeed, turn, caps.Settle);
+        Channel(ref yaw, ref _yawSpeed, yaw + Shot.Wrap(goal.Yaw - yaw), _goalYawSpeed, turn, caps.TurnSettle);
         var pitch = c.Pitch;
-        Channel(ref pitch, ref _pitchSpeed, goal.Pitch, _goalPitchSpeed, turn, caps.Settle);
+        Channel(ref pitch, ref _pitchSpeed, goal.Pitch, _goalPitchSpeed, turn, caps.TurnSettle);
         var log = MathF.Log(MathF.Max(c.Distance, 1e-3f));
         Channel(ref log, ref _distanceSpeed, MathF.Log(MathF.Max(goal.Distance, 1e-3f)), _goalDistanceSpeed, caps.Zoom, caps.ZoomSettle);
         var distance = MathF.Exp(log);
