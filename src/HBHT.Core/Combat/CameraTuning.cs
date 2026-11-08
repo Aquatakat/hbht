@@ -62,8 +62,8 @@ public sealed record CameraTuning
     public float GoalJump { get; init; } = 1;
 
     /// <summary>
-    /// The most a shot over the shoulder is turned a second along with the way from the character to its target as they walk round it,
-    /// degrees: as the shot is carried with the character, so the view doesn't trail them. Faster, the rest is caught up under the caps.
+    /// The most a shot over the shoulder orbits a second, turned straight away along with the way from the character to the target's pack
+    /// as they go round it, degrees: as the shot is carried with the character, so the view doesn't trail them. Faster, it catches up after.
     /// </summary>
     public float CarryTurn { get; init; } = 90;
 
@@ -308,10 +308,16 @@ public sealed record CameraTuning
     public float[] Pitches { get; init; } = [4, 8, 12, 18, 24, 30];
 
     /// <summary>
-    /// Nearer the middle of the target's pack than this, among them, the way over the character's shoulder at it is kept as it was: it
-    /// means nothing there, and would swing round as they pass through.
+    /// Nearer the middle of the target's pack than this, among them, the shot orbits it slower, by the share of this the character is
+    /// from it (<see cref="CarryTurn"/>): there the way over their shoulder at it means little, and would swing round as they pass through.
     /// </summary>
     public float ShoulderNear { get; init; } = 3;
+
+    /// <summary>
+    /// How fast a new framing over the shoulder is eased onto, its turn and pitch, degrees a second: found only once the character or the
+    /// target is lost from the one held, it's never stepped to, so the shot doesn't jolt as they walk among the pack.
+    /// </summary>
+    public float FramingTurn { get; init; } = 40;
 
     /// <summary>Turns tried from straight over the character's shoulder at the target (or from the view now, with none), degrees.</summary>
     public float[] Yaws { get; init; } = [0, 15, -15, 30, -30, 50, -50, 80, -80, 120, -120];

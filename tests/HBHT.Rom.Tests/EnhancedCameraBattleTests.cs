@@ -145,46 +145,98 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
     }
 
     [Fact]
-    public void WithNoEnemyAheadTheViewKeepsItsAngleAndLeadsTheWayTheCharacterFaces()
+    public void WithNoEnemyAheadTheViewTrailsTheCharacterOnALeashLeadingThem()
     {
-        // Each member's turn: half a second walking toward the camera, away from the enemies, then back and an attack. With no enemy ahead
-        // the view doesn't swing round behind the character, which would turn the stick under the player; its aim leads them.
+        // Each member's turn: walking toward the camera, away from the enemies, then across the view and back. With no enemy ahead the view
+        // trails them as a third person's camera does: a step across it turns it round after them, a step toward it or away only draws it
+        // along; and its aim leads them the way they face.
         var t = CameraTuning.Default;
-        var (ticks, kept, led, stretches, turns) = (0, 0, 0, 0, 0);
-        float? yaw = null;
-        Combatant? whose = null;
-        Play(host => Plain(Set, 1, host), CameraStyle.Enhanced, "*=stick:0:-1:30/stick:0:1:30/wait:30/accept/accept", run =>
+        var (ticks, led, across, turnedAfter, along, still) = (0, 0, 0, 0, 0, 0);
+        (Combatant Who, Vector3 At, float Yaw)? last = null;
+        Play(host => Plain(Set, 1, host), CameraStyle.Enhanced, "*=stick:0:-1:30/stick:1:0:30/stick:-1:0:30/stick:0:1:30/wait:20/accept/accept", run =>
         {
             var battle = run.Battle;
             var e = battle.CombatCamera.Enhanced!;
-            if (battle.State != CombatState.Turn || battle.Current is not { Controlled: false } me || !e.Walking || e.Target is not null)
+            if (battle.State != CombatState.Turn || battle.Current is not { Controlled: false } me || !e.Walking || e.Target is not null
+                || e.Motion is not { } m)
             {
-                yaw = null;
+                last = null;
                 return;
             }
             ticks++;
             var g = e.Goal;
-            if (yaw is null || whose != me)
-            {
-                stretches++;
-                (yaw, whose) = (g.Yaw, me);
-            }
-            // Turned to see past a body hiding the character, it keeps the new angle rather than swinging back.
-            if (MathF.Abs(Shot.Wrap(g.Yaw - yaw.Value)) < 1e-3f)
-                kept++;
-            else
-                turns++;
-            yaw = g.Yaw;
             var at = me.Body.Sphere.Position;
             var lead = MathF.Min(t.AimLead * t.LookAhead, t.AimLeadMost);
             if (Vector3.Distance(g.Aim, at + new Vector3(me.Body.Heading.X, 0, me.Body.Heading.Y) * lead) < 0.01f)
                 led++;
+            if (last is { } l && l.Who == me)
+            {
+                // The step across the shot shown, to its right, and how the goal's yaw turned: a step right turns it round to the left.
+                var step = at - l.At;
+                var right = Vector3.Dot(step, m.Current.Right);
+                var turned = Shot.Wrap(g.Yaw - l.Yaw);
+                if (MathF.Abs(turned) < ShotFinder.Rad(2))
+                {
+                    if (MathF.Abs(right) > 0.02f)
+                    {
+                        across++;
+                        if (MathF.Sign(turned) == -MathF.Sign(right))
+                            turnedAfter++;
+                    }
+                    else if (step.Length() > 0.02f)
+                    {
+                        along++;
+                        if (MathF.Abs(turned) < ShotFinder.Rad(0.2f))
+                            still++;
+                    }
+                }
+            }
+            last = (me, at, g.Yaw);
         });
         TestContext.Current.TestOutputHelper?.WriteLine(
-            $"{ticks} ticks with no enemy ahead in {stretches} stretches: the angle kept on {kept}, turned clear {turns} times; the aim leading on {led}");
-        Assert.True(stretches > 5 && ticks > 200, $"{ticks} ticks in {stretches} stretches");
-        Assert.True(turns <= stretches, $"the angle turned {turns} times in {stretches} stretches");
+            $"{ticks} ticks with no enemy ahead: the aim leading on {led}; {turnedAfter} of {across} steps across turned it after the character, " +
+            $"{still} of {along} steps toward or away left it be");
+        Assert.True(across > 100 && along > 30, $"{across} steps across, {along} along");
         Assert.Equal(ticks, led);
+        Assert.True(turnedAfter >= across * 0.95, $"{turnedAfter} of {across} turned after");
+        Assert.True(still >= along * 0.95, $"{still} of {along} left be");
+    }
+
+    [Fact]
+    public void GoingRoundAPackTheShotTurnsSmoothly()
+    {
+        // Each member's turn: toward the enemies, then round them. Over the shoulder at the pack, the shot orbits it with the character and
+        // eases onto a new framing: tick to tick as they walk, its yaw turns no faster than the orbit and the easing together, its pitch
+        // than the easing.
+        var t = CameraTuning.Default;
+        var (ticks, steps, most) = (0, 0, 0f);
+        (Combatant Who, Combatant Target, int Cuts, Vector3 At, float Yaw, float Pitch)? last = null;
+        Play(host => Plain(Set, 1, host), CameraStyle.Enhanced, "*=stick:0:1:30/stick:1:0:60/wait:20/accept/accept", run =>
+        {
+            var battle = run.Battle;
+            var e = battle.CombatCamera.Enhanced!;
+            if (battle.State != CombatState.Turn || battle.Current is not { Controlled: false } me || !e.Walking || e.Target is not { } target)
+            {
+                last = null;
+                return;
+            }
+            var g = e.Goal;
+            var at = me.Body.Sphere.Position;
+            // As they walk: a turn's opening, on a tick they stand, is a new shot.
+            if (last is { } l && l.Who == me && l.Target == target && l.Cuts == e.Cuts && Vector3.Distance(at, l.At) > 1e-3f)
+            {
+                ticks++;
+                var yaw = MathF.Abs(Shot.Wrap(g.Yaw - l.Yaw));
+                most = MathF.Max(most, yaw);
+                if (yaw > ShotFinder.Rad(t.CarryTurn + t.FramingTurn) / 60 + 1e-4f || MathF.Abs(g.Pitch - l.Pitch) > ShotFinder.Rad(t.FramingTurn) / 60 + 1e-4f)
+                    steps++;
+            }
+            last = (me, target, e.Cuts, at, g.Yaw, g.Pitch);
+        });
+        TestContext.Current.TestOutputHelper?.WriteLine(
+            $"{ticks} ticks over the shoulder: {steps} stepped; the most it turned in a tick {most * 180 / MathF.PI:F2}°");
+        Assert.True(ticks > 1000, $"{ticks} ticks");
+        Assert.Equal(0, steps);
     }
 
     [Fact]
@@ -284,7 +336,7 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
             ShotSubject[] both = [sphere, new(target.Body.Sphere.Position, target.Body.ScaledRadius)];
             if (both.All(s => ShotFraming.Holds(e.Goal, s with { Radius = 0 }, t.Lens)))
                 held++;
-            // A target near may never be hidden; one far off, beyond the pack's range, may be behind another body rather than seen from high.
+            // A target near is hidden only for a moment; one far off, beyond the pack's range, may be behind another body rather than seen from high.
             var hidden = finder.HiddenWeight(e.Goal, both) > 0;
             if (Vector3.Distance(both[0].At, both[1].At) <= t.PackRange)
                 (nearTicks, nearHidden) = (nearTicks + 1, nearHidden + (hidden ? 1 : 0));
@@ -305,7 +357,8 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
         Assert.Equal(framed, close);
         Assert.True(framed > 200, $"{framed} ticks framed");
         Assert.True(held >= framed * 0.98, $"{held} of {framed} held both");
-        Assert.True(nearHidden <= nearTicks * 0.02, $"{nearHidden} of {nearTicks} near hid one");
+        // A framing that comes to hide one is eased away from rather than stepped (FramingTurn), so it may hide it for a moment.
+        Assert.True(nearHidden <= nearTicks * 0.05, $"{nearHidden} of {nearTicks} near hid one");
         Assert.True(farHidden <= farTicks * 0.1, $"{farHidden} of {farTicks} far hid one");
         // Over the shoulder, never from high above.
         Assert.Equal(framed, low);

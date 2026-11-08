@@ -7,16 +7,16 @@ using HBHT.Core.Movement;
 namespace HBHT.Core.Combat;
 
 /// <summary>
-/// Camera: Enhanced, a battle's camera for turns played the original's way (docs/systems/cameras.md, "The enhanced battle camera"). It
-/// runs on top of the original's (<see cref="CombatCamera"/>), which goes on moving its own camera underneath, and shows a shot of its
-/// own: in the player's turn low over the character's shoulder at the enemy it heads for, and its pack, or with none ahead the view
-/// kept and its aim leading them; once anyone acts, one shot holding all of it, planned as it acts; an arrow, a throw or a spell at
+/// Camera: Enhanced, a battle's camera for turns played the original's way (docs/systems/cameras.md, "The enhanced battle camera"). It runs
+/// on top of the original's (<see cref="CombatCamera"/>), which goes on moving its own camera underneath, and shows a shot of its own: in
+/// the player's turn low over the character's shoulder at the enemy it heads for, orbiting its pack with them, or with none ahead trailing
+/// them on a leash, its aim leading them; once anyone acts, one shot holding all of it, planned as it acts; an arrow, a throw or a spell at
 /// someone further off as two shots, the loosing and the hit; in aiming the reticle in the middle, a spell's targets with some of its
-/// reach, or an area from above, its ring down to the conversation box; and the original's again once the
-/// player turns the camera themselves, until they aim. Every shot is taken from the side of the battle's vantage (<see cref="Vantage"/>),
-/// and no one is framed under the conversation box. It moves to each shot with its acceleration capped, not its speed
-/// (<see cref="CappedMotion"/>), trailing a moving goal rather than overshooting it, quicker while the character is out of view, and cuts
-/// a long way, but never while the player walks the character.
+/// reach, or an area from above, its ring down to the conversation box; and the original's again once the player turns the camera
+/// themselves, until they aim. Every shot is taken from the side of the battle's vantage (<see cref="Vantage"/>), and no one is framed
+/// under the conversation box. It moves to each shot with its acceleration capped, not its speed (<see cref="CappedMotion"/>), trailing a
+/// moving goal rather than overshooting it, quicker while the character is out of view, and cuts a long way, but never while the player
+/// walks the character.
 /// </summary>
 /// <remarks>
 /// The shot it shows is the battle's camera (<see cref="Battle.Camera"/>), so the stick and the aim are read against what the player
@@ -94,8 +94,14 @@ public sealed class EnhancedCamera
 
     private (Vector3 At, Vector2 Heading)? _opening;
 
-    /// <summary>The shot with no enemy ahead: its yaw, pitch and distance, kept from the shot as the target was lost while its aim leads the character.</summary>
+    /// <summary>
+    /// The shot with no enemy ahead: its yaw, pitch and distance, taken from the shot as the target was lost, its yaw trailing the character
+    /// on a leash while its aim leads them.
+    /// </summary>
     private (float Yaw, float Pitch, float Distance)? _ahead;
+
+    /// <summary>A new framing over the shoulder being eased onto (<see cref="CameraTuning.FramingTurn"/>), rather than stepped to.</summary>
+    private (float Offset, float Pitch)? _framingTo;
 
     /// <summary>
     /// The vantage, its side of the way from the party to the enemies (<see cref="Vantage.Place"/>), the way it was placed for, and how
@@ -216,6 +222,7 @@ public sealed class EnhancedCamera
         _opening = null;
         _ahead = null;
         _behind = null;
+        _framingTo = null;
     }
 
     /// <summary>A tick, after the original's camera has stepped.</summary>
@@ -376,6 +383,7 @@ public sealed class EnhancedCamera
         {
             _ahead = null;
             _behind = null;
+            _framingTo = null;
         }
         if (battle.State != CombatState.TargetSpell)
             _spellAim = null;
@@ -461,11 +469,10 @@ public sealed class EnhancedCamera
 
     /// <summary>
     /// The player's turn: low over the character's shoulder at the enemy they head for (<see cref="TargetCone"/>) and its pack, near the
-    /// character, turned along with the way to it as they walk round it. It opens on the enemy ahead, else the nearest within
+    /// character, orbiting the pack as they go round it, every turn of it continuous. It opens on the enemy ahead, else the nearest within
     /// <see cref="CameraTuning.TargetRange"/>, held until they move or turn, so the opening shot isn't changed under the player before
-    /// they've done anything. With no enemy ahead, the view as it
-    /// was, its aim leading the character the way they face (<see cref="CameraTuning.LookAhead"/>): it doesn't swing round behind them,
-    /// for the stick is read against it, and a view turning after their heading would turn the stick under them.
+    /// they've done anything. With no enemy ahead, it trails them on a leash as a third person's camera does, its aim leading them the way
+    /// they face (<see cref="CameraTuning.LookAhead"/>).
     /// </summary>
     private Shot TurnShot(Battle battle, Combatant current, Shot originalShot)
     {
@@ -487,6 +494,7 @@ public sealed class EnhancedCamera
                 _cone.Hold(nearest);
             _sinceDecide = int.MaxValue / 2;
             _framing = null;
+            _framingTo = null;
         }
         else if (_opening is { } o && (Flat(me - o.At) > 0.05f || Vector2.Dot(heading, o.Heading) < MathF.Cos(Rad(2))))
         {
@@ -496,20 +504,37 @@ public sealed class EnhancedCamera
         {
             _sinceDecide = int.MaxValue / 2;
             _framing = null;
+            _framingTo = null;
         }
         _subjects.Clear();
         _subjects.Add(Sphere(current.Body));
         if (Target is not { } target)
         {
             _framing = null;
+            _framingTo = null;
             _behind = null;
-            // The view kept as it was when the target was lost, low and near; only its aim moves, leading the character.
+            // From the shot as the target was lost, low and near.
             var was = _motion?.Current ?? originalShot;
             _ahead ??= (was.Yaw, was.Pitch, was.Distance);
+            // Trailed on a leash, as a third person's camera is: the eye stays where it is but for being drawn after the character, so a
+            // step across the view turns it round after them, and walking on they come to be seen from behind; a step toward it or away
+            // only draws it along.
+            if (_motion is { } m && _carry is { } c && c.Who == current && Vector3.Distance(me, c.At) <= t.GoalJump)
+            {
+                var shown = m.Current;
+                var eye = shown.Eye;
+                var aimed = shown.Aim + (me - c.At);
+                var back = new Vector2(eye.X - aimed.X, eye.Z - aimed.Z);
+                if (back.Length() > 0.5f)
+                {
+                    _turnBy = Shot.Wrap(MathF.Atan2(back.X, back.Y) - shown.Yaw);
+                    var (y, p, d) = _ahead.Value;
+                    _ahead = (Shot.Wrap(y + _turnBy), p, d);
+                }
+            }
             var lead = Lead(me, me + new Vector3(heading.X, 0, heading.Y) * t.LookAhead);
             var follow = Ahead(lead);
-            // A body or a wall hiding the character turns, raises or draws the view back, and it stays so: swinging back once they're
-            // clear would turn the stick under the player twice.
+            // A body or a wall hiding the character turns, raises or draws the view back, and it stays so rather than swinging back.
             if (++_sinceDecide >= t.DecideEvery)
             {
                 _sinceDecide = 0;
@@ -520,7 +545,7 @@ public sealed class EnhancedCamera
                     follow = Ahead(lead);
                 }
             }
-            Kind = "no enemy ahead, leading the way they face";
+            Kind = "no enemy ahead, trailing them";
             return follow;
         }
         _ahead = null;
@@ -542,13 +567,33 @@ public sealed class EnhancedCamera
         _pairs.Clear();
         AddPair(current, target);
         var ahead = pack / n;
-        // Among the pack, near its middle, the way over the shoulder at it means nothing and swings wildly: the one held stays.
-        var behind = _behind is { } held && held.Target == target && Flat(ahead - me) < t.ShoulderNear ? held.Behind : Look(me, ahead);
-        var most = Rad(t.CarryTurn) / 60;
-        _turnBy = _behind is { } b && b.Target == target ? Math.Clamp(Shot.Wrap(behind - b.Behind), -most, most) : 0;
+        // Orbiting the pack as the character goes round it: the way over their shoulder at its middle turns the shot with it straight
+        // away (Step), up to CarryTurn a second, and less among the pack, where near its middle the way means nothing and swings wildly.
+        var behind = Look(me, ahead);
+        if (_behind is { } b && b.Target == target)
+        {
+            var most = Rad(t.CarryTurn) / 60 * Math.Clamp(Flat(ahead - me) / t.ShoulderNear, 0, 1);
+            _turnBy = Math.Clamp(Shot.Wrap(behind - b.Behind), -most, most);
+            behind = Shot.Wrap(b.Behind + _turnBy);
+        }
         _behind = (target, behind);
         _frameBy = (Lead(me, ahead), t.ShoulderDistance);
-        Frame(behind, force: false);
+        // Found again only where the character or the target is lost from it, and eased onto, so the shot never steps as they walk.
+        if (_framingTo is null)
+        {
+            var held = _framing;
+            Frame(behind, force: false, judged: 2);
+            if (held is { } h && _framing is { } found && found != h)
+                (_framingTo, _framing) = (found, h);
+        }
+        if (_framingTo is { } to && _framing is { } now)
+        {
+            var step = Rad(t.FramingTurn) / 60;
+            var (offset, pitch) = (Shot.Wrap(to.Offset - now.Offset), to.Pitch - now.Pitch);
+            _framing = (Shot.Wrap(now.Offset + Math.Clamp(offset, -step, step)), now.Pitch + Math.Clamp(pitch, -step, step));
+            if (MathF.Abs(offset) <= step && MathF.Abs(pitch) <= step)
+                _framingTo = null;
+        }
         Kind = n == 1 ? "over the shoulder" : near ? $"over the shoulder at a pack of {n}" : $"over the shoulder toward a pack of {n}";
         return FramedNow(behind);
     }
@@ -565,15 +610,27 @@ public sealed class EnhancedCamera
 
     /// <summary>
     /// Finds the framing of <see cref="_subjects"/> over the shoulder (<paramref name="behind"/>) again where it's due: every look, at
-    /// once once the framing held hides one (the character walking across its own sight line), or when <paramref name="force"/>d. A
-    /// framing found replaces the one held only if it's better by <see cref="CameraTuning.SwitchMargin"/>.
+    /// once once the framing held hides one (the character walking across its own sight line), or when <paramref name="force"/>d. Given
+    /// <paramref name="judged"/>, only once the framing held hides or leaves out one of the first that many. A framing found replaces the
+    /// one held only if it's better by <see cref="CameraTuning.SwitchMargin"/>.
     /// </summary>
-    private void Frame(float behind, bool force)
+    private void Frame(float behind, bool force, int? judged = null)
     {
         var t = Tuning;
         var finder = _finder!;
-        if (_framing is not null && !force && ++_sinceDecide < t.DecideEvery && finder.HiddenWeight(FramedNow(behind), _subjects) == 0)
-            return;
+        if (_framing is not null && !force)
+        {
+            if (judged is { } k)
+            {
+                var shot = FramedNow(behind);
+                if (!_subjects.Take(k).Any(s => !ShotFraming.Holds(shot, s with { Radius = 0 }, t.Lens) || finder.Sight.Hidden(shot.Eye, s)))
+                    return;
+            }
+            else if (++_sinceDecide < t.DecideEvery && finder.HiddenWeight(FramedNow(behind), _subjects) == 0)
+            {
+                return;
+            }
+        }
         _sinceDecide = 0;
         var heldScore = _framing is not null && !force ? finder.Score(FramedNow(behind), _subjects, _from, behind, _pairs) : float.NegativeInfinity;
         if (finder.Best(_subjects, _from, behind, _pairs, _frameBy.Aim, _frameBy.Most) is var (best, score)
