@@ -4,7 +4,7 @@ using HBHT.Plugins.Records;
 namespace HBHT.Core.Combat;
 
 /// <summary>
-/// A battle's recording cut into actions (ADR 0040's stage 3), one a turn, as its frames come: what each touches, over which of its
+/// A battle's recording cut into actions (Start Early), one a turn, as its frames come: what each touches, over which of its
 /// ticks, and the timeline each of its one-offs plays on. <see cref="BattleDrawing"/> schedules and composes the actions from it.
 /// </summary>
 /// <remarks>
@@ -358,7 +358,7 @@ public sealed class BattleActions
 }
 
 /// <summary>
-/// One turn's frames as an action (ADR 0040's stage 3): its combatant, its ticks, the bodies it involves (<see cref="Episodes"/>), the
+/// One turn's frames as an action (Start Early): its combatant, its ticks, the bodies it involves (<see cref="Episodes"/>), the
 /// numbers, missiles and spells' actors it began, and where the drawing has it: when it starts drawing and how far it has played.
 /// </summary>
 public sealed class DrawnAction
@@ -406,7 +406,7 @@ public sealed class DrawnAction
     public bool Scheduled => Start is not null;
 
     /// <summary>
-    /// Whether it's a turn the player plays, opened once its combatant was free in the drawing (ADR 0040's stage 4): drawn on the
+    /// Whether it's a turn the player plays, opened once its combatant was free in the drawing (Start Early): drawn on the
     /// battle's present while it waits on the player, the earlier actions drawing on behind it.
     /// </summary>
     public bool Opened { get; internal set; }

@@ -14,7 +14,7 @@ namespace HBHT.Game;
 /// screen's fade, with their billboards turned to the camera and their textures scrolling. Each is made as the battle cues its start
 /// (<see cref="SpellVisualStarted"/>) and freed as it cues its end (<see cref="SpellVisualEnded"/>). An actor's animations are the core's
 /// (<see cref="SpellFxVisual.Actor"/>), which its scene is posed by; its emitters' particles here are drawn, and the core works out how
-/// long they last on a head of its own (ADR 0040).
+/// long they last on a head of its own (Start Early).
 /// </summary>
 public partial class SpellFxView : Node3D
 {
@@ -52,7 +52,7 @@ public partial class SpellFxView : Node3D
     }
 
     /// <summary>
-    /// Places every visual showing as the battle's recording has it on the tick drawn (<paramref name="frame"/>, ADR 0040), an actor's
+    /// Places every visual showing as the battle's recording has it on the tick drawn (<paramref name="frame"/>, Start Early), an actor's
     /// emitters started first as its actor started them in that tick, at the screen's <paramref name="fade"/>, its billboards turned toward
     /// <paramref name="eye"/>.
     /// </summary>

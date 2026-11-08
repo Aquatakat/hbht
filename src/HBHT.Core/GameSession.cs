@@ -232,7 +232,7 @@ public sealed class GameSession
     public Battle? Battle { get; private set; }
 
     /// <summary>
-    /// What draws the battle playing from its recording (ADR 0040): it steps the battle as Combat Turns says and holds the frame drawn now
+    /// What draws the battle playing from its recording (Start Early): it steps the battle as Combat Turns says and holds the frame drawn now
     /// (<see cref="BattleDrawing.Frame"/>), which the views draw, and the drawn camera.
     /// </summary>
     public BattleDrawing? Drawing { get; private set; }
@@ -540,7 +540,7 @@ public sealed class GameSession
         }
         if (Battle is not null)
         {
-            // The battle steps as Combat Turns says, and a tick of it is drawn (ADR 0040).
+            // The battle steps as Combat Turns says, and a tick of it is drawn (Start Early).
             var ran = Drawing!.Tick(Arena!, Sky.Drawn, readInput);
             // Combat's states 14 and 27: the pause menu, mode 3.
             if (ran is BattleStep.Paused pause && !MenuOpen)
@@ -864,7 +864,7 @@ public sealed class GameSession
         zone.RequestMusic(arena.Chunk);
         zone.Chunks.Update(arena.Origin + Combat.Battle.ZonePoint);
         _battleEnd = BattleOutcome.None;
-        // It's drawn from its recording (ADR 0040): the battle's one-offs reach the host, and the bodies' sounds the audio, as each tick
+        // It's drawn from its recording (Start Early): the battle's one-offs reach the host, and the bodies' sounds the audio, as each tick
         // is drawn.
         var drawing = Drawing = BattleDrawing.Begin(zone, _combatHost, host => Combat.Battle.Begin(Game, setup, arena, zone.World, host));
         var battle = Battle = drawing.Battle;

@@ -123,7 +123,7 @@ public sealed class Settings
 
     /// <summary>
     /// How a battle's turns are drawn: one after another as the original's, or Start Early's, where the core plays the AI's turns ahead
-    /// and the drawing plays them back (<see cref="Combat.CombatTurns"/>, ADR 0040).
+    /// and the drawing plays them back (<see cref="Combat.CombatTurns"/>, Start Early).
     /// </summary>
     public Combat.CombatTurns CombatTurns { get; set; }
 

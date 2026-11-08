@@ -12,7 +12,7 @@ namespace HBHT.Game;
 /// Draws a combatant's body in the arena (<c>renderPlayers</c> over <c>Combat.Bodies</c>): its entity's actor at its scale,
 /// standing at its feet and facing its heading, faded by its distance from the camera's aim, with its shadow and what it holds. The core
 /// owns and steps its animations as the body moves (<see cref="Combatant.Actor"/>), and the view draws it as the battle's recording has it on
-/// the tick drawn (<see cref="DrawnBody"/>, ADR 0040). Party
+/// the tick drawn (<see cref="DrawnBody"/>, Start Early). Party
 /// members are lit as the party is (<c>+0x70a</c>), by the arena's light map objects too, which the arenas have none of.
 /// </summary>
 public partial class CombatantView : BodyView
@@ -30,7 +30,7 @@ public partial class CombatantView : BodyView
 
     public Combatant Combatant { get; }
 
-    /// <summary>The body as the battle's recording has it on the tick drawn (ADR 0040).</summary>
+    /// <summary>The body as the battle's recording has it on the tick drawn (Start Early).</summary>
     public DrawnBody Drawn { get; private set; }
 
     /// <summary>

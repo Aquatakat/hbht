@@ -44,7 +44,7 @@ public abstract partial class BodyView : Node3D
     /// <param name="shadow">The shadow texture, or null for a body with no shadow.</param>
     /// <param name="builder">What builds its actor's scene off the main thread; with none, it's built at once.</param>
     /// <param name="owned">
-    /// The actor's motion as the core owns and steps it, a combatant's (ADR 0040), which the view only poses its scene by, as a battle's
+    /// The actor's motion as the core owns and steps it, a combatant's (Start Early), which the view only poses its scene by, as a battle's
     /// recording has it (<see cref="ActorAnimator.Follow(int, int)"/>), with emitters of its own the recording starts; none for a body
     /// whose view makes its motion.
     /// </param>
@@ -255,7 +255,7 @@ public abstract partial class BodyView : Node3D
 
     /// <summary>
     /// Poses the actor the core owns at a battle's recorded <paramref name="state"/> and <paramref name="clock"/>, first starting the
-    /// emitters the recording says it started for <paramref name="starts"/>' requests (ADR 0040).
+    /// emitters the recording says it started for <paramref name="starts"/>' requests (Start Early).
     /// </summary>
     /// <param name="blend">Ticks to blend from the pose it has, for a recording that jumps (<see cref="ActorAnimator.BlendFrom"/>); 0 for none.</param>
     protected void Follow(int state, int clock, IEnumerable<int> starts, int blend = 0)

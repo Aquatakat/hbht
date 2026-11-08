@@ -225,7 +225,7 @@ public sealed class AiCheckpointTests(Na10Import fixture, ITestOutputHelper outp
         var built = CombatCheckpoints.Plain(Set, 2);
         var battle = built.Battle;
         var zone = Zone(built);
-        // The bodies move by their animations' roots, the core's own (ADR 0040).
+        // The bodies move by their animations' roots, the core's own (Start Early).
         var (walks, bites, rests, flights, turns) = (0, 0, 0, 0, 0);
         var last = battle.State;
         Combatant? turn = null;

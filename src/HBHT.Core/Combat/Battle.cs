@@ -69,7 +69,7 @@ public sealed partial class Battle
 
     /// <summary>
     /// How its turns are drawn: Combat Turns, the setting (<see cref="SessionSettings.CombatTurns"/>). Under Start Early A in an AI's walk
-    /// never reaches the battle (<see cref="SkipWalk"/>): the drawing only fast-forwards (ADR 0040).
+    /// never reaches the battle (<see cref="SkipWalk"/>): the drawing only fast-forwards (Start Early).
     /// </summary>
     public CombatTurns Turns { get; set; }
 
@@ -291,7 +291,7 @@ public sealed partial class Battle
     /// <param name="readInput">The player's controls, read only in a turn the player plays, once the screen has faded in.</param>
     /// <returns>Whether it goes on, its pause menu is due, or it has ended.</returns>
     /// <remarks>
-    /// It asks the views nothing (ADR 0040): the combatants' and the spells' visuals' actors are the core's (<see cref="Combatant.Actor"/>,
+    /// It asks the views nothing (Start Early): the combatants' and the spells' visuals' actors are the core's (<see cref="Combatant.Actor"/>,
     /// <see cref="SpellFxVisual.Actor"/>), a missile leaves the hand's locator as the core poses it, and the visuals' emitters run as
     /// long as the core works out. So a battle plays tick for tick the same with the runtime drawing it or without.
     /// </remarks>
@@ -354,7 +354,7 @@ public sealed partial class Battle
                 StepCastStart(waiting, animation);
         }
         CombatCamera.Step(this);
-        // The arena's map sounds and weather go on at the drawing's pace (BattleDrawing), not the battle's (ADR 0040).
+        // The arena's map sounds and weather go on at the drawing's pace (BattleDrawing), not the battle's (Start Early).
         if (!held)
             Step();
         // Combat.AfterFrame: the Shadow reaching its merger, at every frame's end.

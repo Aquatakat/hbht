@@ -17,7 +17,7 @@ namespace HBHT.Core.Audio;
 /// each tick), not read from the mixer, which runs ahead of the game on the audio thread by however much it buffers: a sequence that
 /// doesn't loop plays for as long as the sequencer reads it (<see cref="AudioEngine.StopsAfter"/>), and one with a duration until it's
 /// past, a millisecond a sixtieth of a tick. So what the game does on a sound's end, as a map sound reading its flags' gate
-/// (<see cref="KeptSound.Update"/>), comes on the same tick with the audio thread or without (ADR 0040). A sequence the sequencer had
+/// (<see cref="KeptSound.Update"/>), comes on the same tick with the audio thread or without (Start Early). A sequence the sequencer had
 /// no player free for is kept here all the same, unheard.
 /// </para>
 /// </remarks>

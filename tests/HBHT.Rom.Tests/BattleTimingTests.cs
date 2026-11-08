@@ -35,7 +35,7 @@ public sealed class BattleTimingTests(Na10Import fixture)
 
         public Battle Battle => _built.Battle;
 
-        /// <summary>A combatant's actor, the core's own (ADR 0040).</summary>
+        /// <summary>A combatant's actor, the core's own (Start Early).</summary>
         public IActorMotion? Motion(Combatant c) => c.Actor;
 
         /// <summary>A tick, the party attacking what's in reach or skipping on its turns.</summary>

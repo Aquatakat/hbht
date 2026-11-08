@@ -7,7 +7,7 @@ using static HBHT.Rom.Tests.CombatCheckpoints;
 namespace HBHT.Rom.Tests;
 
 /// <summary>
-/// A battle stepped from a checkpoint with no view, as Start Early's stage 1 has it (ADR 0040): the core's own actors for the
+/// A battle stepped from a checkpoint with no view, as Start Early's stage 1 has it (Start Early): the core's own actors for the
 /// combatants and the spells' visuals, so a missile leaves the hand's locator and a spell lands at its visual's strike, as in the
 /// runtime, where headless they left the body's middle and landed at once.
 /// </summary>

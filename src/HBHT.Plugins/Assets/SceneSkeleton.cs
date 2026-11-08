@@ -4,7 +4,7 @@ using System.Text.Json;
 namespace HBHT.Plugins.Assets;
 
 /// <summary>
-/// A scene's transforms as its glTF holds them, which the core poses a locator by without a view (ADR 0040): each node's parent and
+/// A scene's transforms as its glTF holds them, which the core poses a locator by without a view (Start Early): each node's parent and
 /// rest, the nodes of its locators, and each animation's keys for the nodes it drives. The importer writes one key a tick, linear,
 /// and every animation of an actor drives the same channels, so a node is posed at its key where the animation drives it and at rest
 /// where it doesn't. That's what the views' posed scene comes to: Godot's player sets each driven channel at the key, and

@@ -65,7 +65,7 @@ public sealed class ActorAnimator : IActorMotion
     /// <summary>
     /// Its scene's emitters: the core's motion's (<see cref="ActorMotion.Particles"/>), which start as it enters a state; or, for an animator
     /// that draws from a battle's recording (<see cref="Recorded"/>), its own, which the drawing starts as the recording says
-    /// (<see cref="StartEmitters"/>), so they start as the tick is drawn rather than as the core steps it (ADR 0040).
+    /// (<see cref="StartEmitters"/>), so they start as the tick is drawn rather than as the core steps it (Start Early).
     /// </summary>
     public ActorParticles? Particles
     {
@@ -82,7 +82,7 @@ public sealed class ActorAnimator : IActorMotion
     private ActorParticles? _own;
 
     /// <summary>
-    /// Whether it draws from a battle's recording (ADR 0040): it's posed at a recorded state and clock (<see cref="Follow(int, int)"/>), and
+    /// Whether it draws from a battle's recording (Start Early): it's posed at a recorded state and clock (<see cref="Follow(int, int)"/>), and
     /// its emitters are its own. Set before <see cref="Particles"/>.
     /// </summary>
     public bool Recorded { get; set; }
@@ -153,13 +153,13 @@ public sealed class ActorAnimator : IActorMotion
 
     /// <summary>
     /// Poses the scene where its motion stands, for a motion the core ticks itself, as a combatant's and a spell's visual's are
-    /// (ADR 0040): the core steps it, and the view only draws it. Call after each tick.
+    /// (Start Early): the core steps it, and the view only draws it. Call after each tick.
     /// </summary>
     public void Follow() => ShowSeen((Machine.Clock - 1) / 60.0);
 
     /// <summary>
     /// Poses the scene at <paramref name="state"/> and <paramref name="clock"/>, as a battle's recording has its actor on the tick drawn
-    /// (ADR 0040). Call after each tick.
+    /// (Start Early). Call after each tick.
     /// </summary>
     public void Follow(int state, int clock)
     {
@@ -169,7 +169,7 @@ public sealed class ActorAnimator : IActorMotion
 
     /// <summary>
     /// Blends the next <paramref name="ticks"/> poses from the one it has now, as a body drawn from a battle's recording meets its next
-    /// action from an idle frame other than the one before it (ADR 0040): each posed node eases from where it was to where the animation
+    /// action from an idle frame other than the one before it (Start Early): each posed node eases from where it was to where the animation
     /// has it, so the jump doesn't show. Call before the <see cref="Follow(int, int)"/> that jumps.
     /// </summary>
     public void BlendFrom(int ticks)

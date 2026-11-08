@@ -10,7 +10,7 @@ namespace HBHT.Game;
 /// Draws the battle screen (<see cref="CombatGui"/>) on trek's <see cref="UiScreen"/>, as trek's HUD is drawn: the log box
 /// across the foot with the current combatant's portrait and line, the radar, the portraits' frames, the portraits with
 /// their skulls, and the HP bars, in the original's order. It's drawn as it stands under the pause menu, as the original's
-/// is in the frame its menu darkens. It draws the battle's recording on the tick drawn (<see cref="BattleFrame.Gui"/>, ADR 0040).
+/// is in the frame its menu darkens. It draws the battle's recording on the tick drawn (<see cref="BattleFrame.Gui"/>, Start Early).
 /// </summary>
 public partial class CombatGuiView : Control
 {
@@ -26,7 +26,7 @@ public partial class CombatGuiView : Control
         SetAnchorsPreset(LayoutPreset.FullRect);
     }
 
-    /// <summary>What draws the battle whose screen this draws, from its recording (ADR 0040).</summary>
+    /// <summary>What draws the battle whose screen this draws, from its recording (Start Early).</summary>
     public BattleDrawing? Drawing { get; set; }
 
     /// <summary>

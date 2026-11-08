@@ -11,7 +11,7 @@ using static HBHT.Rom.Tests.CombatCheckpoints;
 namespace HBHT.Rom.Tests;
 
 /// <summary>
-/// Combat Turns' Start Early (ADR 0040, stage 2): a battle drawn from its recording plays the same whether its turns are drawn as the
+/// Combat Turns' Start Early: a battle drawn from its recording plays the same whether its turns are drawn as the
 /// original's or started early. Each battle is built twice from the same checkpoint or parity log, and both are stepped a tick of the
 /// drawing at a time through <see cref="BattleDrawing"/>, one under Original and one under Start Early, with the player's turns played
 /// the same way (pressed as the drawing reaches them, never A in a walk). The drawn frames, tick for tick, are the same (their cues, the
@@ -93,7 +93,7 @@ public sealed class StartEarlyTests(Na10Import fixture)
         });
         Assert.NotEmpty(walks);
         Assert.True(drawing.Press(MenuAction.Accept));
-        // Each walk drawing is at its end; an action sharing no body with one is where it was (ADR 0040's stage 4).
+        // Each walk drawing is at its end; an action sharing no body with one is where it was (Start Early).
         foreach (var (a, end) in walks)
             Assert.Equal(end, a.TickAt(d));
         foreach (var (a, tick) in before)
@@ -336,7 +336,7 @@ public sealed class StartEarlyTests(Na10Import fixture)
     // What's checked of the drawing under Start Early
 
     /// <summary>
-    /// Checks a battle's drawing under Start Early as it's drawn (ADR 0040's stage 3): every body is drawn from a tick of the recording
+    /// Checks a battle's drawing under Start Early as it's drawn (Start Early): every body is drawn from a tick of the recording
     /// no earlier than the last it was drawn from, as the recording has it there; no body is in two actions' episodes at once; no two
     /// bodies drawn from different ticks come nearer than either tick recorded them, where they touch; a turn the player plays shows only
     /// once the drawing has caught up; and every cue, sound call and emitter start recorded is played once.
@@ -480,7 +480,7 @@ public sealed class StartEarlyTests(Na10Import fixture)
                     AimForwarded++;
             }
             _forwarded = composer.Forwarded;
-            // A turn the player plays opens only once its combatant has drawn its earlier parts (ADR 0040's stage 4).
+            // A turn the player plays opens only once its combatant has drawn its earlier parts (Start Early).
             if (f.State == CombatState.Turn && _state != CombatState.Turn)
             {
                 var c = f.Current!;

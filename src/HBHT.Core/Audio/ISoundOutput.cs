@@ -5,7 +5,7 @@ namespace HBHT.Core.Audio;
 /// <summary>
 /// What the game's sounds go through to the sequencer: bodies' keys (<see cref="AudioKeys"/>), the map's sounds (<see cref="MapSounds"/>,
 /// <see cref="KeptSound"/>), the weather's (<see cref="WeatherSounds"/>) and one-shots. <see cref="GameAudio"/> plays them; something
-/// else can take them instead, as a battle's recording will (ADR 0040). Whether a sound plays on is answered in the game's ticks, never
+/// else can take them instead, as a battle's recording will (Start Early). Whether a sound plays on is answered in the game's ticks, never
 /// from the audio thread, so nothing the game does hangs on how far the mixer has got.
 /// </summary>
 public interface ISoundOutput

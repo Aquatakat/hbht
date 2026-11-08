@@ -7,7 +7,7 @@ using HBHT.Plugins;
 namespace HBHT.Core.Combat;
 
 /// <summary>
-/// How a battle's turns are drawn (ADR 0040): the original's, each drawn as the core plays it, or Start Early's, where the core plays
+/// How a battle's turns are drawn (Start Early): the original's, each drawn as the core plays it, or Start Early's, where the core plays
 /// the AI's turns ahead and the drawing plays them back from the recording.
 /// </summary>
 public enum CombatTurns
@@ -17,7 +17,7 @@ public enum CombatTurns
 }
 
 /// <summary>
-/// One tick of a battle as it's drawn (ADR 0040): everything the views show, sampled after the battle's tick
+/// One tick of a battle as it's drawn (Start Early): everything the views show, sampled after the battle's tick
 /// (<see cref="BattleRecorder.Sample"/>), and the one-offs it cued, the sounds it played and the emitters its actors started in that tick.
 /// The views draw a battle from these alone, under both settings (<see cref="BattleDrawing"/>). Live objects (a combatant, a number, a
 /// missile, a spell's visual) are only keys, which the views made their parts for as each was cued; what they show is the frame's.
@@ -97,7 +97,7 @@ public sealed class BattleFrame
     public required IReadOnlyList<EmitterStart> Emitters { get; init; }
 
     /// <summary>
-    /// The sound calls a fast-forward passed over under Start Early (ADR 0040): none starts, sets or plays, but a sound already started
+    /// The sound calls a fast-forward passed over under Start Early: none starts, sets or plays, but a sound already started
     /// still stops or takes its duration. Each recorded call is drawn once, in <see cref="Sounds"/> or here.
     /// </summary>
     public IReadOnlyList<SoundCall> SkippedSounds { get; init; } = [];
@@ -109,7 +109,7 @@ public sealed class BattleFrame
     public bool Walking => State == CombatState.Moving;
 
     /// <summary>
-    /// Whether this is a turn the player plays, waiting on them: its walk and aim, its held menus and the Troubadour's prompt (ADR 0040's
+    /// Whether this is a turn the player plays, waiting on them: its walk and aim, its held menus and the Troubadour's prompt (Start Early's
     /// stage 4 opens one early).
     /// </summary>
     public bool PlayersTurn => State is CombatState.Turn or CombatState.TargetAttack or CombatState.TargetThrown or CombatState.TargetSpell
@@ -129,7 +129,7 @@ public sealed class BattleFrame
 
     /// <summary>
     /// The bodies whose actors are drawn from a different tick than the one after the last drawn (an idle body meeting its next action
-    /// under Start Early), whose views blend from the pose they had (ADR 0040). None on a frame the battle recorded.
+    /// under Start Early), whose views blend from the pose they had (Start Early). None on a frame the battle recorded.
     /// </summary>
     public IReadOnlySet<Combatant> Jumped { get; init; } = Empty;
 

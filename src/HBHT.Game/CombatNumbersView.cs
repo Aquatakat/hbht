@@ -98,7 +98,7 @@ public partial class MissileView : Node3D
 
     /// <summary>
     /// An arrow, thrown weapon or flask leaves (<see cref="MissileLaunched"/>): its scene is made. Under Start Early another action's may
-    /// still be flying (ADR 0040), so each flight has its own.
+    /// still be flying (Start Early), so each flight has its own.
     /// </summary>
     public void Launch(MissileFlight flight)
     {

@@ -49,7 +49,7 @@ public sealed class ActorMotion : IActorMotion
     /// <summary>
     /// The actor's motion as the views draw it (<c>Models.InstantiateActor</c>), with its locators: for a scene with animations, moving
     /// or still, which the views give an animator; null for one without, or with no asset, which they draw still. The core owns it, and
-    /// the views pose its scene where it stands (ADR 0040).
+    /// the views pose its scene where it stands (Start Early).
     /// </summary>
     public static ActorMotion? AsDrawn(PluginSet plugins, ActorRecord actor, IRandom rolls) =>
         ActorScenes.Of(plugins).Get(actor.Scene) is { Plays: true } scene
@@ -87,7 +87,7 @@ public sealed class ActorMotion : IActorMotion
 
     /// <summary>
     /// Who hears the requests its emitters start for, where <see cref="Particles"/> would start them: a battle's recording, which the
-    /// views start their own emitters from as they draw the tick (ADR 0040). Heard as it's made and on every state it enters, as
+    /// views start their own emitters from as they draw the tick (Start Early). Heard as it's made and on every state it enters, as
     /// <see cref="Particles"/> is.
     /// </summary>
     public Action<int>? Starts

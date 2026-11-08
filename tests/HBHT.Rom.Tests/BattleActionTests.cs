@@ -202,7 +202,7 @@ public sealed class BattleActionTests(Na10Import fixture)
     public void AFlaskLeavesTheThrowersHandForTheTargetsCentre()
     {
         // Combat.StartCastCamera: from the hand's locator (+0x88) as the body is drawn, to the target body's centre. The core poses the
-        // hand itself (ADR 0040), at the throw's strike.
+        // hand itself (Start Early), at the throw's strike.
         var run = Start();
         var brenna = run.TurnOf("Brenna");
         run.Built.Game.Party.Inventory.Add(PotionId(BasePotion.FireFlask), 2);
@@ -364,7 +364,7 @@ public sealed class BattleActionTests(Na10Import fixture)
             run.Battle.StepTarget(1);
         Assert.True(run.Battle.Confirm());
 
-        // The core's own actors: the combatants' and the visuals' (ADR 0040).
+        // The core's own actors: the combatants' and the visuals' (Start Early).
         void Tick() => run.Battle.Tick(run.Zone);
         for (var i = 0; i < 2000 && run.Battle.State != CombatState.Action; i++)
             Tick();

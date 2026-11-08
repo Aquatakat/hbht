@@ -542,7 +542,7 @@ public sealed record CombatGuiFrame(
 
     /// <summary>
     /// What <see cref="RadarDots"/> was drawn from (<see cref="CombatRadar.Entries"/>), so a drawing that composes bodies from different
-    /// ticks can place each dot where its body is drawn (ADR 0040's stage 3).
+    /// ticks can place each dot where its body is drawn (Start Early).
     /// </summary>
     public CombatRadarEntries? Radar { get; init; }
 

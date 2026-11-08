@@ -9,7 +9,7 @@ using HBHT.Core.Trek;
 namespace HBHT.Core.Combat;
 
 /// <summary>
-/// Draws a battle from its recording (ADR 0040): it steps the battle, records each tick as a frame (<see cref="BattleRecorder"/>), and
+/// Draws a battle from its recording (Start Early): it steps the battle, records each tick as a frame (<see cref="BattleRecorder"/>), and
 /// draws one frame a tick, handing its one-offs to whatever presents the battle, playing its sounds, and moving its drawn camera, which
 /// the arena's map sounds, weather and the views go by. The views read <see cref="Frame"/> alone.
 /// </summary>
@@ -147,7 +147,7 @@ public sealed class BattleDrawing
                 RunAhead(arena);
             else if (CaughtUp || Turns == CombatTurns.StartEarly && _composer.AtPresent)
                 // The battle waits on the player: it steps with the drawing once the drawing has caught up, or under Start Early once
-                // the player's turn is drawn up to the present (ADR 0040's stage 4).
+                // the player's turn is drawn up to the present (Start Early).
                 Step(arena, readInput);
             Touch();
             var clock = Stopwatch.StartNew();
@@ -227,7 +227,7 @@ public sealed class BattleDrawing
 
     /// <summary>
     /// Under Start Early, what the player's turn touches that's still drawing is fast-forwarded first, so the player sees it as it is
-    /// (ADR 0040's stage 4): the target the cursor is on while an attack, a throw or a spell is aimed and every target it selects, and
+    /// (Start Early): the target the cursor is on while an attack, a throw or a spell is aimed and every target it selects, and
     /// while an area is placed every body in it. The menus touch nothing; the player's walk, its missile and its spell's actor coming near
     /// a body or missile drawn behind are the composer's (<see cref="BattleComposer"/>'s guard).
     /// </summary>

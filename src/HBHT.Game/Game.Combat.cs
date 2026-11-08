@@ -27,7 +27,7 @@ public partial class Game
     /// <summary>The battle playing, in place of trek's world.</summary>
     private Battle? Battle => _session?.Battle;
 
-    /// <summary>What draws the battle playing from its recording, whose frame drawn now the views draw (ADR 0040).</summary>
+    /// <summary>What draws the battle playing from its recording, whose frame drawn now the views draw (Start Early).</summary>
     private BattleDrawing? Drawing => _session?.Drawing;
 
     /// <summary>The combatants' views made since the last tick drawn, which are put in place at once rather than interpolated there.</summary>
@@ -130,7 +130,7 @@ public partial class Game
 
     /// <summary>
     /// Draws the combatants, the numbers over their heads, an arrow in flight, the spells' visuals, the ring and the aim, the camera and the
-    /// fade where the battle's recording has them on the tick drawn (ADR 0040), each actor's emitters started first as it started them.
+    /// fade where the battle's recording has them on the tick drawn (Start Early), each actor's emitters started first as it started them.
     /// </summary>
     private void SyncBattle()
     {

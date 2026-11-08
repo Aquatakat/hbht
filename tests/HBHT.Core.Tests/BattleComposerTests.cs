@@ -6,7 +6,7 @@ using HBHT.Core.Ui;
 namespace HBHT.Core.Tests;
 
 /// <summary>
-/// Start Early's scheduling (ADR 0040's stage 3, <see cref="BattleComposer"/>) over made-up recordings: bodies walking in straight lines
+/// Start Early's scheduling (Start Early, <see cref="BattleComposer"/>) over made-up recordings: bodies walking in straight lines
 /// over made-up turns, recorded whole as the run-ahead records them, then drawn a tick at a time.
 /// </summary>
 public sealed class BattleComposerTests

@@ -199,7 +199,7 @@ public sealed class CombatCueTests(Na10Import fixture)
 
         // Each cast: its line, the caster's cast, her actor and the target's lasting scene, the target helped, and the queued line as the
         // result shows; the second cast's line comes up over the first's queued one. Her actor plays its cast and its particles out, the
-        // core's own (ADR 0040), and ends after the result: the battle waits for its strike, not its end.
+        // core's own (Start Early), and ends after the result: the battle waits for its strike, not its end.
         Assert.Equal(
         [
             "log Rheda casts Endurance",

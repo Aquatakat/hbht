@@ -42,7 +42,7 @@ public sealed class AudioKeys(ISoundOutput audio, SoundsRecord sounds, IRandom r
 {
     /// <summary>
     /// What the bodies' sounds play through: the game's audio, or something that takes them in its place, as a battle's recording will
-    /// (ADR 0040). Every call a body's key makes goes through it, and none reads back how far the mixer has got.
+    /// (Start Early). Every call a body's key makes goes through it, and none reads back how far the mixer has got.
     /// </summary>
     public ISoundOutput Output { get; set; } = audio;
 
@@ -102,7 +102,7 @@ public sealed class AudioKeys(ISoundOutput audio, SoundsRecord sounds, IRandom r
     }
 
     /// <summary>
-    /// The body whose keys are being processed, while they are: what a recording of a battle tells each sound's owner by (ADR 0040).
+    /// The body whose keys are being processed, while they are: what a recording of a battle tells each sound's owner by (Start Early).
     /// </summary>
     public BodyAudio? Keying { get; private set; }
 

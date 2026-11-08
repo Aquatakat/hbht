@@ -109,7 +109,7 @@ public sealed partial class Combatant
     /// <summary>
     /// Its actor's animations, which the battle steps its body by and the views pose its scene where they stand, or null for a body the
     /// views draw still (<see cref="Actors.ActorMotion.AsDrawn"/>). The battle makes it as the combatant comes onto the field: the core
-    /// owns it, so a battle plays the same with a view or without (ADR 0040).
+    /// owns it, so a battle plays the same with a view or without (Start Early).
     /// </summary>
     public Actors.ActorMotion? Actor { get; internal set; }
 

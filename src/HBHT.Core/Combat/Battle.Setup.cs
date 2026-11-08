@@ -398,7 +398,7 @@ public sealed partial class Battle
         // Combatant.Init: the first spell it knows is selected.
         if (sheet.Spells.Count > 0)
             combatant.Spell = new SpellChoice(SpellSourceKind.Known);
-        // The core owns its actor's animations, which roll on the bodies' stream as the views' did (ADR 0040).
+        // The core owns its actor's animations, which roll on the bodies' stream as the views' did (Start Early).
         if (Game.Plugins.TryGet<ActorRecord>(look.Actor) is { } actor)
             combatant.Actor = Actors.ActorMotion.AsDrawn(Game.Plugins, actor, Game.Random.Animation);
         _slots[slot] = combatant;

@@ -4,7 +4,7 @@ using HBHT.Core.Ui;
 namespace HBHT.Core.Combat;
 
 /// <summary>
-/// Schedules and composes a battle's actions as they're drawn (ADR 0040's stage 3), over its recording cut into actions
+/// Schedules and composes a battle's actions as they're drawn (Start Early), over its recording cut into actions
 /// (<see cref="BattleActions"/>): when each action starts drawing, which tick each body, number, missile and spell's actor is drawn from on
 /// each drawn tick, and what plays once as each timeline reaches it. <see cref="BattleDrawing"/> drives it, a drawn tick at a time
 /// (<see cref="Next"/>) under Start Early, and keeps it at the battle's present (<see cref="Settle"/>) under Original. It needs nothing of
@@ -146,7 +146,7 @@ public sealed class BattleComposer
 
     /// <summary>
     /// Whether a body is still drawn behind the battle's present: idling behind it, or in an episode of an action the drawing hasn't
-    /// finished. What a turn the player plays can fast-forward (ADR 0040's stage 4).
+    /// finished. What a turn the player plays can fast-forward (Start Early).
     /// </summary>
     public bool Behind(Combatant body) => _tracks.TryGetValue(body, out var t) && !t.Gone && t.Cursor < _actions.Last;
 
@@ -154,7 +154,7 @@ public sealed class BattleComposer
     public int? DrawnTickOf(Combatant body) => _tracks.TryGetValue(body, out var t) && !t.Gone ? t.Cursor : null;
 
     /// <summary>
-    /// The turn the player plays, opened early and drawn on the battle's present (ADR 0040's stage 4): the newest action, opened once its
+    /// The turn the player plays, opened early and drawn on the battle's present (Start Early): the newest action, opened once its
     /// combatant was free, while its turn goes on. Null if none.
     /// </summary>
     public DrawnAction? Live
@@ -194,7 +194,7 @@ public sealed class BattleComposer
     private bool Played(Episode e) => e.Action.Start is { } s && s <= _drawn && e.Action.TickAt(_drawn) > e.To;
 
     /// <summary>
-    /// What the player's turn touches is drawn where it is (ADR 0040's stage 4): each action still drawing one of these bodies, before the
+    /// What the player's turn touches is drawn where it is (Start Early): each action still drawing one of these bodies, before the
     /// player's, is fast-forwarded to its end, with what it depends on. What they pass is handed over with the next frame, its sounds
     /// and emitters skipped.
     /// </summary>
@@ -917,7 +917,7 @@ public sealed class BattleComposer
     }
 
     /// <summary>
-    /// What the player's turn reaches on the present is drawn where it is first (ADR 0040's stage 4):
+    /// What the player's turn reaches on the present is drawn where it is first (Start Early):
     /// <list type="bullet">
     /// <item>a body the turn has reached (a target hit, one pushed) that still has an earlier part to draw;</item>
     /// <item>a body still drawn behind whose remaining path comes within reach of what the turn draws now (its combatant walking, its
@@ -1012,7 +1012,7 @@ public sealed class BattleComposer
     }
 
     /// <summary>
-    /// The last word on a drawn tick (ADR 0040's stage 4): two bodies drawn from different ticks that touch nearer than either tick
+    /// The last word on a drawn tick (Start Early): two bodies drawn from different ticks that touch nearer than either tick
     /// recorded them, as a fast-forward of one action can leave them (a walk skipped to its end where a body drawn behind still stands),
     /// have the one drawn behind brought on (<see cref="Release"/>) till none do.
     /// </summary>

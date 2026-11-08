@@ -168,7 +168,7 @@ public class GameAudioTests
     public void WhetherASoundPlaysOnIsKeptByTheGamesTicksNotTheMixers()
     {
         // 1001 rows a 20 ms period apart, the first read on the sequencer's first step: it stops on the step that reads the last, the
-        // 20,001st millisecond, which the game's 1,201st tick passes (ADR 0040).
+        // 20,001st millisecond, which the game's 1,201st tick passes (Start Early).
         var audio = Audio();
         Assert.Equal(20_001, AudioEngine.StopsAfter(LongNote(1000)));
         var once = audio.Start(Tune, 0xFF, 0x80, loop: false);

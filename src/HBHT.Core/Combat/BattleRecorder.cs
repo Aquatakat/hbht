@@ -4,7 +4,7 @@ using HBHT.Plugins;
 namespace HBHT.Core.Combat;
 
 /// <summary>
-/// What records a battle as it's drawn (ADR 0040): the battle's host, which keeps its one-offs for the frame in the making; the bodies'
+/// What records a battle as it's drawn (Start Early): the battle's host, which keeps its one-offs for the frame in the making; the bodies'
 /// sounds' output (<see cref="ISoundOutput"/>, set as the arena's <see cref="AudioKeys.Output"/>), which keeps their calls; what hears the
 /// combatants' and the spells' visuals' actors start their emitters; and <see cref="Sample"/>, which makes a tick's frame of all of it
 /// with everything the views show. <see cref="BattleDrawing"/> drives it.

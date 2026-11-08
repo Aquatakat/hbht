@@ -26,14 +26,43 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 ### Planned
 
-- **Combat Turns: Start Early,** a setting that starts the next combatant while the last action is still being drawn ([ADR 0040](adr/0040-start-early-draws-battles-from-a-recording.md)). The core plays the AI's turns ahead in Original's order, and only the drawing overlaps. In stages, each with its tests:
-  1. **The battle asks the view nothing that changes its ticks.** Done Nov 7, 2026 ([combat](systems/combat.md#the-port)): the core owns the combatants' actor motions (`Combatant.Actor`), poses the hand's locator from the actor's glTF (`Combatant.LocatorAt`, `SceneSkeleton`), plays the spells' visuals' actors and times their emitters on a particle head of its own, and the sounds go through `ISoundOutput`, whose `IsPlaying` is kept by the game's ticks. Headless battles play as the live game does.
-  2. **Draw from a recording.** Done Nov 7, 2026 ([combat](systems/combat.md#drawn-from-a-recording)): the battle records what's drawn tick by tick (`BattleRecorder`, `BattleFrame`), and the views read only that (`BattleDrawing.Frame`), under both settings; the arena's map sounds, weather and music hold step at the drawing's pace. Combat Turns is on the Enhancements page (`--combat-turns early`). Start Early runs the battle ahead while it doesn't wait on the player and plays it back in order, with nothing overlapping; Start fast-forwards the drawing first, and A in an AI's walk only fast-forwards it. `StartEarlyTests` steps five checkpoint and parity battles both ways and finds the same frames tick for tick, the same log, health, cells and places, and the same random streams.
-  3. **Overlap the AI's turns.** Done Nov 7, 2026 ([combat](systems/combat.md#overlapping-the-ais-turns)): the recording is cut into actions, one a turn, with each body's episodes in it (`BattleActions`); an action starts as soon as the bodies it involves have finished their earlier parts and nothing it draws crosses another's path, and each drawn tick is composed from the actions and the bodies' own timelines, every one-off played once (`BattleComposer`). An idle body plays its own idle ticks and blends into its next action. HP bars, the log and the radar are composed from where each body is drawn, and the player's turn and the battle's end wait for the drawing. The five `StartEarlyTests` battles draw 0–29% shorter.
-  4. **Open the player's turns early.** Done Nov 7, 2026 ([combat](systems/combat.md#opening-the-players-turns-early)): a turn the player plays opens once its combatant is free in the drawing and is drawn on the present while earlier actions finish behind it. What it aims at, the bodies in a placed area, and a body or missile drawn behind that its walk, missile or spell's actor comes near are fast-forwarded first, each action holding them to its end with what it depends on (`BattleComposer.Release`, `Forward`). A in an AI's walk brings only the walks drawing to their ends, as Original's A skips one walk, and the rest plays on (`SkipWalks`). The five `StartEarlyTests` battles draw 0–59% shorter than Original (the rats 16,233 ticks, 11,593 with stage 3, 6,661 now).
-  5. **The camera,** last: shots that hold overlapping actions.
-  - **The user's play of stage 3** (the big rat group): no one walked through anyone, the sounds were right, the health bars dropped as the hits were drawn, and the log showed the newest turn drawn. The bandits threw as soon as their own spell damage had played, while spells still landed on others, as planned. The camera is a lot with turns overlapping, left for stage 5.
-  - **After the stages: throws and missiles feel late.** The user played stage 1 and found the ambient sounds, the music and the casting sounds right, but a throw's or a shot's timing late. Whether stage 1 moved it, or it was late against 1.0 before, isn't checked. To tighten afterwards, the user's choice.
+- **Combat Turns: Start Early,** a setting that starts the next combatant while the last action is still being drawn ([combat](systems/combat.md#drawn-from-a-recording)). The core plays the AI's turns ahead in Original's order, and only the drawing overlaps. Four stages were done on Nov 7, 2026:
+  - the battle asks the view nothing that changes its ticks;
+  - it's drawn from a recording (`BattleRecorder`, `BattleFrame`, `BattleDrawing`);
+  - the AI's turns overlap where they share no bodies or paths (`BattleActions`, `BattleComposer`);
+  - the player's turns open early.
+
+  The five `StartEarlyTests` battles draw up to 59% shorter than Original, and their rules and random numbers stay Original's tick for tick. The user played it: no one walks through anyone, the sounds and health bars are right, and it's faster than expected, perhaps too fast, which piece A slows a little. The rest is in three pieces. A and B touch different code and can run side by side; C needs both.
+  - **A. Start Early's pacing**, in the composer.
+    - **Beats.** A result is a beat: damage, a miss or dodge, a defeat, or an effect added (a buff or debuff, such as Mirror, Weakness or Haste). It runs from its strike to the end of its reaction.
+      - Beats may play at once as long as one shot can hold them all. The user expects that's usually possible with shots the original never takes: a low shot across the field from one end, or a top-down one.
+      - Where no shot can hold them, the later action starts later, so its beat lands once the camera is free. Its walk still starts early where it can.
+      - Whether beats share a shot is C's question to answer. Until C, a stand-in answers it.
+    - **A player's turn waits for the results before it.** It opens once every beat before it has played, or can stay in shot alongside the player's camera. An enemy's turn may still start early, especially its walk.
+    - **Holding the player's control.** Control comes at the first tick from which the party member can't touch any enemy still walking. Work out how far the party member could have got by each tick, at its greatest travel a tick, kept inside its movement ring. That reach must never come within the enemy's radius plus a buffer scaled by the enemy's size, over the whole of the enemy's drawn walk.
+      - The enemy's places are the recording's, so its speed never comes into it.
+      - Aiming is held the same way. A skips the wait by fast-forwarding whatever holds it.
+      - This replaces stage 4's fast-forwarding of the bodies the player's walk comes near.
+  - **B. Camera: Enhanced**, a setting of its own on the Enhancements page (Original or Enhanced; it may carry trek's camera features later). It's for turns played the Original way. It's a camera in the core, not just in the drawing, because a turn's stick and its area placement are read against the camera's look (`Battle.Turns.cs:107`, `Battle.Spells.cs:420`).
+    - **Events:** Original's shots, with slower lead-ins, and with sight lines kept clear of walls and bodies.
+    - **The player's position:** followed as now, trek's way.
+    - **The player's targets:** as the player points the character while moving, take a cone of the bodies they might be targeting, enemies and party members both. Weight it by the equipped weapon: nearer bodies for melee, farther for a ranged weapon or a staff. Pick one representative target, near the cone's centre, and change it only when another is clearly better. Then find an angle that shows both the character and the target, hiding neither, with wide and high shots allowed. That shows the reserves that come in over a hill, which the original never shows.
+    - **Aiming:** melee as now. An area spell (Fireball, which hits the party too) aims from a top-down view that holds its whole area. Other ranged aiming zooms out far enough to show its whole reach or area, and lets the reticle move freely in the view rather than the camera chasing it.
+    - **The player's hand on the camera:** once the player turns the camera themselves in their turn, the director lets go, and Original's camera goes on until the turn ends.
+    - **Motion:** cap the camera's acceleration rather than its speed. Then a long move, from one end of the field to the other or swooping down from a wide shot, is smooth rather than slow.
+    - **Where it may go:** the arenas are ordinary world chunks; the indoor ones have no ceilings and draw a black sky. So the camera may go anywhere.
+  - **C. Start Early's director.** Under Start Early the camera is always B's Enhanced camera, whatever the Camera setting says. It builds on B.
+    - **Beats come first.** Damage taken or an attack missed is never off camera. It frames beats that play at once, as A asks, and answers A's question of whether a shot can hold them.
+    - **It plans ahead from the recording.** The beats to come are already recorded, so under the acceleration cap it can start moving early and arrive as a hit lands.
+    - **The player's turn** shows the character, their targets, and any beats still playing.
+    - **Aiming** works as in B, zoomed out to hold whatever is happening.
+  - **The stage 5 draft** (branch `claude/start-early-s5-19a03d`) isn't to be merged as it is. B and C take its useful parts:
+    - its occlusion scoring, by the arena's collision and by bodies;
+    - the tuning record and `--battle-camera`;
+    - F3's camera line;
+    - the sounds' volume and pan by the drawn camera.
+  - **The log** is hard to follow under Start Early; the user is thinking about what could replace it.
+  - **After the pieces: throws and missiles feel late.** The user played stage 1 and found the ambient sounds, the music and the casting sounds right, but a throw's or a shot's timing late. Whether stage 1 moved it, or it was already late against 1.0, isn't checked. To tighten afterwards, the user's choice.
 
 ## Phases
 
