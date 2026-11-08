@@ -31,11 +31,20 @@ public sealed record CameraTuning
     /// <summary>The cap on how fast the view's turn and pitch speed up and slow down (degrees a second squared).</summary>
     public float TurnAcceleration { get; init; } = 240;
 
-    /// <summary>The cap on how fast its distance from the aim speeds up and slows down (units a second squared).</summary>
-    public float ZoomAcceleration { get; init; } = 40;
+    /// <summary>
+    /// The cap on how fast its distance from the aim speeds up and slows down, by proportion: its logarithm's acceleration, a second squared.
+    /// 4 takes a zoom from 7 out to 55 (or back) in about a second and a half, at the same pace close in as far out.
+    /// </summary>
+    public float ZoomAcceleration { get; init; } = 4;
 
     /// <summary>How quickly the last of a move closes, a second's share: a gentle landing rather than a wobble round the goal.</summary>
     public float Settle { get; init; } = 4;
+
+    /// <summary>
+    /// The same for the distance, gentler: how fast it closes on its goal by proportion, near it. It bounds how far a zoom carries on once its
+    /// goal turns round, as when the next turn asks for a wide shot while the camera is still closing in.
+    /// </summary>
+    public float ZoomSettle { get; init; } = 2;
 
     /// <summary>How far a goal may move in a tick and be followed at its own speed; further, it jumped.</summary>
     public float GoalJump { get; init; } = 1;
@@ -45,6 +54,24 @@ public sealed record CameraTuning
     /// quicker, from a wide shot.
     /// </summary>
     public float HandAcceleration { get; init; } = 4;
+
+    /// <summary>
+    /// The most of a moving goal's own speed the camera follows at, units a second: a running body's. A goal that lunges and stops, as the
+    /// original's camera does chasing a far aim, is then never overshot by more than the cap can stop in.
+    /// </summary>
+    public float FollowSpeed { get; init; } = 8;
+
+    /// <summary>The same for the turn, degrees a second.</summary>
+    public float FollowTurn { get; init; } = 90;
+
+    /// <summary>
+    /// While its aim has far to go, the camera stands back at least this times the way left, so a move across the field is a swoop that
+    /// keeps both ends in view rather than a close pan over the ground between; it comes down as it arrives. 0 for none.
+    /// </summary>
+    public float TravelZoom { get; init; } = 1.2f;
+
+    /// <summary>The nearest the eye comes to what it aims at.</summary>
+    public float NearestDistance { get; init; } = 3;
 
     /// <summary>A goal whose aim is further than this from the camera's is cut to rather than moved to. Rare by design.</summary>
     public float CutDistance { get; init; } = 80;
@@ -159,7 +186,7 @@ public sealed record CameraTuning
     public int ReachPoints { get; init; } = 16;
 
     /// <summary>The caps on the camera's motion.</summary>
-    public MotionCaps Caps => new(AimAcceleration, TurnAcceleration, ZoomAcceleration, Settle);
+    public MotionCaps Caps => new(AimAcceleration, TurnAcceleration, ZoomAcceleration, Settle, ZoomSettle);
 
     /// <summary>The lens shots are judged by.</summary>
     public Lens Lens => new(FieldOfView, Aspect, FrameMargin);

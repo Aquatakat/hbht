@@ -59,7 +59,7 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
     }
 
     [Fact]
-    public void TheCamerasAccelerationStaysWithinItsCapsThroughABattle()
+    public void TheCamerasAccelerationStaysWithinItsCapsAndItsEyeOffItsAimThroughABattle()
     {
         // The party walks forward in each turn, then attacks: turns, aims, glides and the AI's walks, all under the caps.
         var caps = CameraTuning.Default.Caps;
@@ -70,6 +70,7 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
             if (r.Battle.CombatCamera.Enhanced?.Motion is not { } m)
                 return;
             var (y, p, d) = m.Speeds;
+            Assert.True(m.Current.Distance >= CameraTuning.Default.NearestDistance, $"the eye {m.Current.Distance} from its aim");
             if (last is { } l)
             {
                 aimMost = MathF.Max(aimMost, (m.AimSpeed - l.Aim).Length() * 60);

@@ -142,8 +142,9 @@ public sealed class EnhancedCamera
         _motion ??= new CappedMotion(originalShot, t.Caps);
         var caps = t.Caps;
         _motion.Caps = Released ? new MotionCaps(caps.Aim * t.HandAcceleration, caps.Turn * t.HandAcceleration, caps.Zoom * t.HandAcceleration,
-            caps.Settle * MathF.Sqrt(t.HandAcceleration)) : caps;
+            caps.Settle * MathF.Sqrt(t.HandAcceleration), caps.ZoomSettle * MathF.Sqrt(t.HandAcceleration)) : caps;
         _motion.GoalJump = t.GoalJump;
+        _motion.MostFollowed = (t.FollowSpeed, Rad(t.FollowTurn));
         if (battle.Current != _turnOf)
         {
             _turnOf = battle.Current;
@@ -151,9 +152,13 @@ public sealed class EnhancedCamera
         }
 
         var goal = Decide(battle, originalShot, glide);
-        goal = goal with { Pitch = Math.Clamp(goal.Pitch, Rad(-60), Rad(89)), Distance = MathF.Max(goal.Distance, 1) };
+        // The player's own camera is the original's as it is; the director's shots keep their distance.
+        if (!Released)
+            goal = goal with { Pitch = Math.Clamp(goal.Pitch, Rad(-60), Rad(89)), Distance = MathF.Max(goal.Distance, t.NearestDistance) };
+        _motion.NearestDistance = MathF.Min(t.NearestDistance, goal.Distance);
         Goal = goal;
-        if (Vector3.Distance(goal.Aim, _motion.Current.Aim) > t.CutDistance)
+        var travel = Vector3.Distance(goal.Aim, _motion.Current.Aim);
+        if (travel > t.CutDistance)
         {
             _motion.Cut(goal);
             Camera.Cut();
@@ -161,7 +166,8 @@ public sealed class EnhancedCamera
         }
         else
         {
-            _motion.Step(goal);
+            // A long way to go is a swoop: stood back by the way left, both ends in view, coming down as it arrives.
+            _motion.Step(travel * t.TravelZoom > goal.Distance ? goal with { Distance = travel * t.TravelZoom } : goal);
         }
         var shot = _motion.Current;
         var eye = shot.Eye;

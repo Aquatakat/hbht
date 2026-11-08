@@ -250,6 +250,49 @@ public sealed class EnhancedCameraTests
         Assert.InRange(motion.AimSpeed.X, 2.9f, 3.1f);
     }
 
+    [Fact]
+    public void AGoalThatLungesAndStopsIsOvershotByLittleAndTheEyeNeverReachesTheAim()
+    {
+        // The original's camera chasing a far aim: its aim a unit a tick for 20 ticks, its distance shrinking as fast, then still.
+        var t = T;
+        var motion = new CappedMotion(new Shot(Vector3.Zero, 0, 0.5f, 22), t.Caps) { MostFollowed = (t.FollowSpeed, ShotFinder.Rad(t.FollowTurn)), NearestDistance = t.NearestDistance };
+        var goal = new Shot(Vector3.Zero, 0, 0.5f, 22);
+        var most = 0f;
+        for (var tick = 0; tick < 600; tick++)
+        {
+            if (tick < 20)
+                goal = goal with { Aim = goal.Aim + new Vector3(0.9f, 0, 0), Distance = goal.Distance - 0.9f };
+            motion.Step(goal);
+            most = MathF.Max(most, motion.Current.Aim.X - goal.Aim.X);
+            Assert.True(motion.Current.Distance >= t.NearestDistance);
+        }
+        // Following at most 8 a second, it stops within 8² / (2 × 30) of the goal, and some for the settling.
+        Assert.True(most < 1.5f, $"overshot by {most}");
+        Assert.True(Vector3.Distance(motion.Current.Aim, goal.Aim) < 0.05f);
+    }
+
+    [Fact]
+    public void AZoomInReversedHalfWayDoesntDiveAtTheGround()
+    {
+        // Zooming in from 55 toward a framing 7 away, the next turn asks for 22 and then a throw's 70: the battle's case. The zoom turns
+        // round by proportion, so it gives up only a share of the distance it's at, never most of it.
+        var motion = new CappedMotion(new Shot(Vector3.Zero, 0, 0.8f, 55), T.Caps);
+        var nearest = float.MaxValue;
+        var atSwitch = 0f;
+        for (var tick = 0; tick < 400; tick++)
+        {
+            if (tick == 45)
+                atSwitch = motion.Current.Distance;
+            var goal = tick < 45 ? 7 : tick < 75 ? 22.5f : 70;
+            motion.Step(new Shot(Vector3.Zero, 0, 0.8f, goal));
+            if (tick >= 45)
+                nearest = MathF.Min(nearest, motion.Current.Distance);
+        }
+        TestContext.Current.TestOutputHelper?.WriteLine($"{atSwitch:F1} as it turned, {nearest:F1} at the nearest");
+        Assert.True(nearest > atSwitch * 0.5f, $"{atSwitch} then down to {nearest}");
+        Assert.True(MathF.Abs(motion.Current.Distance - 70) < 0.5f);
+    }
+
     // ---- Tuning
 
     [Fact]

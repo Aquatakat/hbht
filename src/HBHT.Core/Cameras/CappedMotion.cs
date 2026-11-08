@@ -4,10 +4,12 @@ namespace HBHT.Core.Cameras;
 
 /// <summary>
 /// How fast a camera's motion may change: the aim's acceleration in units a second squared, the turn's (yaw and pitch) in degrees a
-/// second squared, and the distance's in units a second squared. Speed isn't capped. <see cref="Settle"/> is how quickly the last of a
+/// second squared, and the distance's by its proportion: how fast its logarithm may change, a second squared, so a zoom is even at
+/// every scale and a reversal close in costs little ground. Speed isn't capped. <see cref="Settle"/> is how quickly the last of a
 /// move closes, a second's share, so it eases onto its goal rather than wobbling round it.
 /// </summary>
-public readonly record struct MotionCaps(float Aim, float Turn, float Zoom, float Settle);
+/// <param name="ZoomSettle">The same for the distance, gentler, so a zoom turned round close in gives up little ground.</param>
+public readonly record struct MotionCaps(float Aim, float Turn, float Zoom, float Settle, float ZoomSettle = 2);
 
 /// <summary>
 /// A camera moved toward a goal shot with its acceleration capped, and its deceleration too, so it neither whips into a move nor stops
@@ -42,13 +44,23 @@ public sealed class CappedMotion
     /// <summary>How far a goal may move in a tick and still be followed; further, it jumped, and its own speed is taken as none.</summary>
     public float GoalJump { get; set; } = 1;
 
+    /// <summary>
+    /// The most of a moving goal's own speed that's followed, units a second for the aim and radians a second for the turn and the
+    /// distance's logarithm: a running body's, so a goal that lunges and stops (the original's camera chasing an aim) isn't overshot by
+    /// more than the cap can stop in.
+    /// </summary>
+    public (float Units, float Turn) MostFollowed { get; set; } = (8, MathF.PI / 2);
+
+    /// <summary>The nearest the eye comes to the aim, so an overshoot never puts it on the subject.</summary>
+    public float NearestDistance { get; set; } = 2;
+
     /// <summary>The shot the camera is at.</summary>
     public Shot Current { get; private set; }
 
     /// <summary>The aim's velocity, in units a second.</summary>
     public Vector3 AimSpeed => _aimSpeed;
 
-    /// <summary>The yaw's, pitch's and distance's velocities, in radians and units a second.</summary>
+    /// <summary>The yaw's, pitch's and distance's velocities: radians a second, and the distance's logarithm's a second.</summary>
     public (float Yaw, float Pitch, float Distance) Speeds => (_yawSpeed, _pitchSpeed, _distanceSpeed);
 
     /// <summary>Whether it's still moving, or still short of its last goal.</summary>
@@ -75,7 +87,7 @@ public sealed class CappedMotion
         {
             var moved = goal.Aim - last.Aim;
             var jumped = moved.Length() > GoalJump || MathF.Abs(Shot.Wrap(goal.Yaw - last.Yaw)) > 0.1f
-                || MathF.Abs(goal.Pitch - last.Pitch) > 0.1f || MathF.Abs(goal.Distance - last.Distance) > GoalJump;
+                || MathF.Abs(goal.Pitch - last.Pitch) > 0.1f || MathF.Abs(MathF.Log(goal.Distance / last.Distance)) > 0.1f;
             if (jumped)
             {
                 _goalAimSpeed = Vector3.Zero;
@@ -87,10 +99,17 @@ public sealed class CappedMotion
                 _goalAimSpeed += (moved / Tick - _goalAimSpeed) * k;
                 _goalYawSpeed += (Shot.Wrap(goal.Yaw - last.Yaw) / Tick - _goalYawSpeed) * k;
                 _goalPitchSpeed += ((goal.Pitch - last.Pitch) / Tick - _goalPitchSpeed) * k;
-                _goalDistanceSpeed += ((goal.Distance - last.Distance) / Tick - _goalDistanceSpeed) * k;
+                _goalDistanceSpeed += (MathF.Log(goal.Distance / last.Distance) / Tick - _goalDistanceSpeed) * k;
             }
         }
         _lastGoal = goal;
+
+        var (units, turnSpeed) = MostFollowed;
+        if (_goalAimSpeed.Length() > units)
+            _goalAimSpeed *= units / _goalAimSpeed.Length();
+        _goalYawSpeed = Math.Clamp(_goalYawSpeed, -turnSpeed, turnSpeed);
+        _goalPitchSpeed = Math.Clamp(_goalPitchSpeed, -turnSpeed, turnSpeed);
+        _goalDistanceSpeed = Math.Clamp(_goalDistanceSpeed, -turnSpeed, turnSpeed);
 
         var c = Current;
         var aim = c.Aim;
@@ -100,11 +119,17 @@ public sealed class CappedMotion
         Channel(ref yaw, ref _yawSpeed, yaw + Shot.Wrap(goal.Yaw - yaw), _goalYawSpeed, turn, caps.Settle);
         var pitch = c.Pitch;
         Channel(ref pitch, ref _pitchSpeed, goal.Pitch, _goalPitchSpeed, turn, caps.Settle);
-        var distance = c.Distance;
-        Channel(ref distance, ref _distanceSpeed, goal.Distance, _goalDistanceSpeed, caps.Zoom, caps.Settle);
-        Current = new Shot(aim, Shot.Wrap(yaw), pitch, MathF.Max(distance, ShotFraming.Near));
+        var log = MathF.Log(MathF.Max(c.Distance, 1e-3f));
+        Channel(ref log, ref _distanceSpeed, MathF.Log(MathF.Max(goal.Distance, 1e-3f)), _goalDistanceSpeed, caps.Zoom, caps.ZoomSettle);
+        var distance = MathF.Exp(log);
+        if (distance < NearestDistance)
+        {
+            distance = NearestDistance;
+            _distanceSpeed = MathF.Max(_distanceSpeed, 0);
+        }
+        Current = new Shot(aim, Shot.Wrap(yaw), pitch, distance);
         Moving = (goal.Aim - aim).Length() > 0.01f || MathF.Abs(Shot.Wrap(goal.Yaw - yaw)) > 0.002f || MathF.Abs(goal.Pitch - pitch) > 0.002f
-            || MathF.Abs(goal.Distance - distance) > 0.01f || _aimSpeed.Length() > 0.05f;
+            || MathF.Abs(goal.Distance - distance) > 0.01f * MathF.Max(distance, 1) || _aimSpeed.Length() > 0.05f;
     }
 
     private static void Channel(ref float x, ref float v, float goal, float goalSpeed, float most, float settle)
