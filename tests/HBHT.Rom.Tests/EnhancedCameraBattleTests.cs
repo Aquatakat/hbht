@@ -62,15 +62,24 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
     public void TheCamerasAccelerationStaysWithinItsCapsAndItsEyeOffItsAimThroughABattle()
     {
         // The party walks forward in each turn, then attacks: turns, aims, glides and the AI's walks, all under the caps.
+        // A cut starts again at rest, and the player's hand and an aim raise the caps, so those ticks aren't measured.
         var caps = CameraTuning.Default.Caps;
         var (aimMost, turnMost, zoomMost) = (0f, 0f, 0f);
         (Vector3 Aim, float Yaw, float Pitch, float Distance)? last = null;
+        var cuts = 0;
         var run = Play(host => Plain(Set, 1, host), CameraStyle.Enhanced, "*=stick:0:1:40/wait:10/accept/accept", r =>
         {
-            if (r.Battle.CombatCamera.Enhanced?.Motion is not { } m)
+            if (r.Battle.CombatCamera.Enhanced is not { Motion: { } m } e)
                 return;
             var (y, p, d) = m.Speeds;
             Assert.True(m.Current.Distance >= CameraTuning.Default.NearestDistance, $"the eye {m.Current.Distance} from its aim");
+            var cut = e.Cuts != cuts;
+            cuts = e.Cuts;
+            if (cut || e.Quick)
+            {
+                last = null;
+                return;
+            }
             if (last is { } l)
             {
                 aimMost = MathF.Max(aimMost, (m.AimSpeed - l.Aim).Length() * 60);
@@ -82,16 +91,16 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
         var enhanced = run.Battle.CombatCamera.Enhanced!;
         TestContext.Current.TestOutputHelper?.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"most acceleration: aim {aimMost:F1}, turn {turnMost:F1}, zoom {zoomMost:F1}; cuts {enhanced.Cuts}; {run.Ticks} ticks"));
-        Assert.Equal(0, enhanced.Cuts);
         Assert.True(aimMost <= caps.Aim * 1.001f, $"aim {aimMost}");
         Assert.True(turnMost <= caps.Turn * 1.001f, $"turn {turnMost}");
         Assert.True(zoomMost <= caps.Zoom * 1.001f, $"zoom {zoomMost}");
     }
 
     [Fact]
-    public void TheCameraStickLetsGoOfTheDirectorUntilTheTurnEnds()
+    public void TheCameraStickLetsGoOfTheDirectorUntilThePlayerAimsOrTheTurnEnds()
     {
         // Each member's turn: wait, turn the camera with its stick, wait, then attack.
+        var aimedReleased = 0;
         Combatant? turn = null;
         var (released, orbited, freshTurns, near, far) = (0, 0, 0, 0, 0);
         Play(host => Plain(Set, 1, host), CameraStyle.Enhanced, "*=wait:20/orbit:1:0:30/wait:60/accept/accept", run =>
@@ -107,6 +116,9 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
                 orbited = 0;
                 return;
             }
+            // Aiming takes it back.
+            if (battle.State is CombatState.TargetAttack or CombatState.TargetSpell or CombatState.TargetThrown or CombatState.PlaceArea && e.Released)
+                aimedReleased++;
             if (battle.Current is not { Controlled: false } || battle.State != CombatState.Turn)
                 return;
             if (e.Released)
@@ -129,6 +141,7 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
             }
         });
         Assert.True(released > 100, $"{released} ticks let go");
+        Assert.Equal(0, aimedReleased);
         Assert.True(freshTurns > 10, $"{freshTurns} turns");
         // Where the original's own camera jumps late in the wait (its leash snapping behind the character), the shown one is still on its way.
         Assert.True(near > 10 && far * 10 <= near, $"{near} waits ended within a unit of the original's camera, {far} further");
@@ -137,7 +150,7 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
     [Fact]
     public void ThePlayersTurnFramesTheCharacterWithItsTargetHidingNeither()
     {
-        var (framed, hidden, held) = (0, 0, 0);
+        var (framed, hidden, held, low) = (0, 0, 0, 0);
         Play(host => Plain(Set, 1, host), CameraStyle.Enhanced, "*=stick:0:1:40/wait:40/accept/accept", run =>
         {
             var battle = run.Battle;
@@ -150,11 +163,53 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
                 held++;
             if (finder.HiddenWeight(e.Goal, both) > 0)
                 hidden++;
+            if (e.Goal.Pitch <= ShotFinder.Rad(30) + 1e-4f)
+                low++;
+            // Only enemies are targets.
+            Assert.NotEqual(me.Hostile, target.Hostile);
         });
-        TestContext.Current.TestOutputHelper?.WriteLine($"{framed} ticks framed with a target: {held} holding both, {hidden} hiding one");
+        TestContext.Current.TestOutputHelper?.WriteLine($"{framed} ticks framed with a target: {held} holding both, {hidden} hiding one, {low} low");
         Assert.True(framed > 200, $"{framed} ticks framed");
         Assert.True(held >= framed * 0.98, $"{held} of {framed} held both");
         Assert.True(hidden <= framed * 0.02, $"{hidden} of {framed} hid one");
+        // Over the shoulder, unless only a higher shot sees the target.
+        Assert.True(low >= framed * 0.8, $"{low} of {framed} low");
+    }
+
+    [Fact]
+    public void AnAIsTurnIsOneShotPlannedOnceAndHeld()
+    {
+        // Through every AI's turn, the goal is planned once it acts and then held: planned again only if the walk or the target leaves it.
+        Combatant? turn = null;
+        Shot? planned = null;
+        var (turns, plans, moved) = (0, 0, 0);
+        Play(host => Plain(Set, 1, host), CameraStyle.Enhanced, Attacking, run =>
+        {
+            var battle = run.Battle;
+            var e = battle.CombatCamera.Enhanced!;
+            if (battle.Current != turn)
+            {
+                // The camera sees the turn begin on the tick after.
+                turn = battle.Current;
+                planned = null;
+                if (turn is { Controlled: true })
+                    turns++;
+                return;
+            }
+            if (turn is not { Controlled: true } || !e.Kind.EndsWith("planned", StringComparison.Ordinal))
+                return;
+            if (planned != e.Goal)
+            {
+                plans++;
+                planned = e.Goal;
+            }
+            if (!e.Motion!.Moving)
+                return;
+            moved++;
+        });
+        TestContext.Current.TestOutputHelper?.WriteLine($"{turns} AI turns, {plans} plans, {moved} ticks moving");
+        Assert.True(turns > 5, $"{turns} AI turns");
+        Assert.True(plans <= turns * 1.2, $"{plans} plans in {turns} turns");
     }
 
     // ---------------------------------------------------------------------------------------------------------------------------

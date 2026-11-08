@@ -162,15 +162,25 @@ public sealed class SightLines(CollisionWorld? world)
     /// <summary>How much bigger than its sphere a body hides what's behind it; 0 for bodies hiding nothing.</summary>
     public float BodyScale { get; set; } = 1.2f;
 
-    /// <summary>Whether the world's collision or a body hides <paramref name="s"/> from <paramref name="eye"/>.</summary>
-    public bool Hidden(Vector3 eye, ShotSubject s) => HiddenByBody(eye, s) || HiddenByWorld(eye, s);
+    /// <summary>
+    /// Whether the world's collision or a body hides <paramref name="s"/> from <paramref name="eye"/>: its upper half, the sight line to
+    /// its middle or to its top. Its lower half hidden, behind a rise or another's shoulder, it's still seen.
+    /// </summary>
+    public bool Hidden(Vector3 eye, ShotSubject s) =>
+        HiddenByBody(eye, s) || HiddenByWorld(eye, s)
+        || s.Radius > 0 && (HiddenByBody(eye, s, Top(s)) || HiddenByWorld(eye, s, Top(s)));
+
+    /// <summary>The top of a subject's sphere, a little inside it.</summary>
+    private static Vector3 Top(ShotSubject s) => s.At + new Vector3(0, s.Radius * 0.9f, 0);
 
     /// <summary>Whether another body is drawn across the sight line to <paramref name="s"/>.</summary>
-    public bool HiddenByBody(Vector3 eye, ShotSubject s)
+    public bool HiddenByBody(Vector3 eye, ShotSubject s) => HiddenByBody(eye, s, End(eye, s));
+
+    /// <summary>Whether another body is drawn across the sight line to <paramref name="end"/>, a point of <paramref name="s"/>.</summary>
+    private bool HiddenByBody(Vector3 eye, ShotSubject s, Vector3 end)
     {
         if (BodyScale <= 0)
             return false;
-        var end = End(eye, s);
         var line = end - eye;
         var reach = line.LengthSquared();
         if (reach < 1e-6f)
@@ -189,8 +199,10 @@ public sealed class SightLines(CollisionWorld? world)
     }
 
     /// <summary>Whether a sight line swept to just short of <paramref name="s"/> meets the world's collision facing it.</summary>
-    public bool HiddenByWorld(Vector3 eye, ShotSubject s) =>
-        world is not null && (eye - s.At).Length() > s.Radius + Radius && SpherePhysics.Blocked(world, eye, End(eye, s), Radius, skipSeeThrough: true);
+    public bool HiddenByWorld(Vector3 eye, ShotSubject s) => HiddenByWorld(eye, s, End(eye, s));
+
+    private bool HiddenByWorld(Vector3 eye, ShotSubject s, Vector3 end) =>
+        world is not null && (eye - s.At).Length() > s.Radius + Radius && SpherePhysics.Blocked(world, eye, end, Radius, skipSeeThrough: true);
 
     /// <summary>Where a sight line to a subject ends: just inside its sphere's near side.</summary>
     private static Vector3 End(Vector3 eye, ShotSubject s)

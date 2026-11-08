@@ -8,7 +8,7 @@ namespace HBHT.Core.Tests;
 /// <summary>
 /// Camera: Enhanced's parts, on hand-made worlds: whom the target cone picks and how it holds its pick, a shot that holds the character
 /// and the target with neither hidden, aiming's shots, the acceleration-capped motion, and the tuning's names
-/// (<see cref="EnhancedCamera"/>, <see cref="TargetCone"/>, <see cref="ShotFinder"/>, <see cref="AimFraming"/>, <see cref="CappedMotion"/>).
+/// (<see cref="EnhancedCamera"/>, <see cref="TargetCone"/>, <see cref="ShotFinder"/>, <see cref="CappedMotion"/>).
 /// </summary>
 public sealed class EnhancedCameraTests
 {
@@ -16,53 +16,41 @@ public sealed class EnhancedCameraTests
 
     // ---- The target cone
 
-    // The character at the origin pointing +Z; two bodies ahead, a near one slightly off the middle and a far one nearer it.
-    private static readonly TargetCandidate Near = new("near", new Vector3(1.2f, 0, 3), Opponent: true);
-    private static readonly TargetCandidate Far = new("far", new Vector3(-1.5f, 0, 16), Opponent: true);
+    // The character at the origin pointing +Z; two enemies ahead, a near one slightly off the middle and a far one nearer it.
+    private static readonly TargetCandidate Near = new("near", new Vector3(1.2f, 0, 3));
+    private static readonly TargetCandidate Far = new("far", new Vector3(-1.5f, 0, 16));
 
     [Fact]
-    public void AMeleeWeaponPointsAtTheNearerBodyAndARangedOneOrAStaffAtTheFarther()
+    public void TheNearerEnemyAheadIsTheTarget()
     {
-        var melee = new TargetCone();
-        melee.Pick(Vector3.Zero, Vector2.UnitY, far: false, [Near, Far], T);
-        Assert.Equal("near", melee.Target);
-
-        var ranged = new TargetCone();
-        ranged.Pick(Vector3.Zero, Vector2.UnitY, far: true, [Near, Far], T);
-        Assert.Equal("far", ranged.Target);
+        var cone = new TargetCone();
+        cone.Pick(Vector3.Zero, Vector2.UnitY, [Near, Far], T);
+        Assert.Equal("near", cone.Target);
     }
 
     [Fact]
-    public void ABodyOutsideTheConeIsntATargetAndEnemiesOutweighThePartyAtTheSamePlace()
+    public void AnEnemyOutsideTheConeIsntATarget()
     {
-        var behind = new TargetCandidate("behind", new Vector3(0, 0, -5), Opponent: true);
+        var behind = new TargetCandidate("behind", new Vector3(0, 0, -5));
+        var aside = new TargetCandidate("aside", new Vector3(5, 0, 3));
         var cone = new TargetCone();
-        cone.Pick(Vector3.Zero, Vector2.UnitY, far: false, [behind], T);
+        cone.Pick(Vector3.Zero, Vector2.UnitY, [behind, aside], T);
         Assert.Null(cone.Target);
-
-        var friend = new TargetCandidate("friend", new Vector3(0.5f, 0, 5), Opponent: false);
-        var enemy = new TargetCandidate("enemy", new Vector3(-0.5f, 0, 5), Opponent: true);
-        cone.Pick(Vector3.Zero, Vector2.UnitY, far: false, [friend, enemy], T);
-        Assert.Equal("enemy", cone.Target);
-        // A party member alone in the cone is a target too.
-        var alone = new TargetCone();
-        alone.Pick(Vector3.Zero, Vector2.UnitY, far: false, [friend], T);
-        Assert.Equal("friend", alone.Target);
     }
 
     [Fact]
     public void TheStickWobblingBetweenTwoBanditsDoesntFlickTheTarget()
     {
         // Two bandits 8 away, 20° either side of the middle; the stick wobbles ±25° about the middle every few ticks.
-        var left = new TargetCandidate("left", 8 * new Vector3(MathF.Sin(-0.35f), 0, MathF.Cos(-0.35f)), true);
-        var right = new TargetCandidate("right", 8 * new Vector3(MathF.Sin(0.35f), 0, MathF.Cos(0.35f)), true);
+        var left = new TargetCandidate("left", 8 * new Vector3(MathF.Sin(-0.35f), 0, MathF.Cos(-0.35f)));
+        var right = new TargetCandidate("right", 8 * new Vector3(MathF.Sin(0.35f), 0, MathF.Cos(0.35f)));
         var cone = new TargetCone();
         var changes = 0;
         for (var tick = 0; tick < 600; tick++)
         {
             var wobble = 0.44f * MathF.Sin(tick * 0.3f);
             var heading = new Vector2(MathF.Sin(wobble), MathF.Cos(wobble));
-            if (cone.Pick(Vector3.Zero, heading, far: false, [left, right], T) && tick > 0)
+            if (cone.Pick(Vector3.Zero, heading, [left, right], T) && tick > 0)
                 changes++;
         }
         Assert.Equal(0, changes);
@@ -73,17 +61,17 @@ public sealed class EnhancedCameraTests
     public void AClearlyLikelierBodyTakesTheTargetsPlaceOnceItHasBeenSoForAWhile()
     {
         var cone = new TargetCone();
-        cone.Pick(Vector3.Zero, Vector2.UnitY, far: false, [Near, Far], T);
+        cone.Pick(Vector3.Zero, Vector2.UnitY, [Near, Far], T);
         Assert.Equal("near", cone.Target);
         // The character turns to point straight at the far one: near is now 40° off, within the held cone but much less likely.
         var heading = Vector2.Normalize(new Vector2(-1.5f, 16));
         var near = Near with { At = new Vector3(2.6f, 0, 3) };
         for (var tick = 1; tick < T.TargetHold; tick++)
         {
-            cone.Pick(Vector3.Zero, heading, far: false, [near, Far], T);
+            cone.Pick(Vector3.Zero, heading, [near, Far], T);
             Assert.Equal("near", cone.Target);
         }
-        Assert.True(cone.Pick(Vector3.Zero, heading, far: false, [near, Far], T));
+        Assert.True(cone.Pick(Vector3.Zero, heading, [near, Far], T));
         Assert.Equal("far", cone.Target);
     }
 
@@ -149,60 +137,81 @@ public sealed class EnhancedCameraTests
         Assert.Equal(0, finder.HiddenWeight(finder.Corrected(original, by.Value, [subject]), [subject]));
     }
 
-    // ---- Aiming
-
-    private static List<ShotSubject> Reach(Vector3 caster, float reach, int n = 16)
+    [Fact]
+    public void OnOpenGroundTheShotIsLowOverTheCharactersShoulder()
     {
-        var points = new List<ShotSubject> { new(caster, 0.7f) };
-        for (var i = 0; i < n; i++)
-        {
-            var (s, c) = MathF.SinCos(MathF.Tau * i / n);
-            points.Add(new ShotSubject(caster + reach * new Vector3(c, 0, s) with { Y = 0 }, 0.5f));
-        }
-        return points;
+        // Looking now from the other side (yaw +90°): the shot still goes behind the character, low, not over the field from above.
+        var (finder, subjects) = TwoApart(Worlds.Flat());
+        var behind = -MathF.PI / 2;
+        var (shot, _) = finder.Best(subjects, from: MathF.PI / 2, behind)!.Value;
+        Assert.True(shot.Pitch <= ShotFinder.Rad(20) + 1e-4f, $"pitch {shot.Pitch * 180 / MathF.PI:F0}°");
+        Assert.True(MathF.Abs(Shot.Wrap(shot.Yaw - behind)) <= ShotFinder.Rad(30) + 1e-4f, $"yaw {shot.Yaw * 180 / MathF.PI:F0}°");
+        Assert.Equal(0, finder.HiddenWeight(shot, subjects));
+        // The eye is on the character's side, nearer it than the target.
+        Assert.True(Vector3.Distance(shot.Eye, subjects[0].At) < Vector3.Distance(shot.Eye, subjects[1].At));
     }
 
     [Fact]
-    public void AnAreaIsPlacedFromAboveWithItsWholeReachInView()
+    public void ABodyWhoseUpperHalfIsSeenIsntHidden()
     {
-        // Fireball at level 3, range 4: its centre goes 12 from the caster, its area 3 beyond.
-        var reach = Reach(new Vector3(0, 0.7f, 0), 15);
-        var framing = new AimFraming(reach, yaw: 0.4f, pitch: ShotFinder.Rad(T.TopDownPitch));
-        var shot = framing.Step(new Vector3(0, 0, 0), 3, T);
-        Assert.True(shot.Pitch >= ShotFinder.Rad(79), $"pitch {shot.Pitch}");
-        Assert.All(reach, p => Assert.True(ShotFraming.Holds(shot, p, T.Lens), $"{p.At} out of view"));
-        // The stick's up is the screen's up: the look across the ground is the yaw's, from above too.
+        // A crate-high wall at X = −3, 1 high, in front of a body 1.4 tall standing behind it at the origin: from a low eye on −X its legs
+        // are hidden and its middle and top aren't.
+        var world = new CollisionWorld();
+        world.Add(Worlds.Chunk(Worlds.OwnParts), Worlds.Floor(0, -40, 40, -40, 40), Vector3.Zero);
+        world.Add(Worlds.Chunk(Worlds.OwnParts + 1), Worlds.Wall(-3, 0.5f), Vector3.Zero);
+        var sight = new SightLines(world);
+        var body = new ShotSubject(new Vector3(0, 0.7f, 0), 0.7f);
+        Assert.False(sight.Hidden(new Vector3(-10, 1.2f, 0), body));
+        // Behind a wall up to its chest, it's hidden.
+        var chest = new CollisionWorld();
+        chest.Add(Worlds.Chunk(Worlds.OwnParts), Worlds.Floor(0, -40, 40, -40, 40), Vector3.Zero);
+        chest.Add(Worlds.Chunk(Worlds.OwnParts + 1), Worlds.Wall(-3, 1.2f), Vector3.Zero);
+        Assert.True(new SightLines(chest).Hidden(new Vector3(-10, 1.2f, 0), body));
+    }
+
+    [Fact]
+    public void AnAIsTurnIsPlannedAsOneShotHoldingItAllTurnedLeastFromTheShotsEitherSide()
+    {
+        // An enemy at +X walking toward the party and its target at the origin; the shot now and the next player's look the same way (+X).
+        var sight = new SightLines(Worlds.Flat());
+        var enemy = new ShotSubject(new Vector3(14, 0.7f, 0), 0.7f);
+        var to = new ShotSubject(new Vector3(4, 0.7f, 2), 0.7f);
+        var target = new ShotSubject(new Vector3(0, 0.7f, 0), 0.7f);
+        sight.Bodies.AddRange([enemy, target]);
+        var finder = new ShotFinder(sight, T);
+        var look = -MathF.PI / 2;
+        var (shot, _) = finder.Planned([enemy, to, target], from: look, next: look)!.Value;
+        Assert.All(new[] { enemy, to, target }, s => Assert.True(ShotFraming.Holds(shot, s with { Radius = 0 }, T.Lens), $"{s.At} out of view"));
+        Assert.Equal(0, finder.HiddenWeight(shot, [enemy, target]));
+        Assert.True(MathF.Abs(Shot.Wrap(shot.Yaw - look)) <= ShotFinder.Rad(45) + 1e-4f, $"yaw {shot.Yaw * 180 / MathF.PI:F0}°");
+    }
+
+    // ---- Aiming
+
+    [Fact]
+    public void AnAimKeepsTheReticleInTheMiddleOfTheScreen()
+    {
+        var finder = new ShotFinder(new SightLines(null), T);
+        var reticle = new Vector3(30, 0, -12);
+        var shot = finder.Aimed(reticle, 1, yaw: 0.4f, pitch: ShotFinder.Rad(T.AimPitch));
+        var (x, y, _) = ShotFraming.OnScreen(shot, reticle, T.Lens);
+        Assert.True(MathF.Abs(x) < 1e-3f && MathF.Abs(y) < 1e-3f, $"{x}, {y}");
+        Assert.Equal(T.AimDistance, shot.Distance);
+        // The stick's up is the screen's up: the look across the ground is the yaw's.
         Assert.Equal(new Shot(default, 0.4f, 0, 1).LookXZ, shot.LookXZ);
     }
 
     [Fact]
-    public void ARangedAimHoldsItsWholeReachAndTheReticleMovesFreelyWithinIt()
+    public void AnAreaIsPlacedFromAboveHoldingItsArea()
     {
-        var reach = Reach(new Vector3(0, 0.7f, 0), 10);
-        var framing = new AimFraming(reach, yaw: 0, pitch: ShotFinder.Rad(T.AimPitch));
-        var first = framing.Step(new Vector3(0, 0, 0), 1, T);
-        Assert.All(reach, p => Assert.True(ShotFraming.Holds(first, p, T.Lens), $"{p.At} out of view"));
-        // Anywhere within the reach the reticle leaves the shot where it is.
-        foreach (var p in reach)
-            Assert.Equal(first, framing.Step(p.At, p.Radius, T));
-    }
-
-    [Fact]
-    public void AReachTooWideForTheShotIsFollowedOnlyAsTheReticleNearsTheEdge()
-    {
-        var tight = T with { MaxAimDistance = 12 };
-        var reach = Reach(new Vector3(0, 0.7f, 0), 60);
-        var framing = new AimFraming(reach, yaw: 0, pitch: ShotFinder.Rad(T.AimPitch));
-        var first = framing.Step(Vector3.Zero, 1, tight);
-        Assert.Equal(12, first.Distance);
-        // A step inside the view: no move.
-        Assert.Equal(first, framing.Step(new Vector3(1, 0, 0), 1, tight));
-        // Far to the right: the view follows, and the reticle ends inside its edge.
-        var reticle = new Vector3(30, 0, 0);
-        var followed = framing.Step(reticle, 1, tight);
-        Assert.NotEqual(first.Aim, followed.Aim);
-        var (x, _, _) = ShotFraming.OnScreen(followed, reticle, tight.Lens);
-        Assert.True(MathF.Abs(x) <= 1, $"x {x}");
+        // A wide area, 9 across: the shot stands back far enough to hold it with its margin round it.
+        var finder = new ShotFinder(new SightLines(null), T);
+        var centre = new Vector3(5, 0, 5);
+        var radius = 9 * T.AreaMargin;
+        var shot = finder.Aimed(centre, radius, yaw: 0, pitch: ShotFinder.Rad(T.TopDownPitch));
+        Assert.True(shot.Pitch >= ShotFinder.Rad(79));
+        Assert.True(ShotFraming.Holds(shot, new ShotSubject(centre, radius), T.Lens));
+        Assert.True(shot.Distance > T.AimDistance);
     }
 
     // ---- Motion
@@ -231,9 +240,9 @@ public sealed class EnhancedCameraTests
         }
         Assert.True(Vector3.Distance(motion.Current.Aim, goal.Aim) < 0.05f);
         Assert.True(MathF.Abs(Shot.Wrap(motion.Current.Yaw - goal.Yaw)) < 0.01f);
-        // 72 units at 30 a second squared: about three seconds there, at about 45 a second at its fastest, so it isn't capped by speed.
-        Assert.InRange(ticks, 150, 400);
-        Assert.True(most > 30, $"at most {most}");
+        // 72 units at 12 a second squared: about five seconds there, at about 29 a second at its fastest, so it isn't capped by speed.
+        Assert.InRange(ticks, 250, 500);
+        Assert.True(most > 25, $"at most {most}");
     }
 
     [Fact]
@@ -266,7 +275,7 @@ public sealed class EnhancedCameraTests
             most = MathF.Max(most, motion.Current.Aim.X - goal.Aim.X);
             Assert.True(motion.Current.Distance >= t.NearestDistance);
         }
-        // Following at most 8 a second, it stops within 8² / (2 × 30) of the goal, and some for the settling.
+        // Following at most 6 a second, it stops within 6² / (2 × 12) of the goal, and some for the settling.
         Assert.True(most < 1.5f, $"overshot by {most}");
         Assert.True(Vector3.Distance(motion.Current.Aim, goal.Aim) < 0.05f);
     }

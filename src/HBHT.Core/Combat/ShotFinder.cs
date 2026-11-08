@@ -4,9 +4,10 @@ using HBHT.Core.Cameras;
 namespace HBHT.Core.Combat;
 
 /// <summary>
-/// Finds a battle's shots for the enhanced camera (<see cref="EnhancedCamera"/>): one holding a set of subjects, from a way that hides
-/// none of them behind the arena or a body, turning the view as little as it can; the original's shot kept clear; and an aim's whole
-/// reach. It only looks: it holds no shot of its own, so a director (Start Early's) can ask it for shots as it likes.
+/// Finds a battle's shots for the enhanced camera (<see cref="EnhancedCamera"/>): over a character's shoulder at its target, low unless
+/// only a higher one sees it; one shot holding an AI's whole turn, turned least from the shot before and the player's turn after; the
+/// original's shot kept clear; and an aim with its reticle in the middle. It only looks: it holds no shot of its own, so a director
+/// (Start Early's) can ask it for shots as it likes.
 /// </summary>
 public sealed class ShotFinder(SightLines sight, CameraTuning tuning)
 {
@@ -27,11 +28,12 @@ public sealed class ShotFinder(SightLines sight, CameraTuning tuning)
     }
 
     /// <summary>
-    /// The best shot holding <paramref name="subjects"/>: of <see cref="CameraTuning.Yaws"/> turned from <paramref name="from"/> and
-    /// <see cref="CameraTuning.Pitches"/>, the one scoring best (<see cref="Score"/>). Null only for no subjects.
+    /// The best shot holding <paramref name="subjects"/>: of <see cref="CameraTuning.Yaws"/> turned from <paramref name="behind"/> (or from
+    /// <paramref name="from"/>, without one) and <see cref="CameraTuning.Pitches"/>, the one scoring best (<see cref="Score"/>). Null only
+    /// for no subjects.
     /// </summary>
     /// <param name="from">The yaw the view has now, which turning from costs.</param>
-    /// <param name="behind">A yaw an eye is liked toward, if any: the character's side, away from the target.</param>
+    /// <param name="behind">The yaw over the character's shoulder at its target, which turning from costs too.</param>
     public (Shot Shot, float Score)? Best(IReadOnlyList<ShotSubject> subjects, float from, float? behind = null)
     {
         if (subjects.Count == 0)
@@ -42,7 +44,7 @@ public sealed class ShotFinder(SightLines sight, CameraTuning tuning)
         {
             foreach (var p in t.Pitches)
             {
-                var shot = Framed(subjects, Shot.Wrap(from + Rad(dy)), Rad(p));
+                var shot = Framed(subjects, Shot.Wrap((behind ?? from) + Rad(dy)), Rad(p));
                 var score = Score(shot, subjects, from, behind);
                 if (best is not { } b || score > b.Item2)
                     best = (shot, score);
@@ -52,27 +54,78 @@ public sealed class ShotFinder(SightLines sight, CameraTuning tuning)
     }
 
     /// <summary>
-    /// How well a shot shows its subjects: less <see cref="CameraTuning.OcclusionPenalty"/> for each hidden or out of frame, by its weight,
-    /// less for each radian it turns the view from <paramref name="from"/>, for its pitch's distance from the one liked best and for its
-    /// distance; more for an eye toward <paramref name="behind"/>. A shot from inside the ground scores nothing at all.
+    /// How well a shot shows its subjects (<see cref="Seen"/>), less <see cref="CameraTuning.TurnCost"/> for each radian it turns the view
+    /// from <paramref name="from"/> and <see cref="CameraTuning.ShoulderCost"/> for each it's turned from <paramref name="behind"/>.
     /// </summary>
     public float Score(Shot shot, IReadOnlyList<ShotSubject> subjects, float from, float? behind = null)
+    {
+        var t = Tuning;
+        var score = Seen(shot, subjects, t.PreferredPitch) - t.TurnCost * MathF.Abs(Shot.Wrap(shot.Yaw - from));
+        if (behind is { } b)
+            score -= t.ShoulderCost * MathF.Abs(Shot.Wrap(shot.Yaw - b));
+        return score;
+    }
+
+    /// <summary>
+    /// How well a shot shows its subjects, whichever way it looks: less <see cref="CameraTuning.OcclusionPenalty"/> for each hidden or out
+    /// of frame, by its weight, and less for its pitch's distance from <paramref name="pitch"/> (degrees) and for its distance. A shot from
+    /// inside the ground scores nothing at all.
+    /// </summary>
+    public float Seen(Shot shot, IReadOnlyList<ShotSubject> subjects, float pitch)
     {
         var t = Tuning;
         if (UnderGround(shot.Eye))
             return float.NegativeInfinity;
         var score = -t.OcclusionPenalty * HiddenWeight(shot, subjects)
-            - t.TurnCost * MathF.Abs(Shot.Wrap(shot.Yaw - from))
-            - t.PitchCost * MathF.Abs(shot.Pitch - Rad(t.PreferredPitch))
+            - t.PitchCost * MathF.Abs(shot.Pitch - Rad(pitch))
             - t.DistanceCost * shot.Distance;
-        if (behind is { } b)
-            score += t.BehindBonus * MathF.Cos(Shot.Wrap(shot.Yaw - b));
         foreach (var s in subjects)
         {
             if (!ShotFraming.Holds(shot, s with { Radius = 0 }, t.Lens))
                 score -= t.OcclusionPenalty * s.Weight;
         }
         return score;
+    }
+
+    /// <summary>
+    /// The one shot for an AI's turn, holding all of it (<paramref name="subjects"/>: where it stands, where it walks to and whom it acts
+    /// on): of yaws all the way round (<see cref="CameraTuning.PlannedYawStep"/>) and <see cref="CameraTuning.PlannedPitches"/>, the one
+    /// seeing them best that turns least from the shot now (<paramref name="from"/>) and from the next player's turn's
+    /// (<paramref name="next"/>). Null only for no subjects.
+    /// </summary>
+    public (Shot Shot, float Score)? Planned(IReadOnlyList<ShotSubject> subjects, float from, float next)
+    {
+        if (subjects.Count == 0)
+            return null;
+        var t = Tuning;
+        (Shot, float)? best = null;
+        var steps = Math.Max(1, (int)MathF.Round(360 / MathF.Max(t.PlannedYawStep, 1)));
+        for (var i = 0; i < steps; i++)
+        {
+            // From the shot now's yaw round, so with nothing to choose between them it stays.
+            var yaw = Shot.Wrap(from + MathF.Tau * i / steps);
+            foreach (var p in t.PlannedPitches)
+            {
+                var shot = Framed(subjects, yaw, Rad(p));
+                var score = Seen(shot, subjects, t.PlannedPitch)
+                    - t.TurnCost * MathF.Abs(Shot.Wrap(yaw - from))
+                    - t.NextTurnCost * MathF.Abs(Shot.Wrap(yaw - next));
+                if (best is not { } b || score > b.Item2)
+                    best = (shot, score);
+            }
+        }
+        return best;
+    }
+
+    /// <summary>
+    /// An aim's shot: the reticle at <paramref name="reticle"/> in the middle of the screen, from <paramref name="yaw"/> and
+    /// <paramref name="pitch"/>, <see cref="CameraTuning.AimDistance"/> away, or as far as holds <paramref name="radius"/> round it.
+    /// </summary>
+    public Shot Aimed(Vector3 reticle, float radius, float yaw, float pitch)
+    {
+        var t = Tuning;
+        var around = ShotFraming.DistanceToHold([new ShotSubject(reticle, radius)], reticle, yaw, pitch, t.Lens);
+        return new Shot(reticle, yaw, pitch, MathF.Max(t.AimDistance, around));
     }
 
     /// <summary>
@@ -120,7 +173,7 @@ public sealed class ShotFinder(SightLines sight, CameraTuning tuning)
         return best;
     }
 
-    /// <summary>The weight of the subjects a shot can't see, behind the arena or a body.</summary>
+    /// <summary>The weight of the subjects a shot can't see, behind the arena or a body (<see cref="SightLines.Hidden"/>).</summary>
     public float HiddenWeight(Shot shot, IReadOnlyList<ShotSubject> subjects)
     {
         var eye = shot.Eye;
@@ -140,14 +193,14 @@ public sealed class ShotFinder(SightLines sight, CameraTuning tuning)
     internal static float Rad(float degrees) => degrees * MathF.PI / 180;
 }
 
-/// <summary>A body the player might be pointing at, and whether it's on the other side.</summary>
-public readonly record struct TargetCandidate(object Who, Vector3 At, bool Opponent);
+/// <summary>An enemy the player might be heading for.</summary>
+public readonly record struct TargetCandidate(object Who, Vector3 At);
 
 /// <summary>
-/// Whom the player points at in their turn: of the bodies in a cone about the way the character points, enemies and party alike, the
-/// likeliest by how near the cone's middle it is and by its distance, nearer for a melee weapon and farther for a ranged one or a staff.
-/// The target held stays while it's in a wider cone, and another takes its place only once it has been clearly likelier for a while, so
-/// the stick's wobble doesn't flick the camera between two bodies.
+/// Whom the player heads for in their turn: of the enemies in a cone about the way the character points (the way it walks, as it walks),
+/// the likeliest by how near the cone's middle it is and how near the character. The target held stays while it's in a wider cone, and
+/// another takes its place only once it has been clearly likelier for a while, so the stick's wobble doesn't flick the camera between two
+/// bodies.
 /// </summary>
 public sealed class TargetCone
 {
@@ -164,8 +217,8 @@ public sealed class TargetCone
         _challenger = null;
     }
 
-    /// <summary>A body's likelihood as the target, or null outside the cone (<see cref="CameraTuning.ConeHold"/>'s for the one held).</summary>
-    public float? Likelihood(Vector3 me, Vector2 heading, bool far, TargetCandidate c, CameraTuning t)
+    /// <summary>An enemy's likelihood as the target, or null outside the cone (<see cref="CameraTuning.ConeHold"/>'s for the one held).</summary>
+    public float? Likelihood(Vector3 me, Vector2 heading, TargetCandidate c, CameraTuning t)
     {
         var off = c.At - me;
         var flat = new Vector2(off.X, off.Z);
@@ -175,16 +228,13 @@ public sealed class TargetCone
         var angle = MathF.Acos(Math.Clamp(Vector2.Dot(Vector2.Normalize(heading), flat / d), -1, 1));
         if (angle > ShotFinder.Rad(Equals(c.Who, Target) ? t.ConeHold : t.ConeAngle))
             return null;
-        var middle = 1 - MathF.Pow(angle / ShotFinder.Rad(t.ConeAngle), 2);
-        var distance = far ? d / (d + t.FarScale) : MathF.Exp(-d / t.NearScale);
-        return (c.Opponent ? 1 : t.PartyWeight) * (middle + distance);
+        return 1 - MathF.Pow(angle / ShotFinder.Rad(t.ConeAngle), 2) + MathF.Exp(-d / t.NearScale);
     }
 
     /// <summary>A tick: picks again from <paramref name="candidates"/>. Returns whether the target changed.</summary>
     /// <param name="me">Where the character is.</param>
     /// <param name="heading">The way it points.</param>
-    /// <param name="far">Whether its weapon is a ranged one or a staff.</param>
-    public bool Pick(Vector3 me, Vector2 heading, bool far, IEnumerable<TargetCandidate> candidates, CameraTuning t)
+    public bool Pick(Vector3 me, Vector2 heading, IEnumerable<TargetCandidate> candidates, CameraTuning t)
     {
         if (heading.LengthSquared() < 1e-6f)
             return false;
@@ -193,7 +243,7 @@ public sealed class TargetCone
         float? held = null;
         foreach (var c in candidates)
         {
-            if (Likelihood(me, heading, far, c, t) is not { } score)
+            if (Likelihood(me, heading, c, t) is not { } score)
                 continue;
             if (Equals(c.Who, Target))
                 held = score;
@@ -225,51 +275,5 @@ public sealed class TargetCone
         Target = best;
         _challenger = null;
         return true;
-    }
-}
-
-/// <summary>
-/// An aim's shot (<see cref="EnhancedCamera"/>): it holds the caster and every point of its reach, from a pitch at the yaw the aim began
-/// with, at most <see cref="CameraTuning.MaxAimDistance"/> away, and doesn't chase the reticle: it moves only as the reticle nears the
-/// screen's edge (<see cref="CameraTuning.EdgeMargin"/>), and only as far as keeps it inside. Anywhere in the reach it held at first
-/// it moves nothing.
-/// </summary>
-public sealed class AimFraming(IReadOnlyList<ShotSubject> reach, float yaw, float pitch)
-{
-    private Vector3 _shift;
-
-    /// <summary>The caster and the points round its reach that the shot holds.</summary>
-    public IReadOnlyList<ShotSubject> Reach { get; } = reach;
-
-    public float Yaw { get; } = yaw;
-
-    public float Pitch { get; } = pitch;
-
-    /// <summary>The shot, followed as far as the reticle at <paramref name="reticle"/>, of radius <paramref name="radius"/>, needs.</summary>
-    public Shot Step(Vector3 reticle, float radius, CameraTuning t)
-    {
-        var lens = t.Lens;
-        var aim = ShotFraming.Middle(Reach);
-        var distance = Math.Clamp(ShotFraming.DistanceToHold(Reach, aim, Yaw, Pitch, lens), t.MinDistance, t.MaxAimDistance);
-        var shot = new Shot(aim + _shift, Yaw, Pitch, distance);
-        // Measured on the whole screen, not the lens's margins: the reach is held within those, so it never reaches the edge.
-        var screen = lens with { Margin = 1 };
-        var (x, y, depth) = ShotFraming.OnScreen(shot, reticle, screen);
-        if (depth <= 0 || !float.IsFinite(x))
-            return shot;
-        var rx = radius / (depth * screen.TanH);
-        var ry = radius / (depth * screen.TanV);
-        var edge = t.EdgeMargin;
-        var shift = Vector3.Zero;
-        if (MathF.Abs(x) + rx > edge)
-            shift += shot.Right * ((MathF.Abs(x) + rx - edge) * depth * screen.TanH * MathF.Sign(x));
-        if (MathF.Abs(y) + ry > edge)
-        {
-            // Along the ground the way the screen's up goes: a step that way lowers the reticle on screen by the sine of the pitch.
-            var ahead = new Vector3(shot.LookXZ.X, 0, shot.LookXZ.Y);
-            shift += ahead * ((MathF.Abs(y) + ry - edge) * depth * screen.TanV * MathF.Sign(y) / MathF.Max(MathF.Sin(Pitch), 0.2f));
-        }
-        _shift += shift;
-        return shot with { Aim = aim + _shift };
     }
 }
