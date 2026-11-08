@@ -62,10 +62,39 @@ public sealed record CameraTuning
     public float GoalJump { get; init; } = 1;
 
     /// <summary>
-    /// The most a shot over the shoulder orbits a second, turned straight away along with the way from the character to the target's pack
-    /// as they go round it, degrees: as the shot is carried with the character, so the view doesn't trail them. Faster, it catches up after.
+    /// The most a shot over the shoulder orbits a second, turned straight away along with the way from the character to the target as
+    /// they go round it, degrees: as the shot is carried with the character, so the view doesn't trail them. Faster, it catches up after.
     /// </summary>
     public float CarryTurn { get; init; } = 90;
+
+    /// <summary>
+    /// How smoothly the camera follows whom it's carried with, seconds: the time of a critically damped spring drawing the point it
+    /// follows after their body (<see cref="Cameras.FollowPoint"/>), so their stride, a step a frame, and a root stopping and pushing off,
+    /// doesn't jolt the view. It trails a walker by twice this times their speed and settles as they stop, never past them. 0 follows the
+    /// body exactly.
+    /// </summary>
+    public float FollowSmoothing { get; init; } = 0.15f;
+
+    /// <summary>Further than this from the body it follows, the point is put on it, not drawn: a body put somewhere.</summary>
+    public float FollowReach { get; init; } = 6;
+
+    /// <summary>
+    /// The furthest the shot over the shoulder turns by itself from straight behind a character who walks, degrees, the way they head:
+    /// its orbit and a new framing bring the camera round to their side at most, never in front of them. Walking toward it themselves,
+    /// it's left where it is, as a third person's camera is.
+    /// </summary>
+    public float MostAcross { get; init; } = 90;
+
+    /// <summary>
+    /// A move into an aim, about one, or back from one is a pan, not a cut: <see cref="PanTicks"/> ticks, and
+    /// <see cref="PanTicksPerUnit"/> more for each unit the aim travels, no more than <see cref="PanMostTicks"/>, eased in and out. The
+    /// player sees where on the field they're aiming.
+    /// </summary>
+    public int PanTicks { get; init; } = 20;
+
+    public float PanTicksPerUnit { get; init; } = 0.5f;
+
+    public int PanMostTicks { get; init; } = 40;
 
     /// <summary>
     /// The caps times this while the player has the camera in their turn, so the view follows their own hand closely and still swoops,
@@ -217,10 +246,16 @@ public sealed record CameraTuning
     public int LoseHold { get; init; } = 45;
 
     /// <summary>
-    /// The target held stays it, whichever way the character faces, while it's within this across the ground: running round a pack for a
-    /// backstab keeps the camera on it.
+    /// The target held stays it while it's within this across the ground and the character doesn't head away from it by more than
+    /// <see cref="HoldNearAngle"/>: running round a pack for a backstab keeps the camera on it.
     /// </summary>
     public float HoldNear { get; init; } = 10;
+
+    /// <summary>
+    /// How far from the way to the target held near the character may head and keep it, degrees: round it, not away from it. Walking past
+    /// it or away, it's let go as one out of its cone is (<see cref="LoseHold"/>), and the shot stops orbiting it.
+    /// </summary>
+    public float HoldNearAngle { get; init; } = 110;
 
     /// <summary>Enemies within this of the target, across the ground, are framed with it: a pack is shown whole, centred.</summary>
     public float ClusterRadius { get; init; } = 8;
@@ -308,8 +343,8 @@ public sealed record CameraTuning
     public float[] Pitches { get; init; } = [4, 8, 12, 18, 24, 30];
 
     /// <summary>
-    /// Nearer the middle of the target's pack than this, among them, the shot orbits it slower, by the share of this the character is
-    /// from it (<see cref="CarryTurn"/>): there the way over their shoulder at it means little, and would swing round as they pass through.
+    /// Nearer the target than this, the shot orbits it slower, by the share of this the character is from it (<see cref="CarryTurn"/>):
+    /// there the way over their shoulder at it means little, and would swing round as they pass by.
     /// </summary>
     public float ShoulderNear { get; init; } = 3;
 
@@ -321,6 +356,12 @@ public sealed record CameraTuning
 
     /// <summary>Turns tried from straight over the character's shoulder at the target (or from the view now, with none), degrees.</summary>
     public float[] Yaws { get; init; } = [0, 15, -15, 30, -30, 50, -50, 80, -80, 120, -120];
+
+    /// <summary>
+    /// The turns tried in the player's turn and its aim at a blow: no further round than over the shoulder, so the character is seen from
+    /// behind, never from the side or the front, however the pack stands.
+    /// </summary>
+    public float[] ShoulderYaws { get; init; } = [0, 15, -15, 30, -30, 45, -45];
 
     /// <summary>The pitch liked best, degrees: over the shoulder.</summary>
     public float PreferredPitch { get; init; } = 12;
@@ -407,7 +448,7 @@ public sealed record CameraTuning
 
     /// <summary>
     /// These numbers with some set by name, as <c>AimAcceleration=20,ConeAngle=30</c>: any above, its name's case ignored. The lists
-    /// (<see cref="Pitches"/>, <see cref="Yaws"/>, the event's and the planned's) take values joined with <c>;</c>.
+    /// (<see cref="Pitches"/>, <see cref="Yaws"/>, <see cref="ShoulderYaws"/>, the event's and the planned's) take values joined with <c>;</c>.
     /// </summary>
     public CameraTuning Parse(string settings)
     {

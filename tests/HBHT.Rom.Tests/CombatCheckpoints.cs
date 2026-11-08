@@ -97,8 +97,8 @@ internal static class CombatCheckpoints
         public Combatant this[int slot] => Battle.Slots[slot]!;
     }
 
-    /// <summary>Checkpoint 01's battle, as <see cref="BattleCheckpointTests"/> builds it: the party and ten rats, and nothing of the checkpoint laid over it.</summary>
-    public static Built Plain(PluginSet Set, int checkpoint, ICombatHost? host = null)
+    /// <summary>Checkpoint 01's battle, as <see cref="BattleCheckpointTests"/> builds it: the party and ten rats (or <paramref name="enemies"/>), and nothing of the checkpoint laid over it.</summary>
+    public static Built Plain(PluginSet Set, int checkpoint, ICombatHost? host = null, IReadOnlyList<PartyEnemy>? enemies = null)
     {
         var before = TestRoms.Checkpoint(Before);
         var cp = Combat(checkpoint);
@@ -108,7 +108,7 @@ internal static class CombatCheckpoints
         Assert.NotNull(arena);
         var streamer = new ChunkStreamer(Set, game, new CollisionWorld(), Set.Get<MapSetRecord>(Arena.MapSet));
         streamer.Update(arena.Origin + Battle.ZonePoint);
-        var setup = new BattleSetup(BattleSource.Wanderer, null, null, null, [.. Enumerable.Repeat(new PartyEnemy(Rat, 1, 1), 10)],
+        var setup = new BattleSetup(BattleSource.Wanderer, null, null, null, [.. enemies ?? Enumerable.Repeat(new PartyEnemy(Rat, 1, 1), 10)],
             Arena: Battlefield.Chunk(3), Ambush: true, CanFlee: true, EncounterFlag: null, CollisionByte: 0, AniByte: 2);
         var random = new Lcg(before.ReadWord(RandomState));
         for (var i = 0; i < DrawsBeforeSetup; i++)

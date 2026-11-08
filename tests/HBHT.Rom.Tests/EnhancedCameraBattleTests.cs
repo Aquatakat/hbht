@@ -5,7 +5,9 @@ using HBHT.Core.Audio;
 using HBHT.Core.Cameras;
 using HBHT.Core.Chunks;
 using HBHT.Core.Combat;
+using HBHT.Core.Movement;
 using HBHT.Plugins;
+using HBHT.Plugins.Records;
 using static HBHT.Rom.Tests.CombatCheckpoints;
 
 namespace HBHT.Rom.Tests;
@@ -149,7 +151,7 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
     {
         // Each member's turn: walking toward the camera, away from the enemies, then across the view and back. With no enemy ahead the view
         // trails them as a third person's camera does: a step across it turns it round after them, a step toward it or away only draws it
-        // along; and its aim leads them the way they face.
+        // along; and its aim leads them the way they face. All of it by the point that follows them (FollowSmoothing), not their body.
         var t = CameraTuning.Default;
         var (ticks, led, across, turnedAfter, along, still) = (0, 0, 0, 0, 0, 0);
         (Combatant Who, Vector3 At, float Yaw)? last = null;
@@ -158,14 +160,13 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
             var battle = run.Battle;
             var e = battle.CombatCamera.Enhanced!;
             if (battle.State != CombatState.Turn || battle.Current is not { Controlled: false } me || !e.Walking || e.Target is not null
-                || e.Motion is not { } m)
+                || e.Motion is not { } m || e.FollowAt is not { } at)
             {
                 last = null;
                 return;
             }
             ticks++;
             var g = e.Goal;
-            var at = me.Body.Sphere.Position;
             var lead = MathF.Min(t.AimLead * t.LookAhead, t.AimLeadMost);
             if (Vector3.Distance(g.Aim, at + new Vector3(me.Body.Heading.X, 0, me.Body.Heading.Y) * lead) < 0.01f)
                 led++;
@@ -205,17 +206,17 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
     [Fact]
     public void GoingRoundAPackTheShotTurnsSmoothly()
     {
-        // Each member's turn: toward the enemies, then round them. Over the shoulder at the pack, the shot orbits it with the character and
-        // eases onto a new framing: tick to tick as they walk, its yaw turns no faster than the orbit and the easing together, its pitch
-        // than the easing.
+        // Each member's turn: toward the enemies, then round them. Over the shoulder at the target, the shot orbits it with the character
+        // and eases onto a new framing, a new target's among them: tick to tick as they walk, its yaw turns no faster than the orbit and
+        // the easing together, its pitch than the easing.
         var t = CameraTuning.Default;
         var (ticks, steps, most) = (0, 0, 0f);
-        (Combatant Who, Combatant Target, int Cuts, Vector3 At, float Yaw, float Pitch)? last = null;
+        (Combatant Who, int Cuts, Vector3 At, float Yaw, float Pitch)? last = null;
         Play(host => Plain(Set, 1, host), CameraStyle.Enhanced, "*=stick:0:1:30/stick:1:0:60/wait:20/accept/accept", run =>
         {
             var battle = run.Battle;
             var e = battle.CombatCamera.Enhanced!;
-            if (battle.State != CombatState.Turn || battle.Current is not { Controlled: false } me || !e.Walking || e.Target is not { } target)
+            if (battle.State != CombatState.Turn || battle.Current is not { Controlled: false } me || !e.Walking || e.Target is null)
             {
                 last = null;
                 return;
@@ -223,7 +224,7 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
             var g = e.Goal;
             var at = me.Body.Sphere.Position;
             // As they walk: a turn's opening, on a tick they stand, is a new shot.
-            if (last is { } l && l.Who == me && l.Target == target && l.Cuts == e.Cuts && Vector3.Distance(at, l.At) > 1e-3f)
+            if (last is { } l && l.Who == me && l.Cuts == e.Cuts && Vector3.Distance(at, l.At) > 1e-3f)
             {
                 ticks++;
                 var yaw = MathF.Abs(Shot.Wrap(g.Yaw - l.Yaw));
@@ -231,7 +232,7 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
                 if (yaw > ShotFinder.Rad(t.CarryTurn + t.FramingTurn) / 60 + 1e-4f || MathF.Abs(g.Pitch - l.Pitch) > ShotFinder.Rad(t.FramingTurn) / 60 + 1e-4f)
                     steps++;
             }
-            last = (me, target, e.Cuts, at, g.Yaw, g.Pitch);
+            last = (me, e.Cuts, at, g.Yaw, g.Pitch);
         });
         TestContext.Current.TestOutputHelper?.WriteLine(
             $"{ticks} ticks over the shoulder: {steps} stepped; the most it turned in a tick {most * 180 / MathF.PI:F2}°");
@@ -491,6 +492,241 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
         Assert.Equal(loosings, holdLoosing);
         Assert.Equal(hits, holdHit);
         Assert.True(inFlight >= hits * 0.8, $"{inFlight} of {hits} cut to in flight");
+    }
+
+    [Fact]
+    public void TheViewFollowsACharacterEvenlyThoughTheirStrideIsUneven()
+    {
+        // Under the original's movement a body moves every other tick and its root stops and pushes off each stride. The point the
+        // camera follows them by moves evenly: tick to tick its step changes by little of itself, where the body's changes by more than it.
+        var (bodyChange, pointChange, bodySum, pointSum, ticks) = (0f, 0f, 0f, 0f, 0);
+        (Combatant Who, Vector3 Body, Vector3 Point, float BodyStep, float PointStep)? last = null;
+        Play(host =>
+        {
+            var b = Plain(Set, 1, host);
+            b.Battle.Movement = MovementMode.Original;
+            return b;
+        }, CameraStyle.Enhanced, "*=stick:0:1:60/wait:10/accept/accept", run =>
+        {
+            var battle = run.Battle;
+            var e = battle.CombatCamera.Enhanced!;
+            if (battle.State != CombatState.Turn || battle.Current is not { Controlled: false } me || !e.Walking || e.FollowAt is not { } point)
+            {
+                last = null;
+                return;
+            }
+            var body = me.Body.Sphere.Position;
+            if (last is { } l && l.Who == me)
+            {
+                var (bodyStep, pointStep) = (Vector3.Distance(body, l.Body), Vector3.Distance(point, l.Point));
+                // Under way: the point moving at a walk's pace.
+                if (pointStep > 0.03f && l.PointStep > 0.03f)
+                {
+                    ticks++;
+                    bodyChange += MathF.Abs(bodyStep - l.BodyStep);
+                    pointChange += MathF.Abs(pointStep - l.PointStep);
+                    bodySum += bodyStep;
+                    pointSum += pointStep;
+                }
+                last = (me, body, point, bodyStep, pointStep);
+            }
+            else
+            {
+                last = (me, body, point, 0, 0);
+            }
+        });
+        var (bodyJerk, pointJerk) = (bodyChange / bodySum, pointChange / pointSum);
+        TestContext.Current.TestOutputHelper?.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"{ticks} ticks under way: the body's step changes by {bodyJerk:F2} of itself a tick, the point's by {pointJerk:F3}"));
+        Assert.True(ticks > 300, $"{ticks} ticks");
+        Assert.True(bodyJerk > 0.5f, $"the body's {bodyJerk}");
+        Assert.True(pointJerk < bodyJerk / 10, $"the point's {pointJerk} against the body's {bodyJerk}");
+    }
+
+    [Fact]
+    public void OverTheShoulderTheShotNeverTurnsItselfToTheFrontOfAWalker()
+    {
+        // Four bandits; each member's turn walks at them, then past them either side. The shot over the shoulder orbits the target and eases
+        // onto new framings, but never turns itself further than MostAcross from straight behind the way the character heads, unless it
+        // was already further, where they turned toward it themselves.
+        var t = CameraTuning.Default;
+        var bandit = RecordId.Hex(RecordTypes.Entity, 0x025E);
+        var (ticks, past, turnedOn) = (0, 0, 0);
+        (Combatant Who, float Yaw)? last = null;
+        Play(host => Plain(Set, 1, host, [.. Enumerable.Repeat(new PartyEnemy(bandit, 1, 1), 4)]), CameraStyle.Enhanced,
+            "*=stick:0:1:40/stick:1:1:50/stick:-1:1:60/wait:10/accept/accept", run =>
+            {
+                var battle = run.Battle;
+                var e = battle.CombatCamera.Enhanced!;
+                if (battle.State != CombatState.Turn || battle.Current is not { Controlled: false } me || !e.Walking || e.Target is null)
+                {
+                    last = null;
+                    return;
+                }
+                var h = me.Body.Heading;
+                var back = MathF.Atan2(-h.X, -h.Y);
+                var yaw = e.Goal.Yaw;
+                if (last is { } l && l.Who == me)
+                {
+                    ticks++;
+                    var (now, was) = (MathF.Abs(Shot.Wrap(yaw - back)), MathF.Abs(Shot.Wrap(l.Yaw - back)));
+                    if (now > ShotFinder.Rad(t.MostAcross) + 1e-3f)
+                    {
+                        past++;
+                        if (now > was + 1e-3f)
+                            turnedOn++;
+                    }
+                }
+                last = (me, yaw);
+            });
+        TestContext.Current.TestOutputHelper?.WriteLine(
+            $"{ticks} ticks over the shoulder: past the character's side on {past}, the shot turning itself further on {turnedOn}");
+        Assert.True(ticks > 500, $"{ticks} ticks");
+        Assert.Equal(0, turnedOn);
+    }
+
+    [Fact]
+    public void AnAimIsPannedToNotCutTo()
+    {
+        // Sholeh places Dispel Naming from above and Rheda aims Weakness; the others aim their blows. Into an aim, about it and back from
+        // it, the camera pans: it never cuts while aiming, and each pan ends on its goal.
+        var (pans, aimTicks, cutsAiming, unfinished) = (0, 0, 0, 0);
+        var (cuts, panning, wasAiming) = (0, false, false);
+        Play(host => Plain(Set, 1, host), CameraStyle.Enhanced,
+            "Sholeh=spell:Dispel Naming/wait:60/accept;Rheda=spell:Weakness/wait:60/accept/accept;*=accept/wait:40/accept", run =>
+            {
+                var battle = run.Battle;
+                var e = battle.CombatCamera.Enhanced!;
+                var aiming = battle.State is CombatState.TargetAttack or CombatState.TargetSpell or CombatState.PlaceArea or CombatState.TargetThrown;
+                if (aiming)
+                    aimTicks++;
+                if (e.Cuts != cuts && (aiming || wasAiming && battle.State == CombatState.Turn))
+                    cutsAiming++;
+                if (e.Panning && !panning)
+                    pans++;
+                // A pan that ends in its own state ends on its goal.
+                if (panning && !e.Panning && e.Motion is { } m && aiming && Vector3.Distance(m.Current.Aim, e.Goal.Aim) > 0.01f)
+                    unfinished++;
+                (cuts, panning, wasAiming) = (e.Cuts, e.Panning, aiming);
+            });
+        TestContext.Current.TestOutputHelper?.WriteLine($"{aimTicks} ticks aiming, {pans} pans, {cutsAiming} cuts aiming, {unfinished} pans short of their goal");
+        Assert.True(pans >= 4, $"{pans} pans");
+        Assert.Equal(0, cutsAiming);
+        Assert.Equal(0, unfinished);
+    }
+
+    [Fact]
+    public void AnAimAtABlowKeepsTheShotThatAlreadyHoldsBoth()
+    {
+        // Each member walks at the enemy, stands, then aims a blow. Where the shot the turn was settling on holds the attacker and the
+        // body under the cursor and hides neither, it's kept as the aim begins, and isn't changed while the cursor stays.
+        var t = CameraTuning.Default;
+        var (aims, couldKeep, kept, changed) = (0, 0, 0, 0);
+        Shot? before = null;
+        (Combatant Cursor, Shot Shot)? keeping = null;
+        Play(host => Plain(Set, 1, host), CameraStyle.Enhanced, "*=stick:0:1:30/wait:40/accept/wait:30/accept", run =>
+        {
+            var battle = run.Battle;
+            var e = battle.CombatCamera.Enhanced!;
+            if (e.Finder is not { } finder)
+                return;
+            if (battle.State == CombatState.TargetAttack && battle.Current is { Controlled: false } me && e.Kind.StartsWith("aiming a blow")
+                && battle.CameraOwner is { } cursor && cursor != me)
+            {
+                if (before is { } b)
+                {
+                    aims++;
+                    var both = new[] { me, cursor }.All(c => ShotFraming.Holds(b, new ShotSubject(c.Body.Sphere.Position, 0), t.Lens)
+                        && !finder.Sight.Hidden(b.Eye, new ShotSubject(c.Body.Sphere.Position, c.Body.ScaledRadius)));
+                    if (both)
+                    {
+                        couldKeep++;
+                        if (e.Kind == "aiming a blow, the shot kept" && e.Goal == b)
+                        {
+                            kept++;
+                            keeping = (cursor, b);
+                        }
+                    }
+                }
+                else if (keeping is { } k && k.Cursor == cursor && e.Goal != k.Shot)
+                {
+                    changed++;
+                    keeping = null;
+                }
+                before = null;
+                return;
+            }
+            keeping = null;
+            before = battle.State == CombatState.Turn ? e.Goal : null;
+        });
+        TestContext.Current.TestOutputHelper?.WriteLine($"{aims} blows aimed, {couldKeep} with the shot holding both, {kept} kept, {changed} changed after");
+        Assert.True(couldKeep >= 3, $"{couldKeep} could keep");
+        Assert.Equal(couldKeep, kept);
+        Assert.Equal(0, changed);
+    }
+
+    [Fact]
+    public void ASpellAtAnAllyIsShownLandingOnThemHoweverNear()
+    {
+        // Rheda casts Endurance on the party: each who isn't her is shown from the loosing over her shoulder, then the effect on them.
+        var (onAllies, hits) = (0, 0);
+        (Combatant Who, Combatant At)? volley = null;
+        Play(host => Plain(Set, 1, host), CameraStyle.Enhanced, "Rheda=spell:Endurance/accept/accept/accept/accept;*=accept/accept", run =>
+        {
+            var battle = run.Battle;
+            var e = battle.CombatCamera.Enhanced!;
+            if (battle.Current is not { } caster || battle.Target < 0 || battle.Target >= battle.Slots.Count || battle.Slots[battle.Target] is not { } at
+                || at == caster || at.Hostile != caster.Hostile)
+                return;
+            if (e.Kind == "loosing, over the shoulder" && volley != (caster, at))
+            {
+                volley = (caster, at);
+                onAllies++;
+            }
+            if (e.Kind == "the hit, at the target" && volley == (caster, at))
+            {
+                volley = null;
+                hits++;
+            }
+        });
+        TestContext.Current.TestOutputHelper?.WriteLine($"{onAllies} spells at allies loosed, {hits} shown landing");
+        Assert.True(onAllies >= 1, $"{onAllies} at allies");
+        Assert.Equal(onAllies, hits);
+    }
+
+    [Fact]
+    public void AnAIsWalkIsFollowed()
+    {
+        // The rats walk to their targets: the shot moves with each, as far as the point it follows them by.
+        var (walks, followed) = (0, 0);
+        (Combatant Who, Vector3 Point, Vector3 Aim, float Walked, float Moved)? walk = null;
+        Play(host => Plain(Set, 1, host), CameraStyle.Enhanced, Attacking, run =>
+        {
+            var battle = run.Battle;
+            var e = battle.CombatCamera.Enhanced!;
+            var walking = battle.Current is { Controlled: true } ai && e.Kind == "an AI's turn, following its walk" && e.FollowAt is not null
+                && e.Motion is not null;
+            if (walk is { } w && (!walking || battle.Current != w.Who))
+            {
+                // A walk of a unit or more, the shot moving with it most of the way.
+                if (w.Walked > 1)
+                {
+                    walks++;
+                    if (w.Moved >= w.Walked * 0.8f)
+                        followed++;
+                }
+                walk = null;
+            }
+            if (!walking)
+                return;
+            var (point, aim) = (e.FollowAt!.Value, e.Motion!.Current.Aim);
+            walk = walk is { } v
+                ? v with { Point = point, Aim = aim, Walked = v.Walked + Vector3.Distance(point, v.Point), Moved = v.Moved + Vector3.Distance(aim, v.Aim) }
+                : (battle.Current!, point, aim, 0, 0);
+        });
+        TestContext.Current.TestOutputHelper?.WriteLine($"{walks} AI walks, {followed} followed");
+        Assert.True(walks >= 5, $"{walks} walks");
+        Assert.Equal(walks, followed);
     }
 
     // ---------------------------------------------------------------------------------------------------------------------------

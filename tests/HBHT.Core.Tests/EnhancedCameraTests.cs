@@ -114,24 +114,58 @@ public sealed class EnhancedCameraTests
     }
 
     [Fact]
-    public void TheTargetHeldStaysWhileTheCharacterIsNearItWhicheverWayTheyFace()
+    public void TheTargetHeldStaysWhileTheCharacterGoesRoundItNearButNotWhileTheyWalkAway()
     {
-        // Running round a pack for its back: the character faces away from the rat 5 behind them, and it stays the target.
+        // Running round a pack for its back: the character heads across the way to the rat 5 off, and it stays the target.
         var cone = new TargetCone();
         var rat = new TargetCandidate("rat", new Vector3(0, 0, 5));
         cone.Pick(Vector3.Zero, Vector2.UnitY, [rat], T);
         Assert.Equal("rat", cone.Target);
         for (var tick = 0; tick < T.LoseHold * 3; tick++)
         {
+            cone.Pick(Vector3.Zero, Vector2.UnitX, [rat], T);
+            Assert.Equal("rat", cone.Target);
+            Assert.False(cone.Losing);
+        }
+        // Heading away from it, near as it is, it's let go once LoseHold has passed, losing it till then.
+        for (var tick = 1; tick < T.LoseHold; tick++)
+        {
             cone.Pick(Vector3.Zero, -Vector2.UnitY, [rat], T);
+            Assert.True(cone.Losing);
             Assert.Equal("rat", cone.Target);
         }
-        // Walked off beyond HoldNear, facing away, it's let go once LoseHold has passed.
-        var far = new Vector3(0, 0, 5 - T.HoldNear - 1);
-        for (var tick = 1; tick < T.LoseHold; tick++)
-            cone.Pick(far, -Vector2.UnitY, [rat], T);
-        Assert.True(cone.Pick(far, -Vector2.UnitY, [rat], T));
+        Assert.True(cone.Pick(Vector3.Zero, -Vector2.UnitY, [rat], T));
         Assert.Null(cone.Target);
+    }
+
+    [Fact]
+    public void TheFollowPointMovesEvenlyWhereTheBodyStridesAndSettlesWithoutPassingIt()
+    {
+        // A stride as the original moves a body: a step every other tick, its root stopping for three frames of every ten.
+        var point = new FollowPoint();
+        point.Reset(Vector3.Zero);
+        var body = Vector3.Zero;
+        var speeds = new List<float>();
+        for (var tick = 0; tick < 600; tick++)
+        {
+            var frame = tick / 2;
+            if (tick % 2 == 0 && frame % 10 >= 3)
+                body += new Vector3(0.2f, 0, 0);
+            point.Step(body, T.FollowSmoothing);
+            if (tick >= 120)
+                speeds.Add(point.Moved.X);
+        }
+        var mean = speeds.Average();
+        var spread = speeds.Max() - speeds.Min();
+        Assert.True(spread < mean * 0.5f, $"the point's step ran from {speeds.Min():F3} to {speeds.Max():F3}, the body's mean {mean:F3}");
+        Assert.True(body.X - point.At.X < 2 * T.FollowSmoothing * mean * 60 * 1.3f, $"trailing by {body.X - point.At.X:F2}");
+        // Stopped, it settles on the body and never goes past it.
+        for (var tick = 0; tick < 120; tick++)
+        {
+            point.Step(body, T.FollowSmoothing);
+            Assert.True(point.At.X <= body.X + 1e-4f);
+        }
+        Assert.True(body.X - point.At.X < 0.01f);
     }
 
     // ---- Shots that hide neither

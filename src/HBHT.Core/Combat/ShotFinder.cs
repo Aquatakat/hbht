@@ -49,14 +49,15 @@ public sealed class ShotFinder(SightLines sight, CameraTuning tuning)
     /// <param name="sides">Who should be framed to the right of whom (<see cref="Sides"/>).</param>
     /// <param name="aim">What the shots aim at, rather than the subjects' middle: near the character, over the shoulder.</param>
     /// <param name="most">The farthest the eye goes from the aim.</param>
+    /// <param name="yaws">The turns tried, degrees, if not <see cref="CameraTuning.Yaws"/>.</param>
     public (Shot Shot, float Score)? Best(IReadOnlyList<ShotSubject> subjects, float from, float? behind = null, IReadOnlyList<ScreenSide>? sides = null,
-        Vector3? aim = null, float? most = null)
+        Vector3? aim = null, float? most = null, IReadOnlyList<float>? yaws = null)
     {
         if (subjects.Count == 0)
             return null;
         var t = Tuning;
         (Shot, float)? best = null;
-        foreach (var dy in t.Yaws)
+        foreach (var dy in yaws ?? t.Yaws)
         {
             foreach (var p in t.Pitches)
             {
@@ -331,7 +332,7 @@ public static class Vantage
 /// <summary>
 /// Whom the player heads for in their turn: of the enemies in a cone about the way the character points (the way it walks, as it walks),
 /// within range, the likeliest by how near the cone's middle it is and how near the character. The target held stays while it's in a
-/// wider cone and a longer range, or near the character whichever way it faces, and for a while after it leaves them; another takes its
+/// wider cone and a longer range, or near the character as they go round it, and for a while after it leaves them; another takes its
 /// place only once it has been clearly likelier for a while. So the stick's wobble doesn't flick the camera between two bodies, or
 /// between one and none, and running round a pack keeps the camera on it.
 /// </summary>
@@ -343,6 +344,9 @@ public sealed class TargetCone
 
     /// <summary>The target held, or null.</summary>
     public object? Target { get; private set; }
+
+    /// <summary>Whether the target held has left its cone or its range, and is only held a while (<see cref="CameraTuning.LoseHold"/>).</summary>
+    public bool Losing => _lostTicks > 0;
 
     /// <summary>Forgets the target.</summary>
     public void Clear()
@@ -362,7 +366,8 @@ public sealed class TargetCone
 
     /// <summary>
     /// An enemy's likelihood as the target, or null outside the cone or the range (<see cref="CameraTuning.ConeHold"/>'s and
-    /// <see cref="CameraTuning.TargetRangeHold"/>'s for the one held, which within <see cref="CameraTuning.HoldNear"/> needs no cone).
+    /// <see cref="CameraTuning.TargetRangeHold"/>'s for the one held, which within <see cref="CameraTuning.HoldNear"/> needs only that the
+    /// character doesn't head away from it, <see cref="CameraTuning.HoldNearAngle"/>).
     /// </summary>
     public float? Likelihood(Vector3 me, Vector2 heading, TargetCandidate c, CameraTuning t)
     {
@@ -376,8 +381,8 @@ public sealed class TargetCone
             return null;
         var angle = MathF.Acos(Math.Clamp(Vector2.Dot(Vector2.Normalize(heading), flat / d), -1, 1));
         var ahead = t.AngleWeight * (1 - MathF.Pow(angle / ShotFinder.Rad(t.ConeAngle), 2));
-        // The one held, near: whichever way the character faces, as near as it is.
-        if (held && d <= t.HoldNear)
+        // The one held, near: whichever way the character faces round it, as near as it is.
+        if (held && d <= t.HoldNear && angle <= ShotFinder.Rad(t.HoldNearAngle))
             return MathF.Max(0, ahead) + MathF.Exp(-d / t.NearScale);
         if (angle > ShotFinder.Rad(held ? t.ConeHold : t.ConeAngle))
             return null;
