@@ -38,6 +38,9 @@ public partial class Game
 
     private static bool _launched;
 
+    /// <summary>The party's turns played by script (<c>--battle-plan</c>), kept for the run as the launch options are.</summary>
+    private static Core.Combat.BattlePlan? _battlePlan;
+
     /// <summary>
     /// Carries out the options that drive the run, in the order they apply: the menu, the free camera, the input held
     /// and pressed, the cut-scene and cinematic to play, and the screenshot, which waits for what's before it.
@@ -48,6 +51,7 @@ public partial class Game
         if (_launched)
             return;
         _launched = true;
+        _battlePlan = options.BattlePlan is { } plan ? Core.Combat.BattlePlan.Parse(plan) : null;
         switch (options.Menu)
         {
             case "1":
@@ -318,7 +322,8 @@ public partial class Game
         var sphere = motion.Sphere;
         _overlay.Text = (Battle is { } battle ? $"battle in arena {battle.Arena.Chunk.Name}, {battle.State}, {battle.Current?.Sheet.Name ?? "no one"}'s turn {battle.Order.Now + 1} of {battle.Order.Turns.Count}" +
                 $"{(battle.Current is { } now ? $", field {now.Radius} (ring {battle.Ring.RingRadius:F2}, {battle.Ring.Count} teardrops), moves {now.Moves}, {System.Numerics.Vector2.Distance(now.Cell, now.TurnStart):F2} from its start" : "")}\n" +
-                $"{string.Join(", ", battle.Combatants.Select(c => $"{c.Slot} {c.Sheet.Name} ({c.Cell.X:F2}, {c.Cell.Y:F2}) r {c.Radius}{(c.Engaged ? " engaged" : "")}"))}, eye {Local(battle.Camera.Position)} aim {Local(battle.Camera.Aim)}{(battle.CanFlee ? "; can flee" : "")}\n" : "") +
+                $"{string.Join(", ", battle.Combatants.Select(c => $"{c.Slot} {c.Sheet.Name} ({c.Cell.X:F2}, {c.Cell.Y:F2}) r {c.Radius}{(c.Engaged ? " engaged" : "")}"))}, eye {Local(battle.Camera.Position)} aim {Local(battle.Camera.Aim)}{(battle.CanFlee ? "; can flee" : "")}\n" +
+                (battle.CombatCamera.Enhanced is { } enhanced ? enhanced.Status + "\n" : "") : "") +
             (Scene is { } scene ?$"cut-scene {scene.Runner.Script.Id}, waiting for {scene.Runner.Wait?.ToString() ?? "nothing"}, {scene.Actors.Count} actors, {scene.Cameras.Count} camera moves\n" : "") +
             $"{chunks.Chunks.MapSet.Label} {chunk?.Name ?? "(no chunk)"}  " +
             $"({local.X:F1}, {local.Y:F1}, {local.Z:F1})  {Engine.GetFramesPerSecond()} fps" +

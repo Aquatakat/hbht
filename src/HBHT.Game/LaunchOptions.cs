@@ -187,6 +187,19 @@ public sealed class LaunchOptions(Dictionary<string, string> values)
         ? turns == "early" ? Core.Combat.CombatTurns.StartEarly : Core.Combat.CombatTurns.Original
         : null;
 
+    /// <summary>
+    /// <c>--battle-camera original|enhanced[,Name=value,…]</c>: the options' Camera, and any of the enhanced camera's numbers by name
+    /// (<see cref="Core.Combat.CameraTuning.Parse"/>), such as <c>--battle-camera enhanced,AimAcceleration=20,ConeAngle=30</c>.
+    /// </summary>
+    public Core.Cameras.CameraStyle? BattleCamera => Text("battle-camera") is { } camera
+        ? camera.Split(',')[0].Trim() == "enhanced" ? Core.Cameras.CameraStyle.Enhanced : Core.Cameras.CameraStyle.Original
+        : null;
+
+    /// <summary>The enhanced camera's numbers <c>--battle-camera</c> sets, after its style.</summary>
+    public Core.Combat.CameraTuning? CameraTuning => Text("battle-camera") is { } camera && camera.IndexOf(',') is var comma and >= 0
+        ? Core.Combat.CameraTuning.Default.Parse(camera[(comma + 1)..])
+        : null;
+
     // What drives the run.
 
     public string? Weather => Text("weather");
@@ -208,6 +221,12 @@ public sealed class LaunchOptions(Dictionary<string, string> values)
 
     /// <summary>A battle to start, as an encounter's or an npc's ID, then optionally <c>,&lt;arena&gt;</c> and <c>,ambush</c>.</summary>
     public string? Battle => Text("battle");
+
+    /// <summary>
+    /// <c>--battle-plan "Name=step/step;*=step"</c>: the party's turns played by script, for movies comparing settings with the same
+    /// inputs (<see cref="Core.Combat.BattlePlan"/>).
+    /// </summary>
+    public string? BattlePlan => Text("battle-plan");
 
     /// <summary>Where the battle screen's radar sits: <c>--radar box</c> for the log box, as the original has it, rather than the screen's corner.</summary>
     public string? Radar => Text("radar");

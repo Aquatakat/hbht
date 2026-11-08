@@ -644,7 +644,7 @@ public sealed class CombatRadar
     {
         if ((battle.CameraOwner is { Freed: false } o ? o : battle.Current) is not { } owner)
             return null;
-        var look = battle.CombatCamera is { } camera ? camera.Camera.LookXZ : Vector2.UnitX;
+        var look = battle.CombatCamera is { } camera ? camera.Shown.LookXZ : Vector2.UnitX;
         var targeting = (state ?? battle.State) is CombatState.TargetSpell or CombatState.PlaceArea or CombatState.TargetThrown;
         var bodies = new List<CombatRadarEntry>();
         foreach (var c in battle.Combatants.Where(c => !c.Freed))

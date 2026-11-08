@@ -62,11 +62,57 @@ public sealed class CombatCamera
         Camera.PlaceAt(owner);
     }
 
-    /// <summary>The camera it moves, which the zone engine and the runtime draw from.</summary>
+    /// <summary>
+    /// The camera it moves, the original's. Under Camera: Original it's what the zone engine and the runtime draw from; under Enhanced
+    /// it goes on underneath the enhanced camera's (<see cref="Shown"/>).
+    /// </summary>
     public FollowCamera Camera { get; }
 
-    /// <summary>One tick (<c>ProcessCombatCamera</c>).</summary>
+    /// <summary>The Camera setting: the original's camera, or the enhanced one over it in a battle played turn by turn.</summary>
+    public CameraStyle Style { get; set; }
+
+    /// <summary>The enhanced camera's numbers.</summary>
+    public CameraTuning Tuning { get; set; } = CameraTuning.Default;
+
+    private EnhancedCamera? _enhanced;
+    private bool _enhancedOn;
+
+    /// <summary>The enhanced camera, while it's what's shown: under Camera: Enhanced in a battle whose turns are the original's.</summary>
+    public EnhancedCamera? Enhanced => _enhancedOn ? _enhanced : null;
+
+    /// <summary>The camera shown, which the stick and the aim are read against: the enhanced camera's while it's on, else the original's.</summary>
+    public FollowCamera Shown => _enhancedOn ? _enhanced!.Camera : Camera;
+
+    /// <summary>
+    /// One tick: the original's camera (<c>ProcessCombatCamera</c>), then under Camera: Enhanced, with the turns the original's, the
+    /// enhanced camera over it. Start Early's camera is its own (for now the newest action's), so the enhanced camera waits for it.
+    /// </summary>
     public void Step(Battle battle)
+    {
+        StepOriginal(battle);
+        var on = Style == CameraStyle.Enhanced && battle.Turns == CombatTurns.Original;
+        if (on)
+        {
+            _enhanced ??= new EnhancedCamera();
+            _enhanced.Tuning = Tuning;
+            if (!_enhancedOn)
+                _enhanced.Begin();
+            _enhanced.Step(battle, Camera, _glide is { } g ? (g.From, g.To) : null);
+        }
+        _enhancedOn = on;
+    }
+
+    /// <summary>
+    /// The player turns the camera in their turn (R or the camera's stick): the enhanced camera lets go until the turn ends, and the
+    /// original's carries on from the shot shown. Nothing under Original.
+    /// </summary>
+    internal void TakeHand()
+    {
+        if (_enhancedOn)
+            _enhanced!.TakeHand(Camera);
+    }
+
+    private void StepOriginal(Battle battle)
     {
         var world = battle.World;
         if (_placing)
@@ -164,8 +210,12 @@ public sealed class CombatCamera
     /// <param name="height">How high above the bodies' middle it aims: the attacker's eyes less 0.2 and its radius.</param>
     public void StartGlide(Body from, Body to, float height) => _glide = new GlideState(from, to, height);
 
-    /// <summary>The glide stops (<c>CombatCamera.Reset</c>, <c>0x8008D210</c>, as a turn ends).</summary>
-    public void Reset() => _glide = null;
+    /// <summary>The glide stops (<c>CombatCamera.Reset</c>, <c>0x8008D210</c>, as a turn ends), and the enhanced camera takes the camera back.</summary>
+    public void Reset()
+    {
+        _glide = null;
+        _enhanced?.TurnEnded();
+    }
 
     /// <summary>
     /// A tick of the glide (<c>CombatCamera.CastGlide</c>, <c>0x8008D3C8</c>): on its first, its goals, by the two bodies (one a unit

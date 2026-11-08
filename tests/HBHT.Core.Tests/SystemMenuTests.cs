@@ -85,11 +85,35 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         options.Point(2);
         options.Accept();
         Assert.Equal(["Draw Distance", "Object Distance", "Model Detail", "Rain and Snow", "Menu Size", "Menu Filter", "Pace", "Movement",
-                "Status Auras", "Combat Turns"],
+                "Status Auras", "Combat Turns", "Camera"],
             options.Rows.Rows.Select(r => r.Label));
         // A new player's are the original's, and the original's video out.
-        Assert.Equal(["Original", "Original", "Original", "Original", "Original", "Video Out", "Original", "Original", "Original", "Original"],
+        Assert.Equal(["Original", "Original", "Original", "Original", "Original", "Video Out", "Original", "Original", "Original", "Original", "Original"],
             options.Rows.Rows.Select(r => r.ValueName));
+    }
+
+    [Fact]
+    public void TheCameraRowSaysStartEarlyChoosesUnderStartEarly()
+    {
+        var settings = new Settings();
+        var options = new OptionsMenu(settings, inGame: true);
+        options.Point(2);
+        options.Accept();
+        var labels = options.Rows.Rows.Select(r => r.Label).ToList();
+        options.Point(labels.IndexOf("Camera"));
+        options.Change(1);
+        Assert.Equal(HBHT.Core.Cameras.CameraStyle.Enhanced, settings.Camera);
+        Assert.Equal("Enhanced", options.Rows.Rows[labels.IndexOf("Camera")].ValueName);
+        // Combat Turns to Start Early: the Camera row is Start Early's, and the setting is kept for when it's Original again.
+        options.Point(labels.IndexOf("Combat Turns"));
+        options.Change(1);
+        Assert.Equal(["Start Early's"], options.Rows.Rows[labels.IndexOf("Camera")].Values);
+        options.Point(labels.IndexOf("Camera"));
+        options.Change(1);
+        Assert.Equal(HBHT.Core.Cameras.CameraStyle.Enhanced, settings.Camera);
+        options.Point(labels.IndexOf("Combat Turns"));
+        options.Change(1);
+        Assert.Equal("Enhanced", options.Rows.Rows[labels.IndexOf("Camera")].ValueName);
     }
 
     [Fact]

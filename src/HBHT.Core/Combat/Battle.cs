@@ -186,8 +186,11 @@ public sealed partial class Battle
     /// <summary>Whether the party can flee: the setup's say, and the bosses' and the flags' (<c>0x800D9481</c>).</summary>
     public bool CanFlee { get; private set; }
 
-    /// <summary>The camera (camera mode 4), which the zone engine draws from.</summary>
-    public FollowCamera Camera => CombatCamera.Camera;
+    /// <summary>
+    /// The camera shown (camera mode 4), which the zone engine draws from and the stick and the aim are read against: the original's, or
+    /// under Camera: Enhanced the enhanced camera's (<see cref="CombatCamera.Shown"/>).
+    /// </summary>
+    public FollowCamera Camera => CombatCamera.Shown;
 
     /// <summary>What moves the camera (<c>ProcessCombatCamera</c>).</summary>
     public CombatCamera CombatCamera { get; private set; } = null!;
