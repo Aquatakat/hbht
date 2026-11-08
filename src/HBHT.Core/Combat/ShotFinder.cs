@@ -28,26 +28,29 @@ public sealed class ShotFinder(SightLines sight, CameraTuning tuning)
             || eye.X > max.X + Tuning.FieldMargin || eye.Z > max.Y + Tuning.FieldMargin);
 
     /// <summary>
-    /// A shot of the subjects from a yaw and pitch: aimed at their middle, as near as holds them all, within
+    /// A shot of the subjects from a yaw and pitch: aimed at their middle (or at <paramref name="aim"/>), as near as holds them all, within
     /// <see cref="CameraTuning.MinDistance"/> and <paramref name="most"/> (<see cref="CameraTuning.MaxDistance"/> unless given).
     /// </summary>
-    public Shot Framed(IReadOnlyList<ShotSubject> subjects, float yaw, float pitch, float? most = null)
+    public Shot Framed(IReadOnlyList<ShotSubject> subjects, float yaw, float pitch, float? most = null, Vector3? aim = null)
     {
         var t = Tuning;
-        var aim = ShotFraming.Middle(subjects);
-        var distance = Math.Clamp(ShotFraming.DistanceToHold(subjects, aim, yaw, pitch, t.Lens), t.MinDistance, most ?? t.MaxDistance);
-        return new Shot(aim, yaw, pitch, distance);
+        var at = aim ?? ShotFraming.Middle(subjects);
+        var distance = Math.Clamp(ShotFraming.DistanceToHold(subjects, at, yaw, pitch, t.Lens), t.MinDistance, most ?? t.MaxDistance);
+        return new Shot(at, yaw, pitch, distance);
     }
 
     /// <summary>
     /// The best shot holding <paramref name="subjects"/>: of <see cref="CameraTuning.Yaws"/> turned from <paramref name="behind"/> (or from
-    /// <paramref name="from"/>, without one) and <see cref="CameraTuning.Pitches"/>, the one scoring best (<see cref="Score"/>). Null only
-    /// for no subjects.
+    /// <paramref name="from"/>, without one) and <see cref="CameraTuning.Pitches"/>, the one scoring best (<see cref="Score"/>), each
+    /// framed as <see cref="Framed"/> frames it. Null only for no subjects.
     /// </summary>
     /// <param name="from">The yaw the view has now, which turning from costs.</param>
     /// <param name="behind">The yaw over the character's shoulder at its target, which turning from costs too.</param>
     /// <param name="sides">Who should be framed to the right of whom (<see cref="Sides"/>).</param>
-    public (Shot Shot, float Score)? Best(IReadOnlyList<ShotSubject> subjects, float from, float? behind = null, IReadOnlyList<ScreenSide>? sides = null)
+    /// <param name="aim">What the shots aim at, rather than the subjects' middle: near the character, over the shoulder.</param>
+    /// <param name="most">The farthest the eye goes from the aim.</param>
+    public (Shot Shot, float Score)? Best(IReadOnlyList<ShotSubject> subjects, float from, float? behind = null, IReadOnlyList<ScreenSide>? sides = null,
+        Vector3? aim = null, float? most = null)
     {
         if (subjects.Count == 0)
             return null;
@@ -57,7 +60,7 @@ public sealed class ShotFinder(SightLines sight, CameraTuning tuning)
         {
             foreach (var p in t.Pitches)
             {
-                var shot = Framed(subjects, Shot.Wrap((behind ?? from) + Rad(dy)), Rad(p));
+                var shot = Framed(subjects, Shot.Wrap((behind ?? from) + Rad(dy)), Rad(p), most, aim);
                 var score = Score(shot, subjects, from, behind, sides);
                 if (best is not { } b || score > b.Item2)
                     best = (shot, score);
@@ -239,16 +242,90 @@ public sealed class ShotFinder(SightLines sight, CameraTuning tuning)
 public readonly record struct TargetCandidate(object Who, Vector3 At);
 
 /// <summary>
-/// Two who deal with each other, and which of them a shot should frame on the right: a party member keeps the side of the screen they had
-/// against their enemies the first time (the television dialogue's rule, one always left and the other right).
+/// Two who deal with each other, and which of them a shot should frame on the right: the way the battle's vantage sees them
+/// (<see cref="Vantage.Side"/>), film's rule of keeping the camera on one side of the line between them.
 /// </summary>
 public readonly record struct ScreenSide(Vector3 Right, Vector3 Left);
 
 /// <summary>
+/// The battle's vantage: a point off to one side of the line between the party's middle and the enemies', from whose side every shot
+/// is taken, as film keeps its cameras on one side of the line of action. Two who deal with each other are framed the way round it
+/// sees them (<see cref="Side"/>), so every party member is on the same side of their enemies from one shot to the next, whoever's turn
+/// it is. It's placed as the battle begins, again as a reserve comes onto the field or the fight has turned round, and the shots
+/// needn't be taken from it, only from its side.
+/// </summary>
+public static class Vantage
+{
+    /// <summary>How nearly in line with two the vantage may see them and still say which is on the right: a share of how far apart they are.</summary>
+    private const float InLine = 0.25f;
+
+    /// <summary>
+    /// Where the vantage stands across the ground: off the middle of the line from <paramref name="party"/> to <paramref name="enemies"/>
+    /// (their middles), <see cref="CameraTuning.VantageReach"/> times its length or at least <see cref="CameraTuning.VantageNearest"/>;
+    /// and its side, +1 on the left of the way from the party to the enemies, −1 on its right. On the <paramref name="side"/> it had (0 for
+    /// none yet) while the field has room that side for half its reach, so the camera stays on the same side of the fight as it moves
+    /// about the field; else on the side with more room, where the shots' eyes have room to stand. It may stand beyond the field: it's a
+    /// side, not an eye. Null where the two middles are one.
+    /// </summary>
+    public static (Vector2 At, int Side)? Place(Vector2 party, Vector2 enemies, (Vector2 Min, Vector2 Max)? field, int side, CameraTuning t)
+    {
+        var line = enemies - party;
+        var length = line.Length();
+        if (length < 1e-3f)
+            return null;
+        var way = line / length;
+        // The left of the way, in x and z (Shot.Right's opposite).
+        var left = new Vector2(way.Y, -way.X);
+        var middle = (party + enemies) / 2;
+        var reach = MathF.Max(t.VantageNearest, t.VantageReach * length);
+        var (plus, minus) = (Room(middle, left, field), Room(middle, -left, field));
+        if (side == 0 || (side > 0 ? plus : minus) < reach / 2)
+            side = plus >= minus ? 1 : -1;
+        return (middle + left * side * reach, side);
+    }
+
+    /// <summary>How far from <paramref name="from"/> along <paramref name="way"/> the field goes on: to its edge, or for ever without one.</summary>
+    private static float Room(Vector2 from, Vector2 way, (Vector2 Min, Vector2 Max)? field)
+    {
+        if (field is not var (min, max))
+            return float.MaxValue;
+        var room = float.MaxValue;
+        if (way.X > 1e-6f)
+            room = MathF.Min(room, (max.X - from.X) / way.X);
+        else if (way.X < -1e-6f)
+            room = MathF.Min(room, (min.X - from.X) / way.X);
+        if (way.Y > 1e-6f)
+            room = MathF.Min(room, (max.Y - from.Y) / way.Y);
+        else if (way.Y < -1e-6f)
+            room = MathF.Min(room, (min.Y - from.Y) / way.Y);
+        return MathF.Max(room, 0);
+    }
+
+    /// <summary>
+    /// Which of two who deal with each other <paramref name="vantage"/> sees on the right, looking at their middle; null where it sees
+    /// them nearly in line, as either side is as good.
+    /// </summary>
+    public static ScreenSide? Side(Vector3 a, Vector3 b, Vector2 vantage)
+    {
+        var look = new Vector2(a.X + b.X, a.Z + b.Z) / 2 - vantage;
+        var apart = new Vector2(a.X - b.X, a.Z - b.Z);
+        if (look.LengthSquared() < 1e-6f || apart.LengthSquared() < 1e-6f)
+            return null;
+        look = Vector2.Normalize(look);
+        // The screen's right looking that way across the ground (Shot.Right), in x and z.
+        var across = Vector2.Dot(apart, new Vector2(-look.Y, look.X));
+        if (MathF.Abs(across) < apart.Length() * InLine)
+            return null;
+        return across > 0 ? new ScreenSide(a, b) : new ScreenSide(b, a);
+    }
+}
+
+/// <summary>
 /// Whom the player heads for in their turn: of the enemies in a cone about the way the character points (the way it walks, as it walks),
 /// within range, the likeliest by how near the cone's middle it is and how near the character. The target held stays while it's in a
-/// wider cone and a longer range, and for a while after it leaves them; another takes its place only once it has been clearly likelier
-/// for a while. So the stick's wobble doesn't flick the camera between two bodies, or between one and none.
+/// wider cone and a longer range, or near the character whichever way it faces, and for a while after it leaves them; another takes its
+/// place only once it has been clearly likelier for a while. So the stick's wobble doesn't flick the camera between two bodies, or
+/// between one and none, and running round a pack keeps the camera on it.
 /// </summary>
 public sealed class TargetCone
 {
@@ -269,7 +346,7 @@ public sealed class TargetCone
 
     /// <summary>
     /// An enemy's likelihood as the target, or null outside the cone or the range (<see cref="CameraTuning.ConeHold"/>'s and
-    /// <see cref="CameraTuning.TargetRangeHold"/>'s for the one held).
+    /// <see cref="CameraTuning.TargetRangeHold"/>'s for the one held, which within <see cref="CameraTuning.HoldNear"/> needs no cone).
     /// </summary>
     public float? Likelihood(Vector3 me, Vector2 heading, TargetCandidate c, CameraTuning t)
     {
@@ -282,9 +359,13 @@ public sealed class TargetCone
         if (d > (held ? t.TargetRangeHold : t.TargetRange))
             return null;
         var angle = MathF.Acos(Math.Clamp(Vector2.Dot(Vector2.Normalize(heading), flat / d), -1, 1));
+        var ahead = t.AngleWeight * (1 - MathF.Pow(angle / ShotFinder.Rad(t.ConeAngle), 2));
+        // The one held, near: whichever way the character faces, as near as it is.
+        if (held && d <= t.HoldNear)
+            return MathF.Max(0, ahead) + MathF.Exp(-d / t.NearScale);
         if (angle > ShotFinder.Rad(held ? t.ConeHold : t.ConeAngle))
             return null;
-        return t.AngleWeight * (1 - MathF.Pow(angle / ShotFinder.Rad(t.ConeAngle), 2)) + MathF.Exp(-d / t.NearScale);
+        return ahead + MathF.Exp(-d / t.NearScale);
     }
 
     /// <summary>A tick: picks again from <paramref name="candidates"/>. Returns whether the target changed.</summary>

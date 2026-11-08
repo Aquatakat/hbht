@@ -63,15 +63,22 @@ public readonly record struct Shot(Vector3 Aim, float Yaw, float Pitch, float Di
 
 /// <summary>
 /// What a shot is seen through: its vertical field of view in degrees, the narrowest screen's width over its height, and how much of
-/// the half-width and half-height a subject must sit within (<see cref="Margin"/>), so nothing is framed against the very edge.
+/// the half-width and half-height a subject must sit within (<see cref="Margin"/>), so nothing is framed against the very edge. Below the
+/// middle it must sit within <see cref="Floor"/> of the half-height, which a battle sets above the conversation box.
 /// </summary>
 public readonly record struct Lens(float FieldOfView, float Aspect, float Margin)
 {
     /// <summary>The runtime's camera: 45° high (<c>CameraRig</c>), judged on a 4:3 screen, a subject kept within 85% of the edge.</summary>
     public static Lens Runtime { get; } = new(45, 4f / 3, 0.85f);
 
-    /// <summary>The tangent of the half-height a subject sits within.</summary>
+    /// <summary>How much of the half-height below the middle a subject must sit within: <see cref="Margin"/> unless set.</summary>
+    public float Floor { get; init; } = Margin;
+
+    /// <summary>The tangent of the half-height above the middle a subject sits within.</summary>
     public float TanV => MathF.Tan(FieldOfView * MathF.PI / 360) * Margin;
+
+    /// <summary>The tangent of the half-height below the middle a subject sits within (<see cref="Floor"/>).</summary>
+    public float TanDown => MathF.Tan(FieldOfView * MathF.PI / 360) * Floor;
 
     /// <summary>The tangent of the half-width a subject sits within.</summary>
     public float TanH => TanV * Aspect;
@@ -94,22 +101,23 @@ public static class ShotFraming
     {
         var shot = new Shot(aim, yaw, pitch, 0);
         var (f, r, u) = (shot.Forward, shot.Right, shot.Up);
-        var (tanH, tanV) = (lens.TanH, lens.TanV);
+        var (tanH, tanV, tanDown) = (lens.TanH, lens.TanV, lens.TanDown);
         var most = 0f;
         foreach (var s in subjects)
         {
             var q = s.At - aim;
             var depth = Vector3.Dot(q, f);
+            var up = Vector3.Dot(q, u);
             // The eye at D back along f sees q at depth D + depth, across x and up y; each must fit its tangent there.
-            var need = MathF.Max((MathF.Abs(Vector3.Dot(q, r)) + s.Radius) / tanH, (MathF.Abs(Vector3.Dot(q, u)) + s.Radius) / tanV) - depth;
+            var need = MathF.Max((MathF.Abs(Vector3.Dot(q, r)) + s.Radius) / tanH, MathF.Max((up + s.Radius) / tanV, (s.Radius - up) / tanDown)) - depth;
             most = MathF.Max(most, MathF.Max(need, Near + s.Radius - depth));
         }
         return most;
     }
 
     /// <summary>
-    /// Where <paramref name="point"/> falls in <paramref name="shot"/>: across and up as parts of the lens's margins (within ±1 is held),
-    /// and how far in front of the eye it is.
+    /// Where <paramref name="point"/> falls in <paramref name="shot"/>: across and up as parts of the lens's margins (within ±1 is held;
+    /// below the middle, of its <see cref="Lens.Floor"/>), and how far in front of the eye it is.
     /// </summary>
     public static (float X, float Y, float Depth) OnScreen(Shot shot, Vector3 point, Lens lens)
     {
@@ -117,7 +125,8 @@ public static class ShotFraming
         var depth = Vector3.Dot(v, shot.Forward);
         if (depth < 1e-3f)
             return (float.PositiveInfinity, float.PositiveInfinity, depth);
-        return (Vector3.Dot(v, shot.Right) / (depth * lens.TanH), Vector3.Dot(v, shot.Up) / (depth * lens.TanV), depth);
+        var up = Vector3.Dot(v, shot.Up);
+        return (Vector3.Dot(v, shot.Right) / (depth * lens.TanH), up / (depth * (up >= 0 ? lens.TanV : lens.TanDown)), depth);
     }
 
     /// <summary>Whether a subject is wholly within the lens's margins.</summary>
@@ -127,8 +136,9 @@ public static class ShotFraming
         var depth = Vector3.Dot(v, shot.Forward);
         if (depth < Near + s.Radius)
             return false;
+        var up = Vector3.Dot(v, shot.Up);
         return MathF.Abs(Vector3.Dot(v, shot.Right)) + s.Radius <= depth * lens.TanH * 1.001f
-            && MathF.Abs(Vector3.Dot(v, shot.Up)) + s.Radius <= depth * lens.TanV * 1.001f;
+            && up + s.Radius <= depth * lens.TanV * 1.001f && s.Radius - up <= depth * lens.TanDown * 1.001f;
     }
 
     /// <summary>The middle of the box round the subjects' spheres.</summary>

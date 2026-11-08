@@ -23,6 +23,12 @@ public sealed record CameraTuning
     /// <summary>The share of the half-width and half-height a subject must sit within.</summary>
     public float FrameMargin { get; init; } = 0.85f;
 
+    /// <summary>
+    /// The share of the half-height below the middle a subject must sit within: above the conversation box, whose top is two thirds of the
+    /// way down, so no one is framed under it.
+    /// </summary>
+    public float FrameFloor { get; init; } = 0.55f;
+
     // ---- Motion
 
     /// <summary>The cap on the aim's acceleration, and its deceleration (units a second squared). Speed isn't capped.</summary>
@@ -65,6 +71,20 @@ public sealed record CameraTuning
     public float WalkPace { get; init; } = 0.5f;
 
     /// <summary>
+    /// The caps times this in the player's turn once the character is at the edge of the shot shown or out of it (the settle by its
+    /// square root), so the view keeps them rather than leaving them off the screen. The caps go up toward it from the walk's as the
+    /// character goes out from <see cref="CatchUpFrom"/> of the way to the edge, at once, and come back down over
+    /// <see cref="CatchUpTicks"/>.
+    /// </summary>
+    public float LostPace { get; init; } = 2;
+
+    /// <inheritdoc cref="LostPace"/>
+    public float CatchUpFrom { get; init; } = 0.5f;
+
+    /// <inheritdoc cref="LostPace"/>
+    public int CatchUpTicks { get; init; } = 20;
+
+    /// <summary>
     /// The most of a moving goal's own speed followed at while the player has the camera in their hand, units a second: a running body's.
     /// The director's own shots follow none of it: they trail a moving goal, by as much as it takes to stop on it, so the view never
     /// overshoots a goal that stops and swings back.
@@ -95,6 +115,16 @@ public sealed record CameraTuning
     /// moved to under the caps spends seconds looking at the ground between.
     /// </summary>
     public float CutPitch { get; init; } = 35;
+
+    /// <summary>
+    /// The player's turn begins with a cut to its shot unless that's nearer than this to the shot shown, and turned less than
+    /// <see cref="EnterCutTurn"/> degrees, or the shot shown doesn't hold the character: the turn begins with them in view, and a move
+    /// a long way from the last turn's shot swept the eye past them.
+    /// </summary>
+    public float EnterCutDistance { get; init; } = 8;
+
+    /// <inheritdoc cref="EnterCutDistance"/>
+    public float EnterCutTurn { get; init; } = 60;
 
     /// <summary>How far beyond the battlefield's grid a director's shot may put its eye: the walls and cliffs round it are scenery without collision.</summary>
     public float FieldMargin { get; init; } = 1;
@@ -139,10 +169,10 @@ public sealed record CameraTuning
     public float PlannedYawStep { get; init; } = 15;
 
     /// <summary>Pitches tried for an AI's turn, degrees.</summary>
-    public float[] PlannedPitches { get; init; } = [20, 30, 40, 55, 70];
+    public float[] PlannedPitches { get; init; } = [12, 20, 30, 40];
 
     /// <summary>The pitch liked best for an AI's turn, degrees.</summary>
-    public float PlannedPitch { get; init; } = 30;
+    public float PlannedPitch { get; init; } = 20;
 
     /// <summary>
     /// Taken off for each radian an AI's turn's shot is turned from the next player's turn's likely shot (over that character's shoulder at
@@ -173,15 +203,27 @@ public sealed record CameraTuning
     /// </summary>
     public int LoseHold { get; init; } = 45;
 
+    /// <summary>
+    /// The target held stays it, whichever way the character faces, while it's within this across the ground: running round a pack for a
+    /// backstab keeps the camera on it.
+    /// </summary>
+    public float HoldNear { get; init; } = 10;
+
     /// <summary>Enemies within this of the target, across the ground, are framed with it: a pack is shown whole, centred.</summary>
     public float ClusterRadius { get; init; } = 8;
+
+    /// <summary>
+    /// The pack is framed only while the target is within this of the character; further, the shot looks at its middle but holds only the
+    /// target, small beyond the character, rather than drawing back to hold them all.
+    /// </summary>
+    public float PackRange { get; init; } = 14;
 
     /// <summary>The weight of the target's pack, each, beside the character's and the target's 1.</summary>
     public float ClusterWeight { get; init; } = 0.5f;
 
     /// <summary>
-    /// Taken off a shot, up to this, for framing a party member on the other side of whom they deal with from the side they had the
-    /// first time: each keeps a side of the screen against their enemies (<see cref="ScreenSide"/>).
+    /// Taken off a shot, up to this, for framing two who deal with each other, a party member and their enemy, the other way round from
+    /// how the battle's vantage sees them (<see cref="ScreenSide"/>, <see cref="Vantage"/>).
     /// </summary>
     public float SideCost { get; init; } = 1.5f;
 
@@ -206,22 +248,78 @@ public sealed record CameraTuning
     /// <summary>Ticks in a row another enemy must be that much likelier.</summary>
     public int TargetHold { get; init; } = 45;
 
+    // ---- The vantage: the side every shot is taken from
+
+    /// <summary>
+    /// How far the battle's vantage stands off the line between the party's middle and the enemies', times the line's length, and the
+    /// least it stands off it (<see cref="Vantage"/>).
+    /// </summary>
+    public float VantageReach { get; init; } = 0.6f;
+
+    /// <inheritdoc cref="VantageReach"/>
+    public float VantageNearest { get; init; } = 10;
+
+    /// <summary>
+    /// The vantage is placed again once the line between the party and the enemies has turned this far, degrees, from the one it was
+    /// placed for, as well as when a reserve comes onto the field, or the line's middle or length has moved by more than half the reach
+    /// it was placed with.
+    /// </summary>
+    public float VantageTurn { get; init; } = 60;
+
+    // ---- An arrow, a throw or a spell at someone further off: loosed, then the hit
+
+    /// <summary>An action at someone further than this from the one who acts is shown as two shots: the loosing, then the hit.</summary>
+    public float ReleaseDistance { get; init; } = 6;
+
+    /// <summary>The share of its way an arrow, a throw or a flask has flown when the camera cuts to its target.</summary>
+    public float HitAt { get; init; } = 0.5f;
+
+    /// <summary>Ticks after a spell's visual starts at its caster's strike that the camera cuts to its target.</summary>
+    public int ReleaseBeat { get; init; } = 10;
+
+    /// <summary>
+    /// The fewest ticks the loosing is shown before the cut to the hit, unless the blow lands first: a spell's visual may start early in its
+    /// caster's cast, and cut to so soon the loosing was gone before it was seen.
+    /// </summary>
+    public int LoosingTicks { get; init; } = 45;
+
+    /// <summary>
+    /// How far the hit's shot is turned from looking along the way the missile came, degrees, toward the vantage's side: the target seen
+    /// three-quarters on, the missile coming in from the side the loosing was shot from.
+    /// </summary>
+    public float HitTurn { get; init; } = 35;
+
     // ---- Framing the character and the target: over the shoulder
 
-    /// <summary>Pitches tried, degrees: low first, over the shoulder.</summary>
-    public float[] Pitches { get; init; } = [6, 12, 20, 30, 45, 60, 75];
+    /// <summary>Pitches tried, degrees: low first, over the shoulder. None from high above, which loses the third person's feel.</summary>
+    public float[] Pitches { get; init; } = [4, 8, 12, 18, 24, 30];
 
     /// <summary>Turns tried from straight over the character's shoulder at the target (or from the view now, with none), degrees.</summary>
     public float[] Yaws { get; init; } = [0, 15, -15, 30, -30, 50, -50, 80, -80, 120, -120];
 
     /// <summary>The pitch liked best, degrees: over the shoulder.</summary>
-    public float PreferredPitch { get; init; } = 15;
+    public float PreferredPitch { get; init; } = 12;
 
     /// <summary>The nearest and farthest a framed shot goes from its aim.</summary>
     public float MinDistance { get; init; } = 6;
 
     /// <inheritdoc cref="MinDistance"/>
     public float MaxDistance { get; init; } = 35;
+
+    /// <summary>
+    /// The farthest a shot over the shoulder goes from its aim, which is near the character: the character stays large, the target
+    /// small beyond them if it's far off.
+    /// </summary>
+    public float ShoulderDistance { get; init; } = 14;
+
+    /// <summary>
+    /// A shot over the shoulder aims this share of the way from the character to whom they head for, but no further than
+    /// <see cref="AimLeadMost"/>: the character in the lower part of the screen, what's ahead above them.
+    /// </summary>
+    public float AimLead { get; init; } = 0.35f;
+
+    /// <inheritdoc cref="AimLead"/>
+    public float AimLeadMost { get; init; } = 3;
 
     /// <summary>Taken off for each radian a framing turns the view from where it is.</summary>
     public float TurnCost { get; init; } = 0.4f;
@@ -274,7 +372,7 @@ public sealed record CameraTuning
     public MotionCaps Caps => new(AimAcceleration, TurnAcceleration, ZoomAcceleration, Settle, ZoomSettle);
 
     /// <summary>The lens shots are judged by.</summary>
-    public Lens Lens => new(FieldOfView, Aspect, FrameMargin);
+    public Lens Lens => new(FieldOfView, Aspect, FrameMargin) { Floor = FrameFloor };
 
     /// <summary>
     /// These numbers with some set by name, as <c>AimAcceleration=20,ConeAngle=30</c>: any above, its name's case ignored. The lists

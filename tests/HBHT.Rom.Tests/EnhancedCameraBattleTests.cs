@@ -150,7 +150,10 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
     [Fact]
     public void ThePlayersTurnFramesTheCharacterWithItsTargetHidingNeither()
     {
-        var (framed, hidden, held, low, walkingCuts) = (0, 0, 0, 0, 0);
+        var t = CameraTuning.Default;
+        var (framed, held, low, walkingCuts) = (0, 0, 0, 0);
+        var (nearTicks, nearHidden, farTicks, farHidden) = (0, 0, 0, 0);
+        var (turnTicks, shown, close) = (0, 0, 0);
         var (cuts, walked) = (0, (Combatant?)null);
         Play(host => Plain(Set, 1, host), CameraStyle.Enhanced, "*=stick:0:1:40/wait:40/accept/accept", run =>
         {
@@ -160,26 +163,44 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
             if (e.Cuts != cuts && e.Walking && walked == battle.Current)
                 walkingCuts++;
             (cuts, walked) = (e.Cuts, e.Walking ? battle.Current : null);
-            if (battle.State != CombatState.Turn || battle.Current is not { Controlled: false } me || e.Target is not { } target || e.Finder is not { } finder)
+            if (battle.State != CombatState.Turn || battle.Current is not { Controlled: false } me || e.Released)
+                return;
+            // The character in the shot shown, above the conversation box: the view moves with them, and catches up as they near its edge.
+            turnTicks++;
+            var sphere = new ShotSubject(me.Body.Sphere.Position, me.Body.ScaledRadius);
+            if (ShotFraming.Holds(e.Motion!.Current, sphere with { Radius = 0 }, t.Lens))
+                shown++;
+            if (e.Target is not { } target || e.Finder is not { } finder)
                 return;
             framed++;
-            ShotSubject[] both = [new(me.Body.Sphere.Position, me.Body.ScaledRadius), new(target.Body.Sphere.Position, target.Body.ScaledRadius)];
-            if (both.All(s => ShotFraming.Holds(e.Goal, s with { Radius = 0 }, CameraTuning.Default.Lens)))
+            // The character stays large: the eye never goes far from them for a target far off.
+            if (Vector3.Distance(e.Goal.Eye, sphere.At) <= t.ShoulderDistance + t.AimLeadMost)
+                close++;
+            ShotSubject[] both = [sphere, new(target.Body.Sphere.Position, target.Body.ScaledRadius)];
+            if (both.All(s => ShotFraming.Holds(e.Goal, s with { Radius = 0 }, t.Lens)))
                 held++;
-            if (finder.HiddenWeight(e.Goal, both) > 0)
-                hidden++;
+            // A target near may never be hidden; one far off, beyond the pack's range, may be behind another body rather than seen from high.
+            var hidden = finder.HiddenWeight(e.Goal, both) > 0;
+            if (Vector3.Distance(both[0].At, both[1].At) <= t.PackRange)
+                (nearTicks, nearHidden) = (nearTicks + 1, nearHidden + (hidden ? 1 : 0));
+            else
+                (farTicks, farHidden) = (farTicks + 1, farHidden + (hidden ? 1 : 0));
             if (e.Goal.Pitch <= ShotFinder.Rad(30) + 1e-4f)
                 low++;
             // Only enemies are targets.
             Assert.NotEqual(me.Hostile, target.Hostile);
         });
-        TestContext.Current.TestOutputHelper?.WriteLine($"{framed} ticks framed with a target: {held} holding both, {hidden} hiding one, {low} low; {walkingCuts} cuts walking");
+        TestContext.Current.TestOutputHelper?.WriteLine($"{framed} ticks framed with a target: {held} holding both, {low} low, {close} near the character; " +
+            $"hidden on {nearHidden} of {nearTicks} near, {farHidden} of {farTicks} far; {walkingCuts} cuts walking; the character shown on {shown} of {turnTicks} turn ticks");
         Assert.Equal(0, walkingCuts);
+        Assert.True(shown >= turnTicks * 0.98, $"the character shown on {shown} of {turnTicks}");
+        Assert.Equal(framed, close);
         Assert.True(framed > 200, $"{framed} ticks framed");
         Assert.True(held >= framed * 0.98, $"{held} of {framed} held both");
-        Assert.True(hidden <= framed * 0.02, $"{hidden} of {framed} hid one");
-        // Over the shoulder, unless only a higher shot sees the target.
-        Assert.True(low >= framed * 0.8, $"{low} of {framed} low");
+        Assert.True(nearHidden <= nearTicks * 0.02, $"{nearHidden} of {nearTicks} near hid one");
+        Assert.True(farHidden <= farTicks * 0.1, $"{farHidden} of {farTicks} far hid one");
+        // Over the shoulder, never from high above.
+        Assert.Equal(framed, low);
     }
 
     [Fact]
@@ -223,35 +244,92 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
     }
 
     [Fact]
-    public void EachPartyMemberKeepsTheirSideOfTheScreenAgainstTheirEnemies()
+    public void EveryActionIsShotFromTheVantagesSide()
     {
-        // Through every action at an enemy, the player's and the AI's, the party member is framed on the side they had the first time.
+        // Through every action at an enemy, the player's and the AI's, a party member and their enemy both before the eye are framed the
+        // way round the battle's vantage sees them.
         var (pairs, kept) = (0, 0);
-        var sides = new Dictionary<Combatant, int>();
+        var vantages = new HashSet<Vector2>();
+        var (had, turned) = (0, 0);
         Play(host => Plain(Set, 1, host), CameraStyle.Enhanced, Attacking, run =>
         {
             var battle = run.Battle;
             var e = battle.CombatCamera.Enhanced!;
-            if (battle.Current is not { } current || !e.Kind.EndsWith("planned", StringComparison.Ordinal))
+            if (e.VantagePoint is { } v)
+                vantages.Add(v);
+            if (e.VantageSide != 0 && had != 0 && e.VantageSide != had)
+                turned++;
+            had = e.VantageSide != 0 ? e.VantageSide : had;
+            if (battle.Current is not { } current || e.VantagePoint is not { } vantage
+                || !(e.Kind.EndsWith("planned", StringComparison.Ordinal) || e.Kind.StartsWith("loosing", StringComparison.Ordinal)))
                 return;
-            var slot = current.Controlled ? current.Ai?.Target ?? -1 : battle.Target;
+            var slot = current.Controlled && battle.State is CombatState.AI or CombatState.Moving ? current.Ai?.Target ?? -1 : battle.Target;
             if (slot < 0 || slot >= battle.Slots.Count || battle.Slots[slot] is not { Freed: false } other || other.Hostile == current.Hostile)
                 return;
-            var (member, enemy) = current.Hostile ? (other, current) : (current, other);
-            if (e.SideOf(member) is var side and not 0)
+            if (Vantage.Side(current.Body.Sphere.Position, other.Body.Sphere.Position, vantage) is not { } side)
+                return;
+            var lens = CameraTuning.Default.Lens;
+            if (ShotFraming.OnScreen(e.Goal, side.Right, lens).Depth <= 0 || ShotFraming.OnScreen(e.Goal, side.Left, lens).Depth <= 0)
+                return;
+            pairs++;
+            if (ShotFinder.Across(e.Goal, side, lens) >= 0)
+                kept++;
+        });
+        TestContext.Current.TestOutputHelper?.WriteLine($"{vantages.Count} vantages, its side changed {turned} times; {kept} of {pairs} action ticks framed their pair the vantage's way");
+        Assert.True(pairs > 1000, $"{pairs} ticks");
+        Assert.True(kept >= pairs * 0.9, $"{kept} of {pairs} the vantage's way");
+        // Placed as the battle begins and again as the fight moves, seldom, keeping its side: the camera doesn't cross the line.
+        Assert.InRange(vantages.Count, 1, 20);
+        Assert.InRange(turned, 0, 1);
+    }
+
+    [Fact]
+    public void AnArrowOrASpellAtSomeoneFurtherOffIsLoosedThenCutToTheHit()
+    {
+        // The skeleton archers shoot the party from afar: each shot is the loosing, over the archer's shoulder, then a cut to the hit, at
+        // its target, while the arrow is still in the air.
+        var path = Path.Combine(Environment.GetEnvironmentVariable("HBHT_PARITY") ?? Path.Combine(TestRoms.RepoRoot(), "out", "parity"),
+            "20261031-230020-setup8/battle-01");
+        if (!Directory.Exists(path))
+            Assert.Skip("No parity log for the skeleton archers.");
+        var log = Log(path);
+        var (loosings, hits, inFlight, holdLoosing, holdHit) = (0, 0, 0, 0, 0);
+        var (kind, cuts) = ("", 0);
+        Play(host => FromSetup(Set, log, "archers", host: host), CameraStyle.Enhanced, "*=skip", run =>
+        {
+            var battle = run.Battle;
+            var e = battle.CombatCamera.Enhanced!;
+            var cut = e.Cuts != cuts;
+            cuts = e.Cuts;
+            var was = kind;
+            kind = e.Kind;
+            if (kind == was || battle.Current is not { } current || battle.Target < 0 || battle.Slots[battle.Target] is not { } target)
+                return;
+            var lens = CameraTuning.Default.Lens;
+            if (kind.StartsWith("loosing", StringComparison.Ordinal))
             {
-                sides.TryAdd(member, side);
-                // Once had, a side is never changed.
-                Assert.Equal(sides[member], side);
-                pairs++;
-                var across = ShotFinder.Across(e.Goal, new ScreenSide(member.Body.Sphere.Position, enemy.Body.Sphere.Position), CameraTuning.Default.Lens);
-                if (across * side >= 0)
-                    kept++;
+                loosings++;
+                Assert.True(cut, "the loosing is cut to");
+                if (ShotFraming.Holds(e.Goal, new ShotSubject(current.Body.Sphere.Position, 0), lens))
+                    holdLoosing++;
+            }
+            else if (kind.StartsWith("the hit", StringComparison.Ordinal))
+            {
+                hits++;
+                Assert.True(cut, "the hit is cut to");
+                Assert.StartsWith("loosing", was, StringComparison.Ordinal);
+                if (battle.Flight is not null)
+                    inFlight++;
+                if (ShotFraming.Holds(e.Goal, new ShotSubject(target.Body.Sphere.Position, 0), lens))
+                    holdHit++;
             }
         });
-        TestContext.Current.TestOutputHelper?.WriteLine($"{sides.Count} party members with sides; {kept} of {pairs} action ticks framed them on their side");
-        Assert.True(sides.Count >= 3, $"{sides.Count} with sides");
-        Assert.True(kept >= pairs * 0.9, $"{kept} of {pairs} on their side");
+        TestContext.Current.TestOutputHelper?.WriteLine($"{loosings} loosings ({holdLoosing} holding the archer), {hits} hits ({holdHit} holding the target, {inFlight} cut to in flight)");
+        Assert.True(loosings >= 3, $"{loosings} loosings");
+        Assert.Equal(loosings, hits);
+        Assert.Equal(loosings, holdLoosing);
+        Assert.Equal(hits, holdHit);
+        Assert.True(inFlight >= hits * 0.8, $"{inFlight} of {hits} cut to in flight");
     }
 
     // ---------------------------------------------------------------------------------------------------------------------------

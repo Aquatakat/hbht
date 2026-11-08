@@ -78,6 +78,17 @@ public sealed class CappedMotion
         Moving = false;
     }
 
+    /// <summary>
+    /// Moves the shot by <paramref name="by"/> as it is, its speeds kept: carried along with the body it follows, so only what's left of
+    /// the way to the goal past that is capped. The goal's own motion is measured from there.
+    /// </summary>
+    public void Carry(Vector3 by)
+    {
+        Current = Current with { Aim = Current.Aim + by };
+        if (_lastGoal is { } last)
+            _lastGoal = last with { Aim = last.Aim + by };
+    }
+
     /// <summary>A tick toward <paramref name="goal"/>.</summary>
     public void Step(Shot goal)
     {

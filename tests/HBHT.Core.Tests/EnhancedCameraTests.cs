@@ -60,18 +60,20 @@ public sealed class EnhancedCameraTests
     [Fact]
     public void AClearlyLikelierBodyTakesTheTargetsPlaceOnceItHasBeenSoForAWhile()
     {
+        // The cone alone: not held for being near (HoldNear).
+        var t = T with { HoldNear = 0 };
         var cone = new TargetCone();
-        cone.Pick(Vector3.Zero, Vector2.UnitY, [Near, Far], T);
+        cone.Pick(Vector3.Zero, Vector2.UnitY, [Near, Far], t);
         Assert.Equal("near", cone.Target);
         // The character turns to point straight at the far one: near is now 42° off, within the held cone but much less likely.
         var heading = Vector2.Normalize(new Vector2(-1.5f, 16));
         var near = Near with { At = new Vector3(2.2f, 0, 3) };
-        for (var tick = 1; tick < T.TargetHold; tick++)
+        for (var tick = 1; tick < t.TargetHold; tick++)
         {
-            cone.Pick(Vector3.Zero, heading, [near, Far], T);
+            cone.Pick(Vector3.Zero, heading, [near, Far], t);
             Assert.Equal("near", cone.Target);
         }
-        Assert.True(cone.Pick(Vector3.Zero, heading, [near, Far], T));
+        Assert.True(cone.Pick(Vector3.Zero, heading, [near, Far], t));
         Assert.Equal("far", cone.Target);
     }
 
@@ -79,15 +81,16 @@ public sealed class EnhancedCameraTests
     public void ATargetThatLeavesTheConeIsHeldAWhileBeforeItsLetGo()
     {
         // The stick swung away from the only enemy ahead: the camera keeps it for a while rather than flicking to no one and back.
+        var t = T with { HoldNear = 0 };
         var cone = new TargetCone();
-        cone.Pick(Vector3.Zero, Vector2.UnitY, [Near], T);
+        cone.Pick(Vector3.Zero, Vector2.UnitY, [Near], t);
         Assert.Equal("near", cone.Target);
-        for (var tick = 1; tick < T.LoseHold; tick++)
+        for (var tick = 1; tick < t.LoseHold; tick++)
         {
-            cone.Pick(Vector3.Zero, Vector2.UnitX, [Near], T);
+            cone.Pick(Vector3.Zero, Vector2.UnitX, [Near], t);
             Assert.Equal("near", cone.Target);
         }
-        Assert.True(cone.Pick(Vector3.Zero, Vector2.UnitX, [Near], T));
+        Assert.True(cone.Pick(Vector3.Zero, Vector2.UnitX, [Near], t));
         Assert.Null(cone.Target);
     }
 
@@ -108,6 +111,27 @@ public sealed class EnhancedCameraTests
         var fresh = new TargetCone();
         fresh.Pick(new Vector3(0, 0, -4), Vector2.UnitY, [edge], T);
         Assert.Null(fresh.Target);
+    }
+
+    [Fact]
+    public void TheTargetHeldStaysWhileTheCharacterIsNearItWhicheverWayTheyFace()
+    {
+        // Running round a pack for its back: the character faces away from the rat 5 behind them, and it stays the target.
+        var cone = new TargetCone();
+        var rat = new TargetCandidate("rat", new Vector3(0, 0, 5));
+        cone.Pick(Vector3.Zero, Vector2.UnitY, [rat], T);
+        Assert.Equal("rat", cone.Target);
+        for (var tick = 0; tick < T.LoseHold * 3; tick++)
+        {
+            cone.Pick(Vector3.Zero, -Vector2.UnitY, [rat], T);
+            Assert.Equal("rat", cone.Target);
+        }
+        // Walked off beyond HoldNear, facing away, it's let go once LoseHold has passed.
+        var far = new Vector3(0, 0, 5 - T.HoldNear - 1);
+        for (var tick = 1; tick < T.LoseHold; tick++)
+            cone.Pick(far, -Vector2.UnitY, [rat], T);
+        Assert.True(cone.Pick(far, -Vector2.UnitY, [rat], T));
+        Assert.Null(cone.Target);
     }
 
     // ---- Shots that hide neither
@@ -187,9 +211,9 @@ public sealed class EnhancedCameraTests
     }
 
     [Fact]
-    public void APartyMemberIsFramedOnTheirOwnSideOfTheirEnemy()
+    public void TwoWhoDealWithEachOtherAreFramedTheWayRoundTheirSideSays()
     {
-        // Straight over the shoulder the character hides the target, so the shot goes to one side; which, is the character's side.
+        // Straight over the shoulder the character hides the target, so the shot goes to one side; which, is the side the pair says.
         var (finder, subjects) = TwoApart(Worlds.Flat());
         var behind = -MathF.PI / 2;
         var (me, target) = (subjects[0].At, subjects[1].At);
@@ -200,6 +224,91 @@ public sealed class EnhancedCameraTests
         Assert.True(ShotFinder.Across(left, new ScreenSide(me, target), T.Lens) < 0, "framed on the left");
         Assert.Equal(0, finder.HiddenWeight(right, subjects));
         Assert.Equal(0, finder.HiddenWeight(left, subjects));
+    }
+
+    [Fact]
+    public void NoOneIsFramedUnderTheConversationBox()
+    {
+        // Over the shoulder of the character at the target 12 along +X, aimed just ahead of the character: the bottom of each one's sphere
+        // is above the lens's floor, the conversation box's top.
+        var (finder, subjects) = TwoApart(Worlds.Flat());
+        var behind = -MathF.PI / 2;
+        var aim = subjects[0].At + new Vector3(T.AimLeadMost, 0, 0);
+        var (shot, _) = finder.Best(subjects, behind, behind, aim: aim, most: T.ShoulderDistance)!.Value;
+        var half = MathF.Tan(T.FieldOfView * MathF.PI / 360);
+        foreach (var s in subjects)
+        {
+            var v = s.At - shot.Eye;
+            var (depth, up) = (Vector3.Dot(v, shot.Forward), Vector3.Dot(v, shot.Up));
+            Assert.True((up - s.Radius) / depth >= -T.FrameFloor * half * 1.001f, $"{s.At} framed {(up - s.Radius) / depth / half:F2} down");
+        }
+        // The lens judges it: a subject held is above the floor.
+        Assert.All(subjects, s => Assert.True(ShotFraming.Holds(shot, s, T.Lens)));
+        var below = new ShotSubject(shot.Aim - shot.Up * (T.FrameFloor + 0.1f) * half * shot.Distance, 0);
+        Assert.False(ShotFraming.Holds(shot, below, T.Lens));
+    }
+
+    [Fact]
+    public void AFarTargetIsSmallBeyondTheCharacterWhoStaysNearAndLow()
+    {
+        // The target 28 off: the shot doesn't draw back to hold the two large, it stays near the character, low, the target beyond.
+        var sight = new SightLines(Worlds.Flat());
+        var me = new ShotSubject(new Vector3(0, 0.7f, 0), 0.7f);
+        var target = new ShotSubject(new Vector3(28, 0.7f, 0), 0.7f);
+        sight.Bodies.AddRange([me, target]);
+        var finder = new ShotFinder(sight, T);
+        var behind = -MathF.PI / 2;
+        var aim = me.At + new Vector3(T.AimLeadMost, 0, 0);
+        var (shot, _) = finder.Best([me, target], behind, behind, aim: aim, most: T.ShoulderDistance)!.Value;
+        TestContext.Current.TestOutputHelper?.WriteLine($"yaw {shot.Yaw * 180 / MathF.PI:F0} pitch {shot.Pitch * 180 / MathF.PI:F0} distance {shot.Distance:F1}");
+        Assert.True(Vector3.Distance(shot.Eye, me.At) <= T.ShoulderDistance, $"the eye {Vector3.Distance(shot.Eye, me.At):F1} from the character");
+        Assert.True(shot.Pitch <= ShotFinder.Rad(30) + 1e-4f);
+        Assert.All(new[] { me, target }, s => Assert.True(ShotFraming.Holds(shot, s with { Radius = 0 }, T.Lens)));
+        Assert.Equal(0, finder.HiddenWeight(shot, [me, target]));
+    }
+
+    // ---- The vantage
+
+    [Fact]
+    public void TheVantageStandsOffTheFightOnTheSideWithRoomAndKeepsItAsTheFightMoves()
+    {
+        // A field 60 by 40; the party at z 30 and the enemies at z 10, near the field's low-x edge: off the line's middle (12, 20) toward
+        // high x, where there's room, by 0.6 of the line's 20.
+        (Vector2, Vector2) field = (Vector2.Zero, new Vector2(60, 40));
+        var (at, side) = Vantage.Place(new Vector2(12, 30), new Vector2(12, 10), field, 0, T)!.Value;
+        Assert.True(Vector2.Distance(at, new Vector2(24, 20)) < 1e-3f, $"{at}");
+        // The fight moves near the other edge: the vantage stays on its side of it, beyond the field's edge (it's a side, not an eye).
+        var (moved, kept) = Vantage.Place(new Vector2(50, 30), new Vector2(50, 10), field, side, T)!.Value;
+        Assert.Equal(side, kept);
+        Assert.True(Vector2.Distance(moved, new Vector2(62, 20)) < 1e-3f, $"{moved}");
+        // With no room left on that side, it goes to the other.
+        var (_, other) = Vantage.Place(new Vector2(56, 30), new Vector2(56, 10), field, side, T)!.Value;
+        Assert.Equal(-side, other);
+    }
+
+    [Fact]
+    public void FromTheVantageEveryPartyMemberIsOnTheSameSideOfTheirEnemy()
+    {
+        // The party to one side, the enemies to the other, the vantage off the line between: whoever faces whom, the party member is on
+        // the same side of the screen from it, and a shot over either's shoulder honours it.
+        var vantage = new Vector2(24, 20);
+        var party = new[] { new Vector3(10, 0.7f, 30), new Vector3(16, 0.7f, 26), new Vector3(8, 0.7f, 24) };
+        var enemies = new[] { new Vector3(12, 0.7f, 10), new Vector3(6, 0.7f, 14), new Vector3(17, 0.7f, 12) };
+        var sides = (from m in party from e in enemies select Vantage.Side(m, e, vantage)).ToList();
+        Assert.All(sides, s => Assert.NotNull(s));
+        var memberRight = sides.Select(s => party.Contains(s!.Value.Right)).Distinct().ToList();
+        Assert.Single(memberRight);
+        // Over the first one's shoulder at its enemy, with its side, the shot keeps it.
+        var sight = new SightLines(Worlds.Flat());
+        var (me, enemy) = (new ShotSubject(party[0], 0.7f), new ShotSubject(enemies[0], 0.7f));
+        sight.Bodies.AddRange([me, enemy]);
+        var finder = new ShotFinder(sight, T);
+        var pair = Vantage.Side(me.At, enemy.At, vantage)!.Value;
+        var behind = MathF.Atan2(me.At.X - enemy.At.X, me.At.Z - enemy.At.Z);
+        var (shot, _) = finder.Best([me, enemy], behind, behind, [pair])!.Value;
+        Assert.True(ShotFinder.Across(shot, pair, T.Lens) > 0);
+        // In line with the vantage, either side is as good: no side.
+        Assert.Null(Vantage.Side(new Vector3(24, 0, 30), new Vector3(24, 0, 40), vantage));
     }
 
     [Fact]

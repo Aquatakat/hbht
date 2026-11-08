@@ -542,6 +542,13 @@ public sealed partial class Battle
     public const int SpellReleaseTicks = 120;
 
     private CastUnderway? _cast;
+
+    /// <summary>
+    /// Whether a spell's visual has started, at its caster's strike of the cast animation: the spell let loose, which the enhanced camera
+    /// cuts to its target after (<see cref="EnhancedCamera"/>).
+    /// </summary>
+    public bool CastLoosed => _cast is { Started: true };
+
     private bool _deferTeleport;
     private Vector2? _teleportTo;
 
