@@ -127,6 +127,12 @@ public sealed class Settings
     /// </summary>
     public Combat.CombatTurns CombatTurns { get; set; }
 
+    /// <summary>
+    /// The Camera setting: the original's cameras, or the enhanced ones (<see cref="Cameras.CameraStyle"/>). For now it's a battle's played
+    /// turn by turn; under Start Early, Start Early chooses the camera.
+    /// </summary>
+    public Cameras.CameraStyle Camera { get; set; }
+
     /// <summary>A setting changed.</summary>
     public event Action? Changed;
 

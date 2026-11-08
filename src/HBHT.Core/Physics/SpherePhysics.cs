@@ -88,15 +88,18 @@ public static class SpherePhysics
     /// <summary>
     /// Whether a sphere moving from <paramref name="from"/> to <paramref name="to"/> hits any triangle facing it: what
     /// <see cref="Sweep"/> returns, without where. It looks only in the grid's cells along the way, so a long sweep, such as
-    /// one from the camera to the far plane, costs what its length does rather than what the box round it holds.
+    /// one from the camera to the far plane, costs what its length does rather than what the box round it holds. With
+    /// <paramref name="skipSeeThrough"/> it looks past see-through triangles, as the camera's sweeps do.
     /// </summary>
-    public static bool Blocked(CollisionWorld world, Vector3 from, Vector3 to, float radius)
+    public static bool Blocked(CollisionWorld world, Vector3 from, Vector3 to, float radius, bool skipSeeThrough = false)
     {
         var delta = to - from;
         var near = _near ??= [];
         world.Along(new Vector2(from.X, from.Z), new Vector2(to.X, to.Z), radius + 1, near);
         foreach (var t in near)
         {
+            if (skipSeeThrough && t.Has(CollisionFlags.SeeThrough))
+                continue;
             if (Vector3.Dot(delta, t.Normal) <= 0 && SweepPlane(from, delta, radius, t, out _))
                 return true;
         }

@@ -1,3 +1,4 @@
+using HBHT.Core.Cameras;
 using HBHT.Core.Combat;
 using HBHT.Core.Movement;
 using HBHT.Core.Sky;
@@ -47,6 +48,12 @@ public sealed record SessionSettings
     /// <summary>How a battle's turns are drawn (<see cref="Battle.Turns"/>): the original's, or Start Early.</summary>
     public CombatTurns CombatTurns { get; init; }
 
+    /// <summary>A battle's camera (<see cref="CombatCamera.Style"/>): the original's, or the enhanced one.</summary>
+    public CameraStyle Camera { get; init; }
+
+    /// <summary>The enhanced camera's numbers (<see cref="CameraTuning"/>), from the command line, or null for its defaults.</summary>
+    public CameraTuning? CameraTuning { get; init; }
+
     /// <summary>How many lines tall the UI screen is, which the credits lay their cards out on: the console's 240.</summary>
     public int UiLines { get; init; } = 240;
 
@@ -67,6 +74,7 @@ public sealed record SessionSettings
         Movement = settings.Movement,
         SpellAuras = settings.SpellAuras,
         CombatTurns = settings.CombatTurns,
+        Camera = settings.Camera,
         UiLines = Math.Max(settings.UiLines, 1),
         WanderReach = Trek.Wanderers.ReachFor(settings.ObjectDistance),
     };

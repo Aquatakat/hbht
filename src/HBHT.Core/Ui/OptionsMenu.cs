@@ -205,9 +205,11 @@ public sealed partial class OptionsMenu
             return;
         row.Set(value);
         Changed = true;
-        // The window's mode and size change what the Video page lists.
+        // The window's mode and size change what the Video page lists, and Combat Turns what the Camera row offers.
         if (Page == OptionsPage.Video)
             Rows.Rows = VideoRows();
+        else if (Page == OptionsPage.Enhancements)
+            Rows.Rows = EnhancementRows();
         Settings.Notify();
     }
 
@@ -393,6 +395,10 @@ public sealed partial class OptionsMenu
             Choice("Status Auras", ["Original", "More Often"], () => s.SpellAuras == Combat.AuraTurns.EachCharacter ? 1 : 0,
                 v => s.SpellAuras = v == 1 ? Combat.AuraTurns.EachCharacter : Combat.AuraTurns.Battle),
             Choice("Combat Turns", ["Original", "Start Early"], () => (int)s.CombatTurns, v => s.CombatTurns = (Combat.CombatTurns)v),
+            // Under Start Early, Start Early chooses the battle's camera, so the row says so and can't be changed.
+            s.CombatTurns == Combat.CombatTurns.StartEarly
+                ? Choice("Camera", ["Start Early's"], () => 0, _ => { })
+                : Choice("Camera", ["Original", "Enhanced"], () => (int)s.Camera, v => s.Camera = (Cameras.CameraStyle)v),
         ];
     }
 

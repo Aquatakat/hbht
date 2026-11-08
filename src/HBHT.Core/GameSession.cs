@@ -375,6 +375,11 @@ public sealed class GameSession
         Battle?.Fx.Turns = settings.SpellAuras;
         Battle?.Pace = settings.Pace;
         Battle?.Turns = settings.CombatTurns;
+        if (Battle is { } battle)
+        {
+            battle.CombatCamera.Style = settings.Camera;
+            battle.CombatCamera.Tuning = settings.CameraTuning ?? CameraTuning.Default;
+        }
     }
 
     /// <summary>
@@ -872,6 +877,8 @@ public sealed class GameSession
         battle.Pace = _settings.Pace;
         battle.Movement = _settings.Movement;
         battle.Turns = _settings.CombatTurns;
+        battle.CombatCamera.Style = _settings.Camera;
+        battle.CombatCamera.Tuning = _settings.CameraTuning ?? CameraTuning.Default;
         zone.Camera = drawing.Camera;
         foreach (var line in battle.Problems)
             _host.Warn(line);

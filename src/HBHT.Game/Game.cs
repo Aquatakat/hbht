@@ -639,7 +639,9 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         if (session.TrekRuns)
             _popupView!.Step();
         var before = _player.Motion.Sphere.Position;
-        var step = session.Tick(_playing, ReadInput, _camera.Flying,
+        // --battle-plan plays the party's turns by script, its stick over the player's.
+        var planned = _battlePlan is { } plan && Drawing is { } drawing ? plan.Tick(drawing) : null;
+        var step = session.Tick(_playing, planned is { } input ? () => input : ReadInput, _camera.Flying,
             actor => _actorViews.TryGetValue(actor, out var view) ? view.Motion : null);
         _backdrop!.Draw(session.Backdrop);
         switch (step)

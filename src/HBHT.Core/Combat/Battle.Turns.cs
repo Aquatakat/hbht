@@ -98,12 +98,17 @@ public sealed partial class Battle
             return;
         }
         var body = current.Body;
+        // R and the stick move the original's camera; under Camera: Enhanced the enhanced one lets go as they turn it.
+        var original = CombatCamera.Camera;
+        if (input.Orbit && input.OrbitStick != Vector2.Zero)
+            CombatCamera.TakeHand();
         if (input.Orbit)
-            Camera.Orbit(body.Sphere.Position, input.OrbitStick, moving: input.Free && input.Pushed);
+            original.Orbit(body.Sphere.Position, input.OrbitStick, moving: input.Free && input.Pushed);
         else
-            Camera.Follow();
+            original.Follow();
         if (!input.Locked && !input.Pushed)
-            Camera.Anchor(body.Sphere.Position);
+            original.Anchor(body.Sphere.Position);
+        // The stick is read against the camera shown.
         body.Drive(input.Move, Camera.LookXZ);
         current.UpdateFromBody(this);
         _stickCentred = input.Stick == Vector2.Zero;
@@ -356,8 +361,8 @@ public sealed partial class Battle
     private void BeginTurn(Combatant combatant)
     {
         CameraOwner = combatant;
-        Camera.Follow();
-        Camera.Anchor(combatant.Body.Sphere.Position);
+        CombatCamera.Camera.Follow();
+        CombatCamera.Camera.Anchor(combatant.Body.Sphere.Position);
         if (combatant.Flags.HasFlag(CombatantFlags.Newcomer))
         {
             combatant.Flags &= ~CombatantFlags.Newcomer;

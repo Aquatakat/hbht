@@ -477,6 +477,7 @@ The user's choices. The AI's are in [combat-ai](combat-ai.md#where-the-port-diff
 - **A half-alpha body fades from its own alpha.** The original's fade is of 255 whatever the body's alpha was, so a translucent body jumps to nearly opaque as its fade starts; the port keeps `Combatant.Alpha` at the entity's through the fall and fades it from there to nothing over the same span, as every other body fades.
 - **A reserve whose own point is taken falls back to its own side's points first**, the enemies' (`good` in an ambush), the user's choice: 1.0 tries each set's `bad` points first whatever the ambush ([above](#a-turn)), so in an ambush its reserves come in beside the party, which reads as an oversight. The draws are the same; only the point differs.
 - **The loot is rolled on the loot stream**, not the battle's (ADR 0006), so a battle's draws after it don't shift.
+- **Camera: Enhanced** directs the camera of a battle played turn by turn over the original's, which goes on underneath (`CombatCamera.Shown`); the stick and the aims are read against the camera shown, and no rule reads it otherwise. [Cameras](cameras.md#the-enhanced-battle-camera-camera-enhanced) has it.
 
 By the tick:
 
