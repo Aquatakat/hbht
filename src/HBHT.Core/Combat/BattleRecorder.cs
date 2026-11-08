@@ -185,11 +185,65 @@ public sealed class BattleRecorder : ICombatHost, ISoundOutput
             Cues = _cues,
             Sounds = _sounds,
             Emitters = _emitters,
+            Field = battle.Current is { Controlled: false } player && player.Body.Field is var (centre, radius)
+                ? new TurnField(centre, radius, GreatestTravel(player))
+                : null,
         };
         _cues = [];
         _sounds = [];
         _emitters = [];
         return frame;
+    }
+
+    private readonly Dictionary<Combatant, float> _runs = [];
+
+    /// <summary>
+    /// The farthest a combatant's body can go in a tick (Start Early): the fastest tick of its actor's run, the most its root moves
+    /// forward in a tick over the states the run request reaches, by its scale and its pace (the brisk pace plays it quicker). Under
+    /// the original's movement a body moves by its root's ticks summed, a frame at a time; under Modern by their mean over a stride,
+    /// which is never more: so the fastest tick bounds both. A body with no run to measure takes <paramref name="fallback"/>.
+    /// </summary>
+    public float GreatestTravel(Combatant c, float fallback = 0.15f)
+    {
+        if (!_runs.TryGetValue(c, out var run))
+            _runs[c] = run = FastestRunTick(c);
+        return (run > 0 ? run : fallback) * c.Body.Scale * MathF.Max(1, c.Body.Pace);
+    }
+
+    /// <summary>The most its actor's root moves forward in a tick over the states the run request reaches, or 0 for none.</summary>
+    private static float FastestRunTick(Combatant c)
+    {
+        if (c.Actor is not { } motion)
+            return 0;
+        var actor = motion.Machine.Actor;
+        var seen = new HashSet<int>();
+        var todo = new Stack<int>();
+        foreach (var state in actor.States)
+        {
+            foreach (var b in state.Branches)
+            {
+                if (b.Number == Movement.Body.Run)
+                    todo.Push(b.State);
+            }
+        }
+        var fastest = 0f;
+        while (todo.Count > 0)
+        {
+            var s = todo.Pop();
+            if (s < 0 || s >= actor.States.Count || !seen.Add(s))
+                continue;
+            if (motion.Clips.Clip(actor.States[s].Animation)?.Root is { Count: > 1 } root)
+            {
+                for (var i = 1; i < root.Count; i++)
+                    fastest = MathF.Max(fastest, root[i].Z - root[i - 1].Z);
+            }
+            foreach (var b in actor.States[s].Branches)
+            {
+                if (b.Number is Movement.Body.Run or HBHT.Plugins.Records.Requests.Any)
+                    todo.Push(b.State);
+            }
+        }
+        return fastest;
     }
 
     /// <summary>The ring's points, the last frame's array while they haven't moved.</summary>

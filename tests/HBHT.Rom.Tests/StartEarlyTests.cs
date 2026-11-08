@@ -131,14 +131,28 @@ public sealed class StartEarlyTests(Na10Import fixture)
     }
 
     [Fact]
-    public void UnderStartEarlyAimingAtAnEnemyStillDrawnDrawsItWhereItIs()
+    public void UnderStartEarlyTheAimIsHeldTillWhatItCouldPickIsDrawnWhereItIs()
     {
-        // The rats, the party attacking: wherever a target is aimed at in a turn opened early, it's drawn where it is (the watch checks).
+        // The rats, the party attacking: wherever the battle takes a press in an aim of a turn opened early, all it could pick is drawn
+        // where it is, and while it isn't the battle is stepped no further (the watch checks).
         var early = Play(host => Plain(Set, 1, host), CombatTurns.StartEarly, Attacking);
         Assert.True(early.Watch!.OpenedEarly > 10, $"{early.Watch.OpenedEarly} player's turns opened early");
         Assert.True(early.Watch.Aimed > 0, $"{early.Watch.Aimed} drawn ticks aimed");
         TestContext.Current.TestOutputHelper?.WriteLine($"{early.Watch.Aimed} drawn ticks aimed in turns opened early, " +
-            $"{early.Watch.AimForwarded} of them fast-forwarding; {early.Drawing.Composer.Forwarded} actions fast-forwarded on their own");
+            $"{early.Watch.AimHeld} of them held; {early.Drawing.Composer.Forwarded} actions fast-forwarded on their own");
+    }
+
+    [Fact]
+    public void AWheneverThePlayerIsHeldChangesOnlyTheDrawing()
+    {
+        // The rats, the party attacking, A pressed whenever the player's turn waits to open or its aim is held: the battle plays tick
+        // for tick as Original's, and the drawing still never draws a body back, in two actions at once, through another, or a one-off
+        // twice.
+        var original = Play(host => Plain(Set, 1, host), CombatTurns.Original, Attacking);
+        var early = Play(host => Plain(Set, 1, host), CombatTurns.StartEarly, Attacking, meanwhile: SkippingHolds);
+        Same(original, early);
+        Assert.True(early.Watch!.Skipped > 0, "A never skipped a hold");
+        TestContext.Current.TestOutputHelper?.WriteLine($"A skipped {early.Watch.Skipped} holds");
     }
 
     // ---------------------------------------------------------------------------------------------------------------------------
@@ -325,6 +339,16 @@ public sealed class StartEarlyTests(Na10Import fixture)
             Assert.True(run.Drawing.Press(MenuAction.Accept));
     }
 
+    /// <summary>A whenever the player is held: its turn waiting to open, or its aim held.</summary>
+    private static void SkippingHolds(Run run)
+    {
+        if (run.Drawing.Composer.Pending is not null || run.Drawing.AimHeld)
+        {
+            if (run.Drawing.Press(MenuAction.Accept))
+                run.Watch!.Skipped++;
+        }
+    }
+
     /// <summary>The player pauses at the first turn and flees.</summary>
     private static void Fleeing(Run run)
     {
@@ -362,10 +386,20 @@ public sealed class StartEarlyTests(Na10Import fixture)
         /// <summary>Drawn ticks of a turn the player plays, opened early, with a target aimed at, each target drawn where it is.</summary>
         public int Aimed { get; private set; }
 
-        /// <summary>Drawn ticks aimed on which something was fast-forwarded first.</summary>
-        public int AimForwarded { get; private set; }
+        /// <summary>Drawn ticks aimed on which the aim was held, the battle stepped no further.</summary>
+        public int AimHeld { get; private set; }
 
-        private int _forwarded;
+        /// <summary>Holds A skipped.</summary>
+        public int Skipped { get; set; }
+
+        /// <summary>Drawn ticks a player's turn waited to open on.</summary>
+        public int Pending { get; private set; }
+
+        /// <summary>Player's turns that opened while a beat before them still played, which their shot could hold.</summary>
+        public int OpenedOnABeat { get; private set; }
+
+        private readonly HashSet<DrawnAction> _opened = [];
+        private int _heldTick = -1;
 
         /// <summary>Turns the player plays that opened before the drawing had caught up.</summary>
         public int OpenedEarly { get; private set; }
@@ -465,21 +499,59 @@ public sealed class StartEarlyTests(Na10Import fixture)
                     }
                 }
             }
-            // What a turn the player plays aims at is drawn where it is: no earlier action still draws it.
+            // What a turn the player plays could pick as it aims is drawn where it is whenever the battle takes its presses; while it
+            // isn't, the aim is held and the battle steps no further.
             var battle = drawing.Battle;
-            if (composer.Live is not null && battle.State is CombatState.TargetAttack or CombatState.TargetThrown or CombatState.TargetSpell)
+            if (composer.Live is not null && battle.State is CombatState.TargetAttack or CombatState.TargetThrown or CombatState.TargetSpell
+                or CombatState.PlaceArea)
             {
-                var set = battle.State == CombatState.TargetSpell ? battle.TargetsB : battle.TargetsA;
-                foreach (var slot in set.SelectedSlots.Append(set.Cursor))
-                {
-                    if (slot >= 0 && slot < battle.Slots.Count && battle.Slots[slot] is { } target)
-                        Assert.True(composer.Free(target), $"{target} is aimed at at drawn tick {d} but still drawn in an earlier action");
-                }
                 Aimed++;
-                if (composer.Forwarded > _forwarded)
-                    AimForwarded++;
+                if (drawing.AimHeld)
+                {
+                    AimHeld++;
+                    Assert.False(drawing.TakesPresses);
+                    if (_heldTick >= 0)
+                        Assert.Equal(_heldTick, drawing.Actions.Last);
+                    _heldTick = drawing.Actions.Last;
+                }
+                else
+                {
+                    _heldTick = -1;
+                    foreach (var target in drawing.Pickable())
+                        Assert.True(composer.Free(target), $"{target} could be picked at drawn tick {d} but is still drawn in an earlier action");
+                }
             }
-            _forwarded = composer.Forwarded;
+            else
+            {
+                _heldTick = -1;
+            }
+            if (composer.Pending is not null)
+                Pending++;
+            // A turn the player plays opens once every beat before it has played, or those still playing can stay in its shot.
+            if (composer.Live is { } live && _opened.Add(live))
+            {
+                var playing = new List<FramedBeat>();
+                var last = drawing.Actions.Last;
+                foreach (var a in drawing.Actions.Actions)
+                {
+                    if (a.Index >= live.Index || a.Start is null)
+                        continue;
+                    foreach (var beat in a.Beats)
+                    {
+                        if (a.DrawnAt(beat.End(last)) < d)
+                            continue;
+                        Assert.True(a.DrawnAt(beat.From) <= d, $"the player's turn opened at drawn tick {d} before {beat} struck");
+                        var at = Math.Clamp(a.TickAt(d), beat.From, beat.End(last));
+                        playing.Add(new FramedBeat(beat, at, _places[at][beat.Subject], null));
+                    }
+                }
+                if (playing.Count > 0)
+                {
+                    OpenedOnABeat++;
+                    Assert.True(composer.Framing.CanHold(d, playing, _places[last][live.Current!]),
+                        $"the player's turn opened at drawn tick {d} while {string.Join(", ", playing.Select(p => p.Beat))} played");
+                }
+            }
             // A turn the player plays opens only once its combatant has drawn its earlier parts (Start Early).
             if (f.State == CombatState.Turn && _state != CombatState.Turn)
             {
@@ -514,13 +586,18 @@ public sealed class StartEarlyTests(Na10Import fixture)
                     TestContext.Current.TestOutputHelper?.WriteLine(
                         $"  {a} ({a.Last - a.First + 1}) drawn from {(Starts.TryGetValue(a, out var s) ? s : -1)}: " +
                         string.Join(", ", a.Episodes.Select(e => $"{e.Body.Slot} {e.From - a.First}–{e.To - a.First}")) +
-                        " things " + string.Join(",", a.Things.Select(t => $"{t.Key.GetType().Name}–{t.Value - a.First}")));
+                        " things " + string.Join(",", a.Things.Select(t => $"{t.Key.GetType().Name}–{t.Value - a.First}")) +
+                        " beats " + string.Join(", ", a.Beats.Select(b => $"{b.Kind} {b.Subject.Slot} {b.From - a.First}–{b.To - a.First}")) +
+                        " cues " + string.Join(",", Enumerable.Range(a.First, Math.Max(0, Math.Min(a.Last, drawing.Actions.Last) - Math.Max(a.First, drawing.Actions.Kept) + 1)).Select(t => t).Where(t => t >= drawing.Actions.Kept).SelectMany(t => drawing.Actions[t].Cues.OfType<CombatantAnimated>().Select(c => $"{c.Combatant.Slot}:{c.Request}@{t - a.First}"))));
                 }
             }
+            var beats = drawing.Actions.Actions.Sum(a => a.Beats.Count);
             TestContext.Current.TestOutputHelper?.WriteLine(
                 $"Start Early: {Overlapping} drawn ticks with two actions' own ticks at once, {SharedEarly} actions began while an earlier one " +
                 $"sharing a body still drew, bodies drawn from another tick than the newest action's {Apart} times; {OpenedEarly} player's turns " +
-                $"opened before the drawing caught up; {FastForwarded} frames fast-forwarded over {SkippedSounds} sound calls");
+                $"opened before the drawing caught up, {OpenedOnABeat} of them on a beat their shot could hold; {Pending} drawn ticks a turn " +
+                $"waited to open; {AimHeld} drawn ticks an aim was held; {beats} beats; the last word fired {drawing.Composer.Resolved} " +
+                $"times; {FastForwarded} frames fast-forwarded over {SkippedSounds} sound calls");
         }
     }
 

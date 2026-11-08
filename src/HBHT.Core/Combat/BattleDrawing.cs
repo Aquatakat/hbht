@@ -38,7 +38,8 @@ public sealed class BattleDrawing
     /// <param name="battle">The battle, begun with <paramref name="recorder"/> as its host.</param>
     /// <param name="host">What presents the battle's one-offs as they're drawn: the runtime, or none.</param>
     /// <param name="audio">Where the drawn sounds play: the game's audio, or none.</param>
-    public BattleDrawing(Battle battle, BattleRecorder recorder, ICombatHost? host, ISoundOutput? audio)
+    /// <param name="pacing">Start Early's pacing (<see cref="StartEarlyPacing"/>); the defaults if none.</param>
+    public BattleDrawing(Battle battle, BattleRecorder recorder, ICombatHost? host, ISoundOutput? audio, StartEarlyPacing? pacing = null)
     {
         Battle = battle;
         Recorder = recorder;
@@ -46,7 +47,7 @@ public sealed class BattleDrawing
         _audio = audio;
         // What Battle.Begin cued, the bodies made: drawn at once, before the first tick.
         var first = recorder.Sample(battle, BattleStep.Ran);
-        _composer = new BattleComposer(first, () => Battle.WaitsOnPlayer);
+        _composer = new BattleComposer(first, () => Battle.WaitsOnPlayer, pacing);
         Draw(first);
     }
 
@@ -143,17 +144,25 @@ public sealed class BattleDrawing
         }
         else
         {
+            if (_aimHeld)
+                _aimHeld = AimHolds();
             if (Turns == CombatTurns.StartEarly && !Battle.WaitsOnPlayer)
+            {
                 RunAhead(arena);
-            else if (CaughtUp || Turns == CombatTurns.StartEarly && _composer.AtPresent)
+            }
+            else if (CaughtUp || Turns == CombatTurns.StartEarly && _composer.AtPresent && !_aimHeld)
+            {
                 // The battle waits on the player: it steps with the drawing once the drawing has caught up, or under Start Early once
-                // the player's turn is drawn up to the present (Start Early).
+                // the player's turn is drawn up to the present and its aim isn't held (Start Early).
                 Step(arena, readInput);
-            Touch();
+                _aimHeld = AimHolds();
+            }
             var clock = Stopwatch.StartNew();
             var next = _composer.Next();
             SlowestCompose = clock.Elapsed > SlowestCompose ? clock.Elapsed : SlowestCompose;
             Draw(next);
+            if (_aimHeld)
+                _aimHeld = AimHolds();
             step = Frame.Step switch
             {
                 BattleStep.Ended when !CaughtUp => BattleStep.Ran,
@@ -194,71 +203,90 @@ public sealed class BattleDrawing
 
     /// <summary>
     /// Whether the battle takes the player's presses now: the drawing has caught up with it, or under Start Early the player's turn is
-    /// drawn up to the present (<see cref="BattleComposer.AtPresent"/>), though earlier actions may still draw behind it.
+    /// drawn up to the present (<see cref="BattleComposer.AtPresent"/>), though earlier actions may still draw behind it, and its aim
+    /// isn't held (<see cref="AimHeld"/>).
     /// </summary>
-    public bool TakesPresses => CaughtUp || Turns == CombatTurns.StartEarly && _composer.AtPresent;
+    public bool TakesPresses => CaughtUp || Turns == CombatTurns.StartEarly && _composer.AtPresent && !_aimHeld;
+
+    /// <summary>
+    /// Whether the player's aim is held (Start Early): in a turn opened early, the battle is aiming (an attack, a throw, a spell or its
+    /// area) while a body it could pick is still drawn behind, in an earlier action's part. The battle is stepped no further and takes
+    /// no press till they're drawn out, or A fast-forwards them; it was stepped the tick after the press that began the aim, as
+    /// Original steps it before the next press could come, so its ticks are Original's.
+    /// </summary>
+    public bool AimHeld => _aimHeld;
+
+    private bool _aimHeld;
+
+    /// <summary>
+    /// The bodies the player's aim could pick now, while it's aimed (Start Early): an attack's or a spell's candidates, and every body
+    /// on the field for a throw's or an area's cursor, which moves freely; none outside an aim.
+    /// </summary>
+    public IEnumerable<Combatant> Pickable()
+    {
+        var battle = Battle;
+        var set = battle.State switch
+        {
+            CombatState.TargetAttack => battle.TargetsA,
+            CombatState.TargetSpell => battle.TargetsB,
+            _ => null,
+        };
+        if (set is not null)
+        {
+            foreach (var slot in set.Order.Append(set.Cursor))
+            {
+                if (slot >= 0 && slot < battle.Slots.Count && battle.Slots[slot] is { } c)
+                    yield return c;
+            }
+        }
+        else if (battle.State is CombatState.TargetThrown or CombatState.PlaceArea)
+        {
+            foreach (var c in battle.Combatants)
+            {
+                if (c.OnField)
+                    yield return c;
+            }
+        }
+    }
+
+    /// <summary>Whether the aim is to be held: under Start Early, in the player's turn drawn on the present, a body it could pick isn't free.</summary>
+    private bool AimHolds() =>
+        Turns == CombatTurns.StartEarly && _composer.Live is not null && Pickable().Any(c => !_composer.Free(c));
 
     /// <summary>
     /// A press, as the setting has it: Start fast-forwards the drawing to the battle first, whatever is drawing (the Party tab reads the
-    /// live sheets), then goes to the battle; the rest go to the battle while it takes presses (<see cref="TakesPresses"/>), and what the
-    /// player's turn then touches is fast-forwarded (<see cref="Touch"/>); otherwise A in an AI's walk fast-forwards the walks drawing
-    /// (<see cref="BattleComposer.SkipWalks"/>), and the rest wait.
+    /// live sheets), then goes to the battle; the rest go to the battle while it takes presses (<see cref="TakesPresses"/>). Otherwise,
+    /// under Start Early, A skips what holds the player: while the aim is held, the actions drawing what it could pick are fast-forwarded
+    /// to the ends of those parts (<see cref="AimHeld"/>); while the player's turn waits to open, whatever holds it
+    /// (<see cref="BattleComposer.SkipHold"/>); else, in an AI's walk, the walks drawing go to their ends
+    /// (<see cref="BattleComposer.SkipWalks"/>). The rest wait.
     /// </summary>
     public bool Press(MenuAction action)
     {
         if (action == MenuAction.Start && !CaughtUp)
         {
             FastForward();
+            _aimHeld = false;
             return Battle.Press(action);
         }
         if (TakesPresses)
+            return Battle.Press(action);
+        if (action != MenuAction.Accept || Turns != CombatTurns.StartEarly)
+            return false;
+        if (_aimHeld)
         {
-            var taken = Battle.Press(action);
-            Touch();
-            return taken;
+            _composer.Release(Pickable().Where(c => !_composer.Free(c)).ToList());
+            _aimHeld = AimHolds();
+            return true;
         }
-        if (action == MenuAction.Accept && Walking)
+        if (_composer.Pending is not null && _composer.SkipHold())
+            return true;
+        if (Walking)
         {
             _composer.SkipWalks();
             return true;
         }
         return false;
-    }
-
-    /// <summary>
-    /// Under Start Early, what the player's turn touches that's still drawing is fast-forwarded first, so the player sees it as it is
-    /// (Start Early): the target the cursor is on while an attack, a throw or a spell is aimed and every target it selects, and
-    /// while an area is placed every body in it. The menus touch nothing; the player's walk, its missile and its spell's actor coming near
-    /// a body or missile drawn behind are the composer's (<see cref="BattleComposer"/>'s guard).
-    /// </summary>
-    private void Touch()
-    {
-        if (Turns != CombatTurns.StartEarly || _composer.Live is null)
-            return;
-        var battle = Battle;
-        var set = battle.State switch
-        {
-            CombatState.TargetAttack or CombatState.TargetThrown => battle.TargetsA,
-            CombatState.TargetSpell or CombatState.PlaceArea => battle.TargetsB,
-            _ => null,
-        };
-        if (set is null)
-            return;
-        var touched = new List<Combatant>();
-        foreach (var slot in set.SelectedSlots.Append(set.Cursor))
-        {
-            if (slot >= 0 && slot < battle.Slots.Count && battle.Slots[slot] is { } c)
-                touched.Add(c);
-        }
-        if (battle.State == CombatState.PlaceArea && battle.Aim is { } area)
-        {
-            foreach (var c in battle.Combatants)
-            {
-                if (System.Numerics.Vector2.Distance(c.Cell, area.Centre) <= area.Radius + c.Body.ScaledRadius)
-                    touched.Add(c);
-            }
-        }
-        _composer.Release(touched);
     }
 
     /// <summary>
@@ -270,6 +298,7 @@ public sealed class BattleDrawing
         if (CaughtUp)
             return;
         Draw(_composer.FastForward());
+        _aimHeld = false;
     }
 
 

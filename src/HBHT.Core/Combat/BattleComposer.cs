@@ -39,12 +39,6 @@ public sealed class BattleComposer
     /// <summary>The reach of a missile in flight, and of a spell's actor between its two bodies, for the path check.</summary>
     public const float MissileRadius = 0.3f, VisualRadius = 0.5f;
 
-    /// <summary>
-    /// How much nearer than touching a shape the player's turn draws on the present may come to one still drawn behind it, which then
-    /// fast-forwards, so it's drawn where it is before they meet.
-    /// </summary>
-    public const float WalkMargin = 0.5f;
-
     private readonly BattleActions _actions;
     private readonly Dictionary<Combatant, Track> _tracks = [];
     /// <summary>What a fast-forward passed over since the last frame composed: its cues are handed over, its sounds and emitters skipped.</summary>
@@ -60,9 +54,10 @@ public sealed class BattleComposer
 
     /// <param name="first">The frame the battle's beginning drew, at once, its one-offs played.</param>
     /// <param name="waits">Whether the battle waits on the player, so no more ticks come till the drawing catches up.</param>
-    public BattleComposer(BattleFrame first, Func<bool> waits)
+    /// <param name="pacing">How long beats last and how much room the player's reach keeps; the defaults if none.</param>
+    public BattleComposer(BattleFrame first, Func<bool> waits, StartEarlyPacing? pacing = null)
     {
-        _actions = new BattleActions(first);
+        _actions = new BattleActions(first, pacing);
         _actions.Actions[0].Start = 0;
         _log = first.Gui.Log;
         _waits = waits;
@@ -73,6 +68,15 @@ public sealed class BattleComposer
 
     /// <summary>The recording cut into actions, with where the drawing has each.</summary>
     public BattleActions Actions => _actions;
+
+    /// <summary>How long beats last and how much room the player's reach keeps.</summary>
+    public StartEarlyPacing Pacing => _actions.Pacing;
+
+    /// <summary>
+    /// Whether one shot can hold beats that play at once, which the composer asks before two actions' results overlap and before a
+    /// turn the player plays opens while an earlier result plays. The stand-in, <see cref="SpreadFraming"/>, until piece C's director.
+    /// </summary>
+    public IBeatFraming Framing { get; set; } = new SpreadFraming();
 
     /// <summary>The drawn ticks so far.</summary>
     public int Drawn => _drawn;
@@ -187,7 +191,7 @@ public sealed class BattleComposer
         return true;
     }
 
-    /// <summary>How many times an action has been fast-forwarded on its own (<see cref="Release"/>, <see cref="SkipWalks"/>, the guard).</summary>
+    /// <summary>How many times an action has been fast-forwarded on its own (<see cref="Release"/>, <see cref="SkipWalks"/>, <see cref="SkipHold"/>).</summary>
     public int Forwarded { get; private set; }
 
     /// <summary>Whether an episode has been drawn to its end: its action is past its last tick.</summary>
@@ -369,7 +373,8 @@ public sealed class BattleComposer
             }
             else if (PlayersTurn(b))
             {
-                // A turn the player plays opens once its combatant, and any body it has reached, has drawn its earlier parts.
+                // A turn the player plays opens once its combatant, and any body it has reached, has drawn its earlier parts, the
+                // results before it have played, and no body still walking in the drawing is within its combatant's reach.
                 if (!Opens(b))
                     return;
                 b.Start = _drawn;
@@ -393,16 +398,26 @@ public sealed class BattleComposer
         !b.Closed && b.Index == _actions.Actions.Count - 1 && b.Current is not null && _actions[_actions.Last].PlayersTurn && _waits();
 
     /// <summary>
-    /// Whether the player's turn can open now: every earlier action has started, and every body the turn has reached has drawn its
-    /// episodes in them.
+    /// Whether the player's turn can open now: every earlier action has started, every body the turn has reached has drawn its
+    /// episodes in them, every beat before it has played or can stay in shot with the turn (<see cref="BeatsBefore"/>), and no body
+    /// still walking in the drawing could be touched once the turn takes the stick (<see cref="Walkers"/>).
     /// </summary>
-    private bool Opens(DrawnAction b)
+    private bool Opens(DrawnAction b) => Started(b) && Reached(b) && BeatsBefore(b, null) && Walkers(b, null);
+
+    /// <summary>Whether every action before <paramref name="b"/> has started drawing.</summary>
+    private bool Started(DrawnAction b)
     {
         for (var i = _live; i < b.Index; i++)
         {
             if (_actions.Actions[i].Start is not { } s || s > _drawn)
                 return false;
         }
+        return true;
+    }
+
+    /// <summary>Whether every body <paramref name="b"/> has reached has drawn its episodes in earlier actions.</summary>
+    private bool Reached(DrawnAction b)
+    {
         foreach (var e in b.Episodes)
         {
             foreach (var earlier in _actions.EpisodesOf(e.Body))
@@ -414,6 +429,254 @@ public sealed class BattleComposer
             }
         }
         return true;
+    }
+
+    /// <summary>
+    /// Whether every beat of an action before the player's turn <paramref name="b"/> has played, or those still playing can stay in
+    /// one shot with the turn's combatant (<see cref="Framing"/>); a beat yet to strike holds it. Those holding it are added to
+    /// <paramref name="holding"/>, if given.
+    /// </summary>
+    private bool BeatsBefore(DrawnAction b, List<(DrawnAction Action, Beat Beat)>? holding)
+    {
+        var last = _actions.Last;
+        var playing = new List<FramedBeat>();
+        var waiting = false;
+        for (var i = _live; i < b.Index; i++)
+        {
+            var a = _actions.Actions[i];
+            if (a.Start is not { } s || s > _drawn)
+            {
+                foreach (var beat in a.Beats)
+                    holding?.Add((a, beat));
+                waiting |= a.Beats.Count > 0;
+                continue;
+            }
+            var at = a.TickAt(_drawn);
+            foreach (var beat in a.Beats)
+            {
+                if (at > beat.End(last))
+                    continue;
+                if (at < beat.From)
+                {
+                    waiting = true;
+                    holding?.Add((a, beat));
+                }
+                else if (Framed(beat, at) is { } framed)
+                {
+                    playing.Add(framed);
+                }
+            }
+        }
+        if (waiting)
+            return false;
+        if (playing.Count == 0)
+            return true;
+        if (b.Current is { } c && CentreAt(c, last) is { } turn && Framing.CanHold(_drawn, playing, turn))
+            return true;
+        foreach (var f in playing)
+            holding?.Add((f.Beat.Action, f.Beat));
+        return false;
+    }
+
+    /// <summary>A beat as a shot would hold it at tick <paramref name="tick"/> of its action, or null if its body isn't drawn there.</summary>
+    private FramedBeat? Framed(Beat beat, int tick)
+    {
+        var t = Math.Clamp(tick, beat.From, beat.End(_actions.Last));
+        if (CentreAt(beat.Subject, t) is not { } subject)
+            return null;
+        return new FramedBeat(beat, t, subject, beat.Source is { } source ? CentreAt(source, t) : null);
+    }
+
+    /// <summary>
+    /// Whether no body still walking in the drawing could be touched by the player's combatant once its turn <paramref name="b"/>,
+    /// opening now, takes the stick at drawn tick T, as it reaches the battle's present (Start Early). For each drawn tick t from T
+    /// till a body is drawn out to where the core has it, the combatant could have got anywhere within its greatest travel a tick
+    /// times t − T + 1 of where it stands, kept in its field; the body, drawn where the recording has it on the tick it's drawn from
+    /// then (as the drawing would move it, its speed never asked), must stay farther from all of that than both their radii and
+    /// <see cref="StartEarlyPacing.Buffer"/> of its own radius. A body drawn where the core has it can't be walked through, and one
+    /// whose path never comes near the field blocks nothing. Those holding it are added to <paramref name="holding"/>, if given.
+    /// </summary>
+    private bool Walkers(DrawnAction b, List<Combatant>? holding)
+    {
+        var last = _actions.Last;
+        if (b.Current is not { } mover || _actions[last].Field is not { } field || CentreAt(mover, last) is not { } at)
+            return true;
+        var control = _drawn + Math.Max(0, last - b.First);
+        var p = new Vector2(at.X, at.Z);
+        var centre = new Vector2(field.Centre.X, field.Centre.Z);
+        var clear = true;
+        foreach (var (body, track) in _tracks)
+        {
+            if (body == mover || track.Gone || track.Cursor >= last || CentreAt(body, last) is not { } present)
+                continue;
+            var need = mover.Body.Sphere.Radius + body.Body.Sphere.Radius * (1 + Pacing.Buffer);
+            var episodes = _actions.EpisodesOf(body);
+            var (cursor, next) = (track.Cursor, track.Episode);
+            for (var d = _drawn; d - _drawn <= Pacing.ReachTicks; d++)
+            {
+                cursor = Projected(body, b, d, cursor, ref next, episodes);
+                if (cursor >= last)
+                    break;
+                if (d < control || CentreAt(body, cursor) is not { } drawn)
+                    continue;
+                var e = new Vector2(drawn.X, drawn.Z);
+                if (Vector2.DistanceSquared(e, new Vector2(present.X, present.Z)) < Slack * Slack)
+                    continue;
+                if (Gap(e, p, field.Travel * (d - control + 1), centre, field.Radius) <= need)
+                {
+                    clear = false;
+                    holding?.Add(body);
+                    break;
+                }
+            }
+            if (!clear && holding is null)
+                return false;
+        }
+        return clear;
+    }
+
+    /// <summary>
+    /// The tick a body would be drawn from on drawn tick <paramref name="d"/>, the player's turn <paramref name="live"/> opened now,
+    /// from <paramref name="cursor"/>, where it's drawn on the drawn tick before, by <see cref="Move"/>'s rules: with the episode of
+    /// a started action it's in; between them a tick on, no further than its next episode or the turn's tick; and on the present once
+    /// it has nothing left to draw before the turn.
+    /// </summary>
+    private int Projected(Combatant body, DrawnAction live, int d, int cursor, ref int next, IReadOnlyList<Episode> episodes)
+    {
+        var last = _actions.Last;
+        var cap = Math.Min(last, live.First + (d - _drawn));
+        var to = -1;
+        while (next < episodes.Count)
+        {
+            var e = episodes[next];
+            if (e.Action == live)
+                break;
+            if (e.Action.Start is { } s && s <= d)
+            {
+                var at = e.Action.TickAt(d);
+                if (at > e.To)
+                {
+                    to = Math.Max(to, Math.Min(e.To, last));
+                    next++;
+                    continue;
+                }
+                if (at >= e.From)
+                {
+                    to = Math.Min(at, last);
+                    break;
+                }
+            }
+            cap = Math.Min(cap, e.From - 1);
+            break;
+        }
+        if (to < 0 || next >= episodes.Count || to < episodes[next].From)
+        {
+            var free = next >= episodes.Count || episodes[next].Action == live;
+            to = Math.Max(to, free ? last : Math.Min(cursor + 1, cap));
+        }
+        return Math.Max(cursor, to);
+    }
+
+    /// <summary>
+    /// How far a point <paramref name="e"/> is, across the ground, from everywhere within <paramref name="reach"/> of
+    /// <paramref name="p"/> that's also within <paramref name="radius"/> of <paramref name="centre"/>: a body's reach kept in its field.
+    /// </summary>
+    internal static float Gap(Vector2 e, Vector2 p, float reach, Vector2 centre, float radius)
+    {
+        var (dp, dc) = (Vector2.Distance(e, p), Vector2.Distance(e, centre));
+        if (dp <= reach && dc <= radius)
+            return 0;
+        var best = float.PositiveInfinity;
+        // The nearest point of either disc, if it's in the other.
+        var q = dp <= reach ? e : p + (e - p) / dp * reach;
+        if (Vector2.Distance(q, centre) <= radius + 1e-4f)
+            best = Vector2.Distance(e, q);
+        var r = dc <= radius ? e : centre + (e - centre) / dc * radius;
+        if (Vector2.Distance(r, p) <= reach + 1e-4f)
+            best = MathF.Min(best, Vector2.Distance(e, r));
+        // Else the corners where their edges cross.
+        var apart = Vector2.Distance(p, centre);
+        if (apart > 1e-6f && apart <= reach + radius && apart >= MathF.Abs(reach - radius))
+        {
+            var along = (reach * reach - radius * radius + apart * apart) / (2 * apart);
+            var half = MathF.Sqrt(MathF.Max(0, reach * reach - along * along));
+            var way = (centre - p) / apart;
+            var mid = p + way * along;
+            var side = new Vector2(-way.Y, way.X) * half;
+            best = MathF.Min(best, MathF.Min(Vector2.Distance(e, mid + side), Vector2.Distance(e, mid - side)));
+        }
+        // A reach that misses the field altogether (it can't: the body stands in it) is the reach alone.
+        return float.IsPositiveInfinity(best) ? MathF.Max(0, dp - reach) : best;
+    }
+
+    /// <summary>
+    /// The turn the player plays that's waiting to open (Start Early): the battle waits on the player in it, and the drawing holds it
+    /// till its combatant is free, the results before it have played and no body walking in the drawing is within its reach. Null if
+    /// none waits.
+    /// </summary>
+    public DrawnAction? Pending =>
+        _unscheduled < _actions.Actions.Count && _actions.Actions[_unscheduled] is var b && !Settled(b) && PlayersTurn(b) ? b : null;
+
+    /// <summary>
+    /// A while the player's turn waits to open (Start Early): whatever holds it is fast-forwarded, each holder to the end of its part
+    /// and only that: its combatant's earlier parts, every beat before it that's yet to play or can't share its shot, and each body
+    /// walking within its reach. Whether anything held it.
+    /// </summary>
+    public bool SkipHold()
+    {
+        if (Pending is not { } b)
+            return false;
+        var any = false;
+        for (var pass = 0; pass < 4; pass++)
+        {
+            var moved = false;
+            if (b.Current is { } c && !Free(c))
+                moved |= Release(c);
+            foreach (var e in b.Episodes)
+            {
+                if (!Free(e.Body))
+                    moved |= Release(e.Body);
+            }
+            var beats = new List<(DrawnAction Action, Beat Beat)>();
+            if (!BeatsBefore(b, beats))
+            {
+                foreach (var (a, beat) in beats)
+                {
+                    if (a.Start is null)
+                        continue;
+                    var was = a.TickAt(_drawn);
+                    Forward(a, beat.End(_actions.Last) + 1);
+                    moved |= a.TickAt(_drawn) > was;
+                }
+            }
+            var walkers = new List<Combatant>();
+            if (!Walkers(b, walkers))
+            {
+                foreach (var body in walkers)
+                    moved |= Release(body);
+            }
+            any |= moved;
+            if (!moved || Started(b) && Reached(b) && BeatsBefore(b, null) && Walkers(b, null))
+                break;
+        }
+        return any;
+    }
+
+    /// <summary>
+    /// The beats playing on the drawn tick now, each as a shot would hold it, for the director (piece C): those of every action drawing
+    /// whose timeline is between a beat's strike and its end.
+    /// </summary>
+    public IEnumerable<FramedBeat> PlayingNow()
+    {
+        foreach (var a in DrawingNow())
+        {
+            var at = a.TickAt(_drawn);
+            foreach (var beat in a.Beats)
+            {
+                if (at >= beat.From && at <= beat.End(_actions.Last) && Framed(beat, at) is { } framed)
+                    yield return framed;
+            }
+        }
     }
 
     /// <summary>How long a drawn tick may spend searching for actions' starts.</summary>
@@ -439,13 +702,17 @@ public sealed class BattleComposer
     }
 
     /// <summary>A search for an action's start, which may go on over several drawn ticks.</summary>
-    private sealed class Searching(DrawnAction action, int start, int window, List<Placed>[] mine, List<Pair> pairs)
+    private sealed class Searching(DrawnAction action, int start, int window, List<Placed>[] mine, List<Pair> pairs,
+        List<(Beat Beat, int From, int To)> beats)
     {
         public DrawnAction Action { get; } = action;
         public int Start { get; } = start;
         public int Window { get; } = window;
         public List<Placed>[] Mine { get; } = mine;
         public List<Pair> Pairs { get; } = pairs;
+
+        /// <summary>The earlier actions' beats that end on the search's first drawn tick or after, by the drawn ticks they play on.</summary>
+        public List<(Beat Beat, int From, int To)> Beats { get; } = beats;
 
         /// <summary>The next delay from <see cref="Start"/> to try.</summary>
         public int Next { get; set; }
@@ -495,7 +762,18 @@ public sealed class BattleComposer
                 theirs[i] = Others(b, start + i);
                 mine[i] = Mine(b, i);
             }
-            _search = new Searching(b, start, window, mine, Pairs(theirs, mine));
+            var beats = new List<(Beat, int, int)>();
+            for (var i = _live; i < b.Index; i++)
+            {
+                var a = _actions.Actions[i];
+                foreach (var beat in a.Beats)
+                {
+                    var to = a.DrawnAt(beat.End(_actions.Last));
+                    if (to >= start)
+                        beats.Add((beat, a.DrawnAt(beat.From), to));
+                }
+            }
+            _search = new Searching(b, start, window, mine, Pairs(theirs, mine), beats);
         }
         var search = _search;
         var delays = Math.Min(search.Window - search.Start + 1, MaxSearch + 1);
@@ -545,6 +823,8 @@ public sealed class BattleComposer
     /// </summary>
     private bool Clear(Searching search, int delay)
     {
+        if (!BeatsClear(search, search.Start + delay))
+            return false;
         foreach (var (xs, ys, box, y) in search.Pairs)
         {
             for (var k = 0; k < xs.Length && k + delay < ys.Length; k++)
@@ -566,6 +846,44 @@ public sealed class BattleComposer
             }
             return false;
         }
+    }
+
+    /// <summary>
+    /// Whether the action searched for, starting on drawn tick <paramref name="start"/>, strikes no beat where one shot can't hold it
+    /// with the earlier actions' beats playing then: on the drawn tick each of its beats would overlap one of theirs, every beat
+    /// playing then, its own and theirs, is put to <see cref="Framing"/>.
+    /// </summary>
+    private bool BeatsClear(Searching search, int start)
+    {
+        var b = search.Action;
+        if (b.Beats.Count == 0 || search.Beats.Count == 0)
+            return true;
+        var last = _actions.Last;
+        foreach (var mine in b.Beats)
+        {
+            var (from, to) = (start + (mine.From - b.First), start + (mine.End(last) - b.First));
+            foreach (var (theirs, theirFrom, theirTo) in search.Beats)
+            {
+                if (theirTo < from || theirFrom > to)
+                    continue;
+                var d = Math.Max(from, theirFrom);
+                var playing = new List<FramedBeat>();
+                foreach (var m in b.Beats)
+                {
+                    var mf = start + (m.From - b.First);
+                    if (mf <= d && d <= start + (m.End(last) - b.First) && Framed(m, m.From + (d - mf)) is { } f)
+                        playing.Add(f);
+                }
+                foreach (var (o, of, ot) in search.Beats)
+                {
+                    if (of <= d && d <= ot && Framed(o, o.From + (d - of)) is { } f)
+                        playing.Add(f);
+                }
+                if (!Framing.CanHold(d, playing, null))
+                    return false;
+            }
+        }
+        return true;
     }
 
     /// <summary>
@@ -642,7 +960,7 @@ public sealed class BattleComposer
     private static bool Near((Vector3 Min, Vector3 Max) a, (Vector3 Min, Vector3 Max) b) =>
         a.Min.X <= b.Max.X && b.Min.X <= a.Max.X && a.Min.Y <= b.Max.Y && b.Min.Y <= a.Max.Y && a.Min.Z <= b.Max.Z && b.Min.Z <= a.Max.Z;
 
-    /// <summary>The last drawn tick an earlier action draws on.</summary>
+    /// <summary>The last drawn tick an earlier action draws on, or one of its beats plays to.</summary>
     private int Window(DrawnAction b)
     {
         var end = int.MinValue;
@@ -650,6 +968,8 @@ public sealed class BattleComposer
         {
             var a = _actions.Actions[i];
             end = Math.Max(end, a.DrawnAt(a.TailEnd ?? _actions.Last));
+            foreach (var beat in a.Beats)
+                end = Math.Max(end, a.DrawnAt(beat.End(_actions.Last)));
         }
         return end;
     }
@@ -808,6 +1128,9 @@ public sealed class BattleComposer
         return null;
     }
 
+    /// <summary>Where a body's centre is at tick <paramref name="t"/>, or null if it isn't on the field or the tick isn't kept.</summary>
+    private Vector3? CentreAt(Combatant c, int t) => t < _actions.Kept || t > _actions.Last ? null : Centre(c, t);
+
     private Vector3? Centre(Combatant c, int t)
     {
         foreach (var b in _actions[t].Bodies)
@@ -891,7 +1214,7 @@ public sealed class BattleComposer
         Schedule(played);
         var live = Live;
         if (live is not null)
-            Guard(live);
+            Bring(live);
         var last = _actions.Last;
         var newest = Newest();
         var newestTick = newest is null ? last : Math.Min(newest.TickAt(_drawn), last);
@@ -917,98 +1240,22 @@ public sealed class BattleComposer
     }
 
     /// <summary>
-    /// What the player's turn reaches on the present is drawn where it is first (Start Early):
-    /// <list type="bullet">
-    /// <item>a body the turn has reached (a target hit, one pushed) that still has an earlier part to draw;</item>
-    /// <item>a body still drawn behind whose remaining path comes within reach of what the turn draws now (its combatant walking, its
-    /// missile, its spell's actor), within <see cref="WalkMargin"/> of touching and nearer than the recording had them, or which the
-    /// core has standing within that reach while it's drawn elsewhere, since the core collides with where it is;</item>
-    /// <item>a missile or spell's actor of an earlier action still drawn whose remaining path comes that near.</item>
-    /// </list>
-    /// Each fast-forwards the actions holding it to their ends.
+    /// What the player's turn reaches on the present is drawn where it is first (Start Early): a body it involves (a target hit, one
+    /// pushed) that still has an earlier part to draw has the actions holding it fast-forwarded to their ends. The turn opens only
+    /// once no body walking in the drawing is within its reach, and its aim is held while what it could pick still draws behind
+    /// (<see cref="BattleDrawing"/>), so this is seldom needed.
     /// </summary>
-    private void Guard(DrawnAction live)
+    private void Bring(DrawnAction live)
     {
         var at = Math.Min(live.TickAt(_drawn), _actions.Last);
-        if (at < _actions.Kept)
-            return;
-        var touched = new HashSet<Combatant>();
-        var mine = new List<Placed>();
+        var touched = new List<Combatant>();
         foreach (var e in live.Episodes)
         {
-            if (e.From > at)
-                continue;
-            if (!Free(e.Body))
+            if (e.From <= at && !Free(e.Body))
                 touched.Add(e.Body);
-            else if (e.To >= at && Centre(e.Body, at) is { } c)
-                mine.Add(new Placed(e.Body, new Shape(c, c, e.Body.Body.Sphere.Radius), at, true));
-        }
-        foreach (var (thing, ended) in live.Things)
-        {
-            if (thing is (MissileFlight or SpellFxVisual) && (ended is null || ended > at) && Look(thing, at) is { } shape)
-                mine.Add(new Placed(thing, shape, at, true));
-        }
-        if (mine.Count > 0)
-        {
-            foreach (var (body, track) in _tracks)
-            {
-                if (track.Gone || track.Cursor >= at || touched.Contains(body) || mine.Exists(m => m.Key == body))
-                    continue;
-                if (Reaches(mine, body, track.Cursor, at))
-                    touched.Add(body);
-            }
         }
         foreach (var body in touched)
             Release(body);
-        if (mine.Count == 0)
-            return;
-        // An earlier action's missile or spell's actor still drawn in the way.
-        for (var i = _live; i < _actions.Actions.Count; i++)
-        {
-            var a = _actions.Actions[i];
-            if (a == live || a.Start is not { } s || s > _drawn)
-                continue;
-            var t = a.TickAt(_drawn);
-            foreach (var (thing, ended) in a.Things)
-            {
-                if (thing is not (MissileFlight or SpellFxVisual) || (ended is { } end && end < t))
-                    continue;
-                if (Reaches(mine, thing, Math.Max(t, _actions.Kept), Math.Min(ended ?? at, at)))
-                {
-                    Finish(a);
-                    break;
-                }
-            }
-        }
-    }
-
-    /// <summary>
-    /// Whether what the player's turn draws now (<paramref name="mine"/>) comes near <paramref name="key"/>'s path over the ticks it's
-    /// still drawn at, <paramref name="from"/> to <paramref name="to"/>: within reach and <see cref="WalkMargin"/>, nearer than the
-    /// recording had them; or the turn's combatant coming nearer, within that reach, to where the core has it now (<paramref name="to"/>),
-    /// where the core pushes it and is blocked by it.
-    /// </summary>
-    private bool Reaches(List<Placed> mine, object key, int from, int to)
-    {
-        foreach (var x in mine)
-        {
-            var before = x.Key is Combatant && x.Tick > _actions.Kept ? Look(x.Key, x.Tick - 1) : null;
-            for (var u = from; u <= to; u++)
-            {
-                if (Look(key, u) is not { } y)
-                    continue;
-                var reach = x.Shape.Radius + y.Radius + WalkMargin;
-                var drawn = Distance(x.Shape, y);
-                if (drawn >= reach)
-                    continue;
-                if (u == to && before is { } b && drawn < Distance(b, y) - 1e-4f)
-                    return true;
-                var then = Look(x.Key, u) is { } xThen ? Distance(xThen, y) : float.PositiveInfinity;
-                if (drawn < then - Slack)
-                    return true;
-            }
-        }
-        return false;
     }
 
     /// <summary>
@@ -1047,11 +1294,15 @@ public sealed class BattleComposer
             }
             if (behind is null || !Release(behind))
                 return;
+            Resolved++;
         }
 
         float Between(Combatant x, Combatant y, int t) =>
             Centre(x, t) is { } a && Centre(y, t) is { } b ? Vector3.Distance(a, b) : float.PositiveInfinity;
     }
+
+    /// <summary>How many times the last word has brought a body on: never, if the scheduling and the holds did their part.</summary>
+    public int Resolved { get; private set; }
 
     /// <summary>The newest action drawing its own ticks now, or the newest started.</summary>
     private DrawnAction? Newest()
@@ -1167,7 +1418,8 @@ public sealed class BattleComposer
         while (_live < _unscheduled - 1)
         {
             var a = _actions.Actions[_live];
-            if (a.Start > _drawn || a.TailEnd is not { } end || a.TickAt(_drawn) <= end || a.MomentsPlayed < a.Moments.Count)
+            if (a.Start > _drawn || a.TailEnd is not { } end || a.TickAt(_drawn) <= end || a.MomentsPlayed < a.Moments.Count
+                || a.Beats.Any(beat => a.TickAt(_drawn) <= beat.End(_actions.Last)))
                 break;
             _live++;
         }

@@ -145,81 +145,208 @@ public sealed class BattleComposerTests
     }
 
     [Fact]
-    public void AimingAtABodyStillDrawingFastForwardsOnlyTheActionsHoldingIt()
+    public void ReleasingABodyStillDrawnFastForwardsOnlyTheActionsHoldingIt()
     {
-        // C walks far off on the left for 200 ticks; D walks up to B and hits it; then A's turn, aiming at B.
-        var script = new Script(_c, _d, _a, _b);
+        // C walks far off on the left for 200 ticks; D walks far off on the right; then A's turn, whose reach neither comes near.
+        var script = new Script(_c, _d, _a, _b) { Field = new TurnField(new(0, 0, -10), 3, 0.05f) };
         script.Place(_a, new(0, 0, -10)).Place(_b, new(4, 0, 10)).Place(_c, new(-15, 0, -10)).Place(_d, new(15, 0, 10));
         script.Walk(_c, new(-15, 0, 10), 200);
-        script.Walk(_d, new(5.2f, 0, 10), 100);
-        script.Cue(new CombatantAnimated(_b, 7));
+        script.Walk(_d, new(15, 0, -2), 100);
         script.Stand(_d, 30);
         script.Stand(_a, 1, CombatState.Turn);
 
         var composer = Recorded(script);
-        var played = new List<CombatCue>();
-        OpenedAt(composer, played);
+        OpenedAt(composer);
         var actions = composer.Actions.Actions;
         var (cs, ds) = (actions[0], actions[1]);
         Assert.True(cs.Current == _c && ds.Current == _d);
-        var d = composer.Drawn;
-        var cAt = cs.TickAt(d);
-        Assert.False(composer.Free(_b));
+        var cAt = cs.TickAt(composer.Drawn);
+        Assert.False(composer.Free(_d));
 
-        composer.Release([_b]);
+        composer.Release([_d]);
         var frame = composer.Next();
-        played.AddRange(frame.Cues);
-        // D's action, which holds B, is drawn to its end and B with it; C's walk draws on a tick at a time.
+        // D's action, which holds D, is drawn to its end and D with it; C's walk draws on a tick at a time.
         Assert.True(ds.TickAt(composer.Drawn) > ds.TailEnd);
-        Assert.True(composer.Free(_b));
-        Assert.True(composer.DrawnTickOf(_b) >= composer.Actions.EpisodesOf(_b)[^1].To);
+        Assert.True(composer.Free(_d));
+        Assert.Equal(new Vector3(15, 0, -2), Place(frame, _d));
         Assert.Equal(cAt + 1, cs.TickAt(composer.Drawn));
-        // The hit on B is handed over as it's passed, once.
-        Assert.Single(played, c => c is CombatantAnimated { Request: 7 } hit && hit.Combatant == _b);
-        Assert.Contains(_b, frame.Jumped);
+        Assert.Contains(_d, frame.Jumped);
+    }
+
+    // ---------------------------------------------------------------------------------------------------------------------------
+    // Piece A: beats, the turn's wait, and the held stick
+
+    [Fact]
+    public void BeatsOneShotCantHoldDontOverlapThoughTheLaterWalkStartsEarly()
+    {
+        // A walks up to B on the left and hits it 60 ticks in; C walks up to D on the right, 24 away, and hits it 60 ticks in.
+        var script = Beating(new(-12, 0, 5), new(12, 0, 5));
+        var drawn = Draw(script);
+        var (b, d) = (drawn.Actions.Actions[0].Beats.Single(), drawn.Actions.Actions[1].Beats.Single());
+        Assert.Equal((_b, BeatKind.Damage), (b.Subject, b.Kind));
+        Assert.Equal(_d, d.Subject);
+        Assert.Equal(new StartEarlyPacing().BeatLeast, b.To - b.From + 1);
+        // D's beat lands the drawn tick after B's ends: C's turn starts just that much later, its walk long before B is hit.
+        var bEnds = drawn.Starts[0] + (b.To!.Value - drawn.Actions.Actions[0].First);
+        var dStrikes = drawn.Starts[1] + (d.From - drawn.Actions.Actions[1].First);
+        Assert.Equal(bEnds + 1, dStrikes);
+        Assert.True(drawn.Starts[1] < drawn.Starts[0] + (b.From - drawn.Actions.Actions[0].First), $"C's walk starts at {drawn.Starts[1]}");
     }
 
     [Fact]
-    public void ThePlayersWalkFastForwardsABodyDrawnBehindBeforeItsReached()
+    public void BeatsOneShotCanHoldOverlap()
     {
-        // C walks slowly north across x = 5; then A's turn, A walking east toward C's path from the start.
-        var script = new Script(_c, _a, _b, _d);
-        script.Place(_a, new(0, 0, 0)).Place(_b, new(-20, 0, 20)).Place(_c, new(5, 0, -10)).Place(_d, new(-20, 0, -20));
-        script.Walk(_c, new(5, 0, 10), 300);
-        script.Stand(_a, 1, CombatState.Turn);
+        // The same, with a shot that holds the whole field: C's turn starts on the first drawn tick, as before beats.
+        var drawn = Draw(Beating(new(-12, 0, 5), new(12, 0, 5)), new SpreadFraming(100));
+        Assert.Equal(1, drawn.Starts[1]);
+        // And with the stand-in's shot, two beats near each other overlap too.
+        var near = Draw(Beating(new(-2, 0, 5), new(2, 0, 5)));
+        Assert.Equal(1, near.Starts[1]);
+    }
 
+    [Fact]
+    public void APlayersTurnWaitsForTheBeatsBeforeIt()
+    {
+        // C walks up to B and hits it 60 ticks in, then stands 60; then A's turn, far off.
+        var composer = Recorded(Hitting(new(-10, 0, 0)));
+        var beat = composer.Actions.Actions[0].Beats.Single();
+        var opened = OpenedAt(composer);
+        // Not while C walks, nor while B's beat plays: the drawn tick after it ends (C's action draws its ticks on the same drawn ticks).
+        Assert.Equal(beat.To!.Value + 1, opened);
+        Assert.False(composer.CaughtUp);
+    }
+
+    [Fact]
+    public void APlayersTurnOpensWhileABeatPlaysThatItsShotCanHold()
+    {
+        // The same, with A standing near B: the stand-in's shot holds both, so the turn opens as B is hit, not before.
+        var composer = Recorded(Hitting(new(8, 0, 0)));
+        var beat = composer.Actions.Actions[0].Beats.Single();
+        Assert.Equal(beat.From, OpenedAt(composer));
+    }
+
+    [Fact]
+    public void ThePlayersStickWaitsTillNoBodyWalkingInTheDrawingIsInItsReach()
+    {
+        // C walks slowly north along x = 5, past A at its nearest 5 away; A's field is 4 across its reach.
+        var script = Passing(5);
         var composer = Recorded(script);
+        var opened = OpenedAt(composer);
         var cs = composer.Actions.Actions[0];
-        var reach = _a.Body.Sphere.Radius + _c.Body.Sphere.Radius;
-        int? released = null;
-        var last = new Dictionary<Combatant, int>();
+        // It opens while C still walks, but only once nowhere A could have run to by each drawn tick comes near where C is then.
+        Assert.InRange(opened, 60, 140);
+        Assert.True(cs.TickAt(composer.Drawn) < cs.Last, "C still walks as A's turn opens");
+        var need = _a.Body.Sphere.Radius + 2 * _c.Body.Sphere.Radius;
+        var control = composer.Drawn + composer.Actions.Last - composer.Live!.First;
+        for (var d = control; d <= cs.DrawnAt(cs.Last); d++)
+        {
+            var reach = MathF.Min(4, 0.05f * (d - control + 1));
+            var c = Along(cs.TickAt(d));
+            Assert.True(new Vector2(c.X, c.Z).Length() - reach > need, $"C at {c} within reach {reach:F2} at drawn tick {d}");
+        }
+        // A drawn tick sooner, and it wouldn't have held.
+        var sooner = false;
+        for (var d = control - 1; d <= cs.DrawnAt(cs.Last); d++)
+        {
+            var c = Along(cs.TickAt(d));
+            sooner |= new Vector2(c.X, c.Z).Length() - MathF.Min(4, 0.05f * (d - control + 2)) <= need;
+        }
+        Assert.True(sooner, "the stick came later than it had to");
+        // And A, running east toward C's path as fast as it can once it has the stick, never touches C as drawn.
+        var reachNow = _a.Body.Sphere.Radius + _c.Body.Sphere.Radius;
         for (var i = 0; i < 400; i++)
         {
-            // The battle steps with the drawing once the player's turn is drawn on the present: A walks east.
             if (composer.AtPresent)
             {
                 var a = script.At(_a);
-                composer.Record(script.Step(_a, _a, a.X < 5 ? a + new Vector3(0.05f, 0, 0) : a, CombatState.Turn));
+                composer.Record(script.Step(_a, _a, a.X < 4 ? a + new Vector3(0.05f, 0, 0) : a, CombatState.Turn));
             }
             var frame = composer.Next();
-            var (pa, pc) = (Place(frame, _a), Place(frame, _c));
-            Assert.True(Vector3.Distance(pa, pc) >= reach, $"A and C drawn {Vector3.Distance(pa, pc):F2} apart at drawn tick {composer.Drawn}");
-            if (released is null && cs.TickAt(composer.Drawn) > cs.TailEnd)
-                released = composer.Drawn;
-            foreach (var body in frame.Bodies)
-            {
-                var t = composer.DrawnTickOf(body.Combatant)!.Value;
-                Assert.True(t >= last.GetValueOrDefault(body.Combatant), $"{body.Combatant} went back to tick {t}");
-                last[body.Combatant] = t;
-            }
+            Assert.True(Vector3.Distance(Place(frame, _a), Place(frame, _c)) >= reachNow, $"A touches C at drawn tick {composer.Drawn}");
         }
-        // C's walk was drawn to its end as A came near its path, before A reached it, and C stands where the core has it.
-        Assert.NotNull(released);
-        Assert.InRange(released.Value, 50, 99);
-        Assert.Equal(new Vector3(5, 0, 10), Place(composer.Frame, _c));
+        Assert.Equal(0, composer.Resolved);
 
-        static Vector3 Place(BattleFrame f, Combatant c) => f.Bodies.Single(b => b.Combatant == c).Centre;
+        // Tick k of the script is its walk's (k + 1)th step.
+        static Vector3 Along(int tick) => Vector3.Lerp(new(5, 0, -10), new(5, 0, 10), Math.Clamp(tick + 1, 0, 300) / 300f);
     }
+
+    [Fact]
+    public void ThePlayersStickComesAtOnceWhenNoBodyWalkingIsNear()
+    {
+        var composer = Recorded(Passing(30));
+        Assert.InRange(OpenedAt(composer), 1, 2);
+        Assert.True(composer.DrawnTickOf(_c) < 10);
+    }
+
+    [Fact]
+    public void ASkipsTheWaitForThePlayersTurn()
+    {
+        // As above, A pressed ten ticks in: C's walk, which holds the turn, is drawn to its end, and the turn opens.
+        var composer = Recorded(Passing(5));
+        for (var i = 0; i < 10; i++)
+            composer.Next();
+        Assert.NotNull(composer.Pending);
+        Assert.Null(composer.Live);
+        Assert.True(composer.SkipHold());
+        var frame = composer.Next();
+        Assert.NotNull(composer.Live);
+        Assert.Equal(new Vector3(5, 0, 10), Place(frame, _c));
+        Assert.True(composer.Free(_c));
+    }
+
+    [Fact]
+    public void ASkipsABeatHoldingThePlayersTurn()
+    {
+        var composer = Recorded(Hitting(new(-10, 0, 0)));
+        for (var i = 0; i < 10; i++)
+            composer.Next();
+        Assert.True(composer.SkipHold());
+        composer.Next();
+        Assert.NotNull(composer.Live);
+        Assert.True(composer.Free(_b));
+    }
+
+    /// <summary>A walks up to B and hits it, then C walks up to D and hits it, each 60 ticks into its turn; then D's turn.</summary>
+    private Script Beating(Vector3 b, Vector3 d)
+    {
+        var script = new Script(_a, _b, _c, _d);
+        script.Place(_a, b - new Vector3(0, 0, 10)).Place(_b, b).Place(_c, d - new Vector3(0, 0, 10)).Place(_d, d);
+        script.Walk(_a, b - new Vector3(0, 0, 1.2f), 60);
+        script.Cue(new CombatantAnimated(_b, Battle.HitRequest));
+        script.Stand(_a, 60);
+        script.Walk(_c, d - new Vector3(0, 0, 1.2f), 60);
+        script.Cue(new CombatantAnimated(_d, Battle.HitRequest));
+        script.Stand(_c, 60);
+        script.Stand(_d, 10);
+        return script;
+    }
+
+    /// <summary>C walks up to B at (10, 5) and hits it 60 ticks in, then stands 60; then A's turn, A standing at <paramref name="a"/>.</summary>
+    private Script Hitting(Vector3 a)
+    {
+        var script = new Script(_c, _a, _b, _d);
+        script.Place(_a, a).Place(_b, new(10, 0, 5)).Place(_c, new(10, 0, -5)).Place(_d, new(-20, 0, -20));
+        script.Walk(_c, new(10, 0, 3.8f), 60);
+        script.Cue(new CombatantAnimated(_b, Battle.HitRequest));
+        script.Stand(_c, 60);
+        script.Stand(_a, 1, CombatState.Turn);
+        return script;
+    }
+
+    /// <summary>
+    /// C walks north along x = <paramref name="x"/> from z = −10 to 10 over 300 ticks; then A's turn at the origin, its field 4 across
+    /// and its greatest travel 0.05 a tick.
+    /// </summary>
+    private Script Passing(float x)
+    {
+        var script = new Script(_c, _a, _b, _d) { Field = new TurnField(Vector3.Zero, 4, 0.05f) };
+        script.Place(_a, Vector3.Zero).Place(_b, new(-20, 0, 20)).Place(_c, new(x, 0, -10)).Place(_d, new(-20, 0, -20));
+        script.Walk(_c, new(x, 0, 10), 300);
+        script.Stand(_a, 1, CombatState.Turn);
+        return script;
+    }
+
+    private static Vector3 Place(BattleFrame f, Combatant c) => f.Bodies.Single(b => b.Combatant == c).Centre;
 
     [Fact]
     public void AInAnAisWalkFastForwardsOnlyTheWalksDrawingToTheirEnds()
@@ -279,9 +406,11 @@ public sealed class BattleComposerTests
     private sealed record Drawing(Dictionary<int, int> Starts, List<Dictionary<Combatant, Vector3>> Places, int Ticks, BattleActions Actions);
 
     /// <summary>Records the script whole, the battle waiting on the player, and draws it till it has caught up.</summary>
-    private static Drawing Draw(Script script)
+    private static Drawing Draw(Script script, IBeatFraming? framing = null)
     {
         var composer = new BattleComposer(script.Frames[0], () => true);
+        if (framing is not null)
+            composer.Framing = framing;
         foreach (var f in script.Frames.Skip(1))
             composer.Record(f);
         var starts = new Dictionary<int, int> { [0] = 0 };
@@ -307,6 +436,9 @@ public sealed class BattleComposerTests
         private readonly List<CombatCue> _cues = [];
 
         public List<BattleFrame> Frames { get; } = [];
+
+        /// <summary>The field of the player's turns, on their frames.</summary>
+        public TurnField? Field { get; init; }
 
         public Script Place(Combatant c, Vector3 at)
         {
@@ -371,6 +503,7 @@ public sealed class BattleComposerTests
                 Cues = [.. _cues],
                 Sounds = [],
                 Emitters = [],
+                Field = state is CombatState.Turn ? Field : null,
             });
             _cues.Clear();
         }

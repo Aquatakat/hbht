@@ -105,6 +105,12 @@ public sealed class BattleFrame
     /// <summary>The emitter starts a fast-forward passed over under Start Early: none is started.</summary>
     public IReadOnlyList<EmitterStart> SkippedEmitters { get; init; } = [];
 
+    /// <summary>
+    /// The field of a turn the player plays, and how fast its combatant can cross it: what Start Early holds the stick for while a
+    /// body still walks in the drawing within its reach (<see cref="BattleComposer"/>). Null in the AI's turns and between turns.
+    /// </summary>
+    public TurnField? Field { get; init; }
+
     /// <summary>Whether this is an AI's walk (state 5), which A only fast-forwards under Start Early.</summary>
     public bool Walking => State == CombatState.Moving;
 
@@ -161,6 +167,12 @@ public readonly record struct DrawnBody(
     /// <summary>What it holds, slot by slot (<see cref="Combatant.Held"/>).</summary>
     public HeldModel? Held(int slot) => slot switch { 0 => Arm, 1 => Hand, 2 => Notes, _ => null };
 }
+
+/// <summary>
+/// A turn the player plays as the drawing holds its stick (Start Early): the field its combatant's body is kept in (its centre and
+/// radius, <see cref="Movement.Body.Field"/>), and the farthest it can go in a tick (<see cref="BattleRecorder.GreatestTravel"/>).
+/// </summary>
+public readonly record struct TurnField(Vector3 Centre, float Radius, float Travel);
 
 /// <summary>An arrow, thrown weapon or flask in flight as it's drawn: where on its arc, turned how, at what scale.</summary>
 public readonly record struct DrawnMissile(MissileFlight Flight, Vector3 Drawn, Matrix4x4 Rotation, float Scale);
