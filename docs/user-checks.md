@@ -6,6 +6,17 @@ A check far into the story needn't be played to: Claude writes a save at the pla
 
 ## Open
 
+### Combat Turns: Start Early's director (piece C)
+
+Under Combat Turns: Start Early the camera is now always Camera: Enhanced, filming the drawing ([cameras](systems/cameras.md#start-earlys-director)). In a battle where enemies overlap (bandits, such as `--battle aidyn:mapobject/0/J18/6`, or the Chaos casters), with F3's drawing on to see what it holds:
+
+1. Is every hit, miss, fall and buff on the screen as it lands? Does the camera start toward one early and arrive as it lands, or does it cut at the last moment (F3 says "cut to a beat about to strike")?
+2. When two enemies' results play at once, is the wide or high shot that holds both readable, or would you rather they took turns (`BeatDistance`, 40, and `BeatPitches` say how wide and how high)?
+3. With one enemy acting alone, does it feel like Camera: Enhanced under Original turns?
+4. In your turn while an earlier hit still plays, is the view drawn back enough to see it and your character, and does it settle back over the shoulder smoothly after?
+5. Does the stick go the way you see, all through your turn? Does R still take the camera, and aiming give it back?
+6. Are the bodies' sounds panned and levelled for the camera you see?
+
 ### Combat Turns: Start Early's pacing (piece A)
 
 Under Combat Turns: Start Early, in a battle with several enemies (the rats at F09, bandits, the Chaos casters), how the beats, the turn's wait and the held stick feel ([combat](systems/combat.md#pacing-beats-and-the-players-wait)):
