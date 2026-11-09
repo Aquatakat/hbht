@@ -77,7 +77,7 @@ public sealed class Pilot : IInputPolicy
     {
         var before = GameSnapshot.Take(host.Game);
         var (input, conversations) = (host.Input, host.Conversations);
-        var choices = new WantedChoices(step.Choices ?? [], conversations);
+        var choices = new WantedChoices(step.Choices ?? [], conversations, step.Ways);
         var (start, transitions, pages, battles) = (host.Clock.Ticks, host.Transitions.Count, host.Pages.Count, host.BattlesFought.Count);
         var walk = _walk = new Walk(step);
         host.Input = this;

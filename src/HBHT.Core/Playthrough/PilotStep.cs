@@ -80,7 +80,16 @@ public sealed record ExpectedEffect(EffectKind Kind, RecordId Id, bool Present =
 /// <param name="Choices">The choices wanted in the conversations and cut-scenes it starts; the host's default elsewhere.</param>
 /// <param name="Expect">What it should leave so, checked once its consequences have played out.</param>
 public sealed record PilotStep(RecordId MapObject, UseKind How = UseKind.Auto, IReadOnlyList<ChoiceWanted>? Choices = null,
-    IReadOnlyList<ExpectedEffect>? Expect = null);
+    IReadOnlyList<ExpectedEffect>? Expect = null)
+{
+    /// <summary>
+    /// The script whose pages <see cref="Ways"/> are for, and the choices of each way through it that does what the step wants, in
+    /// order, the planner's first (<see cref="Choices"/>'s) first: ways that do the same but go by conditions the planner merged
+    /// (<see cref="PlayerAction.OtherChoices"/>). The pilot takes, on each of the script's pages, the next choice of the first way it
+    /// has kept to that the page offers, so a way the state doesn't take is left for one it does.
+    /// </summary>
+    public (RecordId Script, IReadOnlyList<IReadOnlyList<int>> Choices)? Ways { get; init; }
+}
 
 /// <summary>Why a step failed.</summary>
 public enum StepFailure

@@ -62,7 +62,11 @@ public static class StepTranslation
         var choices = Choices(action, model.Plugins, notes);
         var expect = Expect(action, model, game);
         var picks = reach?.Picks(place) == true || PicksOnTheWay(graph, game, target);
-        return new TranslatedStep(action, new PilotStep(target, UseOf(action.Kind), choices, expect), picks, unmet, rolls, notes);
+        var step = new PilotStep(target, UseOf(action.Kind), choices, expect)
+        {
+            Ways = action.Script is { } script && action.Choices.Count > 0 ? (script, [action.Choices, .. action.OtherChoices]) : null,
+        };
+        return new TranslatedStep(action, step, picks, unmet, rolls, notes);
     }
 
     /// <summary>
