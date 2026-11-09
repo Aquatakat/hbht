@@ -1,3 +1,4 @@
+using System.Globalization;
 using Godot;
 using HBHT.Core.Cameras;
 using HBHT.Core.Combat;
@@ -226,9 +227,17 @@ public partial class CameraIntentView : Control
         var font = ThemeDB.FallbackFont;
         var line = text * 1.3f;
         DrawString(font, new Vector2(box.Position.X, box.End.Y + line), intent.Kind, HorizontalAlignment.Left, mapSize, text, Colors.White);
+        // Why it last swung onto a new framing, for three seconds after.
+        var lines = 2;
+        if (intent.Swung is { Ago: < 180 } swung)
+        {
+            DrawString(font, new Vector2(box.Position.X, box.End.Y + line * lines++),
+                string.Create(CultureInfo.InvariantCulture, $"swung: {swung.Why}, {swung.Ago / 60f:F1} s ago"), HorizontalAlignment.Left, mapSize, text,
+                RailOrange);
+        }
         string[] legend = ["white shown, cyan its goal", "yellow held, orange if it can be, red the target", "magenta the vantage, green the follow point"];
         for (var i = 0; i < legend.Length; i++)
-            DrawString(font, new Vector2(box.Position.X, box.End.Y + line * (i + 2)), legend[i], HorizontalAlignment.Left, mapSize, text - 2, Legend);
+            DrawString(font, new Vector2(box.Position.X, box.End.Y + line * (i + lines)), legend[i], HorizontalAlignment.Left, mapSize, text - 2, Legend);
 
         // The way across the map of a yaw, the side the eye stands.
         Vector2 Way(float yaw)

@@ -354,6 +354,7 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
         var (turnTicks, shown, close) = (0, 0, 0);
         var (cuts, walked) = (0, (Combatant?)null);
         var (landed, trailing, trail, longest) = (0, 0, 0, 0);
+        var (hiddenRun, longestHidden) = (0, 0);
         Play(host => Plain(Set, 1, host), CameraStyle.Enhanced, "*=stick:0:1:40/wait:40/accept/accept", run =>
         {
             var battle = run.Battle;
@@ -391,10 +392,15 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
             ShotSubject[] both = [sphere, new(target.Body.Sphere.Position, target.Body.ScaledRadius)];
             if (both.All(s => ShotFraming.Holds(e.Goal, s with { Radius = 0 }, t.Lens)))
                 held++;
-            // A target near is hidden only for a moment; one far off, beyond the pack's range, may be behind another body rather than seen from high.
+            // A target near is hidden only for a moment, a body passing between for less than HiddenPatience kept, one longer swung away from;
+            // one far off, beyond the pack's range, may be behind another body rather than seen from high.
             var hidden = finder.HiddenWeight(e.Goal, both) > 0;
             if (Vector3.Distance(both[0].At, both[1].At) <= t.PackRange)
+            {
                 (nearTicks, nearHidden) = (nearTicks + 1, nearHidden + (hidden ? 1 : 0));
+                hiddenRun = hidden ? hiddenRun + 1 : 0;
+                longestHidden = Math.Max(longestHidden, hiddenRun);
+            }
             else
                 (farTicks, farHidden) = (farTicks + 1, farHidden + (hidden ? 1 : 0));
             if (e.Goal.Pitch <= ShotFinder.Rad(30) + 1e-4f)
@@ -403,7 +409,7 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
             Assert.NotEqual(me.Hostile, target.Hostile);
         });
         TestContext.Current.TestOutputHelper?.WriteLine($"{framed} ticks framed with a target: {held} holding both, {low} low, {close} near the character; " +
-            $"hidden on {nearHidden} of {nearTicks} near, {farHidden} of {farTicks} far; {walkingCuts} cuts walking; the character shown on {shown} of {turnTicks} turn ticks; " +
+            $"hidden on {nearHidden} of {nearTicks} near, {longestHidden} in a row at most, {farHidden} of {farTicks} far; {walkingCuts} cuts walking; the character shown on {shown} of {turnTicks} turn ticks; " +
             $"the angle more than 5° off on {trailing} of {landed} ticks its aim had landed, {longest} in a row at most");
         Assert.True(longest <= 45, $"the angle trailed {longest} ticks in a row");
         Assert.True(trailing <= landed * 0.1, $"the angle trailing on {trailing} of {landed}");
@@ -412,8 +418,9 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
         Assert.Equal(framed, close);
         Assert.True(framed > 200, $"{framed} ticks framed");
         Assert.True(held >= framed * 0.98, $"{held} of {framed} held both");
-        // A framing that comes to hide one is eased away from rather than stepped (FramingTurn), so it may hide it for a moment.
-        Assert.True(nearHidden <= nearTicks * 0.05, $"{nearHidden} of {nearTicks} near hid one");
+        // A framing that comes to hide one is kept for HiddenPatience, then swung away from (SwingTime): no more than a second and a half.
+        Assert.True(nearHidden <= nearTicks * 0.1, $"{nearHidden} of {nearTicks} near hid one");
+        Assert.True(longestHidden <= t.HiddenPatience + 45, $"near hidden {longestHidden} ticks in a row");
         Assert.True(farHidden <= farTicks * 0.1, $"{farHidden} of {farTicks} far hid one");
         // Over the shoulder, never from high above.
         Assert.Equal(framed, low);
@@ -934,6 +941,53 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
         Assert.True(turnJerk.Count > 2000, $"{turnJerk.Count} ticks");
         Assert.True(turn < 6000, $"the turn's {turn}");
         Assert.True(zoom < 400, $"the distance's {zoom}");
+    }
+
+    [Fact]
+    public void OverTheShoulderANewTargetTheViewAlreadyShowsDoesntTurnIt()
+    {
+        // Zig-zagging among six bandits: targets change often, the nearest within reach taken by how near alone. A framing that already
+        // shows the character and their new target is kept, so most changes don't swing the view, and a swing takes SwingTime: the view
+        // turns at under 60°/s 99 ticks in 100. Turned to frame each new target, the 99th percentile was 78°/s.
+        var t = CameraTuning.Default;
+        var bandit = RecordId.Hex(RecordTypes.Entity, 0x025E);
+        var (changes, swungAfter, sinceChange) = (0, 0, int.MaxValue);
+        var speeds = new List<float>();
+        (Combatant Who, int Cuts, Combatant? Target, float Yaw)? last = null;
+        Play(host => Plain(Set, 1, host, [.. Enumerable.Repeat(new PartyEnemy(bandit, 1, 1), 6)]), CameraStyle.Enhanced,
+            "*=stick:0:1:30/stick:1:0:30/stick:-1:0:60/stick:1:0:60/stick:0:1:30/stick:-1:1:40/wait:10/accept/accept", run =>
+            {
+                var battle = run.Battle;
+                var e = battle.CombatCamera.Enhanced!;
+                if (battle.State != CombatState.Turn || battle.Current is not { Controlled: false } me || !e.Walking || e.Quick || e.Motion is not { } m)
+                {
+                    last = null;
+                    return;
+                }
+                var target = e.Intent.Target;
+                if (last is { } l && l.Who == me && l.Cuts == e.Cuts)
+                {
+                    speeds.Add(MathF.Abs(Shot.Wrap(m.Current.Yaw - l.Yaw)) * 60 * 180 / MathF.PI);
+                    if (target is not null && l.Target is not null && target != l.Target)
+                        (changes, sinceChange) = (changes + 1, 0);
+                    else if (sinceChange < int.MaxValue)
+                        sinceChange++;
+                    // A swing begun within half a second of a new target is one it needed.
+                    if (e.Intent.Swung is { Ago: 0 } && sinceChange <= 30)
+                    {
+                        swungAfter++;
+                        sinceChange = int.MaxValue;
+                    }
+                }
+                last = (me, e.Cuts, target, m.Current.Yaw);
+            });
+        speeds.Sort();
+        var p99 = speeds[speeds.Count * 99 / 100];
+        TestContext.Current.TestOutputHelper?.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"{speeds.Count} ticks walking, {changes} new targets, {swungAfter} swung to; the view's turn {p99:F0}°/s at the 99th percentile"));
+        Assert.True(changes >= 10, $"{changes} new targets");
+        Assert.True(swungAfter * 4 <= changes, $"{swungAfter} of {changes} swung to");
+        Assert.True(p99 < 60, $"{p99}°/s");
     }
 
     [Fact]

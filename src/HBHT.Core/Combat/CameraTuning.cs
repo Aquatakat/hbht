@@ -198,7 +198,7 @@ public sealed record CameraTuning
     public float EnterCutDistance { get; init; } = 8;
 
     /// <inheritdoc cref="EnterCutDistance"/>
-    public float EnterCutTurn { get; init; } = 60;
+    public float EnterCutTurn { get; init; } = 30;
 
     /// <summary>How far beyond the battlefield's grid a director's shot may put its eye: the walls and cliffs round it are scenery without collision.</summary>
     public float FieldMargin { get; init; } = 1;
@@ -334,11 +334,31 @@ public sealed record CameraTuning
     /// <summary>How fast a target's worth falls with its distance: nearer is likelier.</summary>
     public float NearScale { get; init; } = 6;
 
-    /// <summary>How much likelier another enemy must be than the target held to take its place.</summary>
+    /// <summary>
+    /// How much likelier another enemy must be than the target held to take its place. Within <see cref="StrikeRange"/>, how much nearer,
+    /// units.
+    /// </summary>
     public float TargetMargin { get; init; } = 0.5f;
 
-    /// <summary>Ticks in a row another enemy must be that much likelier.</summary>
-    public int TargetHold { get; init; } = 45;
+    /// <summary>
+    /// Ticks in a row another enemy must be that much likelier to take the target's place, or, with none held, the likeliest to be taken:
+    /// this many for one within <see cref="TargetQuickRange"/>, rising to <see cref="TargetHoldFar"/> for one at <see cref="TargetRange"/>.
+    /// So a new target near is taken quickly, one across the field only once the player has headed for it a while.
+    /// </summary>
+    public int TargetHold { get; init; } = 15;
+
+    /// <inheritdoc cref="TargetHold"/>
+    public int TargetHoldFar { get; init; } = 90;
+
+    /// <inheritdoc cref="TargetHold"/>
+    public float TargetQuickRange { get; init; } = 10;
+
+    /// <summary>
+    /// Within this of the character across the ground, an enemy is a target by how near it is alone, wherever in front of them it is (not
+    /// headed away from by more than <see cref="HoldNearAngle"/>): among a pack within reach, whom the camera looks at hardly matters, and
+    /// the shot over the shoulder doesn't orbit it (<see cref="ShoulderNear"/>).
+    /// </summary>
+    public float StrikeRange { get; init; } = 5;
 
     // ---- The vantage: the side every shot is taken from
 
@@ -387,16 +407,28 @@ public sealed record CameraTuning
     public float[] Pitches { get; init; } = [4, 8, 12, 18, 24, 30];
 
     /// <summary>
-    /// Nearer the target than this, the shot orbits it slower, by the share of this the character is from it (<see cref="CarryTurn"/>):
-    /// there the way over their shoulder at it means little, and would swing round as they pass by.
+    /// The shot over the shoulder doesn't orbit a target within <see cref="StrikeRange"/> (<see cref="CarryTurn"/>), and orbits one further
+    /// only as far as it's beyond that, in full this much beyond: near, the way over their shoulder at it means little, and would swing
+    /// round as they step about it.
     /// </summary>
     public float ShoulderNear { get; init; } = 3;
 
     /// <summary>
-    /// How fast a new framing over the shoulder is eased onto, its turn and pitch, degrees a second: found only once the character or the
-    /// target is lost from the one held, it's never stepped to, so the shot doesn't jolt as they walk among the pack.
+    /// How long a new framing takes to swing onto, seconds, its turn, pitch and distance easing in and out along the smoothest way there (a
+    /// minimum-jerk curve): over the shoulder, found only once the character or the target has left the one held, and, with no enemy
+    /// ahead, a view cleared of what hides the character. Longer for a swing so far round it would turn faster than
+    /// <see cref="FramingTurn"/>.
     /// </summary>
-    public float FramingTurn { get; init; } = 40;
+    public float SwingTime { get; init; } = 2;
+
+    /// <summary>
+    /// How many ticks in a row the framing held over the shoulder may hide the character or the target before it's found again: a body
+    /// passing between them for a moment doesn't swing the view. One out of the frame is found again at once.
+    /// </summary>
+    public int HiddenPatience { get; init; } = 45;
+
+    /// <summary>The fastest a swing onto a new framing turns, degrees a second (<see cref="SwingTime"/>).</summary>
+    public float FramingTurn { get; init; } = 60;
 
     /// <summary>Turns tried from straight over the character's shoulder at the target (or from the view now, with none), degrees.</summary>
     public float[] Yaws { get; init; } = [0, 15, -15, 30, -30, 50, -50, 80, -80, 120, -120];

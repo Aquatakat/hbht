@@ -24,7 +24,7 @@ public sealed class EnhancedCameraTests
     public void TheNearerEnemyAheadIsTheTarget()
     {
         var cone = new TargetCone();
-        cone.Pick(Vector3.Zero, Vector2.UnitY, [Near, Far], T);
+        cone.Pick(Vector3.Zero, Vector2.UnitY, [Near, Far], T, atOnce: true);
         Assert.Equal("near", cone.Target);
     }
 
@@ -32,27 +32,70 @@ public sealed class EnhancedCameraTests
     public void AnEnemyOutsideTheConeIsntATarget()
     {
         var behind = new TargetCandidate("behind", new Vector3(0, 0, -5));
-        var aside = new TargetCandidate("aside", new Vector3(5, 0, 3));
+        var aside = new TargetCandidate("aside", new Vector3(8, 0, 3));
         var cone = new TargetCone();
-        cone.Pick(Vector3.Zero, Vector2.UnitY, [behind, aside], T);
+        cone.Pick(Vector3.Zero, Vector2.UnitY, [behind, aside], T, atOnce: true);
         Assert.Null(cone.Target);
+    }
+
+    [Fact]
+    public void WithinReachTheNearestEnemyInFrontIsTheTargetWhereverItIs()
+    {
+        // Among a pack within StrikeRange, by how near alone: one off to the side 4 away, not one 4.8 ahead, nor one behind 2 away.
+        var aside = new TargetCandidate("aside", new Vector3(4, 0, 1));
+        var ahead = new TargetCandidate("ahead", new Vector3(0, 0, 4.8f));
+        var behind = new TargetCandidate("behind", new Vector3(0, 0, -2));
+        var cone = new TargetCone();
+        cone.Pick(Vector3.Zero, Vector2.UnitY, [aside, ahead, behind], T, atOnce: true);
+        Assert.Equal("aside", cone.Target);
+        // Stepping toward the one ahead: once it's nearer by TargetMargin, it's the target TargetHold ticks on.
+        var me = new Vector3(0, 0, 1.5f);
+        for (var tick = 1; tick < T.TargetHold; tick++)
+            Assert.False(cone.Pick(me, Vector2.UnitY, [aside, ahead, behind], T));
+        Assert.True(cone.Pick(me, Vector2.UnitY, [aside, ahead, behind], T));
+        Assert.Equal("ahead", cone.Target);
+    }
+
+    [Fact]
+    public void ANewTargetIsTakenTheSoonerTheNearerItIs()
+    {
+        // With none held: one 8 ahead is taken TargetHold ticks on, one 25 ahead not till nearer TargetHoldFar.
+        var (near, far) = (new TargetCandidate("near", new Vector3(0, 0, 8)), new TargetCandidate("far", new Vector3(0, 0, 25)));
+        Assert.Equal(T.TargetHold, TargetCone.HoldTicks(8, T));
+        Assert.Equal(T.TargetHoldFar, TargetCone.HoldTicks(T.TargetRange, T));
+        foreach (var (who, ticks) in new[] { (near, T.TargetHold), (far, TargetCone.HoldTicks(25, T)) })
+        {
+            var cone = new TargetCone();
+            for (var tick = 1; tick < ticks; tick++)
+                Assert.False(cone.Pick(Vector3.Zero, Vector2.UnitY, [who], T));
+            Assert.True(cone.Pick(Vector3.Zero, Vector2.UnitY, [who], T));
+            Assert.Equal(who.Who, cone.Target);
+        }
+        Assert.True(TargetCone.HoldTicks(25, T) > 3 * T.TargetHold);
     }
 
     [Fact]
     public void TheStickWobblingBetweenTwoBanditsDoesntFlickTheTarget()
     {
-        // Two bandits 8 away, 15° either side of the middle; the stick wobbles ±20° about the middle every few ticks.
+        // Two bandits 8 away, 15° either side of the middle; the stick wobbles ±20° about the middle every few ticks. One is taken though
+        // they take turns being the likelier, and then held.
         var left = new TargetCandidate("left", 8 * new Vector3(MathF.Sin(-0.26f), 0, MathF.Cos(-0.26f)));
         var right = new TargetCandidate("right", 8 * new Vector3(MathF.Sin(0.26f), 0, MathF.Cos(0.26f)));
         var cone = new TargetCone();
-        var changes = 0;
+        var (changes, taken) = (0, -1);
         for (var tick = 0; tick < 600; tick++)
         {
             var wobble = 0.35f * MathF.Sin(tick * 0.3f);
             var heading = new Vector2(MathF.Sin(wobble), MathF.Cos(wobble));
-            if (cone.Pick(Vector3.Zero, heading, [left, right], T) && tick > 0)
-                changes++;
+            if (cone.Pick(Vector3.Zero, heading, [left, right], T))
+            {
+                if (taken < 0)
+                    taken = tick;
+                else
+                    changes++;
+            }
         }
+        Assert.InRange(taken, 0, T.TargetHold);
         Assert.Equal(0, changes);
         Assert.NotNull(cone.Target);
     }
@@ -60,15 +103,18 @@ public sealed class EnhancedCameraTests
     [Fact]
     public void AClearlyLikelierBodyTakesTheTargetsPlaceOnceItHasBeenSoForAWhile()
     {
-        // The cone alone: not held for being near (HoldNear).
-        var t = T with { HoldNear = 0 };
+        // The cone alone: not held for being near, nor taken for being within reach.
+        var t = T with { HoldNear = 0, StrikeRange = 0 };
         var cone = new TargetCone();
-        cone.Pick(Vector3.Zero, Vector2.UnitY, [Near, Far], t);
+        cone.Pick(Vector3.Zero, Vector2.UnitY, [Near, Far], t, atOnce: true);
         Assert.Equal("near", cone.Target);
-        // The character turns to point straight at the far one: near is now 42° off, within the held cone but much less likely.
+        // The character turns to point straight at the far one: near is now 42° off, within the held cone but much less likely. It takes
+        // the far one's place once it has been so as long as one that far needs.
         var heading = Vector2.Normalize(new Vector2(-1.5f, 16));
         var near = Near with { At = new Vector3(2.2f, 0, 3) };
-        for (var tick = 1; tick < t.TargetHold; tick++)
+        var hold = TargetCone.HoldTicks(new Vector2(Far.At.X, Far.At.Z).Length(), t);
+        Assert.True(hold > t.TargetHold);
+        for (var tick = 1; tick < hold; tick++)
         {
             cone.Pick(Vector3.Zero, heading, [near, Far], t);
             Assert.Equal("near", cone.Target);
@@ -81,9 +127,9 @@ public sealed class EnhancedCameraTests
     public void ATargetThatLeavesTheConeIsHeldAWhileBeforeItsLetGo()
     {
         // The stick swung away from the only enemy ahead: the camera keeps it for a while rather than flicking to no one and back.
-        var t = T with { HoldNear = 0 };
+        var t = T with { HoldNear = 0, StrikeRange = 0 };
         var cone = new TargetCone();
-        cone.Pick(Vector3.Zero, Vector2.UnitY, [Near], t);
+        cone.Pick(Vector3.Zero, Vector2.UnitY, [Near], t, atOnce: true);
         Assert.Equal("near", cone.Target);
         for (var tick = 1; tick < t.LoseHold; tick++)
         {
@@ -99,7 +145,7 @@ public sealed class EnhancedCameraTests
     {
         var cone = new TargetCone();
         var edge = new TargetCandidate("edge", new Vector3(0, 0, T.TargetRange - 1));
-        cone.Pick(Vector3.Zero, Vector2.UnitY, [edge], T);
+        cone.Pick(Vector3.Zero, Vector2.UnitY, [edge], T, atOnce: true);
         Assert.Equal("edge", cone.Target);
         // Walking back from it, past the range: still held, without a tick of no one.
         for (var back = 0; back < 5; back++)
@@ -109,7 +155,7 @@ public sealed class EnhancedCameraTests
         }
         // A new one that far isn't taken.
         var fresh = new TargetCone();
-        fresh.Pick(new Vector3(0, 0, -4), Vector2.UnitY, [edge], T);
+        fresh.Pick(new Vector3(0, 0, -4), Vector2.UnitY, [edge], T, atOnce: true);
         Assert.Null(fresh.Target);
     }
 
@@ -119,7 +165,7 @@ public sealed class EnhancedCameraTests
         // Running round a pack for its back: the character heads across the way to the rat 5 off, and it stays the target.
         var cone = new TargetCone();
         var rat = new TargetCandidate("rat", new Vector3(0, 0, 5));
-        cone.Pick(Vector3.Zero, Vector2.UnitY, [rat], T);
+        cone.Pick(Vector3.Zero, Vector2.UnitY, [rat], T, atOnce: true);
         Assert.Equal("rat", cone.Target);
         for (var tick = 0; tick < T.LoseHold * 3; tick++)
         {

@@ -330,14 +330,19 @@ public static class Vantage
 }
 
 /// <summary>
-/// Whom the player heads for in their turn: of the enemies in a cone about the way the character points (the way it walks, as it walks),
-/// within range, the likeliest by how near the cone's middle it is and how near the character. The target held stays while it's in a
-/// wider cone and a longer range, or near the character as they go round it, and for a while after it leaves them; another takes its
-/// place only once it has been clearly likelier for a while. So the stick's wobble doesn't flick the camera between two bodies, or
-/// between one and none, and running round a pack keeps the camera on it.
+/// Whom the player heads for in their turn. Within <see cref="CameraTuning.StrikeRange"/>, the nearest enemy in front of the character:
+/// among a pack within reach, whom the camera looks at hardly matters. Further, of the enemies in a cone about the way the character points
+/// (the way it walks, as it walks), within range, the likeliest by how near the cone's middle it is and how near the character. The target
+/// held stays while it's in a wider cone and a longer range, or near the character as they go round it, and for a while after it leaves
+/// them; another takes its place, or is taken with none held, only once it has been clearly likelier for a while, the longer the further it
+/// is (<see cref="CameraTuning.TargetHold"/>). So the stick's wobble doesn't flick the camera between two bodies, or between one and none,
+/// running round a pack keeps the camera on it, and a body across the field is taken only once the player heads for it.
 /// </summary>
 public sealed class TargetCone
 {
+    /// <summary>What an enemy within <see cref="CameraTuning.StrikeRange"/> is worth, less its distance: more than any further.</summary>
+    private const float Strike = 100;
+
     private object? _challenger;
     private int _challengerTicks;
     private int _lostTicks;
@@ -367,7 +372,8 @@ public sealed class TargetCone
     /// <summary>
     /// An enemy's likelihood as the target, or null outside the cone or the range (<see cref="CameraTuning.ConeHold"/>'s and
     /// <see cref="CameraTuning.TargetRangeHold"/>'s for the one held, which within <see cref="CameraTuning.HoldNear"/> needs only that the
-    /// character doesn't head away from it, <see cref="CameraTuning.HoldNearAngle"/>).
+    /// character doesn't head away from it, <see cref="CameraTuning.HoldNearAngle"/>). Within <see cref="CameraTuning.StrikeRange"/> and
+    /// not headed away from, it's by its distance alone, and likelier than any further.
     /// </summary>
     public float? Likelihood(Vector3 me, Vector2 heading, TargetCandidate c, CameraTuning t)
     {
@@ -380,6 +386,8 @@ public sealed class TargetCone
         if (d > (held ? t.TargetRangeHold : t.TargetRange))
             return null;
         var angle = MathF.Acos(Math.Clamp(Vector2.Dot(Vector2.Normalize(heading), flat / d), -1, 1));
+        if (d <= t.StrikeRange && angle <= ShotFinder.Rad(t.HoldNearAngle))
+            return Strike - d;
         var ahead = t.AngleWeight * (1 - MathF.Pow(angle / ShotFinder.Rad(t.ConeAngle), 2));
         // The one held, near: whichever way the character faces round it, as near as it is.
         if (held && d <= t.HoldNear && angle <= ShotFinder.Rad(t.HoldNearAngle))
@@ -389,15 +397,27 @@ public sealed class TargetCone
         return ahead + MathF.Exp(-d / t.NearScale);
     }
 
+    /// <summary>
+    /// How many ticks in a row an enemy <paramref name="distance"/> off must be the likeliest to be taken: <see cref="CameraTuning.TargetHold"/>
+    /// within <see cref="CameraTuning.TargetQuickRange"/>, rising to <see cref="CameraTuning.TargetHoldFar"/> at
+    /// <see cref="CameraTuning.TargetRange"/>.
+    /// </summary>
+    public static int HoldTicks(float distance, CameraTuning t)
+    {
+        var s = Math.Clamp((distance - t.TargetQuickRange) / MathF.Max(t.TargetRange - t.TargetQuickRange, 1e-3f), 0, 1);
+        return (int)MathF.Round(t.TargetHold + (t.TargetHoldFar - t.TargetHold) * s);
+    }
+
     /// <summary>A tick: picks again from <paramref name="candidates"/>. Returns whether the target changed.</summary>
     /// <param name="me">Where the character is.</param>
     /// <param name="heading">The way it points.</param>
-    public bool Pick(Vector3 me, Vector2 heading, IEnumerable<TargetCandidate> candidates, CameraTuning t)
+    /// <param name="atOnce">The likeliest is taken now, not once it has been so a while: a turn opening.</param>
+    public bool Pick(Vector3 me, Vector2 heading, IEnumerable<TargetCandidate> candidates, CameraTuning t, bool atOnce = false)
     {
         if (heading.LengthSquared() < 1e-6f)
             return false;
         object? best = null;
-        var bestScore = float.NegativeInfinity;
+        var (bestScore, bestDistance) = (float.NegativeInfinity, 0f);
         float? held = null;
         var present = false;
         foreach (var c in candidates)
@@ -408,40 +428,30 @@ public sealed class TargetCone
             if (Equals(c.Who, Target))
                 held = score;
             if (score > bestScore)
-            {
-                bestScore = score;
-                best = c.Who;
-            }
+                (bestScore, best, bestDistance) = (score, c.Who, new Vector2(c.At.X - me.X, c.At.Z - me.Z).Length());
         }
-        if (held is not { } heldScore)
-        {
-            // Out of its cone or range, but still on the field: held a while, in case the player turns back.
-            if (present && ++_lostTicks < t.LoseHold)
-            {
-                _challenger = null;
-                return false;
-            }
-            _lostTicks = 0;
-            var changed = !Equals(Target, best);
-            Target = best;
-            _challenger = null;
-            return changed;
-        }
-        _lostTicks = 0;
-        if (best is null || Equals(best, Target) || bestScore <= heldScore + t.TargetMargin)
-        {
-            _challenger = null;
-            return false;
-        }
-        if (!Equals(_challenger, best))
-        {
-            _challenger = best;
+        // Out of its cone or range, but still on the field: held a while, in case the player turns back.
+        _lostTicks = Target is not null && held is null ? _lostTicks + 1 : 0;
+        // Who would take its place: the likeliest, by the margin over the one held while it's in its cone, and taken once it has been so
+        // long enough for how far it is. In place of one held, the same one so in a row, so the stick's wobble doesn't flick between two;
+        // with none held, or the one held leaving, whoever's likeliest as there has been someone, so two taking turns don't put it off.
+        var challenger = best is not null && !Equals(best, Target) && (held is not { } heldScore || bestScore > heldScore + t.TargetMargin) ? best : null;
+        if (challenger is null || held is not null && !Equals(challenger, _challenger))
             _challengerTicks = 0;
+        _challenger = challenger;
+        if (challenger is not null && (atOnce || ++_challengerTicks >= HoldTicks(bestDistance, t)))
+        {
+            Target = challenger;
+            (_challenger, _lostTicks) = (null, 0);
+            return true;
         }
-        if (++_challengerTicks < t.TargetHold)
-            return false;
-        Target = best;
-        _challenger = null;
-        return true;
+        // Let go once it has been out of them LoseHold, or has left the field.
+        if (Target is not null && held is null && (atOnce || !present || _lostTicks >= t.LoseHold))
+        {
+            Target = null;
+            _lostTicks = 0;
+            return true;
+        }
+        return false;
     }
 }

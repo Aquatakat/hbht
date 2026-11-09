@@ -102,8 +102,20 @@ public sealed class EnhancedCamera
     /// <summary>How far the shot was turned with the way over the shoulder the last tick, radians: its speed, whose change is capped.</summary>
     private float _carried;
 
-    /// <summary>How far the framing was eased toward the one it eases to the last tick, radians: its speed, whose change is capped.</summary>
-    private float _easing;
+    /// <summary>
+    /// A swing under way (<see cref="CameraTuning.SwingTime"/>): over the shoulder onto <see cref="_framingTo"/>, or with no enemy ahead
+    /// onto a view cleared of what hides the character; how far it turns, pitches and draws back in all, and its ticks done and in all.
+    /// </summary>
+    private (Vector3 By, int Done, int Ticks)? _swing;
+
+    /// <summary>How far the swing turned the shot the last tick, radians: its speed, which the orbit or the leash takes on if it's left.</summary>
+    private float _swung;
+
+    /// <summary>Why the framing held over the shoulder was found again, for the overlay (<see cref="CameraIntent.Swung"/>).</summary>
+    private string? _framedWhy;
+
+    /// <summary>How many ticks in a row the framing held over the shoulder has hidden the character or the target (<see cref="CameraTuning.HiddenPatience"/>).</summary>
+    private int _hiddenFor;
 
     /// <summary>How far the shot was turned by itself over the shoulder or on its leash the last tick, radians, the two together.</summary>
     private float _lastTurn;
@@ -170,7 +182,7 @@ public sealed class EnhancedCamera
     /// </summary>
     private (float Yaw, float Pitch, float Distance)? _ahead;
 
-    /// <summary>A new framing over the shoulder being eased onto (<see cref="CameraTuning.FramingTurn"/>), rather than stepped to.</summary>
+    /// <summary>A new framing over the shoulder being swung onto (<see cref="CameraTuning.SwingTime"/>), rather than stepped to.</summary>
     private (float Offset, float Pitch)? _framingTo;
 
     /// <summary>
@@ -306,7 +318,9 @@ public sealed class EnhancedCamera
         _ahead = null;
         _behind = null;
         _carried = 0;
-        _easing = 0;
+        _swing = null;
+        _swung = 0;
+        _hiddenFor = 0;
         _lastTurn = 0;
         _framingTo = null;
         _blowAim = null;
@@ -382,6 +396,8 @@ public sealed class EnhancedCamera
         _subjectsNew = false;
         var intent = Intent;
         (intent.Behind, intent.Framing, intent.FramingTo, intent.EyeRail, intent.Along) = (null, null, null, null, null);
+        if (intent.Swung is { } swung)
+            intent.Swung = swung with { Ago = swung.Ago + 1 };
         intent.Rail.Clear();
         var goal = Decide(battle, originalShot, glide, aimed);
         // The player's own camera is the original's as it is; the director's shots keep their distance.
@@ -684,7 +700,7 @@ public sealed class EnhancedCamera
         {
             _opened = true;
             _opening = (me, heading);
-            _cone.Pick(me, heading, _candidates, t);
+            _cone.Pick(me, heading, _candidates, t, atOnce: true);
             if (Target is null && Nearest(battle, current) is { } nearest && Flat(nearest.Body.Sphere.Position - me) <= t.TargetRange)
                 _cone.Hold(nearest);
             _sinceDecide = int.MaxValue / 2;
@@ -710,11 +726,13 @@ public sealed class EnhancedCamera
             target = was;
         if (target is null)
         {
+            // A swing onto a framing over the shoulder left, the leash takes on its speed.
+            if (_framing is not null)
+                LeaveSwing();
             _framing = null;
             _framingTo = null;
             _behind = null;
             _shoulderDistance = null;
-            (_carried, _easing) = (_carried + _easing, 0);
             // From the shot as the target was lost, low and near.
             var was = _motion?.Current ?? originalShot;
             _ahead ??= (was.Yaw, was.Pitch, was.Distance);
@@ -732,28 +750,44 @@ public sealed class EnhancedCamera
                 if (back.Length() > 0.5f)
                     leash = Shot.Wrap(MathF.Atan2(back.X, back.Y) - shown.Yaw);
             }
-            _turnBy = _lastTurn = _carried = Math.Clamp(leash, _carried - speedUp, _carried + speedUp);
-            if (_turnBy != 0)
+            _carried = Math.Clamp(leash, _carried - speedUp, _carried + speedUp);
+            // A view cleared of what hides the character swung onto (SwingTime), turned with the leash.
+            var swing = StepSwing();
+            _turnBy = _lastTurn = _carried + swing.X;
+            if (_turnBy != 0 || swing != Vector3.Zero)
             {
                 var (y, p, d) = _ahead.Value;
-                _ahead = (Shot.Wrap(y + _turnBy), p, d);
+                _ahead = (Shot.Wrap(y + _turnBy), p + swing.Y, d + swing.Z);
             }
             var lead = anchor + LeadBy(Leading(current));
             var follow = Ahead(lead);
-            // A body or a wall hiding the character turns, raises or draws the view back, and it stays so rather than swinging back.
-            if (++_sinceDecide >= t.DecideEvery)
+            // A body or a wall hiding the character turns, raises or draws the view back, swung onto (taken at once as the turn opens),
+            // and it stays so rather than swinging back.
+            if (_swing is null && ++_sinceDecide >= t.DecideEvery)
             {
                 _sinceDecide = 0;
                 if (_finder!.HiddenWeight(follow, _subjects) > 0 && _finder.Clearing(follow, _subjects) is { } by)
                 {
                     var cleared = _finder.Corrected(follow, by, _subjects);
-                    _ahead = (cleared.Yaw, cleared.Pitch, cleared.Distance);
-                    follow = Ahead(lead);
+                    var (y, p, d) = _ahead.Value;
+                    if (opening)
+                    {
+                        _ahead = (cleared.Yaw, cleared.Pitch, cleared.Distance);
+                        follow = Ahead(lead);
+                    }
+                    else
+                    {
+                        _swing = Swing(new Vector3(Shot.Wrap(cleared.Yaw - y), cleared.Pitch - p, cleared.Distance - d));
+                        Intent.Swung = ("the character hidden, trailing", 0);
+                    }
                 }
             }
             Kind = "no enemy ahead, trailing them";
             return follow;
         }
+        // A swing onto a view cleared with no enemy ahead left, the orbit takes on its speed.
+        if (_ahead is not null)
+            LeaveSwing();
         _ahead = null;
         _subjects.Add(Sphere(target.Body));
         // The target's pack: the shot leads toward the middle of them all, and holds them while they're near.
@@ -781,14 +815,15 @@ public sealed class EnhancedCamera
         AddPair(current, target);
         var ahead = pack / weight;
         // Orbiting the target as the character goes round it: the way over their shoulder at it turns the shot with it straight away
-        // (Turn), up to CarryTurn a second, that speed changing no faster than TurnAcceleration; less near it, where the way means little
-        // and swings wildly, not at all while it's being let go, and not by a new target's jump. What the shot isn't turned by goes into
-        // its framing, the offset from the way, so it isn't caught up later: the view never turns hard to a target. The way to the target,
-        // not to its pack's middle: walking straight at one at the pack's edge doesn't turn the view.
+        // (Turn), up to CarryTurn a second, that speed changing no faster than TurnAcceleration; not at all within StrikeRange of it, where
+        // the way means little and swings wildly as they step about it, and coming in over ShoulderNear beyond; not while it's being let
+        // go, and not by a new target's jump. What the shot isn't turned by goes into its framing, the offset from the way, so it isn't
+        // caught up later: the view never turns hard to a target. The way to the target, not to its pack's middle: walking straight at one
+        // at the pack's edge doesn't turn the view.
         var behind = Look(anchor, at);
         var (change, most) = _behind is { } b
             ? (Shot.Wrap(behind - b.Behind),
-                b.Target != target || _cone.Losing || _letGo > 0 ? 0 : Rad(t.CarryTurn) / 60 * Math.Clamp(Flat(at - anchor) / t.ShoulderNear, 0, 1))
+                b.Target != target || _cone.Losing || _letGo > 0 ? 0 : Rad(t.CarryTurn) / 60 * Fade(Flat(at - anchor) - t.StrikeRange, t.ShoulderNear))
             : (0, 0);
         var carried = Math.Clamp(Math.Clamp(change, -most, most), _carried - speedUp, _carried + speedUp);
         Absorb(change - carried);
@@ -800,43 +835,33 @@ public sealed class EnhancedCamera
             var aim = _frameBy.Aim!.Value;
             _subjects.Add(new ShotSubject(aim + (sphere.At - aim) * held, sphere.Radius * held) { Weight = t.ClusterWeight * held });
         }
-        // Taken over the shoulder from the view the trailing left (it had no target), and eased round from there.
-        var force = false;
+        // Taken over the shoulder from the view the trailing left (it had no target), as it is: kept if it shows both.
         if (_framing is null && !opening && _motion is { } trailed)
-        {
-            var widest = Rad(t.ShoulderYaws.Select(MathF.Abs).DefaultIfEmpty().Max());
-            _framing = (Math.Clamp(Shot.Wrap(trailed.Current.Yaw - behind), -widest, widest),
-                Math.Clamp(trailed.Current.Pitch, Rad(t.Pitches.Min()), Rad(t.Pitches.Max())));
-            force = true;
-        }
-        // Found again only where the character or the target is lost from it (a new target among them), or once it's taken over the
-        // shoulder from the trailing, and eased onto, so the shot never steps as they walk.
-        if (_framingTo is null || force)
+            _framing = (Shot.Wrap(trailed.Current.Yaw - behind), Math.Clamp(trailed.Current.Pitch, Rad(t.Pitches.Min()), Rad(t.Pitches.Max())));
+        // Found again only where the character or the target has left it or is hidden (a new target among them), and swung onto, so the
+        // shot never steps as they walk, and a view that already shows both is kept however far off the middle they are.
+        if (_framingTo is null)
         {
             var held = _framing;
-            Frame(behind, force, judged: 2);
+            Frame(behind, force: false, judged: 2);
             if (held is { } h && _framing is { } found && found != h)
+            {
                 (_framingTo, _framing) = (found, h);
+                _swing = Swing(new Vector3(Shot.Wrap(found.Offset - h.Offset), found.Pitch - h.Pitch, 0));
+                Intent.Swung = (_framedWhy ?? "a new framing", 0);
+                _hiddenFor = 0;
+            }
         }
-        // Eased onto: its turn's speed up to FramingTurn a second, changing no faster than TurnAcceleration and slowing in time to stop
-        // on it, and the shot turned with it as the orbit turns it, so the view doesn't trail in after its goal. Its pitch eases at
-        // FramingTurn.
+        // Swung onto along the smoothest way there (SwingTime), the shot turned with it as the orbit turns it, so the view doesn't trail in
+        // after its goal.
         var eased = 0f;
         if (_framingTo is { } to && _framing is { } now)
         {
-            var step = Rad(t.FramingTurn) / 60;
-            var (offset, pitch) = (Shot.Wrap(to.Offset - now.Offset), to.Pitch - now.Pitch);
-            var fastest = MathF.Min(step, Stopping(MathF.Abs(offset), speedUp));
-            _easing = Math.Clamp(MathF.Sign(offset) * fastest, _easing - speedUp, _easing + speedUp);
-            eased = MathF.Sign(_easing) == MathF.Sign(offset) && MathF.Abs(_easing) >= MathF.Abs(offset) ? offset : _easing;
-            _framing = (Shot.Wrap(now.Offset + eased), now.Pitch + Math.Clamp(pitch, -step, step));
-            // Arrived, what's left of its speed goes on in the orbit's, to slow under the cap.
-            if (MathF.Abs(Shot.Wrap(to.Offset - _framing.Value.Offset)) < 1e-5f && MathF.Abs(pitch) <= step)
-                (_framingTo, _carried, _easing) = (null, _carried + eased, 0);
-        }
-        else
-        {
-            _easing = 0;
+            var swing = StepSwing();
+            eased = swing.X;
+            _framing = _swing is null ? to : (Shot.Wrap(now.Offset + swing.X), now.Pitch + swing.Y);
+            if (_swing is null)
+                _framingTo = null;
         }
         var total = carried + eased;
         // Never turned round by itself to the front of a character who walks: no further than MostAcross from straight behind the way they
@@ -884,6 +909,42 @@ public sealed class EnhancedCamera
             ? stood + (framed.Distance - stood) * (1 - MathF.Exp(-1f / 60 / MathF.Max(t.ZoomInTime, 1e-3f)))
             : framed.Distance;
         return framed with { Distance = _shoulderDistance.Value };
+    }
+
+    /// <summary>
+    /// A swing of <paramref name="by"/> (turn and pitch, radians, and distance) over <see cref="CameraTuning.SwingTime"/>, or longer where
+    /// its turn or pitch would go faster than <see cref="CameraTuning.FramingTurn"/>: a minimum-jerk curve's fastest is 15/8 of its mean.
+    /// </summary>
+    private (Vector3 By, int Done, int Ticks) Swing(Vector3 by)
+    {
+        var t = Tuning;
+        var time = MathF.Max(t.SwingTime, 1.875f * MathF.Max(MathF.Abs(by.X), MathF.Abs(by.Y)) / MathF.Max(Rad(t.FramingTurn), 1e-3f));
+        return (by, 0, Math.Max(1, (int)MathF.Round(time * 60)));
+    }
+
+    /// <summary>
+    /// A tick of the swing under way: how far it moves this tick along the minimum-jerk curve <c>10s³ − 15s⁴ + 6s⁵</c>, which starts and
+    /// ends at rest with its acceleration nothing, the smoothest way from one framing to another in its time.
+    /// </summary>
+    private Vector3 StepSwing()
+    {
+        if (_swing is not { } w)
+            return Vector3.Zero;
+        var done = w.Done + 1;
+        var step = w.By * (MinJerk((float)done / w.Ticks) - MinJerk((float)w.Done / w.Ticks));
+        _swing = done >= w.Ticks ? null : w with { Done = done };
+        _swung = step.X;
+        return step;
+
+        static float MinJerk(float s) => s * s * s * (10 + s * (-15 + 6 * s));
+    }
+
+    /// <summary>Drops the swing under way, its turn's speed taken on by the orbit or the leash.</summary>
+    private void LeaveSwing()
+    {
+        if (_swing is not null)
+            _carried += _swung;
+        (_swing, _swung) = (null, 0);
     }
 
     /// <summary>How far in something is that's <paramref name="inside"/> its edge, 0 to 1 over the last <paramref name="over"/> of it, eased.</summary>
@@ -974,8 +1035,21 @@ public sealed class EnhancedCamera
         {
             if (judged is { } k)
             {
+                // Out of frame, found again at once; hidden, only once it has been for HiddenPatience, so a body passing between for a
+                // moment doesn't swing the view.
                 var shot = FramedNow(behind);
-                if (!_subjects.Take(k).Any(s => !ShotFraming.Holds(shot, s with { Radius = 0 }, t.Lens) || finder.Sight.Hidden(shot.Eye, s)))
+                string? outOf = null, hidden = null;
+                for (var i = 0; i < Math.Min(k, _subjects.Count); i++)
+                {
+                    var who = i == 0 ? "the character" : i == 1 ? "the target" : "one held";
+                    if (!ShotFraming.Holds(shot, _subjects[i] with { Radius = 0 }, t.Lens))
+                        outOf ??= $"{who} out of frame";
+                    else if (finder.Sight.Hidden(shot.Eye, _subjects[i]))
+                        hidden ??= $"{who} hidden";
+                }
+                _hiddenFor = hidden is null ? 0 : _hiddenFor + 1;
+                _framedWhy = outOf ?? (_hiddenFor >= t.HiddenPatience ? hidden : null);
+                if (_framedWhy is null)
                     return;
             }
             else if (++_sinceDecide < t.DecideEvery && finder.HiddenWeight(FramedNow(behind), _subjects) == 0)

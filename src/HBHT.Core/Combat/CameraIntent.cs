@@ -44,6 +44,9 @@ public sealed class CameraIntent
 
     public float? FramingTo { get; set; }
 
+    /// <summary>Why it last swung onto a new framing in the player's turn, and how many ticks ago.</summary>
+    public (string Why, int Ago)? Swung { get; set; }
+
     /// <summary>An AI's walk: the way its shot's aim rides, where the eye starts and ends, and how far along it is.</summary>
     public List<Vector3> Rail { get; } = [];
 
