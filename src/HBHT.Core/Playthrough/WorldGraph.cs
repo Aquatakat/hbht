@@ -393,12 +393,13 @@ public sealed class WorldGraph
     {
         // The ground within the avoided places' radius is left out, as where a pilot found itself stuck.
         var avoided = new Dictionary<int, HashSet<int>>();
-        foreach (var avoid in options?.Avoid ?? [])
+        var zones = (options?.Avoid ?? []).Select(a => new RouteZone(a, options!.AvoidRadius)).Concat(options?.KeepClear ?? []);
+        foreach (var (avoid, radius) in zones)
         {
             var graph = Walk(avoid.MapSet);
             var cells = avoided.GetValueOrDefault(SetIndex(avoid.MapSet)) ?? (avoided[SetIndex(avoid.MapSet)] = []);
-            foreach (var i in graph.Near(avoid.Feet.X, avoid.Feet.Z, options!.AvoidRadius))
-                if (Vector3.Distance(graph.Center(i), avoid.Feet) <= options.AvoidRadius)
+            foreach (var i in graph.Near(avoid.Feet.X, avoid.Feet.Z, radius))
+                if (Vector3.Distance(graph.Center(i), avoid.Feet) <= radius)
                     cells.Add(i);
         }
 
