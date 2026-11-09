@@ -64,6 +64,17 @@ public sealed partial class WorldGraph
     /// <summary>The explorer's settings: the original's movement and pace.</summary>
     public static Reach.Options DefaultOptions { get; } = new(MovementMode.Original);
 
+    /// <summary>
+    /// How long each run of the interiors' second exploration is held, in ticks: ten seconds, beside the first's two
+    /// (<see cref="WalkGraph.Explore"/>'s <c>longRunTicks</c>). The original's sphere climbs some ramps and stairs only by pushing up
+    /// them for longer: Jundar's gatekeeper (JundarInteriors A01/19, whose conversation 0x03F3 lets the party see Ardra) stands on a
+    /// floor five above the one the doors put the player on, which two-second runs from there never reach and ten-second ones do. The
+    /// Overworld, a hundred times the ground, has only the first.
+    /// </summary>
+    public const int InteriorRunTicks = 600;
+
+    private int? LongRunTicksFor(RecordId mapSet) => mapSet == RecordId.Decimal(RecordTypes.MapSet, 0) ? null : InteriorRunTicks;
+
     private readonly PluginSet _plugins;
     private readonly Reach.Options _options;
     private readonly string _cache;
@@ -135,7 +146,7 @@ public sealed partial class WorldGraph
         var cached = graph is not null;
         if (graph is null)
         {
-            graph = WalkGraph.Explore(_plugins, _plugins.Get<MapSetRecord>(mapSet), _options);
+            graph = WalkGraph.Explore(_plugins, _plugins.Get<MapSetRecord>(mapSet), _options, LongRunTicksFor(mapSet));
             graph.Save(path, Fingerprint);
         }
         clock.Stop();

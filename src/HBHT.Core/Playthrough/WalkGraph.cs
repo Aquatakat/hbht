@@ -20,7 +20,7 @@ namespace HBHT.Core.Playthrough;
 public sealed class WalkGraph
 {
     /// <summary>The cache file's format, and the explorer's settings it was made with: bump it when either changes.</summary>
-    internal const int Version = 3;
+    internal const int Version = 5;
 
     private readonly int[] _x, _z, _y;
     private readonly byte[] _fx, _fz, _fy;   // where in the cell the feet were on average, in 1/255 of it
@@ -180,13 +180,22 @@ public sealed class WalkGraph
     /// about each of its collision toggles (<see cref="TogglesIn"/>) with the toggle opened, and keeps the steps that only an open toggle
     /// lets him take as <see cref="GatedSteps"/>. Takes minutes for the larger sets.
     /// </summary>
-    public static WalkGraph Explore(PluginSet plugins, MapSetRecord set, Reach.Options options)
+    /// <param name="longRunTicks">
+    /// If given, the map set is explored a second time with runs this long, and the two are joined: the original's sphere climbs some
+    /// ramps and stairs only by pushing up them for longer, while longer runs come to rest less often and so reach fewer nooks.
+    /// </param>
+    public static WalkGraph Explore(PluginSet plugins, MapSetRecord set, Reach.Options options, int? longRunTicks = null)
     {
         options = options with { Edges = true };
-        var reach = Reach.Explore(plugins, set, Reach.Starts(plugins, set), options);
+        var bases = new List<Reach> { Reach.Explore(plugins, set, Reach.Starts(plugins, set), options) };
+        if (longRunTicks is { } ticks && ticks > options.RunTicks)
+            bases.Add(Reach.Explore(plugins, set, Reach.Starts(plugins, set), options with { RunTicks = ticks }));
         var opened = new List<(RecordId, Reach)>();
-        var known = reach.Cells.ToHashSet();
+        var known = bases.SelectMany(b => b.Cells).ToHashSet();
         var feet = new Dictionary<Reach.Cell, Vector3>();
+        foreach (var b in bases.AsEnumerable().Reverse())
+            foreach (var c in b.Cells)
+                feet[c] = b.Feet(c);
         var left = TogglesIn(plugins, set).ToList();
         // A toggle beyond another (the Barrows' doorways) is explored from the ground the first opened, so round again while any is
         // explored.
@@ -198,7 +207,7 @@ public sealed class WalkGraph
                 var (min, max) = (toggle.Min - new Vector3(ToggleMargin), toggle.Max + new Vector3(ToggleMargin));
                 bool Near(Vector3 p, float more) => p.X >= min.X - more && p.Z >= min.Z - more && p.Y >= min.Y - more
                     && p.X <= max.X + more && p.Z <= max.Z + more && p.Y <= max.Y + more;
-                var starts = known.Select(c => feet.TryGetValue(c, out var f) ? f : reach.Feet(c)).Where(f => Near(f, 0))
+                var starts = known.Select(c => feet[c]).Where(f => Near(f, 0))
                     .Select(f => (f + new Vector3(0, PlayerMotion.Radius, 0), (float?)f.Y)).ToList();
                 if (starts.Count == 0)
                     continue;
@@ -213,7 +222,7 @@ public sealed class WalkGraph
                 grew = true;
             }
         }
-        return From(reach, opened);
+        return From(bases, opened);
     }
 
     /// <summary>How far about a toggle's triangles the ground to explore it from reaches.</summary>
@@ -258,11 +267,18 @@ public sealed class WalkGraph
     /// found, or between cells of the reach that are more than <see cref="ShortCut"/> of its steps apart, is a gated step of the
     /// toggle; a step from ground it alone found is open, since only a gated step leads there.
     /// </summary>
-    public static WalkGraph From(Reach reach, IReadOnlyList<(RecordId Tripwire, Reach Opened)>? opened = null)
+    public static WalkGraph From(Reach reach, IReadOnlyList<(RecordId Tripwire, Reach Opened)>? opened = null) => From([reach], opened);
+
+    /// <summary>As <see cref="From(Reach, IReadOnlyList{ValueTuple{RecordId, Reach}}?)"/>, with the ground a new game loads joined from several explorations of it.</summary>
+    public static WalkGraph From(IReadOnlyList<Reach> bases, IReadOnlyList<(RecordId Tripwire, Reach Opened)>? opened = null)
     {
         opened ??= [];
-        var all = reach.Cells.ToHashSet();
+        var baseCells = bases.SelectMany(b => b.Cells).ToHashSet();
+        var all = baseCells.ToHashSet();
         var feetOf = new Dictionary<Reach.Cell, Vector3>();
+        foreach (var b in bases.Reverse())
+            foreach (var c in b.Cells)
+                feetOf[c] = b.Feet(c);
         foreach (var (_, around) in opened)
             foreach (var c in around.Cells)
                 if (all.Add(c))
@@ -273,7 +289,7 @@ public sealed class WalkGraph
             index[cells[i]] = i;
 
         var open = new HashSet<(int From, int To)>();
-        foreach (var (a, b) in reach.Edges)
+        foreach (var (a, b) in bases.SelectMany(r => r.Edges))
             if (index.TryGetValue(a, out var from) && index.TryGetValue(b, out var to))
                 open.Add((from, to));
         var baseSteps = open.ToLookup(e => e.From, e => e.To);
@@ -305,10 +321,10 @@ public sealed class WalkGraph
             {
                 if (!index.TryGetValue(a, out var from) || !index.TryGetValue(b, out var to) || open.Contains((from, to)))
                     continue;
-                var mine = !reach.Cells.Contains(a) && !opened.Take(t).Any(o => o.Opened.Cells.Contains(a));
+                var mine = !baseCells.Contains(a) && !opened.Take(t).Any(o => o.Opened.Cells.Contains(a));
                 if (mine)
                     open.Add((from, to));
-                else if (!reach.Cells.Contains(b) || !reach.Cells.Contains(a) || !Near(from, to))
+                else if (!baseCells.Contains(b) || !baseCells.Contains(a) || !Near(from, to))
                     gated.Add((from, to, t));
             }
         }
@@ -323,8 +339,8 @@ public sealed class WalkGraph
         foreach (var (from, to) in open.OrderBy(e => e.From).ThenBy(e => e.To))
             targets[next[from]++] = to;
         static byte Fraction(float v) => (byte)Math.Clamp((int)MathF.Round((v - MathF.Floor(v)) * 255), 0, 255);
-        var feet = cells.Select(c => feetOf.TryGetValue(c, out var f) ? f : reach.Feet(c)).ToArray();
-        return new WalkGraph(reach.Set.Id, [.. cells.Select(c => c.X)], [.. cells.Select(c => c.Z)], [.. cells.Select(c => c.Y)],
+        var feet = cells.Select(c => feetOf[c]).ToArray();
+        return new WalkGraph(bases[0].Set.Id, [.. cells.Select(c => c.X)], [.. cells.Select(c => c.Z)], [.. cells.Select(c => c.Y)],
             [.. feet.Select(f => Fraction(f.X))], [.. feet.Select(f => Fraction(f.Y))], [.. feet.Select(f => Fraction(f.Z))], counts, targets,
             [.. opened.Select(o => o.Tripwire)], [.. gated]);
     }
