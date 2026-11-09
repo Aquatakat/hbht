@@ -17,6 +17,81 @@ The hard part is deciding what to do next, not playing it: the core already play
 5. **Battles** (`BattlePilot`). The party is played by the original's combat AI, as the enemies are. A battle it loses is played again from its start and won outright, and the report says so: it's a sign the party is under-levelled there. Experience goes up by a build per character (what each spends its points on at a level), and trainers on the way are used.
 6. **The run** (`Playthrough`). Holds the goals, replans after every step, saves at each milestone, and writes the report.
 
+## The planner
+
+The planner is `QuestModel`, `ScriptWays`, `FlagModel`, `PlanState`, `Relaxation`, `StaticPass` and `QuestPlanner`. `hbht playthrough reachable` and `hbht playthrough plan --goal flag:<n>|member|ending` print it over the installed plugins (`PlaythroughReport`).
+
+**Actions.** `QuestModel.Build` turns the plugins into actions in about 7 s. Each action is one way of doing one thing:
+
+- talking to an npc, or using a script object, is an action per way through its script;
+- a container, a tripwire, an encounter, a secret door, a door's lock and its trap, and entering each world map region are an action each;
+- a new game's opening (`game.started`'s triggers) is the first step of any plan from one.
+
+An action needs its object to be there (its gates, as `MapObjectPresence` reads them), its place reached (`Reaches`), and whatever its script's conditions need to go its way. Its effects, in order:
+
+- flags set and cleared;
+- members joining and leaving, with their flags;
+- key items gained, with their held and region flags;
+- after a battle won: the encounter flag, the rules' end flag, the bosses' flags of the enemy list's first four, and the party's loot.
+
+A battle with the Shadow while the Horn of Kynon is held has the merge as a second outcome (the combat record's `shadow`).
+
+**What code decides** is a `CodeGate`: skill checks, gold, stats, locks' and traps' levels, drop chances, and winning. The planner takes each to hold, and lists it with the step for the pilot to meet. Flags the engine writes (the calendar, rain, terrain) can be either value, since the pilot can wait or walk for them. Derived flags follow from their formulas over what each input can be (`FlagModel`), with no correlation kept between inputs.
+
+**A script's ways come from the real runner**, not a model of it. `ScriptWays` runs the script again and again with a probe (`IScriptProbe`, an optional parameter of `ScriptRunner`) answering each condition and taking each effect that changes the state:
+
+- each condition the way so far doesn't settle is a branch, and so is each page of choices;
+- the runner's own walk decides the rest (menus going back, cases, choices hidden once taken), so the ways can't drift from what plays;
+- ways with the same effects are merged, keeping each branch's choices (`OtherChoices`), and the pilot takes whichever the page offers;
+- a cut-scene's ways go on through its `script.ended` triggers and the cinematics they play.
+
+From a new game on NA 1.0 that is 11,168 actions over the 429 scripts something starts, with 6,655 ways. Two scripts with 23 member checks each, `0x039F` (Becan's scene) and `0x0404`, are cut at 50,000 runs, so some of their ways may be missing. Every one of the 162 ways open after the opening, played from the same save on the real runner, does to the flags and the party what its action says.
+
+**The static pass** relaxes every action from a state, with nothing ever undone (FF's relaxation, `Relaxation`). What never comes true in the relaxation can't come true in any order of steps. From a new game on NA 1.0:
+
+- 1,882 of the 4,972 plain flags can be set;
+- 458 of the 555 derived flags can be set;
+- all 13 members can join;
+- 408 of the 429 started scripts can run;
+- the ending can roll, and the merge with the Shadow can happen.
+
+Each plain flag that can't be set is given its reason:
+
+| Reason | Flags | Of them read |
+| --- | --- | --- |
+| Nothing sets them (the 17 "Has Map" flags and the Skull Key's among them) | 2,928 | 139 |
+| A container's trap going off, which is never planned | 87 | 87 |
+| Their setters need something that never comes true | 28 | 23 |
+| Only scripts nothing starts set them | 24 | 10 |
+| Only the engine sets them (the members' died flags) | 11 | 11 |
+| No way through their script reaches the setter (the death scenes' done flags) | 8 | 0 |
+| Their setters are map objects gated off on flag 0 | 4 | 4 |
+
+**Planning.** `QuestPlanner.Plan(state, goal)` works in three stages:
+
+1. It chains back from the goal through what makes it true, and through those actions' preconditions' setters, to the actions that matter.
+2. It searches forward over only those: enforced hill-climbing on the relaxed plan's length, trying the helpful actions first, falling back to best-first where that stalls.
+3. It drops every step the plan works without, so a plan doesn't wander.
+
+A goal the relaxation can't reach comes back with why: what sets it, and the first thing each setter needs that never comes true.
+
+**The plans today ignore travel.** Every place counts as reachable (`Everywhere`) until the world graph answers `IPlaceReach`, so the plans follow the story's flag gates alone, and most of the game's progression is geography. From a new game:
+
+- the first member is three steps: the opening, script 0x0362, then the companions' scene at Overworld I13 (0x0527), where Abrecan joins;
+- the ending is seven: the opening, 0x0362, Roog's scene (0x04F4), the tripwire at M06, and the last three scenes at Gwernia castle (0x04FC to 0x04FE), with the two battles won.
+
+**What it doesn't model:**
+
+- deaths and traps going off;
+- buying anything but key items;
+- camp ambushes and training;
+- wanderers catching the party;
+- encounters' random extras;
+- the `item.gained` and `spell.trained` triggers;
+- the cut-scene chain at a named place.
+
+A tangible script object or tripwire goes off as the player walks past it. The planner treats it as optional, so the pilot must route around the ones it doesn't want. A condition on a derived flag, read after the same script wrote one of its inputs, is read against the state the script started with.
+
 ## The world graph
 
 `WorldGraph` (`WorldGraph.cs`, `WalkGraph.cs`, `RouteTypes.cs`) is where the player can walk, and how he gets to the place to stand to use a map object.
