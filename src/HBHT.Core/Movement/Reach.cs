@@ -32,8 +32,9 @@ public sealed class Reach
     /// <param name="RestTicks">The most he's given to come to rest after a run, the stick let go.</param>
     /// <param name="StartCell">The size of the cells he sets off from, in X, Z and height: one run a way from each.</param>
     /// <param name="Within">Explores only within this box, in the world's coordinates, if given.</param>
+    /// <param name="Edges">Whether to keep <see cref="Reach.Edges"/>, the steps from cell to cell the runs made.</param>
     public sealed record Options(MovementMode Movement, float Pace = 1, ModernRules? Rules = null, int Ways = 12, int RunTicks = 120,
-        int RestTicks = 90, float StartCell = 2, (Vector3 Min, Vector3 Max)? Within = null);
+        int RestTicks = 90, float StartCell = 2, (Vector3 Min, Vector3 Max)? Within = null, bool Edges = false);
 
     /// <summary>A unit cell of the world: floored X, Z and height.</summary>
     public readonly record struct Cell(int X, int Z, int Y)
@@ -45,8 +46,11 @@ public sealed class Reach
     /// <summary>Alaron's actor, whose run moves him.</summary>
     public static readonly RecordId Alaron = Body.AlaronActor;
 
-    private Reach(MapSetRecord set, Dictionary<Cell, (Vector3, Vector2)> cells, Dictionary<Vector3, (Vector3, Vector2)> parents, int runs)
+    private Reach(MapSetRecord set, Dictionary<Cell, (Vector3, Vector2)> cells, Dictionary<Vector3, (Vector3, Vector2)> parents, int runs,
+        HashSet<(Cell, Cell)>? edges = null, Dictionary<Cell, Vector3>? feet = null)
     {
+        Edges = edges ?? [];
+        _feet = feet ?? [];
         _parents = parents;
         Set = set;
         Cells = cells.Keys.ToHashSet();
@@ -61,6 +65,22 @@ public sealed class Reach
 
     /// <summary>How many runs it took.</summary>
     public int Runs { get; }
+
+    /// <summary>
+    /// The steps his feet made from one cell to the next that differs, in the runs and the rests after them, when
+    /// <see cref="Options.Edges"/> asked for them: both cells are in <see cref="Cells"/>. Only steps no more than two cells across
+    /// are kept, so a gap in the ground he crossed airborne, a fall off a ledge, is a step down and not a leap. Each is a step he
+    /// made, so it goes one way; the walk graph of the playthrough bot (<c>HBHT.Core.Playthrough.WalkGraph</c>) joins cells by them.
+    /// </summary>
+    public IReadOnlyCollection<(Cell From, Cell To)> Edges { get; }
+
+    private readonly Dictionary<Cell, Vector3> _feet;
+
+    /// <summary>
+    /// Where his feet were in a cell on average over his passes through it (kept with <see cref="Options.Edges"/>), a place he stood
+    /// in it, which is a better mark to steer for than its middle where he ran along a wall. The cell's middle if none was kept.
+    /// </summary>
+    public Vector3 Feet(Cell cell) => _feet.TryGetValue(cell, out var at) ? at : new Vector3(cell.X + 0.5f, cell.Y + 0.5f, cell.Z + 0.5f);
 
     private readonly Dictionary<Cell, (Vector3, Vector2)> _via;
 
@@ -179,6 +199,8 @@ public sealed class Reach
         var pending = new SortedDictionary<(int Row, int Column), List<Vector3>>();
         var parents = new Dictionary<Vector3, (Vector3, Vector2)>();
         var runs = 0;
+        var edges = options.Edges ? new HashSet<(Cell, Cell)>() : null;
+        var feetSum = options.Edges ? new Dictionary<Cell, (Vector3 Sum, int Count)>() : null;
 
         void Queue(Vector3 at, (Vector3, Vector2)? parent)
         {
@@ -208,23 +230,41 @@ public sealed class Reach
             var (key, from) = pending.First();
             pending.Remove(key);
             chunks.Update(set.Origin(key.Row, key.Column) + new Vector3(set.CellSize / 2, 0, set.CellSize / 2));
-            var results = new (List<Cell> Cells, Vector3? Stop)[from.Count * ways.Length];
+            var results = new (List<Cell> Cells, Vector3? Stop, List<Vector3>? Feet)[from.Count * ways.Length];
             Parallel.For(0, results.Length, i =>
             {
                 var passed = new List<Cell>();
-                results[i] = (passed, Run(world, from[i / ways.Length], ways[i % ways.Length], options, clips, actor, passed));
+                var feet = options.Edges ? new List<Vector3>() : null;
+                results[i] = (passed, Run(world, from[i / ways.Length], ways[i % ways.Length], options, clips, actor, passed, feet), feet);
             });
             runs += results.Length;
             for (var i = 0; i < results.Length; i++)
             {
-                var (passed, rest) = results[i];
+                var (passed, rest, passedFeet) = results[i];
+                if (feetSum is not null && passedFeet is not null)
+                {
+                    for (var j = 0; j < passed.Count; j++)
+                    {
+                        var (sum, count) = feetSum.GetValueOrDefault(passed[j]);
+                        feetSum[passed[j]] = (sum + passedFeet[j], count + 1);
+                    }
+                }
                 foreach (var cell in passed)
                     cells.TryAdd(cell, (from[i / ways.Length], ways[i % ways.Length]));
+                if (edges is not null)
+                {
+                    for (var j = 1; j < passed.Count; j++)
+                    {
+                        var (a, b) = (passed[j - 1], passed[j]);
+                        if (a != b && Math.Abs(a.X - b.X) <= 2 && Math.Abs(a.Z - b.Z) <= 2)
+                            edges.Add((a, b));
+                    }
+                }
                 if (rest is { } at)
                     Queue(at, (from[i / ways.Length], ways[i % ways.Length]));
             }
         }
-        return new Reach(set, cells, parents, runs);
+        return new Reach(set, cells, parents, runs, edges, feetSum?.ToDictionary(f => f.Key, f => f.Value.Sum / f.Value.Count));
     }
 
     private static bool Inside(Vector3 at, Options options) =>
@@ -245,7 +285,8 @@ public sealed class Reach
         new(at, way) { Movement = options.Movement, Pace = options.Pace, Rules = options.Rules ?? ModernRules.Default };
 
     /// <summary>One run from where he rests, the way given, then let go: where he comes to rest, or null if he fell out of the world or never did.</summary>
-    private static Vector3? Run(CollisionWorld world, Vector3 from, Vector2 way, Options options, ActorClips clips, ActorRecord actor, List<Cell> passed)
+    private static Vector3? Run(CollisionWorld world, Vector3 from, Vector2 way, Options options, ActorClips clips, ActorRecord actor, List<Cell> passed,
+        List<Vector3>? feet = null)
     {
         var player = Player(from, way, options);
         var animation = new ActorMotion(actor, clips, new Lcg(0));
@@ -255,9 +296,12 @@ public sealed class Reach
             if (player.FellOut)
                 return null;
             if (Standing(world, player) && Inside(player.Feet, options))
+            {
                 passed.Add(Cell.Of(player.Feet));
+                feet?.Add(player.Feet);
+            }
         }
-        return Rest(player, world, way, options, animation, passed);
+        return Rest(player, world, way, options, animation, passed, feet);
     }
 
     private static Vector3? Rest(CollisionWorld world, Vector3 at, Vector2 way, Options options, ActorClips clips, ActorRecord actor, List<Cell>? passed) =>
@@ -273,7 +317,8 @@ public sealed class Reach
     private const float Still = 0.05f;
 
     /// <summary>The stick let go until he stands still on something: where, or null if he never does or falls out of the world.</summary>
-    private static Vector3? Rest(PlayerMotion player, CollisionWorld world, Vector2 way, Options options, ActorMotion animation, List<Cell>? passed)
+    private static Vector3? Rest(PlayerMotion player, CollisionWorld world, Vector2 way, Options options, ActorMotion animation, List<Cell>? passed,
+        List<Vector3>? feet = null)
     {
         var still = 0;
         var at = player.Sphere.Position;
@@ -284,7 +329,10 @@ public sealed class Reach
                 return null;
             var standing = Standing(world, player);
             if (standing && Inside(player.Feet, options))
+            {
                 passed?.Add(Cell.Of(player.Feet));
+                feet?.Add(player.Feet);
+            }
             if (standing && Vector3.Distance(at, player.Sphere.Position) < Still)
                 still++;
             else
