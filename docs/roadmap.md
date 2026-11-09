@@ -194,7 +194,7 @@ Mostly testing rather than engineering (XL).
 | World graph: `Reach`'s cells per map set joined by teleporters, with their gates; routes to a map object (`WorldGraph`) | M | In progress |
 | Headless host: every `Transition` carried out as the runtime does, a new game played to trek with no input (`PlaythroughHost`) | M | Done: a new game reaches trek at I08 in 988 ticks with nobody at the controls; policies for input, pages, battles and menus |
 | Pilot: a route walked by the stick, an object used, a conversation's choice picked, the step checked (`Pilot`) | L | |
-| Battles: the party played by the combat AI, a loss replayed and won outright, deaths, levelling builds and trainers (`BattlePilot`) | L | |
+| Battles: the party played by the combat AI, a loss replayed and won outright, deaths, levelling builds and trainers (`BattlePilot`) | L | In progress |
 | The run: goals with the party member's supersedes, replanning, saves at milestones, the report, `hbht playthrough` (`Playthrough`) | M | |
 | A full pass from a new game to the ending, and what it finds | L | |
 
