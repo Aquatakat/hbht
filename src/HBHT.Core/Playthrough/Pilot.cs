@@ -65,9 +65,13 @@ public sealed class Pilot : IInputPolicy
     /// <summary>The step being played, and what the pilot knows of it; null between steps.</summary>
     private Walk? _walk;
 
+    /// <summary>How many times its budget a step may take all told, battles, cut-scenes and menus included.</summary>
+    public const int WholeBudget = 4;
+
     /// <summary>
     /// Plays <paramref name="step"/> to its end: the object used and its consequences played out, or a failure. The host's input and
-    /// conversation policies are the pilot's while it runs, and are put back after.
+    /// conversation policies are the pilot's while it runs, and are put back after. <paramref name="mostTicks"/> counts the ticks the
+    /// player has the controls; the step may take <see cref="WholeBudget"/> times it all told.
     /// </summary>
     public StepOutcome Run(PlaythroughHost host, PilotStep step, long mostTicks)
     {
@@ -82,6 +86,7 @@ public sealed class Pilot : IInputPolicy
         {
             Begin(walk);
             var settle = 0;
+            var controlled = 0L;
             var hadControl = host.PlayerHasControl;
             while (walk.Failure is null)
             {
@@ -101,9 +106,14 @@ public sealed class Pilot : IInputPolicy
                     if (settle >= Options.SettleTicks)
                         break;
                 }
-                if (host.Clock.Ticks - start >= mostTicks)
+                // The budget is the player's: a long way through wanderers' battles, each some minutes, isn't a step gone wrong. All told
+                // a step may take a few times it.
+                if (control)
+                    controlled++;
+                if (controlled >= mostTicks || host.Clock.Ticks - start >= mostTicks * WholeBudget)
                 {
-                    walk.Fail(StepFailure.OutOfTicks, $"{mostTicks} ticks ran out, {(walk.Used ? "used, its consequences playing" : walk.Arrived ? "arrived, not used" : "on the way")}");
+                    walk.Fail(StepFailure.OutOfTicks, $"{(controlled >= mostTicks ? $"{mostTicks} ticks with the controls" : $"{mostTicks * WholeBudget} ticks")} ran out, " +
+                        $"{(walk.Used ? "used, its consequences playing" : walk.Arrived ? "arrived, not used" : "on the way")}");
                     break;
                 }
                 host.Step();
