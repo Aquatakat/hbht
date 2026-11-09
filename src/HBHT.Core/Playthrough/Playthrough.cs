@@ -191,6 +191,13 @@ public sealed class Playthrough
                         $"no plan towards it ({plan?.Why ?? "the planner found none"}); the relaxed plan's next step that can be done here is played: {probe.Describe()}",
                         fromStep: false);
                     (goal, steps) = (Goal, [probe]);
+                    var probed = Play(probe, goal, state, reach);
+                    // One that changed nothing the planner knows isn't played again from here.
+                    if (probed.Done && PlanState.From(Model, Game).Equals(state))
+                        Ban(probe, state);
+                    if (!probed.Done && (failures[goal] = failures.GetValueOrDefault(goal) + 1) >= Options.MostFailures)
+                        why = $"{Options.MostFailures} steps in a row failed";
+                    continue;
                 }
                 if (steps.Count == 0)
                 {
