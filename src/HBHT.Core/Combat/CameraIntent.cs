@@ -53,4 +53,16 @@ public sealed class CameraIntent
     public (Vector3 Start, Vector3 End)? EyeRail { get; set; }
 
     public float? Along { get; set; }
+
+    /// <summary>
+    /// Start Early's director (<see cref="BattleDirector"/>): the beats it held besides, each where its body is drawn, its kind, and how
+    /// many ticks off it strikes (0 or less: playing, that many ticks since it struck).
+    /// </summary>
+    public List<(ShotSubject Subject, BeatKind Kind, int In)> Beats { get; } = [];
+
+    /// <summary>Start Early's director: what it leads with, in words; null under Camera: Enhanced.</summary>
+    public string? Director { get; set; }
+
+    /// <summary>Start Early's director: why it last moved off the enhanced camera's own shot, and how many ticks ago.</summary>
+    public (string Why, int Ago)? Moved { get; set; }
 }

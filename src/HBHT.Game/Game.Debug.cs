@@ -319,7 +319,7 @@ public partial class Game
     /// <summary>The overlay's text for the frame: where the view is, what the player stands on, and what's playing and drawn.</summary>
     private void UpdateOverlay(ChunkStreamerView chunks, Vector3 focus)
     {
-        _cameraIntent.Update(_camera!.Flying ? null : Battle, _camera.Current.GetGlobalTransformInterpolated(), _camera.Current.Fov);
+        _cameraIntent.Update(_camera!.Flying ? null : Drawing, _camera.Current.GetGlobalTransformInterpolated(), _camera.Current.Fov);
         var chunk = chunks.Chunks.ChunkAt(focus.ToNumerics());
         var local = chunk is null ? focus : focus - chunks.Origin(chunk);
         var motion = _player!.Motion;
@@ -327,7 +327,8 @@ public partial class Game
         _overlay.Text = (Battle is { } battle ? $"battle in arena {battle.Arena.Chunk.Name}, {battle.State}, {battle.Current?.Sheet.Name ?? "no one"}'s turn {battle.Order.Now + 1} of {battle.Order.Turns.Count}" +
                 $"{(battle.Current is { } now ? $", field {now.Radius} (ring {battle.Ring.RingRadius:F2}, {battle.Ring.Count} teardrops), moves {now.Moves}, {System.Numerics.Vector2.Distance(now.Cell, now.TurnStart):F2} from its start" : "")}\n" +
                 $"{string.Join(", ", battle.Combatants.Select(c => $"{c.Slot} {c.Sheet.Name} ({c.Cell.X:F2}, {c.Cell.Y:F2}) r {c.Radius}{(c.Engaged ? " engaged" : "")}"))}, eye {Local(battle.Camera.Position)} aim {Local(battle.Camera.Aim)}{(battle.CanFlee ? "; can flee" : "")}\n" +
-                (battle.CombatCamera.Enhanced is { } enhanced ? enhanced.Status + "\n" : "") : "") +
+                (Drawing is { Turns: Core.Combat.CombatTurns.StartEarly } drawing ? drawing.Director.Status + "\n"
+                    : battle.CombatCamera.Enhanced is { } enhanced ? enhanced.Status + "\n" : "") : "") +
             (Scene is { } scene ?$"cut-scene {scene.Runner.Script.Id}, waiting for {scene.Runner.Wait?.ToString() ?? "nothing"}, {scene.Actors.Count} actors, {scene.Cameras.Count} camera moves\n" : "") +
             $"{chunks.Chunks.MapSet.Label} {chunk?.Name ?? "(no chunk)"}  " +
             $"({local.X:F1}, {local.Y:F1}, {local.Z:F1})  {Engine.GetFramesPerSecond()} fps" +

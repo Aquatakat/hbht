@@ -239,6 +239,9 @@ public sealed class EnhancedCamera
     /// <summary>Whether the player walks the character this tick: its goal glides (<see cref="CameraTuning.GlideTime"/>), and it never cuts.</summary>
     public bool Walking { get; private set; }
 
+    /// <summary>Whether the player's turn has opened and the character hasn't yet moved or turned: its opening shot is held.</summary>
+    public bool Opening => _opened && _opening is not null;
+
     /// <summary>Whom the player heads for in their turn, its representative target.</summary>
     public Combatant? Target => _cone.Target as Combatant;
 
@@ -553,13 +556,7 @@ public sealed class EnhancedCamera
             _glided = true;
         }
         var shot = _motion.Current;
-        var eye = shot.Eye;
-        if (sight.GroundAt(eye.X, eye.Z, MathF.Max(eye.Y, shot.Aim.Y) + 30) is { } ground && eye.Y < ground + t.FloorClearance)
-            eye.Y = ground + t.FloorClearance;
-        Camera.PlaceAt(eye);
-        Camera.AimAt(shot.Aim);
-        // The look from the yaw, not the eye, so a shot from above still turns the stick by the screen's up.
-        Camera.LookXZ = shot.LookXZ;
+        Place(shot);
 
         // A shot kept from an earlier tick (a volley's, a choice held) keeps what it was found for.
         if (_subjectsNew || Kind != intent.Kind)
@@ -569,6 +566,35 @@ public sealed class EnhancedCamera
         (intent.Goal, intent.Shown, intent.Kind, intent.Lens) = (goal, shot, Kind, t.Lens);
         (intent.Turn, intent.Target, intent.Follow) = (_scene.Current, _scene.State == CombatState.Turn ? _behind?.Target ?? Target : Target, FollowAt);
         (intent.Vantage, intent.Field) = (_vantage, _finder.Field);
+    }
+
+    /// <summary>Puts the camera shown on <paramref name="shot"/>, its eye kept above the ground.</summary>
+    private void Place(Shot shot)
+    {
+        var eye = shot.Eye;
+        if (_finder!.Sight.GroundAt(eye.X, eye.Z, MathF.Max(eye.Y, shot.Aim.Y) + 30) is { } ground && eye.Y < ground + Tuning.FloorClearance)
+            eye.Y = ground + Tuning.FloorClearance;
+        Camera.PlaceAt(eye);
+        Camera.AimAt(shot.Aim);
+        // The look from the yaw, not the eye, so a shot from above still turns the stick by the screen's up.
+        Camera.LookXZ = shot.LookXZ;
+    }
+
+    /// <summary>
+    /// Cuts to <paramref name="shot"/> now, from outside its own choosing: Start Early's director keeping a beat about to strike in shot
+    /// (<see cref="BattleDirector"/>). Its own shot moves on from there.
+    /// </summary>
+    public void CutTo(Shot shot)
+    {
+        if (_motion is null || _finder is null)
+            return;
+        _motion.Cut(shot);
+        _pan = null;
+        _glided = false;
+        Camera.Cut();
+        Cuts++;
+        Place(shot);
+        Intent.Shown = shot;
     }
 
     /// <summary>A tick of a critically damped spring drawing <paramref name="x"/> after <paramref name="goal"/>, <paramref name="w"/> a second.</summary>

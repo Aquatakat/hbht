@@ -8,23 +8,24 @@ using N = System.Numerics;
 namespace HBHT.Game;
 
 /// <summary>
-/// The F3 overlay's drawing of what Camera: Enhanced is trying to do in a battle (<see cref="CameraIntent"/>). On the screen: a ring
-/// round each body it tries to hold (yellow, a pack held where it can be orange, the target red), the frame the lens holds them within,
-/// where the goal and the shot shown aim, and an AI's walk's rail. In the corner, a map from above turned with the view: the bodies, the
-/// eye shown and what it sees, the goal's eye and what it would, the vantage, the way over the shoulder with the framings held and eased onto, and the walk's rail
-/// with where its eye starts and ends. A debug build's alone, as the overlay is.
+/// The F3 overlay's drawing of what Camera: Enhanced, or Start Early's director, is trying to do in a battle (<see cref="CameraIntent"/>).
+/// On the screen: a ring round each body it tries to hold (yellow, a pack held where it can be orange, the target red), the director's
+/// beats (pink playing, violet to come, with how soon), the frame the lens holds them within, where the goal and the shot shown aim, and
+/// an AI's walk's rail. In the corner, a map from above turned with the view: the bodies where they're drawn, the eye shown and what it
+/// sees, the goal's eye and what it would, the vantage, the way over the shoulder with the framings held and eased onto, the walk's rail
+/// with where its eye starts and ends, and the beats. A debug build's alone, as the overlay is.
 /// </summary>
 public partial class CameraIntentView : Control
 {
     private static readonly Color Held = new(1, 0.9f, 0.2f), Lesser = new(1, 0.55f, 0.1f), TargetRed = new(1, 0.25f, 0.25f),
         Shown = Colors.White, GoalCyan = new(0.3f, 0.95f, 1), VantageMagenta = new(1, 0.35f, 1), FollowGreen = new(0.4f, 1, 0.4f),
         Party = new(0.4f, 0.65f, 1), Enemy = new(1, 0.4f, 0.4f), Dead = new(0.5f, 0.5f, 0.5f), Frame = new(1, 1, 1, 0.5f),
-        RailOrange = new(1, 0.6f, 0.2f), Legend = new(1, 1, 1, 0.7f);
+        RailOrange = new(1, 0.6f, 0.2f), Legend = new(1, 1, 1, 0.7f), BeatPink = new(1, 0.3f, 0.75f), ComingViolet = new(0.7f, 0.55f, 1);
 
     /// <summary>The map's size and margin, and the legend's text, as shares of the view's height.</summary>
     private const float MapShare = 0.32f, MarginShare = 0.012f, TextShare = 0.0135f;
 
-    private Battle? _battle;
+    private BattleDrawing? _drawing;
 
     /// <summary>A pixel of a 960-line view, in this one's.</summary>
     private float _px = 1;
@@ -37,17 +38,33 @@ public partial class CameraIntentView : Control
         SetAnchorsPreset(LayoutPreset.FullRect);
     }
 
-    /// <summary>Draws the battle's camera's intent from the view drawn this frame, or nothing for no battle under Camera: Enhanced.</summary>
-    public void Update(Battle? battle, Transform3D view, float fov)
+    /// <summary>
+    /// Draws the battle's camera's intent from the view drawn this frame, or nothing for no battle under Camera: Enhanced or Start Early
+    /// (<see cref="BattleDrawing.Enhanced"/>).
+    /// </summary>
+    public void Update(BattleDrawing? drawing, Transform3D view, float fov)
     {
-        _battle = battle?.CombatCamera.Enhanced is not null ? battle : null;
+        _drawing = drawing?.Enhanced is not null ? drawing : null;
         (_view, _fov) = (view, fov);
         QueueRedraw();
     }
 
+    /// <summary>Where a combatant is drawn now, or null for one not drawn.</summary>
+    private N.Vector3? Drawn(Combatant? c)
+    {
+        if (c is null || _drawing is null)
+            return null;
+        foreach (var b in _drawing.Frame.Bodies)
+        {
+            if (b.Combatant == c)
+                return b.Centre;
+        }
+        return null;
+    }
+
     public override void _Draw()
     {
-        if (_battle?.CombatCamera.Enhanced?.Intent is not { } intent || intent.Lens.FieldOfView <= 0)
+        if (_drawing?.Enhanced?.Intent is not { } intent || intent.Lens.FieldOfView <= 0)
             return;
         _px = MathF.Max(1, GetViewportRect().Size.Y / 960);
         try
@@ -77,7 +94,7 @@ public partial class CameraIntentView : Control
         DrawDashedLine(new(right, bottom), new(left, bottom), Frame, 2 * _px, 8 * _px);
         DrawDashedLine(new(left, bottom), new(left, top), Frame, 2 * _px, 8 * _px);
 
-        var target = intent.Target?.Body.Sphere.Position;
+        var target = Drawn(intent.Target);
         for (var i = 0; i < intent.Subjects.Count; i++)
         {
             var s = intent.Subjects[i];
@@ -89,6 +106,21 @@ public partial class CameraIntentView : Control
         }
         if (target is { } aimedAt && !intent.Subjects.Any(s => N.Vector3.Distance(s.At, aimedAt) < 0.01f) && Project(aimedAt) is { } tp)
             DrawArc(tp, 10, 0, Mathf.Tau, 24, TargetRed, _px);
+        // The director's beats: pink playing, violet to come, with how many seconds off.
+        var font = ThemeDB.FallbackFont;
+        foreach (var (s, kind, n) in intent.Beats)
+        {
+            if (Project(s.At) is not { } at)
+                continue;
+            var radius = Project(s.At + Right() * MathF.Max(s.Radius, 0.2f)) is { } edge ? MathF.Max(at.DistanceTo(edge), 4) + 4 : 12;
+            var colour = n <= 0 ? BeatPink : ComingViolet;
+            if (n <= 0)
+                DrawArc(at, radius, 0, Mathf.Tau, 32, colour, 3 * _px);
+            else
+                DrawDashedArc(at, radius, colour);
+            var label = n <= 0 ? kind.ToString().ToLowerInvariant() : string.Create(CultureInfo.InvariantCulture, $"{kind.ToString().ToLowerInvariant()} in {n / 60f:F1}s");
+            DrawString(font, at + new Vector2(radius + 3, -radius), label, HorizontalAlignment.Left, -1, (int)(12 * _px), colour);
+        }
         if (intent.Rail.Count > 1)
         {
             for (var i = 1; i < intent.Rail.Count; i++)
@@ -103,6 +135,17 @@ public partial class CameraIntentView : Control
             Cross(shown, 5 * _px, Shown, 1);
         if (intent.Vantage is { } v && Project(new N.Vector3(v.X, intent.Shown.Aim.Y, v.Y)) is { } vantage)
             Diamond(vantage, 7 * _px, VantageMagenta);
+    }
+
+    /// <summary>A ring of dashes, for a beat to come.</summary>
+    private void DrawDashedArc(Vector2 at, float radius, Color colour)
+    {
+        const int dashes = 12;
+        for (var i = 0; i < dashes; i++)
+        {
+            var a = Mathf.Tau * i / dashes;
+            DrawArc(at, radius, a, a + Mathf.Tau / dashes / 2, 4, colour, 2 * _px);
+        }
     }
 
     /// <summary>The view's right, across the world.</summary>
@@ -143,10 +186,10 @@ public partial class CameraIntentView : Control
         var (forward, right) = (new N.Vector2(-MathF.Sin(shot.Yaw), -MathF.Cos(shot.Yaw)), new N.Vector2(MathF.Cos(shot.Yaw), -MathF.Sin(shot.Yaw)));
         var centre = new N.Vector2(shot.Aim.X, shot.Aim.Z);
         var reach = 20f;
-        foreach (var c in _battle!.Combatants)
+        foreach (var b in _drawing!.Frame.Bodies)
         {
-            if (!c.Freed)
-                reach = MathF.Max(reach, N.Vector2.Distance(Flat(c.Body.Sphere.Position), centre) + 3);
+            if (!b.Standing.HasFlag(BodyState.Freed))
+                reach = MathF.Max(reach, N.Vector2.Distance(Flat(b.Centre), centre) + 3);
         }
         reach = MathF.Max(reach, N.Vector2.Distance(Flat(shot.Eye), centre) + 3);
         reach = MathF.Min(reach, 70);
@@ -186,22 +229,29 @@ public partial class CameraIntentView : Control
             if (Inside(At3(start)))
                 DrawArc(At3(start), 4, 0, Mathf.Tau, 12, GoalCyan, _px);
         }
-        // The bodies, whose turn it is outlined, the way they face.
-        foreach (var c in _battle.Combatants)
+        // The bodies where they're drawn, whose turn it is outlined, the way they face.
+        foreach (var b in _drawing.Frame.Bodies)
         {
-            if (c.Freed)
+            if (b.Standing.HasFlag(BodyState.Freed))
                 continue;
-            var p = At3(c.Body.Sphere.Position);
+            var p = At3(b.Centre);
             if (!Inside(p))
                 continue;
-            var colour = c.Sheet.IsDead ? Dead : c.Hostile ? Enemy : Party;
+            var c = b.Combatant;
+            var colour = b.Standing.HasFlag(BodyState.Dead) ? Dead : c.Hostile ? Enemy : Party;
             DrawCircle(p, MathF.Max(3, c.Body.ScaledRadius * scale), colour);
-            var h = c.Body.Heading;
+            var h = b.Heading;
             DrawLine(p, p + new Vector2(N.Vector2.Dot(h, right), -N.Vector2.Dot(h, forward)) * 8 * _px, colour, _px);
             if (c == intent.Turn)
                 DrawArc(p, MathF.Max(5, c.Body.ScaledRadius * scale + 2), 0, Mathf.Tau, 16, Colors.White, _px);
         }
-        var target = intent.Target?.Body.Sphere.Position;
+        foreach (var (s, _, n) in intent.Beats)
+        {
+            var p = At3(s.At);
+            if (Inside(p))
+                DrawArc(p, MathF.Max(8, s.Radius * scale + 6), 0, Mathf.Tau, 16, n <= 0 ? BeatPink : ComingViolet, 2 * _px);
+        }
+        var target = Drawn(intent.Target);
         foreach (var s in intent.Subjects)
         {
             var p = At3(s.At);
@@ -227,15 +277,27 @@ public partial class CameraIntentView : Control
         var font = ThemeDB.FallbackFont;
         var line = text * 1.3f;
         DrawString(font, new Vector2(box.Position.X, box.End.Y + line), intent.Kind, HorizontalAlignment.Left, mapSize, text, Colors.White);
-        // Why it last swung onto a new framing, for three seconds after.
+        // What the director leads with, and why it last moved off the enhanced camera's own shot, for three seconds after.
         var lines = 2;
+        if (intent.Director is { } director)
+            DrawString(font, new Vector2(box.Position.X, box.End.Y + line * lines++), director, HorizontalAlignment.Left, mapSize, text, BeatPink);
+        if (intent.Moved is { Ago: < 180 } moved)
+        {
+            DrawString(font, new Vector2(box.Position.X, box.End.Y + line * lines++),
+                string.Create(CultureInfo.InvariantCulture, $"moved: {moved.Why}, {moved.Ago / 60f:F1} s ago"), HorizontalAlignment.Left, mapSize, text,
+                BeatPink);
+        }
+        // Why it last swung onto a new framing, for three seconds after.
         if (intent.Swung is { Ago: < 180 } swung)
         {
             DrawString(font, new Vector2(box.Position.X, box.End.Y + line * lines++),
                 string.Create(CultureInfo.InvariantCulture, $"swung: {swung.Why}, {swung.Ago / 60f:F1} s ago"), HorizontalAlignment.Left, mapSize, text,
                 RailOrange);
         }
-        string[] legend = ["white shown, cyan its goal", "yellow held, orange if it can be, red the target", "magenta the vantage, green the follow point"];
+        string[] legend = intent.Director is null
+            ? ["white shown, cyan its goal", "yellow held, orange if it can be, red the target", "magenta the vantage, green the follow point"]
+            : ["white shown, cyan its goal", "yellow held, orange if it can be, red the target", "magenta the vantage, green the follow point",
+                "pink a beat playing, violet one to come"];
         for (var i = 0; i < legend.Length; i++)
             DrawString(font, new Vector2(box.Position.X, box.End.Y + line * (i + lines)), legend[i], HorizontalAlignment.Left, mapSize, text - 2, Legend);
 
