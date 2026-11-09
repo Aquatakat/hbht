@@ -17,6 +17,7 @@ namespace HBHT.Core.Playthrough;
 /// <param name="DirectRange">How near across the ground an npc's or encounter's body must be for him to steer straight at it rather than along the route.</param>
 /// <param name="JumpDistance">How far the player may move in one tick before it counts as being moved, and the route is asked for again.</param>
 /// <param name="PickLocks">Whether routes may take locked doors (<see cref="RouteOptions.PickLocks"/>).</param>
+/// <param name="Rest">What makes the party camp when it's hurt, checked each tick the player has the controls; never if null.</param>
 /// <param name="KeepClear">
 /// Whether routes keep out of the script objects walking into would set off, other than the step's own, while a route that does is
 /// to be had: the step plays what it was asked to, and not the story's cut-scenes on the way.
@@ -32,7 +33,8 @@ public sealed record PilotOptions(
     float DirectRange = 10,
     float JumpDistance = 3,
     bool PickLocks = false,
-    bool KeepClear = true)
+    bool KeepClear = true,
+    Resting? Rest = null)
 {
     public static readonly PilotOptions Default = new();
 }
@@ -199,6 +201,13 @@ public sealed class Pilot : IInputPolicy
     {
         if (_walk is not { Failure: null, Used: false } walk || !host.PlayerHasControl)
             return TickInput.None;
+        // Hurt: the party camps first, and the way is asked for again after.
+        if (Options.Rest?.TryCamp(host) == true)
+        {
+            walk.Replan = true;
+            walk.Steering = null;
+            return TickInput.None;
+        }
         var trek = host.Session.Trek;
         var feet = trek.Player.Feet;
         var set = trek.Chunks.MapSet.Id;

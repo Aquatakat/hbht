@@ -110,7 +110,11 @@ public sealed record RunSummary(
     int Stalemates,
     int Deaths,
     int Trainings,
-    IReadOnlyDictionary<string, int> EntriesByKind);
+    IReadOnlyDictionary<string, int> EntriesByKind)
+{
+    /// <summary>How many times the party camped, hurt (<see cref="Resting"/>).</summary>
+    public int Camps { get; init; }
+}
 
 /// <summary>
 /// The run's report (docs/systems/playthrough.md, "The report"): every place what was planned and what the game did part ways, the
@@ -141,7 +145,7 @@ public sealed class RunReport
             text.AppendLine($"Goal: {s.Goal}: {(s.Reached ? "reached" : $"not reached: {s.Why}")}");
             text.AppendLine(string.Create(CultureInfo.InvariantCulture,
                 $"{s.Steps} steps, {s.Ticks} ticks of game time ({s.Ticks / 60.0 / 60:0.0} minutes), {s.WallSeconds:0} s of wall time"));
-            text.AppendLine($"{s.Battles} battles: {s.LostFirst} lost first, {s.Stalemates} stalemates; {s.Deaths} deaths; {s.Trainings} visits to trainers");
+            text.AppendLine($"{s.Battles} battles: {s.LostFirst} lost first, {s.Stalemates} stalemates; {s.Deaths} deaths; {s.Trainings} visits to trainers; {s.Camps} camps");
             text.AppendLine($"Entries: {(s.EntriesByKind.Count == 0 ? "none" : string.Join(", ", s.EntriesByKind.Select(e => $"{e.Key} {e.Value}")))}");
             text.AppendLine();
         }

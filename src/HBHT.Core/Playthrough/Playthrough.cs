@@ -85,7 +85,8 @@ public sealed class Playthrough
         Battles = new BattlePilot();
         Levelling = new Levelling { GoldReserve = Options.GoldReserve };
         host.Battles = Battles;
-        host.Menus = Levelling;
+        Resting = new Resting(Levelling);
+        host.Menus = Resting;
         host.MenuPatience = Options.MenuPatience;
         var plugins = model.Plugins;
         _journal = [.. plugins.All<FlagRecord>(RecordTypes.Flag).Where(f => f.Journal is not null).Select(f => f.Id)];
@@ -114,6 +115,9 @@ public sealed class Playthrough
     public BattlePilot Battles { get; }
 
     public Levelling Levelling { get; }
+
+    /// <summary>The camping when the party is hurt, a menu policy over <see cref="Levelling"/>.</summary>
+    public Resting Resting { get; }
 
     public RunReport Report { get; } = new();
 
@@ -387,7 +391,7 @@ public sealed class Playthrough
         }
         else
         {
-            var pilot = new Pilot(Graph, PilotOptions.Default with { PickLocks = translated.PickLocks });
+            var pilot = new Pilot(Graph, PilotOptions.Default with { PickLocks = translated.PickLocks, Rest = Resting });
             outcome = pilot.Run(Host, pilotStep, Math.Min(Options.StepTicks, Math.Max(1, Options.MostTicks - (Host.Clock.Ticks - _startTicks))));
             var expect = pilotStep.Expect ?? [];
             // Done by the way: what it was for came about though the pilot didn't use it (an encounter caught the party first).
@@ -534,7 +538,7 @@ public sealed class Playthrough
                 continue;
             if (Graph.Route(Game, here, id) is not { Route: { } route } || route.Length > Options.TrainerReach * 1.5f)
                 continue;
-            var walk = new Pilot(Graph).Run(Host, new PilotStep(id, UseKind.Arrive), Options.StepTicks);
+            var walk = new Pilot(Graph, PilotOptions.Default with { Rest = Resting }).Run(Host, new PilotStep(id, UseKind.Arrive), Options.StepTicks);
             if (!walk.Done || !Host.PlayerHasControl)
                 return;
             var bought = Levelling.Train(Host, trainer);
@@ -633,7 +637,10 @@ public sealed class Playthrough
             battles.Count(b => b.Stalemate),
             battles.Where(b => b.Outcome != Combat.BattleOutcome.Lost).Sum(b => b.Deaths.Count),
             Trainings,
-            Report.Entries.GroupBy(e => e.Kind.ToString()).OrderBy(g => g.Key, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.Count()));
+            Report.Entries.GroupBy(e => e.Kind.ToString()).OrderBy(g => g.Key, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.Count()))
+        {
+            Camps = Resting.Camps,
+        };
     }
 
     /// <summary>A line on how the run stands, for progress.</summary>
