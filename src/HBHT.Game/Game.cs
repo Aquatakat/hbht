@@ -114,6 +114,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         AddChild(_limiter);
         var hud = new CanvasLayer();
         StyleOverlay();
+        hud.AddChild(_cameraIntent);
         hud.AddChild(_overlay);
         hud.AddChild(_message);
         AddChild(hud);
@@ -1031,6 +1032,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         else if (e.IsActionPressed("toggle_overlay"))
         {
             _overlay.Visible = !_overlay.Visible;
+            _cameraIntent.Visible = _overlay.Visible;
         }
         else if (e.IsActionPressed("toggle_pace") && _player is not null)
         {

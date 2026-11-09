@@ -26,6 +26,9 @@ public partial class Game
 
     private readonly Label _overlay = new() { Position = new Vector2(8, 8), Visible = Debugging };
 
+    /// <summary>The overlay's drawing of what Camera: Enhanced is trying to do in a battle.</summary>
+    private readonly CameraIntentView _cameraIntent = new() { Visible = Debugging };
+
     /// <summary>The player's last second of positions, for the overlay's speed.</summary>
     private readonly Queue<System.Numerics.Vector3> _track = new();
 
@@ -316,6 +319,7 @@ public partial class Game
     /// <summary>The overlay's text for the frame: where the view is, what the player stands on, and what's playing and drawn.</summary>
     private void UpdateOverlay(ChunkStreamerView chunks, Vector3 focus)
     {
+        _cameraIntent.Update(_camera!.Flying ? null : Battle, _camera.Current.GetGlobalTransformInterpolated(), _camera.Current.Fov);
         var chunk = chunks.Chunks.ChunkAt(focus.ToNumerics());
         var local = chunk is null ? focus : focus - chunks.Origin(chunk);
         var motion = _player!.Motion;

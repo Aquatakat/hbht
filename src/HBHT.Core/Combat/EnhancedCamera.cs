@@ -164,6 +164,12 @@ public sealed class EnhancedCamera
     /// <summary>What it shows: the battle's camera while it's on.</summary>
     public FollowCamera Camera { get; } = new(default, Vector2.UnitY) { Mode = CameraMode.Interior };
 
+    /// <summary>What it tried to do on its last tick, for the runtime's debug overlay.</summary>
+    public CameraIntent Intent { get; } = new();
+
+    /// <summary>Whether this tick's shot was found for subjects of its own, rather than kept or taken whole.</summary>
+    private bool _subjectsNew;
+
     public CameraTuning Tuning { get; set; } = CameraTuning.Default;
 
     /// <summary>The motion its shot moves by, once it has started.</summary>
@@ -342,6 +348,10 @@ public sealed class EnhancedCamera
         _turnBy = 0;
         _tracking = false;
         _walkMoved = null;
+        _subjectsNew = false;
+        var intent = Intent;
+        (intent.Behind, intent.Band, intent.EyeRail, intent.Along) = (null, null, null, null);
+        intent.Rail.Clear();
         var goal = Decide(battle, originalShot, glide, aimed);
         // The player's own camera is the original's as it is; the director's shots keep their distance.
         if (!Released)
@@ -444,6 +454,22 @@ public sealed class EnhancedCamera
         Camera.AimAt(shot.Aim);
         // The look from the yaw, not the eye, so a shot from above still turns the stick by the screen's up.
         Camera.LookXZ = shot.LookXZ;
+
+        // A shot kept from an earlier tick (a volley's, a choice held) keeps what it was found for.
+        if (_subjectsNew || Kind != intent.Kind)
+            intent.Subjects.Clear();
+        if (_subjectsNew)
+            intent.Subjects.AddRange(_subjects);
+        (intent.Goal, intent.Shown, intent.Kind, intent.Lens) = (goal, shot, Kind, t.Lens);
+        (intent.Turn, intent.Target, intent.Follow) = (battle.Current, Target, FollowAt);
+        (intent.Vantage, intent.Field) = (_vantage, _finder.Field);
+    }
+
+    /// <summary>Starts this tick's subjects afresh.</summary>
+    private void NewSubjects()
+    {
+        _subjects.Clear();
+        _subjectsNew = true;
     }
 
     private Shot Decide(Battle battle, Shot originalShot, (Body From, Body To)? glide, (CombatState, Combatant, float)? aimed)
@@ -508,7 +534,7 @@ public sealed class EnhancedCamera
                 Kind = "held while the player chooses";
                 return m.Current;
         }
-        _subjects.Clear();
+        NewSubjects();
         var owner = battle.CameraOwner is { Freed: false } o ? o : current;
         _subjects.Add(Sphere(owner.Body));
         if (owner != current && !current.Freed)
@@ -602,7 +628,7 @@ public sealed class EnhancedCamera
         // and it.
         if (_opening is null && _cone.Pick(me, heading, _candidates, t))
             _sinceDecide = int.MaxValue / 2;
-        _subjects.Clear();
+        NewSubjects();
         _subjects.Add(Sphere(current.Body));
         if (Target is not { } target)
         {
@@ -856,7 +882,7 @@ public sealed class EnhancedCamera
         if (Volley(battle, current) is { } volley)
             return volley;
         var ai = current.Controlled;
-        _subjects.Clear();
+        NewSubjects();
         _subjects.Add(Sphere(current.Body));
         var to = Destination(current);
         if (to is { } d)
@@ -1084,7 +1110,7 @@ public sealed class EnhancedCamera
     {
         var t = Tuning;
         var (me, there) = (who.Body.Sphere.Position, at.Body.Sphere.Position);
-        _subjects.Clear();
+        NewSubjects();
         _subjects.Add(Sphere(who.Body));
         _subjects.Add(Sphere(at.Body) with { Weight = t.ClusterWeight });
         _pairs.Clear();
@@ -1103,7 +1129,7 @@ public sealed class EnhancedCamera
     {
         var t = Tuning;
         var there = at.Body.Sphere.Position;
-        _subjects.Clear();
+        NewSubjects();
         _subjects.Add(Sphere(at.Body));
         if (who == at)
         {
@@ -1287,7 +1313,7 @@ public sealed class EnhancedCamera
     {
         var t = Tuning;
         _aiming = (battle.State, current, _from);
-        _subjects.Clear();
+        NewSubjects();
         _subjects.Add(Sphere(current.Body));
         if (battle.CameraOwner is not { Freed: false } cursor || cursor == current)
         {
@@ -1342,7 +1368,7 @@ public sealed class EnhancedCamera
         var centre = Ground(battle, marker.Centre, c);
         var yaw = AimYaw(battle, c, aimed);
         var pitch = Rad(t.TopDownPitch);
-        _subjects.Clear();
+        NewSubjects();
         const int points = 16;
         for (var i = 0; i < points; i++)
         {
@@ -1361,7 +1387,7 @@ public sealed class EnhancedCamera
     private Shot SpellAim(Battle battle, Combatant caster, AimMarker reach)
     {
         var t = Tuning;
-        _subjects.Clear();
+        NewSubjects();
         _acted.Clear();
         foreach (var slot in battle.TargetsB.SelectedSlots)
             Acted(battle, slot);
