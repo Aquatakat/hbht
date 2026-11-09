@@ -184,6 +184,14 @@ public sealed class Playthrough
                 var state = PlanState.From(Model, Game);
                 var reach = MakeReach(state);
                 var (goal, steps, plan) = Choose(state);
+                if (steps.Count == 0 && Probe(state, Goal) is { } probe)
+                {
+                    // No plan, but the relaxed plan's next step can be done here: the story may move the player on from it.
+                    Entry(EntryKind.Unreachable, null, Goal.Describe(),
+                        $"no plan towards it ({plan?.Why ?? "the planner found none"}); the relaxed plan's next step that can be done here is played: {probe.Describe()}",
+                        fromStep: false);
+                    (goal, steps) = (Goal, [probe]);
+                }
                 if (steps.Count == 0)
                 {
                     var stuck = Stuck(state, Goal, reach);
@@ -276,6 +284,23 @@ public sealed class Playthrough
                 ? $"{a.Describe()} is at a place no way on foot reaches from here ({far.Place})"
                 : $"{a.Describe()} needs {state.Blocker(a)?.Describe() ?? "nothing, but the search didn't take it"}");
         return $"the relaxed plan's next steps: {string.Join("; ", lines)}";
+    }
+
+    /// <summary>
+    /// With no plan, the relaxed plan's helpful actions, first first, that can be done in the state as it stands and aren't banned
+    /// there: a place the story moves the player to (off foot, which the search never steps to) often follows from one, as Jundar's
+    /// 11/A01/19 follows from walking into 11/A01/4. Null if none can.
+    /// </summary>
+    private PlayerAction? Probe(PlanState state, Goal goal)
+    {
+        var facts = _planner.GoalFacts(state, goal);
+        if (facts.Count == 0)
+            return null;
+        var relaxation = new Relaxation(Model, _planner.Relevant(facts));
+        if (relaxation.Extract(relaxation.Run(state), facts, goal is MemberGoal) is not { } relaxed)
+            return null;
+        var banned = Banned(state);
+        return relaxed.Helpful.Select(a => Model.Actions[a]).FirstOrDefault(a => !banned.Contains(a.Index) && state.CanDo(a));
     }
 
     /// <summary>The member goal rests until the next milestone.</summary>
