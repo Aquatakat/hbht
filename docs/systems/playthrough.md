@@ -17,6 +17,42 @@ The hard part is deciding what to do next, not playing it: the core already play
 5. **Battles** (`BattlePilot`). The party is played by the original's combat AI, as the enemies are. A battle it loses is played again from its start and won outright, and the report says so: it's a sign the party is under-levelled there. Experience goes up by a build per character (what each spends its points on at a level), and trainers on the way are used.
 6. **The run** (`Playthrough`). Holds the goals, replans after every step, saves at each milestone, and writes the report.
 
+## The headless host
+
+`PlaythroughHost` (`PlaythroughHost.cs`, `.Transitions.cs`, `.Presses.cs`) owns a `GameSession` and steps it as `Game.Tick` and `_Process` do, without drawing:
+
+- the presses for the mode that runs go in before the tick;
+- after the tick, a cut-scene or battle that faded in is begun (`BeginCutScene`, `BeginBattle`), and one whose screen has faded out is ended (`EndCutScene`, `EndBattle`);
+- while the session streams trek (`StreamsTrek`), trek's chunks follow the player.
+
+**Transitions.** Every `Transition` is carried out as `Game.cs`'s switch does, less what only draws, and is recorded with its tick (`Transitions`). So are the `Warn` and `Log` lines and what the game said (`Notes`). Game over, Quit and Return to Title end the run (`End`). A save loaded from the System tab starts a new session on it. The title and a change of renderer have nothing for a host to do, and an unknown transition warns.
+
+**Motion.** Bodies move by their actors' own animations, made as the runtime's views make them (`ActorMotion.AsDrawn` on the game's animation stream): the player's, each wanderer's the first time trek asks, and each cut-scene actor's after the tick that spawned it. The runtime makes a wanderer's only while its view exists, so the stream is drawn on in a different order than in play.
+
+**What a player would press**, the host asks of four policies (`PlaythroughPolicies.cs`):
+
+- **`IInputPolicy`**: trek's stick and presses, the pilot's seam. By default nothing is held.
+- **`IConversationPolicy`**: how long a page shows, and which choice to take. The host presses as a player does, one button a tick. By default, a page is pressed on at once, and a choice is the first not yet taken at that node in this run. A conversation hides the choices taken, so this is the first shown. A book or the help menu shows them again, so these are read through to their last choice. Every page is recorded with its script, its node and the choice taken (`Pages`).
+- **`IBattlePolicy`**: called as a battle begins, before each of its ticks, and as it ends. The default, `WinOutright`, wins on the party's first turn the player plays (`Battle.ForceWin`), through the game's own victory, so the flag, the gold, the experience and the post-battle windows come as in play. It can't win the Shadow's battle, or one lost before the party has a turn. The Goblin Ambush is one of those, and ends `Spared`, as the story does.
+- **`IMenuPolicy`**: the pause menu's windows and trek's popups. By default:
+  - loot is taken stack by stack through the real `BarterMenu`, so `ItemGained` triggers fire;
+  - a pile that won't shrink is left;
+  - shops, training and the menu are left at once;
+  - a popup's question takes its first option;
+  - a menu left open a minute is closed with a warning.
+
+**Speed.** The host plays by `SessionSettings.Original`, but nobody's watching: cinematics are skipped with B, skippable credits are ended with A, and the ending's are rolled 8 ticks a tick (`PlaythroughOptions`). Standing in trek it runs at about 34,000 ticks a second in a Release build, some 560 times the game's speed. A short battle in a Debug build runs at about 2,300 a second.
+
+**With nobody at the controls**, a new game plays the opening cinematic and script 0x0362's thirteen pages. Then, 988 ticks in, trek has the player at Overworld I08, and nothing more comes to him. Everything after that is the pilot's.
+
+**What every host repeats**, which could move into `GameSession`:
+
+- beginning and ending what a step cued or finished;
+- streaming trek's chunks while `StreamsTrek`, which lives in `Game._Process`;
+- making actors' motions as the views do (`MovementCompare.Play` has the same lambda);
+- reading a loaded save and playing its opening if it stands nowhere;
+- the menu's save.
+
 ## Goals and the party
 
 A goal is a flag to set (`flag:<n>`), or `ending`: the ending's credits rolling. The run keeps a stack of them, and a goal above another supersedes it while it's there.
