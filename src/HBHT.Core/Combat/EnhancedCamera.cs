@@ -11,8 +11,8 @@ namespace HBHT.Core.Combat;
 /// on top of the original's (<see cref="CombatCamera"/>), which goes on moving its own camera underneath, and shows a shot of its own: in
 /// the player's turn low over the character's shoulder at the enemy it heads for, orbiting its pack with them, or with none ahead trailing
 /// them on a leash, its aim leading them, all of it following a point drawn smoothly after them; once anyone acts, one shot holding all of
-/// it, planned as it acts and carried along with a walker; an arrow, a throw or a spell at someone further off, or a spell at an ally, as
-/// two shots, the loosing and the hit; in aiming the reticle in the middle, a spell's targets with some of its reach, an area from above,
+/// it, planned as it acts, an AI's walk or flight shown from near where it ends, turning after the walker; an arrow, a throw or a spell
+/// at someone further off, or a spell at an ally, as two shots, the loosing and the hit, each target a spell lands on close; in aiming the reticle in the middle, a spell's targets with some of its reach, an area from above,
 /// its ring down to the conversation box, or a blow's the shot that already holds it, panned to rather than cut to; and the original's
 /// again once the player turns the camera themselves, until they aim. Every shot is taken from the side of the battle's vantage (<see cref="Vantage"/>), and no one is framed
 /// under the conversation box. It moves to each shot with its acceleration capped, not its speed (<see cref="CappedMotion"/>), trailing a
@@ -98,6 +98,33 @@ public sealed class EnhancedCamera
 
     /// <summary>The target the shot over the shoulder looked at last tick and the yaw over the shoulder at it; how far the view turns with it this tick.</summary>
     private (Combatant Target, float Behind)? _behind;
+
+    /// <summary>How far the shot was turned with the way over the shoulder the last tick, radians: its speed, whose change is capped.</summary>
+    private float _carried;
+
+    /// <summary>How far the framing was eased toward the one it eases to the last tick, radians: its speed, whose change is capped.</summary>
+    private float _easing;
+
+    /// <summary>How far the shot was turned by itself over the shoulder or on its leash the last tick, radians, the two together.</summary>
+    private float _lastTurn;
+
+    /// <summary>An AI's walk as it's shown (<see cref="WalkShot"/>), from its start.</summary>
+    private Walk? _walk;
+
+    /// <summary>The walk's shot last tick and this, which the camera is carried along between.</summary>
+    private (Shot From, Shot To)? _walkMoved;
+
+    /// <summary>The subjects of a walk's end and of its start, as it's planned.</summary>
+    private readonly List<ShotSubject> _ends = [];
+    private readonly List<ShotSubject> _starts = [];
+
+    /// <summary>
+    /// An AI's walk: who walks, from where (the point that follows them) to where, the eye the shot ends from and what it ends aimed at,
+    /// the share of the walk the eye moves with (<see cref="CameraTuning.WalkPan"/>), how far along they are, its shot last tick, and
+    /// whether they've stopped, its end framed again round where they stand.
+    /// </summary>
+    private readonly record struct Walk(Combatant Who, Vector3 From, Vector3 To, Vector3 EyeEnd, Vector3 AimEnd, float Share, float Progress, Shot? Last,
+        bool Arrived = false);
 
     private float _turnBy;
 
@@ -240,10 +267,14 @@ public sealed class EnhancedCamera
         _aiming = null;
         _plan = null;
         _volley = null;
+        _walk = null;
         _opened = false;
         _opening = null;
         _ahead = null;
         _behind = null;
+        _carried = 0;
+        _easing = 0;
+        _lastTurn = 0;
         _framingTo = null;
         _blowAim = null;
     }
@@ -310,6 +341,7 @@ public sealed class EnhancedCamera
         _cutNow = false;
         _turnBy = 0;
         _tracking = false;
+        _walkMoved = null;
         var goal = Decide(battle, originalShot, glide, aimed);
         // The player's own camera is the original's as it is; the director's shots keep their distance.
         if (!Released)
@@ -363,6 +395,9 @@ public sealed class EnhancedCamera
             if (_turnBy != 0)
                 _motion.Turn(_turnBy);
         }
+        // An AI's walk: carried along with its shot's own change, so the eye that moves a little and the turn after the walker don't trail.
+        if (_walkMoved is { } moved)
+            _motion.Follow(moved.From, moved.To);
 
         var now = _motion.Current;
         var travel = Vector3.Distance(goal.Aim, now.Aim);
@@ -429,6 +464,7 @@ public sealed class EnhancedCamera
         {
             _plan = null;
             _volley = null;
+            _walk = null;
         }
         if (battle.State != CombatState.Turn && battle.State != CombatState.TargetSpell)
             _framing = null;
@@ -538,6 +574,8 @@ public sealed class EnhancedCamera
         // What the shot is placed by: the point that follows them, so their stride doesn't jolt it.
         var anchor = _followOf == current ? _follow.At : me;
         var heading = current.Body.Heading;
+        // The most the speed the shot's turned at by itself changes in a tick.
+        var speedUp = Rad(t.TurnAcceleration) / 3600;
         _candidates.Clear();
         foreach (var c in battle.Combatants)
         {
@@ -545,7 +583,6 @@ public sealed class EnhancedCamera
                 _candidates.Add(new TargetCandidate(c, c.Body.Sphere.Position));
         }
         var opening = !_opened;
-        var refresh = false;
         if (!_opened)
         {
             _opened = true;
@@ -561,12 +598,10 @@ public sealed class EnhancedCamera
         {
             _opening = null;
         }
-        // A new target's framing is found at once and eased onto from the one held.
+        // A new target held: the shot isn't turned to it, and its framing is found again only if the one held doesn't show the character
+        // and it.
         if (_opening is null && _cone.Pick(me, heading, _candidates, t))
-        {
             _sinceDecide = int.MaxValue / 2;
-            refresh = true;
-        }
         _subjects.Clear();
         _subjects.Add(Sphere(current.Body));
         if (Target is not { } target)
@@ -574,12 +609,15 @@ public sealed class EnhancedCamera
             _framing = null;
             _framingTo = null;
             _behind = null;
+            (_carried, _easing) = (_carried + _easing, 0);
             // From the shot as the target was lost, low and near.
             var was = _motion?.Current ?? originalShot;
             _ahead ??= (was.Yaw, was.Pitch, was.Distance);
             // Trailed on a leash, as a third person's camera is: the eye stays where it is but for being drawn after the character, so a
             // step across the view turns it round after them, and walking on they come to be seen from behind; a step toward it or away
-            // only draws it along.
+            // only draws it along. The turn's speed changes no faster than TurnAcceleration, from the orbit's as the target's let go, so
+            // it neither starts nor stops hard.
+            var leash = 0f;
             if (_motion is { } m && _followOf == current && _follow.Moved != Vector3.Zero)
             {
                 var shown = m.Current;
@@ -587,11 +625,13 @@ public sealed class EnhancedCamera
                 var aimed = shown.Aim + _follow.Moved;
                 var back = new Vector2(eye.X - aimed.X, eye.Z - aimed.Z);
                 if (back.Length() > 0.5f)
-                {
-                    _turnBy = Shot.Wrap(MathF.Atan2(back.X, back.Y) - shown.Yaw);
-                    var (y, p, d) = _ahead.Value;
-                    _ahead = (Shot.Wrap(y + _turnBy), p, d);
-                }
+                    leash = Shot.Wrap(MathF.Atan2(back.X, back.Y) - shown.Yaw);
+            }
+            _turnBy = _lastTurn = _carried = Math.Clamp(leash, _carried - speedUp, _carried + speedUp);
+            if (_turnBy != 0)
+            {
+                var (y, p, d) = _ahead.Value;
+                _ahead = (Shot.Wrap(y + _turnBy), p, d);
             }
             var lead = Lead(anchor, anchor + new Vector3(heading.X, 0, heading.Y) * t.LookAhead);
             var follow = Ahead(lead);
@@ -629,59 +669,113 @@ public sealed class EnhancedCamera
         AddPair(current, target);
         var ahead = pack / n;
         // Orbiting the target as the character goes round it: the way over their shoulder at it turns the shot with it straight away
-        // (Step), up to CarryTurn a second, less near it, where the way means little and swings wildly, and not at all while it's being let
-        // go. The way to it, not to its pack's middle: walking straight at one at the pack's edge doesn't turn the view.
+        // (Turn), up to CarryTurn a second, that speed changing no faster than TurnAcceleration; less near it, where the way means little
+        // and swings wildly, not at all while it's being let go, and not by a new target's jump. What the shot isn't turned by goes into
+        // its framing, the offset from the way, so it isn't caught up later: the view never turns hard to a target. The way to the target,
+        // not to its pack's middle: walking straight at one at the pack's edge doesn't turn the view.
         var behind = Look(anchor, at);
-        if (_behind is { } b)
-        {
-            var most = _cone.Losing ? 0 : Rad(t.CarryTurn) / 60 * Math.Clamp(Flat(at - anchor) / t.ShoulderNear, 0, 1);
-            behind = Shot.Wrap(b.Behind + Math.Clamp(Shot.Wrap(behind - b.Behind), -most, most));
-        }
+        var (change, most) = _behind is { } b
+            ? (Shot.Wrap(behind - b.Behind),
+                b.Target != target || _cone.Losing ? 0 : Rad(t.CarryTurn) / 60 * Math.Clamp(Flat(at - anchor) / t.ShoulderNear, 0, 1))
+            : (0, 0);
+        var carried = Math.Clamp(Math.Clamp(change, -most, most), _carried - speedUp, _carried + speedUp);
+        Absorb(change - carried);
         _frameBy = (Lead(anchor, ahead), t.ShoulderDistance);
         // Taken over the shoulder from the view the trailing left (it had no target), and eased round from there.
+        var force = false;
         if (_framing is null && !opening && _motion is { } trailed)
         {
-            var most = Rad(t.ShoulderYaws.Select(MathF.Abs).DefaultIfEmpty().Max());
-            _framing = (Math.Clamp(Shot.Wrap(trailed.Current.Yaw - behind), -most, most),
+            var widest = Rad(t.ShoulderYaws.Select(MathF.Abs).DefaultIfEmpty().Max());
+            _framing = (Math.Clamp(Shot.Wrap(trailed.Current.Yaw - behind), -widest, widest),
                 Math.Clamp(trailed.Current.Pitch, Rad(t.Pitches.Min()), Rad(t.Pitches.Max())));
-            refresh = true;
+            force = true;
         }
-        // Found again only where the character or the target is lost from it, or for a new target, and eased onto, so the shot never
-        // steps as they walk.
-        if (_framingTo is null || refresh)
+        // Found again only where the character or the target is lost from it (a new target among them), or once it's taken over the
+        // shoulder from the trailing, and eased onto, so the shot never steps as they walk.
+        if (_framingTo is null || force)
         {
             var held = _framing;
-            Frame(behind, force: refresh, judged: 2);
+            Frame(behind, force, judged: 2);
             if (held is { } h && _framing is { } found && found != h)
                 (_framingTo, _framing) = (found, h);
         }
+        // Eased onto: its turn's speed up to FramingTurn a second, changing no faster than TurnAcceleration and slowing in time to stop
+        // on it, and the shot turned with it as the orbit turns it, so the view doesn't trail in after its goal. Its pitch eases at
+        // FramingTurn.
+        var eased = 0f;
         if (_framingTo is { } to && _framing is { } now)
         {
             var step = Rad(t.FramingTurn) / 60;
             var (offset, pitch) = (Shot.Wrap(to.Offset - now.Offset), to.Pitch - now.Pitch);
-            _framing = (Shot.Wrap(now.Offset + Math.Clamp(offset, -step, step)), now.Pitch + Math.Clamp(pitch, -step, step));
-            if (MathF.Abs(offset) <= step && MathF.Abs(pitch) <= step)
-                _framingTo = null;
+            var fastest = MathF.Min(step, Stopping(MathF.Abs(offset), speedUp));
+            _easing = Math.Clamp(MathF.Sign(offset) * fastest, _easing - speedUp, _easing + speedUp);
+            eased = MathF.Sign(_easing) == MathF.Sign(offset) && MathF.Abs(_easing) >= MathF.Abs(offset) ? offset : _easing;
+            _framing = (Shot.Wrap(now.Offset + eased), now.Pitch + Math.Clamp(pitch, -step, step));
+            // Arrived, what's left of its speed goes on in the orbit's, to slow under the cap.
+            if (MathF.Abs(Shot.Wrap(to.Offset - _framing.Value.Offset)) < 1e-5f && MathF.Abs(pitch) <= step)
+                (_framingTo, _carried, _easing) = (null, _carried + eased, 0);
         }
+        else
+        {
+            _easing = 0;
+        }
+        var total = carried + eased;
         // Never turned round by itself to the front of a character who walks: no further than MostAcross from straight behind the way they
         // head, or than its last goal was, where they've turned toward it themselves (so turning them never turns it).
+        // The turn back is taken from the framing, and the shot isn't carried past it.
         if (_behind is not null && Flat(_follow.Moved) > 1e-4f && heading.LengthSquared() > 1e-6f)
         {
             var back = MathF.Atan2(-heading.X, -heading.Y);
-            var offset = _framing!.Value.Offset;
             var limit = MathF.Max(Rad(t.MostAcross), MathF.Abs(Shot.Wrap(Goal.Yaw - back)));
-            var across = Shot.Wrap(behind + offset - back);
+            var across = Shot.Wrap(behind + _framing!.Value.Offset - back);
+            // Turned toward it no faster than stops there, so it's come to softly; already turning toward it faster, as they set off, as
+            // far past it as it takes to stop.
+            if (total != 0 && MathF.Sign(total) == MathF.Sign(across))
+            {
+                if (MathF.Sign(_lastTurn) == MathF.Sign(across))
+                    limit = MathF.Max(limit, MathF.Abs(Shot.Wrap(across - total)) + _lastTurn * _lastTurn / (2 * speedUp) + MathF.Abs(_lastTurn) / 2);
+                var fastest = Stopping(MathF.Max(0, limit - MathF.Abs(across)), speedUp);
+                if (MathF.Abs(total) > fastest)
+                {
+                    var slowed = MathF.Sign(total) * fastest;
+                    Absorb(total - slowed);
+                    across = Shot.Wrap(across - (total - slowed));
+                    total = slowed;
+                }
+            }
             if (MathF.Abs(across) > limit)
-                behind = Shot.Wrap(back + MathF.Sign(across) * limit - offset);
+            {
+                var by = MathF.Sign(across) * limit - across;
+                Absorb(-by);
+                if (MathF.Sign(by) == -MathF.Sign(total))
+                    total = MathF.Abs(by) >= MathF.Abs(total) ? 0 : total + by;
+            }
         }
-        if (_behind is { } last)
-        {
-            var most = Rad(t.CarryTurn) / 60;
-            _turnBy = Math.Clamp(Shot.Wrap(behind - last.Behind), -most, most);
-        }
+        _carried = total - eased;
+        _turnBy = _lastTurn = total;
         _behind = (target, behind);
         Kind = n == 1 ? "over the shoulder" : near ? $"over the shoulder at a pack of {n}" : $"over the shoulder toward a pack of {n}";
         return FramedNow(behind);
+    }
+
+    /// <summary>
+    /// The fastest a turn may go, radians a tick, that slowing by <paramref name="slowing"/> a tick each tick still stops within
+    /// <paramref name="room"/> radians.
+    /// </summary>
+    private static float Stopping(float room, float slowing) => slowing * (MathF.Sqrt(0.25f + 2 * room / slowing) - 0.5f);
+
+    /// <summary>
+    /// Turns the framing held over the shoulder, and the one it eases to, back by <paramref name="by"/> radians: the way over the shoulder
+    /// has turned by it, and the shot doesn't.
+    /// </summary>
+    private void Absorb(float by)
+    {
+        if (by == 0)
+            return;
+        if (_framing is { } f)
+            _framing = (Shot.Wrap(f.Offset - by), f.Pitch);
+        if (_framingTo is { } g)
+            _framingTo = (Shot.Wrap(g.Offset - by), g.Pitch);
     }
 
     /// <summary>The shot with no enemy ahead (<see cref="_ahead"/>) aimed at <paramref name="lead"/>, low and near, as far as holds the character.</summary>
@@ -751,9 +845,11 @@ public sealed class EnhancedCamera
     /// <summary>
     /// An action, an AI's turn or the player's once they've chosen: one shot holding where the body stands, where it walks to, whom it
     /// acts on and whom the original's camera follows, turned least from the shot now and the next player's turn's
-    /// (<see cref="ShotFinder.Planned"/>), from the vantage's side. It's kept the whole action, carried along with the body as it walks so
-    /// it follows the walk, and planned again only if one of those leaves it. While the AI thinks (state 8, before it has acted), the shot
-    /// now stays. An action at someone further off, or a spell at an ally, is two shots instead (<see cref="Volley"/>).
+    /// (<see cref="ShotFinder.Planned"/>), from the vantage's side. It's kept the whole action, and planned again only if one of those
+    /// leaves it. The player's character walking, it's carried along with them. An AI walking, or fleeing, is shown from near where its
+    /// walk ends, turned after it (<see cref="WalkShot"/>), and that walk's last shot is the one kept. While the AI thinks (state 8, before
+    /// it has acted), the shot now stays. An action at someone further off, or a spell at an ally, is two shots instead
+    /// (<see cref="Volley"/>).
     /// </summary>
     private Shot ActionShot(Battle battle, Combatant current, Shot originalShot)
     {
@@ -766,9 +862,13 @@ public sealed class EnhancedCamera
         if (to is { } d)
             _subjects.Add(new ShotSubject(d, current.Body.ScaledRadius));
         _acted.Clear();
-        Acted(battle, ai ? current.Ai?.Target ?? -1 : battle.Target);
-        foreach (var slot in battle.TargetsB.SelectedSlots)
-            Acted(battle, slot);
+        // One fleeing acts on no one, whoever it last had in mind.
+        if (!current.Fleeing)
+        {
+            Acted(battle, ai ? current.Ai?.Target ?? -1 : battle.Target);
+            foreach (var slot in battle.TargetsB.SelectedSlots)
+                Acted(battle, slot);
+        }
         foreach (var c in _acted)
             _subjects.Add(Sphere(c.Body));
         if (battle.CameraOwner is { Freed: false } owner && owner != current && !_acted.Contains(owner))
@@ -776,18 +876,41 @@ public sealed class EnhancedCamera
         _pairs.Clear();
         foreach (var c in _acted)
             AddPair(current, c);
-        // Walking, the shot is carried with them by the point that follows them, as the player's turn's is: it follows the walk.
+        // Planned within the lens's margins, it's kept while each is anywhere on the screen, or while no more are off it than the plan
+        // couldn't help (one too far for any shot), and it's planned again at most every look.
+        var screen = Tuning.Lens with { Margin = 1, Floor = 1 };
+        // An AI walking: from near where its walk ends, turned after it, and once it's there, settling with the point that follows it
+        // onto the walk's end for the rest of its action. Planned again if where it's going moves.
+        if (ai && _followOf == current && (to is not null || _walk is { } held && held.Who == current))
+        {
+            if (to is { } end && (_walk is not { } w || w.Who != current || Flat(w.To - end) > 1))
+                _walk = PlanWalk(battle, current, end);
+            // Stopped, perhaps short of where it was going: its end framed again from the same way round where it stands, whom it acts
+            // on held in it.
+            if (to is null && _walk is { Arrived: false } stopped)
+            {
+                var planned = Shot.Of(stopped.EyeEnd, stopped.AimEnd);
+                var framed = _finder!.Framed(_subjects, planned.Yaw, planned.Pitch);
+                _walk = stopped with { To = current.Body.Sphere.Position, EyeEnd = framed.Eye, AimEnd = framed.Aim, Progress = 1, Last = null, Arrived = true };
+            }
+            var (was, walked) = (_walk!.Value.Last, WalkShot());
+            if (was is { } from)
+                _walkMoved = (from, walked);
+            _plan = (current, walked);
+            _planMissed = _subjects.Count(s => !ShotFraming.Holds(walked, s with { Radius = 0 }, screen));
+            _sinceDecide = 0;
+            Kind = (current.Fleeing ? "an AI's flight" : "an AI's walk") + (to is null ? ", ended" : ", turned after");
+            return walked;
+        }
+        _walk = null;
+        // The player's character walking, the shot is carried with them by the point that follows them, as their turn's is.
         if (to is not null && _followOf == current)
         {
             _tracking = true;
             if (_plan is { } carried && carried.Who == current)
                 _plan = (current, carried.Shot with { Aim = carried.Shot.Aim + _follow.Moved });
         }
-        // Planned within the lens's margins, it's kept while each is anywhere on the screen, or while no more are off it than the plan
-        // couldn't help (one too far for any shot), and it's planned again at most every look.
-        var screen = Tuning.Lens with { Margin = 1, Floor = 1 };
-        var kind = ai ? to is null ? "an AI's turn, planned" : "an AI's turn, following its walk"
-            : to is null ? "the player's action, planned" : "the player's action, following the walk";
+        var kind = ai ? "an AI's turn, planned" : to is null ? "the player's action, planned" : "the player's action, following the walk";
         if (_plan is { } p && p.Who == current
             && (_subjects.Count(s => !ShotFraming.Holds(p.Shot, s with { Radius = 0 }, screen)) <= _planMissed || ++_sinceDecide < Tuning.DecideEvery))
         {
@@ -809,6 +932,70 @@ public sealed class EnhancedCamera
         _sinceDecide = 0;
         _planMissed = _subjects.Count(s => !ShotFraming.Holds(shot, s with { Radius = 0 }, screen));
         Kind = kind;
+        return shot;
+    }
+
+    /// <summary>
+    /// Plans how an AI's walk (or flight) to <paramref name="to"/> is shown, with <see cref="_subjects"/> as <see cref="ActionShot"/> made
+    /// them: its end, the walker there with whom it acts on, framed from round the way it comes (<see cref="CameraTuning.WalkYaws"/>
+    /// turned from straight ahead of it, the walker coming at the eye) at <see cref="CameraTuning.PlannedPitches"/>; its start, that eye
+    /// moved back toward where it sets off by <see cref="CameraTuning.WalkPan"/> of the walk, no further than
+    /// <see cref="CameraTuning.WalkPanMost"/>, aimed at the walker. The one seeing both best, whom it acts on seen beside it as it sets
+    /// off if they can be, from the vantage's side, turning least from the shot now and to the next player's turn.
+    /// </summary>
+    private Walk PlanWalk(Battle battle, Combatant who, Vector3 to)
+    {
+        var t = Tuning;
+        var finder = _finder!;
+        var from = _follow.At;
+        var way = to - from;
+        var length = Flat(way);
+        _ends.Clear();
+        _starts.Clear();
+        _ends.Add(new ShotSubject(to, who.Body.ScaledRadius));
+        _starts.Add(new ShotSubject(from, who.Body.ScaledRadius));
+        // After the walker and where it goes: whom it acts on and whom the original's camera follows.
+        for (var i = 2; i < _subjects.Count; i++)
+        {
+            _ends.Add(_subjects[i]);
+            _starts.Add(_subjects[i] with { Weight = t.ClusterWeight });
+        }
+        var ahead = length > 1e-3f ? MathF.Atan2(way.X, way.Z) : _from;
+        var share = length > 1e-3f ? MathF.Min(t.WalkPan, t.WalkPanMost / length) : 0;
+        var next = NextYaw(battle);
+        (Shot End, float Score)? best = null;
+        foreach (var dy in t.WalkYaws)
+        {
+            foreach (var p in t.PlannedPitches)
+            {
+                var end = finder.Framed(_ends, Shot.Wrap(ahead + Rad(dy)), Rad(p));
+                var start = Shot.Of(end.Eye + share * (from - to), Lead(from, to), end.Yaw);
+                var score = finder.Seen(end, _ends, t.PlannedPitch) + finder.Seen(start, _starts, t.PlannedPitch) - finder.Sides(end, _pairs)
+                    - t.TurnCost * MathF.Abs(Shot.Wrap(start.Yaw - _from)) - t.NextTurnCost * MathF.Abs(Shot.Wrap(end.Yaw - next));
+                if (best is not { } b || score > b.Score)
+                    best = (end, score);
+            }
+        }
+        var chosen = best?.End ?? finder.Framed(_ends, ahead, Rad(t.PlannedPitch));
+        return new Walk(who, from, to, chosen.Eye, chosen.Aim, share, 0, null);
+    }
+
+    /// <summary>
+    /// An AI's walk's shot this tick (<see cref="PlanWalk"/>): the eye moved with the point that follows the walker by the walk's share of
+    /// how far it is from where it ends, aimed at them, leading the way they go, and coming onto what the end's aimed at as they near it,
+    /// so the view turns after them as they come, moving only a little, and settles on them and whom they act on as they arrive.
+    /// </summary>
+    private Shot WalkShot()
+    {
+        var w = _walk!.Value;
+        var at = _follow.At;
+        var length = Flat(w.To - w.From);
+        var progress = MathF.Max(w.Progress, length < 1e-3f ? 1 : Math.Clamp(1 - Flat(w.To - at) / length, 0, 1));
+        var eased = progress * progress * (3 - 2 * progress);
+        var eye = w.EyeEnd + w.Share * (at - w.To);
+        var aim = Vector3.Lerp(Lead(at, w.To), at + (w.AimEnd - w.To), eased);
+        var shot = Shot.Of(eye, aim, w.Last?.Yaw ?? _from);
+        _walk = w with { Progress = progress, Last = shot };
         return shot;
     }
 
@@ -834,10 +1021,28 @@ public sealed class EnhancedCamera
     {
         var t = Tuning;
         if (battle.State is not (CombatState.Facing or CombatState.Action or CombatState.Cast or CombatState.Result)
-            || battle.Target < 0 || battle.Target >= battle.Slots.Count || battle.Slots[battle.Target] is not { } target || target == current)
+            || battle.Target < 0 || battle.Target >= battle.Slots.Count || battle.Slots[battle.Target] is not { } target)
         {
             _volley = null;
             return null;
+        }
+        if (target == current)
+        {
+            // A spell that takes others lands on its caster too: that's shown close as well, cut to straight away, as it has no loosing.
+            if (_volley is { } own && own.Who == current && own.At == current)
+            {
+                Kind = "the hit, at the target";
+                return own.Shot;
+            }
+            if (battle.TargetsA.Selected != 0 || !battle.TargetsB.IsSelected(battle.Target) || battle.SpellTargetCount(current) <= 1)
+            {
+                _volley = null;
+                return null;
+            }
+            _volley = (current, current, true, 0, 0, HitShot(current, current));
+            _cutNow = true;
+            Kind = "the hit, at the target";
+            return _volley.Value.Shot;
         }
         if (_volley is not { } v || v.Who != current || v.At != target)
         {
@@ -864,7 +1069,7 @@ public sealed class EnhancedCamera
             var flown = battle.Flight is { Length: > 0 } f && Vector3.Distance(f.Position, f.From) >= f.Length * t.HitAt;
             if ((flown || loosed > t.ReleaseBeat) && shown >= t.LoosingTicks || battle.State == CombatState.Result)
             {
-                shot = HitShot(battle, current, target);
+                shot = HitShot(current, target);
                 hit = true;
                 _cutNow = true;
             }
@@ -890,23 +1095,20 @@ public sealed class EnhancedCamera
     }
 
     /// <summary>
-    /// The hit: the target close (and a spell's other targets still to come, beside it), looking along the way the missile came turned
-    /// <see cref="CameraTuning.HitTurn"/> toward the vantage's side, so it's seen three-quarters on and the missile comes in from the side
-    /// the loosing was shot from.
+    /// The hit: the target alone, close, looking along the way the missile came turned <see cref="CameraTuning.HitTurn"/> toward the
+    /// vantage's side, so it's seen three-quarters on and the missile comes in from the side the loosing was shot from. A spell's other
+    /// targets are left out, so each it lands on is shown close in its turn. On the caster themself, from the vantage.
     /// </summary>
-    private Shot HitShot(Battle battle, Combatant who, Combatant at)
+    private Shot HitShot(Combatant who, Combatant at)
     {
         var t = Tuning;
         var there = at.Body.Sphere.Position;
         _subjects.Clear();
         _subjects.Add(Sphere(at.Body));
-        _acted.Clear();
-        foreach (var slot in battle.TargetsB.SelectedSlots)
-            Acted(battle, slot);
-        foreach (var c in _acted)
+        if (who == at)
         {
-            if (c != at)
-                _subjects.Add(Sphere(c.Body) with { Weight = t.ClusterWeight });
+            var from = _vantage is { } toward ? MathF.Atan2(toward.X - there.X, toward.Y - there.Z) : _from;
+            return _finder!.Best(_subjects, from, from)?.Shot ?? _finder.Framed(_subjects, from, Rad(t.PreferredPitch));
         }
         var along = Look(who.Body.Sphere.Position, there);
         var turn = Rad(t.HitTurn);
@@ -980,13 +1182,20 @@ public sealed class EnhancedCamera
             _pairs.Add(side);
     }
 
-    /// <summary>Where a body walks to: the last corner it's queued, on the ground; null if it isn't walking.</summary>
+    /// <summary>
+    /// Where a body walks to: the last corner it's queued, or with none left the one it's heading for, on the ground; null if it isn't
+    /// walking.
+    /// </summary>
     private Vector3? Destination(Combatant c)
     {
         var body = c.Body;
-        if (body.Queued.Count == 0)
+        Vector2 goal;
+        if (body.Queued.Count > 0)
+            goal = body.Queued.Last().Goal;
+        else if (body.Moving)
+            goal = body.Goal;
+        else
             return null;
-        var (goal, _) = body.Queued.Last();
         var y = body.Sphere.Position.Y;
         var radius = body.ScaledRadius;
         return new Vector3(goal.X, Height(goal.X, goal.Y, y - radius) + radius, goal.Y);

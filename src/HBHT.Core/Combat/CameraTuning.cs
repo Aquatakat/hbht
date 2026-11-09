@@ -97,6 +97,22 @@ public sealed record CameraTuning
     public int PanMostTicks { get; init; } = 40;
 
     /// <summary>
+    /// An AI's walk, or its flight, is shown from near where it ends: the eye moves with the walker by this share of the way they walk,
+    /// no more than <see cref="WalkPanMost"/> units, and turns after them, so the view turns to face them and whom they act on as they
+    /// come rather than tracking alongside.
+    /// </summary>
+    public float WalkPan { get; init; } = 0.3f;
+
+    /// <inheritdoc cref="WalkPan"/>
+    public float WalkPanMost { get; init; } = 8;
+
+    /// <summary>
+    /// The yaws an AI's walk's end is tried from, degrees turned from straight ahead of the walker (they come at the eye); its pitches are
+    /// <see cref="PlannedPitches"/>.
+    /// </summary>
+    public float[] WalkYaws { get; init; } = [40, -40, 60, -60, 80, -80, 100, -100];
+
+    /// <summary>
     /// The caps times this while the player has the camera in their turn, so the view follows their own hand closely and still swoops,
     /// quicker, from a wide shot.
     /// </summary>
@@ -448,7 +464,7 @@ public sealed record CameraTuning
 
     /// <summary>
     /// These numbers with some set by name, as <c>AimAcceleration=20,ConeAngle=30</c>: any above, its name's case ignored. The lists
-    /// (<see cref="Pitches"/>, <see cref="Yaws"/>, <see cref="ShoulderYaws"/>, the event's and the planned's) take values joined with <c>;</c>.
+    /// (<see cref="Pitches"/>, <see cref="Yaws"/>, <see cref="ShoulderYaws"/>, <see cref="WalkYaws"/>, the event's and the planned's) take values joined with <c>;</c>.
     /// </summary>
     public CameraTuning Parse(string settings)
     {

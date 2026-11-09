@@ -423,7 +423,8 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
                 turned++;
             had = e.VantageSide != 0 ? e.VantageSide : had;
             if (battle.Current is not { } current || e.VantagePoint is not { } vantage
-                || !(e.Kind.EndsWith("planned", StringComparison.Ordinal) || e.Kind.StartsWith("loosing", StringComparison.Ordinal)))
+                || !(e.Kind.EndsWith("planned", StringComparison.Ordinal) || e.Kind.StartsWith("loosing", StringComparison.Ordinal)
+                    || e.Kind.StartsWith("an AI's walk", StringComparison.Ordinal)))
                 return;
             var slot = current.Controlled && battle.State is CombatState.AI or CombatState.Moving ? current.Ai?.Target ?? -1 : battle.Target;
             if (slot < 0 || slot >= battle.Slots.Count || battle.Slots[slot] is not { Freed: false } other || other.Hostile == current.Hostile)
@@ -694,40 +695,147 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
         Assert.Equal(onAllies, hits);
     }
 
-    [Fact]
-    public void AnAIsWalkIsFollowed()
+    [Theory]
+    [InlineData(4, "*=skip", "an AI's walk")]
+    [InlineData(0, Attacking, "an AI's flight")]
+    public void AnAIsWalkIsShownTurningAfterItFromNearWhereItEnds(int bandits, string plan, string kind)
     {
-        // The rats walk to their targets: the shot moves with each, as far as the point it follows them by.
-        var (walks, followed) = (0, 0);
-        (Combatant Who, Vector3 Point, Vector3 Aim, float Walked, float Moved)? walk = null;
-        Play(host => Plain(Set, 1, host), CameraStyle.Enhanced, Attacking, run =>
+        // Four bandits walk to the party, or the rats flee it. Each walk is shown from near where it ends: the walker on the screen every
+        // tick, the eye moving no more than WalkPan of the way they walk, the view turning after them, and it ends holding them and whom
+        // they go for.
+        var t = CameraTuning.Default;
+        var bandit = RecordId.Hex(RecordTypes.Entity, 0x025E);
+        var lens = t.Lens with { Margin = 1, Floor = 1 };
+        var (walks, lost, panned, turned, unframed) = (0, 0, 0, 0f, 0);
+        (Combatant Who, Shot Goal, Vector3 From, Vector3 At, float Eye, float Turned, bool Walking)? walk = null;
+        Combatant? target = null;
+        void Done()
+        {
+            if (walk is { } w && Flat(w.At - w.From) > 3)
+            {
+                walks++;
+                turned += w.Turned;
+                if (w.Eye > t.WalkPan * Flat(w.At - w.From) + 0.5f)
+                    panned++;
+                if (target is { Freed: false } to && !ShotFraming.Holds(w.Goal, new ShotSubject(to.Body.Sphere.Position, 0), lens))
+                    unframed++;
+            }
+            walk = null;
+        }
+        Play(host => bandits == 0 ? Plain(Set, 1, host) : Plain(Set, 1, host, [.. Enumerable.Repeat(new PartyEnemy(bandit, 1, 1), bandits)]),
+            CameraStyle.Enhanced, plan, run =>
         {
             var battle = run.Battle;
             var e = battle.CombatCamera.Enhanced!;
-            var walking = battle.Current is { Controlled: true } ai && e.Kind == "an AI's turn, following its walk" && e.FollowAt is not null
-                && e.Motion is not null;
-            if (walk is { } w && (!walking || battle.Current != w.Who))
+            // The camera steps before the battle in a tick: a walker's own action, not the next turn begun since.
+            if (!e.Kind.StartsWith(kind, StringComparison.Ordinal) || battle.Current is not { Controlled: true } me || e.FollowAt is not { } at
+                || battle.State is CombatState.AI or CombatState.Turn)
             {
-                // A walk of a unit or more, the shot moving with it most of the way.
-                if (w.Walked > 1)
-                {
-                    walks++;
-                    if (w.Moved >= w.Walked * 0.8f)
-                        followed++;
-                }
-                walk = null;
-            }
-            if (!walking)
+                Done();
                 return;
-            var (point, aim) = (e.FollowAt!.Value, e.Motion!.Current.Aim);
-            walk = walk is { } v
-                ? v with { Point = point, Aim = aim, Walked = v.Walked + Vector3.Distance(point, v.Point), Moved = v.Moved + Vector3.Distance(aim, v.Aim) }
-                : (battle.Current!, point, aim, 0, 0);
+            }
+            var g = e.Goal;
+            if (walk is { } w && w.Who == me)
+            {
+                // As they walk; once they've stopped, the end's framed again round where they stand.
+                var walking = e.Kind.EndsWith(", turned after", StringComparison.Ordinal);
+                walk = w with
+                {
+                    Goal = g, At = walking ? at : w.At, Eye = w.Eye + (walking ? Vector3.Distance(g.Eye, w.Goal.Eye) : 0),
+                    Turned = w.Turned + (walking ? MathF.Abs(Shot.Wrap(g.Yaw - w.Goal.Yaw)) : 0), Walking = walking,
+                };
+            }
+            else
+            {
+                Done();
+                walk = (me, g, at, at, 0, 0, true);
+                target = !me.Fleeing && me.Ai?.Target is int slot && slot >= 0 && slot < battle.Slots.Count ? battle.Slots[slot] : null;
+            }
+            if (!ShotFraming.Holds(g, new ShotSubject(me.Body.Sphere.Position, 0), lens))
+                lost++;
         });
-        TestContext.Current.TestOutputHelper?.WriteLine($"{walks} AI walks, {followed} followed");
+        TestContext.Current.TestOutputHelper?.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"{walks} walks: the walker off the screen on {lost} ticks, the eye moving further than its share on {panned}, turning {turned / Math.Max(1, walks) * 180 / MathF.PI:F0}° each, {unframed} ending without their target"));
         Assert.True(walks >= 5, $"{walks} walks");
-        Assert.Equal(walks, followed);
+        Assert.Equal(0, lost);
+        Assert.Equal(0, panned);
+        Assert.True(turned / walks > ShotFinder.Rad(10), $"turning {turned / walks * 180 / MathF.PI}° a walk");
+        Assert.Equal(0, unframed);
     }
+
+    [Fact]
+    public void EachTargetOfASpellThatTakesManyIsShownCloseInItsTurn()
+    {
+        // Sholeh's Solar Wrath at every rat, and Alaron's Spirit Shield on the party, Alaron among them: each it lands on is cut to close,
+        // the shot aimed at them alone, not at those still to come.
+        var (hits, close, own) = (0, 0, 0);
+        (Combatant Who, Combatant At)? shown = null;
+        // The camera steps before the battle in a tick, so it shot the target the battle had the tick before.
+        var seen = -1;
+        Play(host => Plain(Set, 1, host), CameraStyle.Enhanced, "Sholeh=spell:Solar Wrath/accept/accept/accept;Alaron=spell:Spirit Shield/accept/accept/accept;*=skip", run =>
+        {
+            var battle = run.Battle;
+            var e = battle.CombatCamera.Enhanced!;
+            var slot = seen;
+            seen = battle.Target;
+            if (battle.Current is not { Controlled: false } caster || e.Kind != "the hit, at the target" || slot < 0 || slot >= battle.Slots.Count
+                || battle.Slots[slot] is not { } at || shown == (caster, at))
+                return;
+            shown = (caster, at);
+            hits++;
+            if (at == caster)
+                own++;
+            var g = e.Goal;
+            if (Vector3.Distance(g.Aim, at.Body.Sphere.Position) < 1.5f && g.Distance <= 10)
+                close++;
+        });
+        TestContext.Current.TestOutputHelper?.WriteLine($"{hits} hits shown, {close} close on their target alone, {own} on the caster");
+        Assert.True(hits >= 6, $"{hits} hits");
+        Assert.Equal(hits, close);
+        Assert.True(own >= 1, $"{own} on the caster");
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(4)]
+    public void OverTheShoulderTheViewNeverStartsOrStopsTurningHard(int bandits)
+    {
+        // Walking at the rats or four bandits, then round them: a new target in the pack, one let go and taken again, the orbit coming to
+        // the character's side: the view shown never changes how fast it turns by more than a few times the turn's cap.
+        var t = CameraTuning.Default;
+        var bandit = RecordId.Hex(RecordTypes.Entity, 0x025E);
+        var (ticks, hard) = (0, 0);
+        (Combatant Who, int Cuts, float Yaw, float? Speed)? last = null;
+        Play(host => bandits == 0 ? Plain(Set, 1, host) : Plain(Set, 1, host, [.. Enumerable.Repeat(new PartyEnemy(bandit, 1, 1), bandits)]),
+            CameraStyle.Enhanced, "*=stick:0:1:40/stick:1:1:50/stick:-1:1:60/stick:1:0:40/wait:10/accept/accept", run =>
+            {
+                var battle = run.Battle;
+                var e = battle.CombatCamera.Enhanced!;
+                if (battle.State != CombatState.Turn || battle.Current is not { Controlled: false } me || !e.Walking || e.Motion is not { } m || e.Quick)
+                {
+                    last = null;
+                    return;
+                }
+                var yaw = m.Current.Yaw;
+                float? speed = null;
+                if (last is { } l && l.Who == me && l.Cuts == e.Cuts)
+                {
+                    speed = Shot.Wrap(yaw - l.Yaw) * 60;
+                    if (l.Speed is { } was)
+                    {
+                        ticks++;
+                        if (MathF.Abs(speed.Value - was) * 60 > ShotFinder.Rad(t.TurnAcceleration * 5))
+                            hard++;
+                    }
+                }
+                last = (me, e.Cuts, yaw, speed);
+            });
+        TestContext.Current.TestOutputHelper?.WriteLine($"{ticks} ticks walking, the turn's speed changing hard on {hard}");
+        Assert.True(ticks > 2000, $"{ticks} ticks");
+        Assert.True(hard <= ticks / 2000, $"{hard} hard of {ticks}");
+    }
+
+    private static float Flat(Vector3 v) => MathF.Sqrt(v.X * v.X + v.Z * v.Z);
 
     // ---------------------------------------------------------------------------------------------------------------------------
 

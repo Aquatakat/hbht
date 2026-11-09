@@ -101,6 +101,21 @@ public sealed class CappedMotion
             _lastGoal = last with { Yaw = Shot.Wrap(last.Yaw + by) };
     }
 
+    /// <summary>
+    /// Moves the shot by a goal's own change from <paramref name="from"/> to <paramref name="to"/> (its aim, yaw and pitch by theirs, its
+    /// distance in proportion), as it is, its speeds kept: carried along with a goal that moves with a body, so only what's left of the way
+    /// to it past that is capped.
+    /// </summary>
+    public void Follow(Shot from, Shot to)
+    {
+        Current = Moved(Current);
+        if (_lastGoal is { } last)
+            _lastGoal = Moved(last);
+
+        Shot Moved(Shot s) => new(s.Aim + (to.Aim - from.Aim), Shot.Wrap(s.Yaw + Shot.Wrap(to.Yaw - from.Yaw)), s.Pitch + (to.Pitch - from.Pitch),
+            s.Distance * (to.Distance / from.Distance));
+    }
+
     /// <summary>A tick toward <paramref name="goal"/>.</summary>
     public void Step(Shot goal)
     {
