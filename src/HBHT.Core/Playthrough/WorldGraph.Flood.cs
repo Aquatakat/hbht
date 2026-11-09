@@ -164,6 +164,10 @@ public sealed class GateFlood
         return best.TryGetValue((chunk.Row, chunk.Column), out var cell) ? Portals(set.Chain[cell]) : null;
     }
 
+    /// <summary>The fewest closed gates on a way to a cell of a map set's walk graph, or null if no way reaches it.</summary>
+    public int? CellCost(RecordId mapSet, int cell) =>
+        _byId.TryGetValue(mapSet, out var set) && set.Cost[cell] != int.MaxValue ? set.Cost[cell] : null;
+
     /// <summary>Whether the flood reached a map set at all.</summary>
     public bool Reached(RecordId mapSet) => _byId.ContainsKey(mapSet);
 
