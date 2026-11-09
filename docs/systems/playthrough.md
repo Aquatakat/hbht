@@ -45,7 +45,7 @@ A battle with the Shadow while the Horn of Kynon is held has the merge as a seco
 - ways with the same effects are merged, keeping each branch's choices (`OtherChoices`), and the pilot takes whichever the page offers;
 - a cut-scene's ways go on through its `script.ended` triggers and the cinematics they play.
 
-From a new game on NA 1.0 that is 11,168 actions over the 429 scripts something starts, with 6,655 ways. Two scripts with 23 member checks each, `0x039F` (Becan's scene) and `0x0404`, are cut at 50,000 runs, so some of their ways may be missing. Every one of the 162 ways open after the opening, played from the same save on the real runner, does to the flags and the party what its action says.
+From a new game on NA 1.0 that is 7,705 actions over the 429 scripts something starts, with 4,086 ways. An if node whose holding leads only through single-linked lines with no op changing the state, back to where its not holding leads, is a detour (`ScriptWays.Detours`): it goes the short way unasked, rather than being walked as a branch. Branches are walked shallowest first. Two scripts with 23 member checks each, `0x039F` (Becan's scene) and `0x0404` (Arturo's at the bridge), are still cut at 50,000 runs, in their deep full-party branches. Before detours, every combination of their eleven spawning checks came before the ways that mattered, and Arturo's ways (3460, 3461, joining) were missing. Every one of the 162 ways open after the opening, played from the same save on the real runner, does to the flags and the party what its action says.
 
 **The static pass** relaxes every action from a state, with nothing ever undone (FF's relaxation, `Relaxation`). What never comes true in the relaxation can't come true in any order of steps. From a new game on NA 1.0:
 
@@ -96,7 +96,7 @@ A tangible script object or tripwire goes off as the player walks past it. The p
 
 `WorldGraph` (`WorldGraph.cs`, `WalkGraph.cs`, `RouteTypes.cs`) is where the player can walk, and how he gets to the place to stand to use a map object.
 
-**Walk graphs.** Each map set has one, made from `Reach`'s exploration at the original's movement and pace (`Reach.Options.Edges`). A node is a 1×1×1 cell his feet passed over on the ground. An edge is a step he made from one cell to the next in a run, so it goes one way and is something the real `PlayerMotion` did: a ledge dropped off has a way down and none up unless some run climbed it. Each cell keeps the mean place of his feet in it (`Reach.Feet`), which is what a pilot steers for, since steering at cells' middles runs into walls' corners. A graph is made when its map set is first asked for and cached under the data folder's `cache/playthrough`, keyed by a fingerprint of the graph's format, the explorer's options and the plugins. The base plugin's file times are left out of it, so importing the same ROM again keeps the cache. From a cold cache, all 17 map sets take about 245 s serially (the Overworld about 186 s, its 1,007,448 cells 8 MB of the 9.5 MB). A warm read takes milliseconds.
+**Walk graphs.** Each map set has one, made from `Reach`'s exploration at the original's movement and pace (`Reach.Options.Edges`). A node is a 1×1×1 cell his feet passed over on the ground. An edge is a step he made from one cell to the next in a run, so it goes one way and is something the real `PlayerMotion` did: a ledge dropped off has a way down and none up unless some run climbed it. Each cell keeps the mean place of his feet in it (`Reach.Feet`), which is what a pilot steers for, since steering at cells' middles runs into walls' corners. A graph is made when its map set is first asked for and cached under the data folder's `cache/playthrough`, keyed by a fingerprint of the graph's format, the explorer's options and the plugins. The base plugin's file times are left out of it, so importing the same ROM again keeps the cache. From a cold cache, all 17 map sets take about 86 s (the Overworld's 1,007,448 cells are 8 MB of the 9.5 MB, before its toggles' ground). A warm read takes milliseconds.
 
 **Teleporters** join the map sets. There are 894 outside the Battle arenas, and 96 carry a gate that stops the way: a visibility or enabled flag, or a lock its flag opens. A tangible teleporter's lock, trap and secret are skipped, as `MapObjectUse.Touch` skips them. Traps, and secret doors needing no skill, never block, but they are reported. 42 teleporters have no reached ground within their radius, and one (`0/C09/14`) has no arrival ground, so they aren't edges. The gates are data (`RouteGate`), read against the `GameState` when a route is asked for, so one graph serves every moment of the game.
 
@@ -112,7 +112,25 @@ It returns waypoints per map set, the teleporters between them, and where to sta
 - **`Gated`**: a route exists only through closed gates. A second search lets gates through at a heavy cost, and names the fewest that block.
 - **`NotOnFoot`**: the object isn't connected even with every gate open.
 
-`CanReach(mapObject, state)` answers the planner from a flood cached per start and per state of the gates. 3,012 asks take 0.16 s.
+`CanReach(mapObject, state)` answers the planner from a flood cached per start and per state of the gates. 3,012 asks take 0.16 s. Routes, `CanReach` and the flood start from the nearest cell within 6 that some step leads on from (`WalkGraph.SnapStart`): a run sets off again from only one rest in each 2-unit start cell, so a player left beside it, as after a battle, can stand on a cell steps lead into and none out of.
+
+**Collision toggles.** The nine tripwires that change their chunk's collision (`ChangeCollisionAction`) open walls the graphs would otherwise keep shut:
+
+| Tripwire | Gate | Gated steps |
+| --- | --- | --- |
+| Overworld P24/1, the Jundar gate, the only way onto the south-east island | enabled by 480 | 32 |
+| Overworld T27/0 | enabled by 3699 | 36 |
+| Overworld D14/0 | enabled by 5533 (Arturo's scene) | 13 |
+| Chaos Isle C01/0 | enabled by 3437 | 12 |
+| Chaos Isle A07/3 | enabled by 5498 | 6 |
+| Barrows G02/0 | visible by 533 | 10 |
+| Barrows G03/5 | enabled by 533 clear | 5 |
+| Barrows G03/6 | enabled by 4279 | 8 |
+| Barrows H03/4 | enabled by 533 | 37 |
+
+Each is explored about with its tripwire taken as gone off (`Reach.Explore`'s `tripped`, which changes the toggles and their neighbours' copies as each chunk loads). The exploration starts from the ground within 6 of the toggle's triangles, and sets off again only near them or from ground no exploration has reached; a toggle beyond another, as in the Barrows, is explored from the ground the first opened. A step it made from known ground into ground only it found, or between two known cells otherwise more than 8 steps apart, is a gated step of that tripwire (`WalkGraph.GatedSteps`); the ground only it leads to is joined by ordinary steps. `WorldGraph.Toggles` holds each tripwire's own visibility and enabled gates, read against the game as a teleporter's are (`IGatedWay`). Routes, `CanReach` and the flood take a gated step only while they hold, the flood counts a toggle once per way, and a route names the toggles it crosses (`RouteLeg.Toggles`). The pilot walks across as a player does: the tripwire goes off as he comes within its radius.
+
+**Interiors** (every map set but the Overworld) are explored twice, with runs of 2 and of 10 seconds, and the two joined, since the original's sphere climbs some ramps and stairs only by pushing up them longer: Jundar's gatekeeper (11/A01/19) stands on a floor 5 above the one the doors put the player on. With both, every map set's graph is made in about 86 s.
 
 **Following a route.** The graph promises that someone walked each step, not that steering from any approach works. The original's sphere physics carries speed over lips and into pockets, so a pilot must watch for a stall (no progress for about 1.5 s) and replan from where it stands, avoiding where it stuck (`RouteOptions.Avoid`). The tests steer the real `PlayerMotion` this way:
 
@@ -121,7 +139,7 @@ It returns waypoints per map set, the teleporters between them, and where to sta
 
 **Left out:**
 
-- Toggles and triggers stand as a new game loads them, so collision that changes in play isn't modelled.
+- Story triggers on a way (a tripwire or tangible script object that plays a cut-scene) aren't gates: a route walks through them as if they set off nothing that stops it.
 - Teleporters reached by trigger triangles aren't edges.
 - Only running is tried.
 - Ground reached only some way other than `Reach.Starts` isn't in a graph.
@@ -267,11 +285,21 @@ It prints a line a step and a line a milestone, then the report. It exits 0 if t
 **Places in plans.** One flood of the walk graphs from where the player stands (`WorldGraph.Flood`) finds, for every cell, the fewest closed gates on a way to it. A teleporter costs its closed gates, read against the game's flags, derived ones included:
 
 - a lock the party's thief picks (level under 10, thief skill above it) is open;
-- a gate with no flag, or whose literal no order of steps can make true, is a wall. That is judged by a relaxation over every action, with every place reached, from the real state.
+- a gate with no flag, or whose literal nothing can make true, is a wall.
+
+The places are found in rounds (`WorldReach.Layered`), so that no gate is opened from beyond it. The first round floods with only the gates open now. Each round's relaxation takes the places that round reached as reached, and says which literals come true; the next round's flood opens those gates too. It stops when a round adds nothing: about 18 rounds and 6 s from Rheda joining. A place's way is the one the first round to get there found. Without the rounds, the shortest way to Overworld A22 went through the door 11/A01/8, locked behind 320, which only the Cradawgh's scene at A22 sets; now it goes round by D14's toggle.
 
 A place's gates (`WorldReach.Gates`) are the literals of the closed gates on its way, such as `flag 50 set` for the lock on Oriana's hut's door (6/E03/2). The relaxation and the backward chain take them as preconditions of the actions there (`QuestModel.Needs`), and the search checks them in each plan state. So a plan to a place behind a closed door first makes its flag true. From inside the hut, every place outside needs 50, and only Oriana's conversation (0x0394) sets it.
 
-A place no way reaches, however the gates stand, is off foot. The relaxation takes it as reached, since the story moves the player itself (the ambush's battle ends in the hut), but the search never steps there. A gate open now is taken to stay open. The flood takes a few seconds the first time, while it loads every graph, and about 0.1 s after.
+A place ways reach only through walls is walled, and nothing gets there. A place no way reaches at all is off foot. The relaxation takes it as reached, since the story moves the player itself (the ambush's battle ends in the hut), but the search never steps there. A gate open now is taken to stay open.
+
+**With no plan**, the run plays the relaxed plan's first helpful step it can do where it stands, with an `Unreachable` entry saying so: from Jundar's H13 after 0x03F2 the search found no state nearer the ending, though the walk into 11/A01/4 needed nothing. Such a probe step that leaves the plan's state as it was is banned where it was played.
+
+**Choices across merged ways.** The planner merges ways that do the same under conditions it can't tell apart, keeping one way's choices. So a step carries its script's ways (`PilotStep.Ways`), and on each page `WantedChoices` follows the first way whose choices so far are the ones taken: Brenna's 0x03A3 goes by node 33's menu once 18 is set, and by node 2's before.
+
+**Ticks.** A step's budget counts only the ticks the player has the controls, and the step may take four times it in all: the way from Gwernia to Erromon crosses five wanderers' battles, the first about 23,000 ticks.
+
+**Camping.** Hit points come back only by camping, inns, spells, potions and a few conversations. While a living member is below 60% of their most, the pilot opens the World tab where the player stands in trek on ground that lets the party camp, and `Resting`, a menu policy over the others, chooses Camp: the game's own camp follows, its half heal and eight hours, or its ambush. Without it, each battle's replay started the party as hurt as the last left it, until one was lost before its first turn. The flood takes a few seconds the first time, while it loads every graph, and about 0.1 s after.
 
 **Translation.** An action's place becomes the map object to use. A chunk (a world map region) becomes the nearest object that walking up to sets off nothing, used with `UseKind.Arrive`.
 
@@ -312,6 +340,8 @@ Brenna (0x03A3) and Rheda (0x039E) follow, filling the party in six steps.
 - Map sets entered are checked at a step's end.
 - The trainer rule looks only where a step leaves the player, not along its route.
 - While off-foot places are free in the relaxation, progress on foot doesn't lower the heuristic, so a search that fails takes about a minute.
+- The rounds' flood keeps each place's first-reached way; ways with other literals aren't kept as alternatives.
+- 0x0404 (Arturo's scene at the bridge) and 0x039F (Becan's) are still cut short at 50,000 runs, in their deep full-party branches, where each member present may be asked to leave. Their member checks that only spawn actors are detours (`ScriptWays.Detours`), not branches, and branches are walked shallowest first, so the ways that matter come before the cut.
 
 ## Goals and the party
 
@@ -339,6 +369,18 @@ A goal is a flag to set (`flag:<n>`), someone joining (`member`), or `ending`: t
 
 ## Where it stands
 
-From a new game toward the ending, the run fills the party in 6 steps (Abrecan, Brenna, Rheda), then stops after 7 steps and 52,297 ticks, 100 s of wall time. It played 7 battles, losing 1 first, with 9 milestones saved. Its findings:
+From a new game toward the ending, the run plays 24 steps, 898,437 ticks (about 250 game minutes), in 340 s of wall time:
 
-- **The south-east island is cut off.** The walk graphs stand on the collision a new game loads. The Overworld's collision toggle 0/P24/1 (enabled by flag 480, which 0x04A3 sets) joins the mainland to the south-east island: O25 and its interior 6/G05, the Barrows (9), and Ugarit (13 and 14). It stands 0.1 from the mainland's cells and 2.3 from the island's. Every plan to the ending needs the island, so the run stops there, from a new game and from Before Shamsuk's Tower alike. The Overworld's other collision toggles are 0/T27/0 (flag 3699) and 0/D14/0 (flag 5533).
+- It fills the party in 6 steps (Abrecan, Brenna, Rheda), reaches Erromon and the goblin camp, crosses D14's toggle as Arturo joins, and reaches Jundar, its gatekeeper and the herb (0/H12/62, 222).
+- It fights 79 battles, losing 18 first, with 2 stalemates (camp ambushes where nobody was hit for 3 minutes) and 4 deaths (Brenna, Rheda, Godric, Abrecan), and camps 35 times.
+- The party is under-levelled for the north and east: most lost-first battles and every death are there. At the herb Alaron is level 9 and Arturo 12. Walking across the world costs most: the walk from C09 to P24/3 crossed about 30 battles and ran out of its 216,000 ticks.
+
+**Where it stops.** The way from the herb to Jundar's 11/K01/2 (0x03FE) crosses the dryads' trigger at Overworld G12/5 (cut-scene 0x0531, radius 15, enabled by 5540). The scene plays each time the player walks in until its task is taken on (3647, then 1160), the default first choice doesn't take it, and the planner treats story triggers on a way as optional, so the step runs out of ticks. This looks intended in the original, a story gate, not a softlock.
+
+**No game-side findings yet.** Every blocker so far was the bot's.
+
+**Next for the bot:**
+
+- Story triggers on a way, as gates or actions.
+- Levelling: grinding goals, better builds, or less wandering.
+- The camp ambushes' stalemates, probably the AI's pathing (`ArenaGrid.FindPath`).

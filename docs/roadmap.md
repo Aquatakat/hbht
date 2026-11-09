@@ -190,14 +190,16 @@ Mostly testing rather than engineering (XL).
 
 | Slice | Size | Status |
 | --- | --- | --- |
-| Planner: actions, preconditions and effects over `QuestIndex`; the static reachability pass; steps to a goal (`QuestPlanner`) | L | Done: 11,168 actions from the real runner's ways; from a new game the ending and all 13 members are reachable; plans take every place as reachable until the run joins the world graph to them |
-| World graph: `Reach`'s cells per map set joined by teleporters, with their gates; routes to a map object (`WorldGraph`) | M | Done: 17 map sets in about 245 s, cached; 894 teleporters, 96 gated; routes walked with the real `PlayerMotion` |
+| Planner: actions, preconditions and effects over `QuestIndex`; the static reachability pass; steps to a goal (`QuestPlanner`) | L | Done: 7,705 actions over 4,086 of the real runner's ways; from a new game the ending and all 13 members are reachable; plans take every place as reachable until the run joins the world graph to them |
+| World graph: `Reach`'s cells per map set joined by teleporters, with their gates; routes to a map object (`WorldGraph`) | M | Done: 17 map sets in about 86 s, cached; 894 teleporters, 96 gated; routes walked with the real `PlayerMotion` |
 | Headless host: every `Transition` carried out as the runtime does, a new game played to trek with no input (`PlaythroughHost`) | M | Done: a new game reaches trek at I08 in 988 ticks with nobody at the controls; policies for input, pages, battles and menus |
 | Pilot: a route walked by the stick, an object used, a conversation's choice picked, the step checked (`Pilot`) | L | Done: from a new game it walks through Edur's cut-scene and the Goblin Ambush to Oriana's hut, keeping clear of other cut-scenes' objects where it can |
 | Battles: the party played by the combat AI, a loss replayed and won outright, deaths, levelling builds and trainers (`BattlePilot`) | L | Done: the AI plays the party, a loss is rewound and won outright (`LostFirst`), stalemates routed, deaths free the slot, experience spent by a build table through the real windows |
 | The run: goals with the party member's supersedes, replanning, saves at milestones, the report, `hbht playthrough run` (`Playthrough`); the world graph behind the planner's `IPlaceReach`, with a place's closed gates (`RouteRefusal.Blockers`) turned into preconditions so plans go through the doors they need opened | M | Done: from a new game the member goal leaves Oriana's hut through flag 50 and Abrecan joins in 4 steps; the party is full in 6 |
-| Collision toggles in the walk graphs, gated by their flags: 0/P24/1 (flag 480) is the only way onto the south-east island, which every plan to the ending needs, and the run stops short of it | M | In progress |
-| A full pass from a new game to the ending, and what it finds | L | |
+| Collision toggles in the walk graphs, gated by their flags: 0/P24/1 (flag 480) is the only way onto the south-east island, which every plan to the ending needs, and the run stops short of it | M | Done: the nine `changeCollision` tripwires' ground joined by gated steps; a route crosses the Jundar gate with 480 set and names it without |
+| A full pass from a new game to the ending, and what it finds | L | In progress: 24 steps, to Jundar and the herb, with no game-side findings yet; it stops at the dryads' trigger 0/G12/5 (0x0531), a story trigger the planner doesn't model |
+| Story triggers on a way as gates or actions: a cut-scene a tripwire or tangible script object plays as the player walks through, which wants its task taken on (the dryads' 0x0531 wants 3647, then 1160) | M | |
+| Levelling: the party is under-levelled for the north and east (18 battles lost first, 4 deaths); grinding goals, better builds, or less wandering | M | |
 
 ### Phase 5: Mod system and tools
 
