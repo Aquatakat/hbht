@@ -101,7 +101,7 @@ public sealed class QuestIndexTests : IDisposable
         var index = Index();
 
         Assert.Equal([new FlagUse(Flag(30), ScriptA, FlagAccess.Set, FlagRole.ScriptDone)], index.UsesOf(Flag(30)));
-        Assert.Equal([new FlagUse(Flag(31), ScriptA, FlagAccess.Set, FlagRole.ScriptBattle)], index.UsesOf(Flag(31)));
+        Assert.Equal([new FlagUse(Flag(31), ScriptA, FlagAccess.Read, FlagRole.ScriptBattle)], index.UsesOf(Flag(31)));
     }
 
     [Fact]
@@ -170,7 +170,7 @@ public sealed class QuestIndexTests : IDisposable
                 new FlagUse(Flag(20), ScriptA, FlagAccess.Set, FlagRole.ScriptOp, 1),
                 new FlagUse(Flag(20), ScriptA, FlagAccess.Clear, FlagRole.ScriptOp, 3),
                 new FlagUse(Flag(30), ScriptA, FlagAccess.Set, FlagRole.ScriptDone),
-                new FlagUse(Flag(31), ScriptA, FlagAccess.Set, FlagRole.ScriptBattle),
+                new FlagUse(Flag(31), ScriptA, FlagAccess.Read, FlagRole.ScriptBattle),
             ],
             index.UsesBy(ScriptA));
         Assert.Empty(index.UsesBy(Id("aidyn:script/0x0999")));
@@ -206,13 +206,17 @@ public sealed class QuestIndexTests : IDisposable
         Assert.Equal([new QuestEdge(Flag(60), Id("aidyn:journal/2"), FlagRole.JournalListed, FlagAccess.Read)], index.Downstream(Flag(60)));
 
         // A script is downstream of the flags it checks and upstream of the flags it changes.
-        Assert.Equal([new QuestEdge(Flag(10), ScriptA, FlagRole.ScriptOp, FlagAccess.Read)], index.Upstream(ScriptA));
+        Assert.Equal(
+            [
+                new QuestEdge(Flag(10), ScriptA, FlagRole.ScriptOp, FlagAccess.Read),
+                new QuestEdge(Flag(31), ScriptA, FlagRole.ScriptBattle, FlagAccess.Read),
+            ],
+            index.Upstream(ScriptA));
         Assert.Equal(
             [
                 new QuestEdge(ScriptA, Flag(20), FlagRole.ScriptOp, FlagAccess.Set),
                 new QuestEdge(ScriptA, Flag(20), FlagRole.ScriptOp, FlagAccess.Clear),
                 new QuestEdge(ScriptA, Flag(30), FlagRole.ScriptDone, FlagAccess.Set),
-                new QuestEdge(ScriptA, Flag(31), FlagRole.ScriptBattle, FlagAccess.Set),
             ],
             index.Downstream(ScriptA));
         Assert.Equal([new QuestEdge(Flag(10), Id("aidyn:mapobject/0/A01/0"), FlagRole.ObjectVisible, FlagAccess.Read)], index.Upstream(Id("aidyn:mapobject/0/A01/0")));
@@ -225,7 +229,7 @@ public sealed class QuestIndexTests : IDisposable
 
         // Script A checks flag 10 in two nodes.
         Assert.Equal(2, index.UsesBy(ScriptA).Count(u => u.Flag == Flag(10)));
-        Assert.Single(index.Upstream(ScriptA));
+        Assert.Single(index.Upstream(ScriptA), e => e.From == Flag(10));
         // It both sets and clears flag 20.
         Assert.Equal(2, index.Downstream(ScriptA).Count(e => e.To == Flag(20)));
         Assert.Empty(index.Upstream(Flag(0)));

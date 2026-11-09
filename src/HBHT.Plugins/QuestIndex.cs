@@ -17,7 +17,10 @@ public enum FlagRole
     ScriptOp,
     /// <summary>A script's done flag, set when it ends.</summary>
     ScriptDone,
-    /// <summary>A script's battle flag, set by winning its battle.</summary>
+    /// <summary>
+    /// A script's battle flag, by which the original keys its battle's own rules. Winning doesn't set it
+    /// (<c>BattleSetup.EncounterFlag</c>), so the use is a read.
+    /// </summary>
     ScriptBattle,
     /// <summary>
     /// Something that gives a key item, and so sets its held flag and its region flag: a script's
@@ -238,7 +241,7 @@ public sealed class QuestIndex
             if (script.DoneFlag is { } done)
                 uses.Add(new FlagUse(done, script.Id, FlagAccess.Set, FlagRole.ScriptDone));
             if (script.BattleFlag is { } battle)
-                uses.Add(new FlagUse(battle, script.Id, FlagAccess.Set, FlagRole.ScriptBattle));
+                uses.Add(new FlagUse(battle, script.Id, FlagAccess.Read, FlagRole.ScriptBattle));
         }
 
         foreach (var flag in plugins.All<FlagRecord>(RecordTypes.Flag))

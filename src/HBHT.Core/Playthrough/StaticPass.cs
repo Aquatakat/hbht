@@ -138,7 +138,7 @@ public sealed class StaticPass
         var sets = uses.Where(u => u.Access == FlagAccess.Set).ToList();
         if (sets.Count == 0)
             return new UnreachableFlag(flag, NeverSet.NothingSetsIt, read, read ? "read, never set" : "never used");
-        var scriptRoles = new[] { FlagRole.ScriptOp, FlagRole.ScriptDone, FlagRole.ScriptBattle, FlagRole.MemberAdded, FlagRole.MemberRemoved };
+        var scriptRoles = new[] { FlagRole.ScriptOp, FlagRole.ScriptDone, FlagRole.MemberAdded, FlagRole.MemberRemoved };
         var byScript = sets.Where(u => scriptRoles.Contains(u.Role) || u.Role == FlagRole.ItemGiven && u.By.Type == "script").ToList();
         if (byScript.Count == sets.Count)
         {

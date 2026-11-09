@@ -147,7 +147,7 @@ public partial class AtlasView : VBoxContainer
         {
             FlagRole.ScriptOp => use.Access == FlagAccess.Read ? "a check" : "an op",
             FlagRole.ScriptDone => "the end",
-            FlagRole.ScriptBattle => "winning the battle",
+            FlagRole.ScriptBattle => "keying its battle's rules",
             FlagRole.ItemGiven => "giving a key item",
             FlagRole.ItemTaken => "taking a key item",
             FlagRole.KeyItem => "the key item, gained",
