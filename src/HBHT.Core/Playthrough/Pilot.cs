@@ -23,6 +23,7 @@ namespace HBHT.Core.Playthrough;
 /// fails <see cref="StepFailure.Blocked"/>, teaching the triggers that way. Not watched if null.
 /// </param>
 /// <param name="Dress">What puts better gear on the party from the inventory, checked as <paramref name="Rest"/> is; never if null.</param>
+/// <param name="Waits">Whether a way shut only by gates the hour opens is waited for where the player stands; never if null.</param>
 /// <param name="SidestepTicks">
 /// How long the player steps aside after a stall before the way is asked for again: to one side, the other, back, and between, in turn.
 /// </param>
@@ -45,7 +46,8 @@ public sealed record PilotOptions(
     Resting? Rest = null,
     StoryTriggers? Triggers = null,
     Outfitting? Dress = null,
-    int SidestepTicks = 30)
+    int SidestepTicks = 30,
+    Func<RouteRefusal, bool>? Waits = null)
 {
     public static readonly PilotOptions Default = new();
 }
@@ -121,9 +123,10 @@ public sealed class Pilot : IInputPolicy
                 }
                 // The budget is the player's: a long way through wanderers' battles, each some minutes, isn't a step gone wrong. All told
                 // a step may take a few times it.
-                if (control)
+                // Waiting for the hour a gate opens at isn't the step's budget either.
+                if (control && walk.WaitTicks == 0)
                     controlled++;
-                if (controlled >= mostTicks || host.Clock.Ticks - start >= mostTicks * WholeBudget)
+                if (controlled >= mostTicks || host.Clock.Ticks - start - walk.Waited >= mostTicks * WholeBudget)
                 {
                     walk.Fail(StepFailure.OutOfTicks, $"{(controlled >= mostTicks ? $"{mostTicks} ticks with the controls" : $"{mostTicks * WholeBudget} ticks")} ran out, " +
                         $"{(walk.Used ? "used, its consequences playing" : walk.Arrived ? "arrived, not used" : "on the way")}");
@@ -225,7 +228,10 @@ public sealed class Pilot : IInputPolicy
             ScriptObject so => trek.Cued?.Script.Id == so.Plays || trek.Conversation?.Runner.Script.Id == so.Plays
                 || session.Scene?.Runner.Script.Id == so.Plays,
             TeleporterObject => trek.Teleporting && inRange,
-            // A tripwire goes off every tick he's within it, in its chunk.
+            // A tripwire that writes a flag has gone off once it's written: it goes off only where the chunk's grid lists it under the
+            // player, so standing at the edge of its radius may not set it off, and he goes on to its middle (Barrows B01/0).
+            TripwireObject { Used: { } used } => host.Game.Flags.IsSet(used.Flag) != used.Clear,
+            // Else every tick he's within it, in its chunk.
             TripwireObject => inRange && trek.Chunks.MapAt(sphere)?.Record.Id == walk.Chunk!.Id,
             _ => false,
         };
@@ -263,6 +269,14 @@ public sealed class Pilot : IInputPolicy
         {
             walk.SidestepTicks--;
             return new TickInput(new PlayerInput(StickFor(aside, trek.Camera.LookXZ)), []);
+        }
+        // Waiting where he stands for a gate the hour opens.
+        if (walk.WaitTicks > 0)
+        {
+            walk.Waited++;
+            if (--walk.WaitTicks == 0)
+                walk.Replan = true;
+            return TickInput.None;
         }
         if (walk.Replan && !Plan(host, walk, new Place(set, feet)))
             return TickInput.None;
@@ -347,6 +361,13 @@ public sealed class Pilot : IInputPolicy
         {
             walk.Avoid.Clear();
             result = _graph.Route(host.Game, from, walk.Step.MapObject, new RouteOptions(Options.PickLocks));
+        }
+        // Shut only by gates the hour opens (the Burial Chamber's door in Ugarit2 A05 opens at night): he waits, up to a day.
+        if (!result.Found && result.Refusal is { Kind: RefusalKind.Gated } gated && Options.Waits?.Invoke(gated) == true && walk.Waited < MostWait)
+        {
+            walk.WaitTicks = WaitStep;
+            walk.Plans--;
+            return false;
         }
         if (!result.Found)
         {
@@ -509,6 +530,12 @@ public sealed class Pilot : IInputPolicy
     private static void AvoidEnd(Walk walk, RouteLeg leg, Vector3 feet) =>
         Avoid(walk, leg.MapSet, leg.Waypoints.Count > 0 ? leg.Waypoints[^1] : feet);
 
+    /// <summary>How long the player waits before the way is asked for again, when only the hour shuts it: a game hour.</summary>
+    private const int WaitStep = (int)(Calendar.GameClock.Hour / Calendar.GameClock.DaySpeed);
+
+    /// <summary>The longest the player waits for the hour to open a way: a game day, 20 minutes of play.</summary>
+    private const long MostWait = Calendar.GameClock.Day / Calendar.GameClock.DaySpeed;
+
     /// <summary>The turns from the way wanted that each stall's step aside takes, in turn: to the sides, back, and between.</summary>
     private static readonly float[] SidestepAngles = [90, -90, 180, 45, -45, 135, -135];
 
@@ -559,6 +586,8 @@ public sealed class Pilot : IInputPolicy
         public int DirectOff;
         public (RecordId Set, Vector3 Feet)? Last;
 
+        public int WaitTicks;
+        public long Waited;
         public Vector2? Sidestep;
         public int SidestepTicks;
         public RecordId? Cued;

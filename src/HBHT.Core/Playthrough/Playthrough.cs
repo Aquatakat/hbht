@@ -72,6 +72,8 @@ public sealed class Playthrough
     private string? _beforePath;
     private bool _memberResting;
     private PassGoal? _passing;
+    private readonly HashSet<PlanState> _unbanned = [];
+    private readonly HashSet<BattleFought> _told = [];
     private readonly Dictionary<int, int> _rerolls = [];
 
     /// <summary>How many times a step whose Troubadour check went against it is played again.</summary>
@@ -215,6 +217,15 @@ public sealed class Playthrough
                         Ban(probe, state);
                     if (!probed.Done && (failures[goal] = failures.GetValueOrDefault(goal) + 1) >= Options.MostFailures)
                         why = $"{Options.MostFailures} steps in a row failed";
+                    continue;
+                }
+                // With nothing left to try, the steps banned where it stands are tried once more: what failed may have failed for where
+                // the player stood, or a moment's chance, as a tripwire walked into at the edge of its radius.
+                if (steps.Count == 0 && _bannedIn.TryGetValue(state, out var bannedHere) && bannedHere.Count > 0 && _unbanned.Add(state))
+                {
+                    Entry(EntryKind.Unreachable, null, Goal.Describe(),
+                        $"no step towards it; the {bannedHere.Count} step(s) that failed here are tried again", fromStep: false);
+                    _bannedIn.Remove(state);
                     continue;
                 }
                 if (steps.Count == 0)
@@ -474,7 +485,7 @@ public sealed class Playthrough
         }
         else
         {
-            var pilot = new Pilot(Graph, PilotOptions.Default with { PickLocks = translated.PickLocks, Rest = Resting, Triggers = Triggers, Dress = Outfitting });
+            var pilot = new Pilot(Graph, PilotOptions.Default with { PickLocks = translated.PickLocks, Rest = Resting, Triggers = Triggers, Dress = Outfitting, Waits = WaitsForTheHour });
             outcome = pilot.Run(Host, pilotStep, Math.Min(Options.StepTicks, Math.Max(1, Options.MostTicks - (Host.Clock.Ticks - _startTicks))));
             var expect = pilotStep.Expect ?? [];
             // Done by the way: what it was for came about though the pilot didn't use it (an encounter caught the party first).
@@ -517,6 +528,18 @@ public sealed class Playthrough
         Host.RunUntilControl(Options.StepTicks);
         Progress?.Invoke("     saved and loaded where the player stood");
         return true;
+    }
+
+    /// <summary>
+    /// Whether a way the route found shut is shut only by gates the hour opens: each gate's flag is closed now, and the planner, which
+    /// takes the flags the engine writes (the calendar) as either value, says it can open. The Burial Chamber's door in Ugarit2 A05 is
+    /// locked behind derived 5022, which the time of day (5283) opens.
+    /// </summary>
+    private bool WaitsForTheHour(RouteRefusal refusal)
+    {
+        var state = PlanState.From(Model, Game);
+        return refusal.Blockers.Count > 0 && refusal.Blockers.All(g => g.Flag is { } flag && Model.Flags.TryHandle(flag, out var h)
+            && Model.Flags.Kind(h) == FlagKind.Derived && state.Holds(new FlagIs(flag, !g.Invert)));
     }
 
     /// <summary>The report's entries for what the pilot's outcome says went differently.</summary>
@@ -572,7 +595,9 @@ public sealed class Playthrough
     private void AfterStep(PlayerAction? action, Before before, long startTick)
     {
         var game = Game;
-        foreach (var fought in Host.BattlesFought.Skip(before.Battles))
+        // Battles over since the last step's: one still playing as a step runs out is told once it's over, undone or not.
+        var ended = Host.BattlesFought.Where(b => b.Ended is not null && _told.Add(b)).ToList();
+        foreach (var fought in ended)
         {
             var name = fought.Setup.Party?.ToString() ?? fought.Setup.Source.ToString();
             if (fought.LostFirst)
@@ -606,7 +631,7 @@ public sealed class Playthrough
             milestones.Add((MilestoneKind.Joined, $"{Name(joined)} joined"));
         }
         var died = Model.Members.Where(m => game.Flags.IsSet(m.Value.Died) && !before.Died.Contains(m.Key)).Select(m => m.Key)
-            .Union(Host.BattlesFought.Skip(before.Battles).Where(b => b.Outcome != Combat.BattleOutcome.Lost && !b.Undone).SelectMany(b => b.Deaths)).Distinct();
+            .Union(ended.Where(b => b.Outcome != Combat.BattleOutcome.Lost && !b.Undone).SelectMany(b => b.Deaths)).Distinct();
         foreach (var dead in died)
             milestones.Add((MilestoneKind.Died, $"{Name(dead)} died"));
         foreach (var entry in _journal.Where(f => game.Flags.IsSet(f) && !before.Journal.Contains(f)).OrderBy(f => f.Key.Length).ThenBy(f => f.Key, StringComparer.Ordinal))
@@ -653,7 +678,7 @@ public sealed class Playthrough
                 continue;
             if (Graph.Route(Game, here, id) is not { Route: { } route } || route.Length > Options.TrainerReach * 1.5f)
                 continue;
-            var walk = new Pilot(Graph, PilotOptions.Default with { Rest = Resting, Triggers = Triggers, Dress = Outfitting }).Run(Host, new PilotStep(id, UseKind.Arrive), Options.StepTicks);
+            var walk = new Pilot(Graph, PilotOptions.Default with { Rest = Resting, Triggers = Triggers, Dress = Outfitting, Waits = WaitsForTheHour }).Run(Host, new PilotStep(id, UseKind.Arrive), Options.StepTicks);
             if (!walk.Done || !Host.PlayerHasControl)
                 return;
             var bought = Levelling.Train(Host, trainer);

@@ -153,6 +153,7 @@ Each is explored about with its tripwire taken as gone off (`Reach.Explore`'s `t
 - a waypoint is passed within 0.8 across the ground, looking up to 3 ahead;
 - a stall is 1.5 s without getting 0.2 nearer, after which it steps aside for half a second (to one side of the way it wanted, the other, back, and between, in turn) and replans from there, avoiding where it stuck: walking straight at a lip the sphere doesn't climb moves him nowhere at all, as in EhudUnder's C03 below the teleporter C03/3, where the walk graph's step up was made from another approach;
 - it also replans whenever trek gets the controls back (after a cut-scene, a conversation, a battle a wanderer started, a menu or a teleport), when the map set changes, and when the player jumps more than 3 in a tick;
+- where a route is refused only by gates the hour opens (each gate's flag closed now, and derived, and the planner, which takes the calendar's flags either way, says it can open), it waits where it stands a game hour at a time, up to a game day, and asks again: the Burial Chamber's door in Ugarit2 A05 is locked behind derived 5022, which night (5283, the time of day) opens; the waiting isn't counted against the step's budget;
 - it gives up after 10 stalls or 40 replans.
 
 **Keeping clear.** By default a route keeps out of the radius of every other enabled, tangible script object in its chunks (`RouteOptions.KeepClear`), so a step plays what it was asked to and not the story's cut-scenes on the way. Where it can't, it lets the triggers the plain route crosses be.
@@ -160,7 +161,7 @@ Each is explored about with its tripwire taken as gone off (`Reach.Explore`'s `t
 **Teleporters and use.** At the end of a leg, a tangible teleporter is walked into, and any other gets an A once trek's own weighing (`MapObjectUse.Reach`) would pick it. The step's object is used the same way:
 
 - a container, sign, door or save point by A once A would reach it (`NotUsed` after 5 s in range);
-- a tangible object by walking to its middle;
+- a tangible object by walking to its middle; a tripwire that writes a flag counts as used once the flag is written, since it goes off only where the chunk's grid lists it under the player, and the edge of its radius may not (Barrows B01/0);
 - an npc or encounter by steering at its body once it's within 10, since it wanders, and pressing A once A reaches it.
 
 The step is done once trek has had the controls for a second after the use, so whatever it started (a conversation, cut-scenes, a battle, loot) has played out by the host's policies.
@@ -305,7 +306,7 @@ A place's gates (`WorldReach.Gates`) are the literals of the closed gates on its
 
 A place ways reach only through walls is walled, and nothing gets there. A place no way reaches at all is off foot. The relaxation takes it as reached, since the story moves the player itself (the ambush's battle ends in the hut), but the search never steps there. A gate open now is taken to stay open.
 
-**With no plan**, the run plays the relaxed plan's first helpful step it can do where it stands, with an `Unreachable` entry saying so: from Jundar's H13 after 0x03F2 the search found no state nearer the ending, though the walk into 11/A01/4 needed nothing. Such a probe step that leaves the plan's state as it was is banned where it was played.
+**With no plan**, the run plays the relaxed plan's first helpful step it can do where it stands, with an `Unreachable` entry saying so: from Jundar's H13 after 0x03F2 the search found no state nearer the ending, though the walk into 11/A01/4 needed nothing. Such a probe step that leaves the plan's state as it was is banned where it was played. With no probe either, the steps banned in the state the run stands in are tried once more before it gives up, since what failed may have failed for where the player stood.
 
 **Choices across merged ways.** The planner merges ways that do the same under conditions it can't tell apart, keeping one way's choices. So a step carries its script's ways (`PilotStep.Ways`), and on each page `WantedChoices` follows the first way whose choices so far are the ones taken: Brenna's 0x03A3 goes by node 33's menu once 18 is set, and by node 2's before.
 
