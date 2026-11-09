@@ -62,7 +62,6 @@ public sealed class Playthrough
     private readonly Dictionary<RecordId, uint> _trained = [];
     private readonly Dictionary<Goal, List<PlayerAction>> _rest = [];
     private readonly Stopwatch _wall = new();
-    private Relaxation? _everywhere;
     private int _saves;
     private int _step;
     private string? _before;
@@ -326,18 +325,10 @@ public sealed class Playthrough
     }
 
     /// <summary>
-    /// The world graph behind the planner's places, from where the player stands: a gate whose literal can't come true from here
-    /// by any order of steps, as the relaxation over every action with every place reached says, is a wall.
+    /// The world graph behind the planner's places, from where the player stands, found in rounds (<see cref="WorldReach.Layered"/>): a gate
+    /// opens only once a relaxation over the places got to so far makes its literal true.
     /// </summary>
-    private WorldReach MakeReach(PlanState state)
-    {
-        Model.Reach = Everywhere.Instance;
-        _everywhere ??= new Relaxation(Model, Enumerable.Range(0, Model.Actions.Count));
-        var open = _everywhere.Run(state);
-        var reach = new WorldReach(Graph, Game, Here() ?? Graph.PlaceOf(Game), l => Model.Fact(l) is not { } f || open.Reached(f));
-        Model.Reach = reach;
-        return reach;
-    }
+    private WorldReach MakeReach(PlanState state) => WorldReach.Layered(Model, Graph, Game, state, Here() ?? Graph.PlaceOf(Game));
 
     private Place? Here() => Host.Session is { Mode: GameMode.Trek } s ? new Place(s.Trek.Chunks.MapSet.Id, s.Trek.Player.Feet) : null;
 

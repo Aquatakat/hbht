@@ -5,20 +5,27 @@ using HBHT.Plugins.Records;
 namespace HBHT.Core.Playthrough;
 
 /// <summary>
-/// The world graph behind the planner's places (<see cref="IPlaceReach"/>), from where the player stands in a real game. One flood
+/// The world graph behind the planner's places (<see cref="IPlaceReach"/>), from where the player stands in a real game. A flood
 /// (<see cref="WorldGraph.Flood"/>) finds the way to every place with the fewest closed gates the plan could open; a place's
-/// <see cref="Gates"/> are those gates' literals (a locked door's flag set, a teleporter's enabled flag), which the planner takes as the
-/// preconditions of the actions there, so a plan to a place behind a closed door first makes its flag true. A gate whose literal can't
-/// come true by any order of steps (<c>canOpen</c>), or a lock with no flag the party can't pick, is a wall. A lock the party's thief
-/// can pick (<see cref="CanPick"/>) is open, picked on the way.
+/// <see cref="Gates"/> are those gates' literals (a locked door's flag set, a teleporter's enabled flag, a collision toggle's tripwire
+/// enabled), which the planner takes as the preconditions of the actions there, so a plan to a place behind a closed door first makes
+/// its flag true. A gate whose literal can't come true (<c>canOpen</c>), or a lock with no flag the party can't pick, is a wall. A lock
+/// the party's thief can pick (<see cref="CanPick"/>) is open, picked on the way.
 /// </summary>
 /// <remarks>
+/// <para>
+/// Which gates can open is found in rounds (<see cref="Layered"/>): the first round's flood opens only the gates open now, and each
+/// round's relaxation, taking the places that round's flood gets to as reached, says which literals come true, so the next round's
+/// flood opens those gates too, until a round opens nothing more. A place's way is the one the first round to get there found, so its
+/// gates were opened from places got to before it: nothing opens a door from beyond it (11/A01/8, whose flag 320 is set beyond it, opens
+/// only once another way, through D14's collision toggle, gets to where 320 is set).
+/// </para>
 /// <para>
 /// A place no way on foot reaches, however the gates stand, is <see cref="OffFoot"/>: the story takes the player to some places
 /// itself (the Goblin Ambush's battle ends in Oriana's hut), and the graph has no edge for a teleporter only a trigger triangle names,
 /// or with no reached ground about it. Such a place needs nothing in the relaxation, so a goal beyond it still has a relaxed plan, but
 /// the search can't step there (<see cref="CanReach"/> is false): a plan makes the progress it can on foot, and the run replans once
-/// the story has moved the player.
+/// the story has moved the player. A place ways get to only through walls is <see cref="Walled"/>, and nothing gets there.
 /// </para>
 /// <para>
 /// The flood reads the gates against the game's flags as they stand, derived ones included (<see cref="RouteGate.Closed"/> on the
@@ -31,7 +38,8 @@ public sealed class WorldReach : IPlaceReach
 {
     private readonly GameState _game;
     private readonly Dictionary<RecordId, (IReadOnlyList<Literal>? Literals, IReadOnlyList<RouteGate> Gates, bool Picks)> _known = [];
-    private readonly Func<Literal, bool>? _canOpen;
+    private readonly List<(GateFlood Flood, Func<Literal, bool>? CanOpen)> _rounds = [];
+    private GateFlood? _anyWay;
 
     /// <param name="graph">The world graph.</param>
     /// <param name="game">The real game, whose flags the gates are read against and whose party picks locks.</param>
@@ -41,24 +49,76 @@ public sealed class WorldReach : IPlaceReach
     {
         Graph = graph;
         _game = game;
-        _canOpen = canOpen;
         From = from;
-        Flood = graph.Flood(from, Toll);
+        Add(canOpen);
     }
 
     public WorldGraph Graph { get; }
 
     public Place From { get; }
 
-    public GateFlood Flood { get; }
+    /// <summary>The last round's flood.</summary>
+    public GateFlood Flood => _rounds[^1].Flood;
 
-    /// <summary>What a teleporter costs: its closed gates the plan can open, or null for a wall.</summary>
-    private int? Toll(IGatedWay portal)
+    /// <summary>How many rounds of floods it took.</summary>
+    public int Rounds => _rounds.Count;
+
+    private void Add(Func<Literal, bool>? canOpen)
+    {
+        _rounds.Add((Graph.Flood(From, way => Toll(way, canOpen)), canOpen));
+        _known.Clear();
+    }
+
+    /// <summary>The most rounds <see cref="Layered"/> takes.</summary>
+    public const int MostRounds = 64;
+
+    /// <summary>
+    /// The reach in rounds (see the remarks), put on <paramref name="model"/>: each round's flood opens the gates whose literals the
+    /// relaxations so far reached, until a round reaches nothing new.
+    /// </summary>
+    public static WorldReach Layered(QuestModel model, WorldGraph graph, GameState game, PlanState state, Place from, Action<string>? log = null)
+    {
+        var reached = new bool[model.FactCount];
+        var reach = new WorldReach(graph, game, from, _ => false);
+        var all = Enumerable.Range(0, model.Actions.Count).ToList();
+        for (var round = 1; ; round++)
+        {
+            model.Reach = new Opened(reach);
+            var result = new Relaxation(model, all).Run(state);
+            var grew = 0;
+            for (var f = 0; f < reached.Length; f++)
+            {
+                if (result.FactLayer[f] >= 0 && !reached[f])
+                {
+                    reached[f] = true;
+                    grew++;
+                }
+            }
+            log?.Invoke($"round {round}: {grew} facts more, {reached.Count(r => r)} in all");
+            if (grew == 0 || round >= MostRounds)
+                break;
+            var known = (bool[])reached.Clone();
+            reach.Add(l => model.Fact(l) is not { } f || known[f]);
+        }
+        model.Reach = reach;
+        return reach;
+    }
+
+    /// <summary>The reach so far as the relaxation between rounds takes it: a place the floods get to needs nothing.</summary>
+    private sealed class Opened(WorldReach reach) : IPlaceReach
+    {
+        public bool CanReach(RecordId place, PlanState state) => reach.CanReach(place, state);
+
+        public IReadOnlyList<Literal>? Gates(RecordId place) => reach.Gates(place) is null ? null : [];
+    }
+
+    /// <summary>What a teleporter or toggle costs: its closed gates the plan can open, or null for a wall.</summary>
+    private int? Toll(IGatedWay portal, Func<Literal, bool>? canOpen)
     {
         var cost = 0;
         foreach (var gate in portal.Gates)
         {
-            switch (Judge(gate))
+            switch (Judge(gate, canOpen))
             {
                 case GateState.Wall:
                     return null;
@@ -78,13 +138,13 @@ public sealed class WorldReach : IPlaceReach
         Wall,
     }
 
-    private GateState Judge(RouteGate gate)
+    private GateState Judge(RouteGate gate, Func<Literal, bool>? canOpen)
     {
         if (!gate.Closed(_game.Flags))
             return GateState.Open;
         if (gate.Kind == GateKind.Locked && CanPick(_game.Party, gate.Level))
             return GateState.Picked;
-        if (Literal(gate) is not { } literal || _canOpen?.Invoke(literal) == false)
+        if (Literal(gate) is not { } literal || canOpen?.Invoke(literal) == false)
             return GateState.Wall;
         return GateState.Closed;
     }
@@ -99,36 +159,56 @@ public sealed class WorldReach : IPlaceReach
     public static bool CanPick(Party party, int level) =>
         level < 10 && party.MostSkilled(Skill.Thief) is { } thief && Math.Min(thief.Skills.Modified(Skill.Thief), 10) - 1 >= level;
 
+    /// <summary>The way to a place the first round to get there found, judged by that round: its closed gates, and whether it picks a lock.</summary>
     private (IReadOnlyList<Literal>? Literals, IReadOnlyList<RouteGate> Gates, bool Picks) Look(RecordId place)
     {
         if (_known.TryGetValue(place, out var known))
             return known;
-        var portals = place.Type == RecordTypes.Chunk ? Flood.ToChunk(place) : Flood.To(place);
-        if (portals is null)
-            return _known[place] = (null, [], false);
-        var gates = new List<RouteGate>();
-        var picks = false;
-        foreach (var gate in portals.SelectMany(p => p.Gates))
+        foreach (var (flood, canOpen) in _rounds)
         {
-            switch (Judge(gate))
+            var ways = place.Type == RecordTypes.Chunk ? flood.ToChunk(place) : flood.To(place);
+            if (ways is null)
+                continue;
+            var gates = new List<RouteGate>();
+            var picks = false;
+            foreach (var gate in ways.SelectMany(p => p.Gates))
             {
-                case GateState.Closed:
-                    gates.Add(gate);
-                    break;
-                case GateState.Picked:
-                    picks = true;
-                    break;
+                switch (Judge(gate, canOpen))
+                {
+                    case GateState.Closed:
+                        gates.Add(gate);
+                        break;
+                    case GateState.Picked:
+                        picks = true;
+                        break;
+                }
             }
+            IReadOnlyList<Literal> literals = [.. gates.Select(Literal).OfType<Literal>().Distinct()];
+            return _known[place] = (literals, gates, picks);
         }
-        IReadOnlyList<Literal> literals = [.. gates.Select(Literal).OfType<Literal>().Distinct()];
-        return _known[place] = (literals, gates, picks);
+        return _known[place] = (null, [], false);
     }
 
-    /// <summary>The closed gates' literals on the way to a place; none for one off foot, which the relaxation takes as reached.</summary>
-    public IReadOnlyList<Literal>? Gates(RecordId place) => Look(place).Literals ?? [];
+    /// <summary>
+    /// The closed gates' literals on the way to a place; none for one off foot, which the relaxation takes as reached; null for one
+    /// that ways reach only through walls (<see cref="Walled"/>), which nothing gets to.
+    /// </summary>
+    public IReadOnlyList<Literal>? Gates(RecordId place) => Look(place).Literals ?? (Walled(place) ? null : []);
 
     /// <summary>Whether no way on foot reaches a place from where the player stands, however the gates stand.</summary>
-    public bool OffFoot(RecordId place) => Look(place).Literals is null;
+    public bool OffFoot(RecordId place) => Look(place).Literals is null && !Walled(place);
+
+    /// <summary>
+    /// Whether ways on foot reach a place, but only through walls: gates whose literals no order of steps makes true. Such a place
+    /// isn't taken as reached, as one off foot is, since the graph knows how it's got to and that it can't be.
+    /// </summary>
+    public bool Walled(RecordId place)
+    {
+        if (Look(place).Literals is not null)
+            return false;
+        _anyWay ??= Graph.Flood(From, _ => 0);
+        return (place.Type == RecordTypes.Chunk ? _anyWay.ToChunk(place) : _anyWay.To(place)) is not null;
+    }
 
     /// <summary>The closed gates on the way to a place with the fewest, for reports; empty if it's open or can't be reached.</summary>
     public IReadOnlyList<RouteGate> Blockers(RecordId place) => Look(place).Gates;

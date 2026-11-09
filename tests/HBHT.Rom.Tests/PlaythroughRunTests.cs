@@ -83,6 +83,30 @@ public sealed class PlaythroughRunTests(Na10Import fixture, ITestOutputHelper ou
     }
 
     [Fact]
+    public void InRoundsNoGateIsOpenedFromBeyondIt()
+    {
+        // From a new game, the Cradawgh's scene at Overworld A22/6 sets 320, which unlocks the door 11/A01/8 on the shortest way to
+        // A22. Found in rounds, that door stays a wall, and A22's way goes round by D14's collision toggle, which Arturo's scene opens.
+        var (model, graph) = Built;
+        var game = GameState.NewGame(Data.Set);
+        try
+        {
+            var reach = WorldReach.Layered(model, graph, game, PlanState.From(model, game), graph.PlaceOf(game), output.WriteLine);
+            var cradawgh = Ids.MapObject(0, "A22", 6);
+            var gates = reach.Gates(cradawgh);
+            Assert.NotNull(gates);
+            Assert.DoesNotContain(new FlagIs(Ids.Flag(320), true), gates);
+            Assert.Contains(reach.Blockers(cradawgh), g => g.Object == Ids.MapObject(0, "D14", 0));
+            // The south-east island is beyond the Jundar gate.
+            Assert.Contains(new FlagIs(Ids.Flag(480), true), reach.Gates(Ids.MapObject(0, "O25", 135))!);
+        }
+        finally
+        {
+            model.Reach = Everywhere.Instance;
+        }
+    }
+
+    [Fact]
     public void FromANewGameTheMemberGoalPlaysThroughTheAmbushAndOutOfOrianasHutUntilSomeoneJoins()
     {
         var host = PlaythroughHost.NewGame(Data.Set);
