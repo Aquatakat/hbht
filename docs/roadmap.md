@@ -194,7 +194,7 @@ Mostly testing rather than engineering (XL).
 | World graph: `Reach`'s cells per map set joined by teleporters, with their gates; routes to a map object (`WorldGraph`) | M | Done: 17 map sets in about 245 s, cached; 894 teleporters, 96 gated; routes walked with the real `PlayerMotion` |
 | Headless host: every `Transition` carried out as the runtime does, a new game played to trek with no input (`PlaythroughHost`) | M | Done: a new game reaches trek at I08 in 988 ticks with nobody at the controls; policies for input, pages, battles and menus |
 | Pilot: a route walked by the stick, an object used, a conversation's choice picked, the step checked (`Pilot`) | L | Done: from a new game it walks through Edur's cut-scene and the Goblin Ambush to Oriana's hut, keeping clear of other cut-scenes' objects where it can |
-| Battles: the party played by the combat AI, a loss replayed and won outright, deaths, levelling builds and trainers (`BattlePilot`) | L | In progress |
+| Battles: the party played by the combat AI, a loss replayed and won outright, deaths, levelling builds and trainers (`BattlePilot`) | L | Done: the AI plays the party, a loss is rewound and won outright (`LostFirst`), stalemates routed, deaths free the slot, experience spent by a build table through the real windows |
 | The run: goals with the party member's supersedes, replanning, saves at milestones, the report, `hbht playthrough run` (`Playthrough`); the world graph behind the planner's `IPlaceReach`, with a place's closed gates (`RouteRefusal.Blockers`) turned into preconditions so plans go through the doors they need opened | M | In progress |
 | A full pass from a new game to the ending, and what it finds | L | |
 

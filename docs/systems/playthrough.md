@@ -171,6 +171,45 @@ Elsewhere, an npc 122 away in Gwernia is talked to in 1,978 ticks, and a chest t
 - A consequence starting more than a second after trek gets the controls back counts in the next step.
 - A door's lock and trap popups are left to the menu policy.
 
+## Battles
+
+`BattlePilot` (`BattlePilot.cs`) plays the party as the original's combat AI plays the enemies. As a battle begins, it hands every party-side combatant to the AI (`Battle.PlayByAi`). Each member gets an AI record from their sheet, as Sholeh is given one, and chooses targets, spells and walks by the same styles and scores. As with Sholeh, the AI's casts take no reagent, and a thrown flask isn't taken from the inventory. The bot never flees: the AI's flight is the enemies' alone.
+
+**No blasts.** The members' blast spells are taken from their AI's action slots (`CastsBlasts` gives them back). The AI aims a Fireball at the opponents' midst, whoever of its own side stands there, and a count that catches more of its own side wraps the score byte to the best of all ([combat-ai](combat-ai.md)). A member's Fireball took the whole party with it.
+
+**Losing.** A battle is lost as the original loses one: every member down, or Alaron dead (`TurnOrder.Advance`, `Combat.Defeat`), with the game over's script following. A non-lethal battle ends `Spared` and isn't a loss. To rewind:
+
+1. As trek cues a battle, on its last tick before `BeginBattle` (`IBattlePolicy.Cued`), the pilot notes the player's place and keeps a save.
+2. On a loss, the host starts again on that save once the tick is over (`PlaythroughHost.Restart`), and cues the same setup.
+3. The replay is won on the party's first turn, through the game's own victory (`Battle.ForceWin`).
+
+So the flag, the gold, the experience, the post-battle windows and trek where the battle began each come once, and anyone who died in the lost battle is alive again. The replay's `BattleFought` is marked `LostFirst`, the report's sign that the party is under-levelled there. A replay lost again is left to end the game, and noted.
+
+**Stalemates.** The AI walks by the original's greedy path (`ArenaGrid.FindPath`), which any pocket stops. Against a player that rarely matters, but two AIs who both find no way rest turn after turn: a new game's Alaron and B06's Ogre do, in arena 16/E03. A battle is routed and won outright, marked `Stalemate`, when either holds:
+
+- nobody's hit points change for three minutes (`QuietTicks`);
+- it goes on half an hour (`MostTicks`).
+
+**Deaths.** A member who dies holds their slot until the battle ends. Then they leave the party as in the original (`GameState.BringOutYourDead`, `Party.AfterBattle`): their died flag is set, their joined flag stays, and their gear goes to the inventory ([characters](characters.md)). `Party.HasEmptySlot()` counts only the living, so the run sees the slot at once. `BattleFought.Deaths` lists who died in each battle.
+
+**Levelling.** Experience is spent only where the game lets it be ([characters](characters.md#training)):
+
+- in the post-battle window, on attributes, skills above 0 and spells already known;
+- at a trainer, on what they teach, for less experience and some gold.
+
+`Levelling` (`Levelling.cs`), a menu policy over the host's default, does both through the windows' own presses, so the game's rules decide every purchase. What it buys is each member's build (`Builds.cs`, a table a mod can replace):
+
+| Build | Fits | Leans on |
+| --- | --- | --- |
+| Mage | Wizard 2 or more, and above Warrior | Wizard, spells, Intelligence, Stamina, Willpower |
+| Spellsword | Wizard 1 or more | the weapon, Warrior, Strength, Stamina, then Wizard and spells, a shield |
+| Rogue | Thief 3 or more, and above Warrior | the weapon, Dexterity, Thief, Stamina, Stealth |
+| Fighter | anyone | the weapon, Warrior, Strength, Stamina, Endurance, a shield |
+
+The first build that fits is chosen afresh each time from the member's own skills, so any recruit gets one. Each build is in tiers of lines such as "Wizard to 4". In the lowest tier with anything buyable there, the cheapest affordable thing is bought, and a tier whose wants can't yet be afforded is saved for. No one learns more than five spells, since the AI fights with only the first five. `Levelling.Train(host, trainer)` buys at a trainer what the builds want, within the gold less `GoldReserve`. Everything bought is in `Bought`, and anything a window refused in `Refused`.
+
+**How it fares.** From the user's checkpoints, whose parties carry 400,000 to 800,000 unspent experience a member, the AI-played party wins the early Overworld's battles, but loses most mid-game ones. Before Shamsuk's Tower it lost all 9 mid-game encounters tried. It also spends many turns on resistance spells. A run that levels as it goes should lose fewer. Spending a large hoard takes about 2,000 ticks of the post-battle window, so the run raises the host's `MenuPatience`.
+
 ## The headless host
 
 `PlaythroughHost` (`PlaythroughHost.cs`, `.Transitions.cs`, `.Presses.cs`) owns a `GameSession` and steps it as `Game.Tick` and `_Process` do, without drawing:
