@@ -16,7 +16,7 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 ### Next
 
-**M4: the prologue** is done: the user played it side by side with the emulator, what differed is fixed, and the user has played the fixes. Next, by the phases' order, is **Phase 4: content parity**.
+**M4: the prologue** is done: the user played it side by side with the emulator, what differed is fixed, and the user has played the fixes. Next, by the phases' order, is **Phase 4: content parity**, starting with [the playthrough bot](#the-playthrough-bot), which plays the game headless to a goal so one tester can check a full game.
 
 ### Left over from finished work
 
@@ -183,6 +183,20 @@ Mostly testing rather than engineering (XL).
 - Use the quest atlas as a checklist: every flag reachable, every journal entry obtainable.
 - Rules parity: shops, trainers, loot tables and camp encounters for each area.
 - Decide which of the original's bugs to keep or fix, one at a time and with no toggle ([ADR 0018](adr/0018-the-port-fixes-bugs-and-sets-enhancements.md)), such as the `CheckPartyGoldU16` truncation and the crash when `TakeItem` runs on an item the party doesn't have. (The spell auras' turn cycle is settled: the original's by default, each character's as the `SpellAuras` setting.)
+
+#### The playthrough bot
+
+`hbht playthrough`: the game played headless from a start to a goal, reporting where plan and game part ways, with saves along the way to play from by hand ([playthrough](systems/playthrough.md)). Started Nov 9, 2026, built slice by slice by subagents; a slice is done when its tests pass and it's merged into main.
+
+| Slice | Size | Status |
+| --- | --- | --- |
+| Planner: actions, preconditions and effects over `QuestIndex`; the static reachability pass; steps to a goal (`QuestPlanner`) | L | In progress |
+| World graph: `Reach`'s cells per map set joined by teleporters, with their gates; routes to a map object (`WorldGraph`) | M | In progress |
+| Headless host: every `Transition` carried out as the runtime does, a new game played to trek with no input (`PlaythroughHost`) | M | In progress |
+| Pilot: a route walked by the stick, an object used, a conversation's choice picked, the step checked (`Pilot`) | L | |
+| Battles: the party played by the combat AI, a loss replayed and won outright, deaths, levelling builds and trainers (`BattlePilot`) | L | |
+| The run: goals with the party member's supersedes, replanning, saves at milestones, the report, `hbht playthrough` (`Playthrough`) | M | |
+| A full pass from a new game to the ending, and what it finds | L | |
 
 ### Phase 5: Mod system and tools
 
