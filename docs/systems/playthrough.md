@@ -126,6 +126,51 @@ It returns waypoints per map set, the teleporters between them, and where to sta
 - Only running is tried.
 - Ground reached only some way other than `Reach.Starts` isn't in a graph.
 
+## The pilot
+
+`Pilot` (`Pilot.cs`, `PilotStep.cs`, `WantedChoices.cs`, `GameSnapshot.cs`) plays one step in a host's session, as its `IInputPolicy`. A step (`PilotStep`) is a map object to use, how to use it, the choices wanted in what it starts, and what it should leave so. It knows nothing of the planner's actions; the run translates between them.
+
+**Steering.** The stick is read along the trek camera's look: `PlayerMotion.Control` turns it by `LookXZ`, a rotation that is its own inverse. So the way the pilot wants to go becomes a stick through the camera's current look (`StickFor`). It walks the world graph's route:
+
+- a waypoint is passed within 0.8 across the ground, looking up to 3 ahead;
+- a stall is 1.5 s without getting 0.2 nearer, after which it replans, avoiding where it stuck;
+- it also replans whenever trek gets the controls back (after a cut-scene, a conversation, a battle a wanderer started, a menu or a teleport), when the map set changes, and when the player jumps more than 3 in a tick;
+- it gives up after 10 stalls or 40 replans.
+
+**Keeping clear.** By default a route keeps out of the radius of every other enabled, tangible script object in its chunks (`RouteOptions.KeepClear`), so a step plays what it was asked to and not the story's cut-scenes on the way. Where it can't, it lets the triggers the plain route crosses be.
+
+**Teleporters and use.** At the end of a leg, a tangible teleporter is walked into, and any other gets an A once trek's own weighing (`MapObjectUse.Reach`) would pick it. The step's object is used the same way:
+
+- a container, sign, door or save point by A once A would reach it (`NotUsed` after 5 s in range);
+- a tangible object by walking to its middle;
+- an npc or encounter by steering at its body once it's within 10, since it wanders, and pressing A once A reaches it.
+
+The step is done once trek has had the controls for a second after the use, so whatever it started (a conversation, cut-scenes, a battle, loot) has played out by the host's policies.
+
+**Choices and the check.** `WantedChoices` takes the choices wanted, keyed by script and node, and leaves every other page to the host's default:
+
+- a wanted choice the page doesn't offer is recorded, with what it did offer;
+- a wanted choice whose page never came up is listed as not reached.
+
+`GameSnapshot` takes the plain flags, the members, the inventory and the gold before and after. The outcome lists what was expected and doesn't hold (`Misses`), and what changed that wasn't expected (`Unexpected`). The unexpected changes are information, not failure.
+
+**Outcome.** A `StepOutcome` says the step was done, or why not: `NoRoute` (with the graph's refusal), `Stuck`, `NotUsed`, `OutOfTicks` or `GameOver`. It also carries the ticks, replans, stalls, changes, and the transitions, pages and battles it saw.
+
+**How the story leaves I08.** The Goblin Ambush's starters are all enabled by derived flag 5466: flag 45 set and 11 clear. Only Edur's cut-scene (0x0391, script object I08/4) sets 45. The opening leaves the player on raised ground, and its only way off passes within about 6 of that object. Then every way on to the ambush crosses one of Alaron's cut-scene's objects (0x0364: I08/8, I08/11, H08/5), so nothing can be kept clear of from a new game, and the story plays as it does for a player. Played from a new game:
+
+1. Edur's object: 1,884 ticks, no replans.
+2. The ambush's object I08/16: 9,905 ticks, two replans. In order: Alaron's cut-scene, a wanderer's battle won outright, the ambush, its battle spared, and Oriana's two cut-scenes. It ends in trek in her hut, whose door (6/E03/2) is locked behind flag 50.
+
+Elsewhere, an npc 122 away in Gwernia is talked to in 1,978 ticks, and a chest through a door is opened in 1,294 ticks with two replans and its loot taken. A step takes well under a second of wall time once the Overworld's graph is loaded.
+
+**Left out:**
+
+- Script objects that only trigger triangles name aren't kept clear of.
+- An npc whose placement has no reached ground near it is refused by the graph, even where its body can be reached.
+- Only running is used, never sneaking.
+- A consequence starting more than a second after trek gets the controls back counts in the next step.
+- A door's lock and trap popups are left to the menu policy.
+
 ## The headless host
 
 `PlaythroughHost` (`PlaythroughHost.cs`, `.Transitions.cs`, `.Presses.cs`) owns a `GameSession` and steps it as `Game.Tick` and `_Process` do, without drawing:
