@@ -399,7 +399,7 @@ public sealed partial class WorldGraph
             return Refuse(RefusalKind.NoStandingPlace, $"No ground the player reached within {range:0.##} of {mapObject}.");
         var goalCells = stand.ToDictionary(s => s.Cell, s => s.Distance);
 
-        if (_plugins.TryGet<MapSetRecord>(from.MapSet) is null || Walk(from.MapSet).Snap(from.Feet, 6) is not { } startCell)
+        if (_plugins.TryGet<MapSetRecord>(from.MapSet) is null || Walk(from.MapSet).SnapStart(from.Feet, 6) is not { } startCell)
             return Refuse(RefusalKind.StartOffGraph, $"{from.Feet} in {from.MapSet} isn't on a walk graph.");
 
         var found = Search(state, from.MapSet, startCell, chunk.MapSet, goalCells, target, range, pick, options, tolerate: false);
@@ -639,7 +639,7 @@ public sealed partial class WorldGraph
             if (_closures.TryGetValue(text, out var known))
                 return known;
         }
-        if (Walk(from.MapSet).Snap(from.Feet, 6) is not { } startCell)
+        if (Walk(from.MapSet).SnapStart(from.Feet, 6) is not { } startCell)
             return null;
         var visited = new Dictionary<RecordId, bool[]> { [from.MapSet] = new bool[Walk(from.MapSet).Count] };
         var queue = new Queue<(RecordId Set, int Cell)>();

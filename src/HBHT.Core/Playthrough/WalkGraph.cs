@@ -149,6 +149,27 @@ public sealed class WalkGraph
         return best;
     }
 
+    /// <summary>
+    /// The cell to start a way from at a place: the nearest, as <see cref="Snap"/> finds it, that some step leads on from. A run only
+    /// set off again from one rest in each start cell (<see cref="Reach.Options.StartCell"/>), so where one came to rest beside it is a
+    /// cell steps lead into and none out of, and a way from it goes nowhere.
+    /// </summary>
+    public int? SnapStart(Vector3 feet, float within = 4)
+    {
+        int? best = null;
+        var bestDistance = float.MaxValue;
+        foreach (var i in Near(feet.X, feet.Z, within))
+        {
+            if (_start[i + 1] == _start[i] && !_gated.ContainsKey(i))
+                continue;
+            var c = Center(i);
+            var d = new Vector3(c.X - feet.X, (c.Y - feet.Y) * 2, c.Z - feet.Z).Length();
+            if (d <= within && d < bestDistance)
+                (best, bestDistance) = (i, d);
+        }
+        return best ?? Snap(feet, within);
+    }
+
     /// <summary>What the pilot follows from one cell to another: how far apart their middles are.</summary>
     public float Length(int from, int to) => Vector3.Distance(Center(from), Center(to));
 

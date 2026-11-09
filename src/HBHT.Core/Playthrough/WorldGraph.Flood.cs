@@ -15,7 +15,7 @@ public sealed partial class WorldGraph
     public GateFlood Flood(Place from, Func<IGatedWay, int?> toll)
     {
         var flood = new GateFlood(this);
-        if (_plugins.TryGet<MapSetRecord>(from.MapSet) is null || Walk(from.MapSet).Snap(from.Feet, 6) is not { } startCell)
+        if (_plugins.TryGet<MapSetRecord>(from.MapSet) is null || Walk(from.MapSet).SnapStart(from.Feet, 6) is not { } startCell)
             return flood;
         var tolls = new int?[Portals.Count + Toggles.Count];
         for (var w = 0; w < tolls.Length; w++)
