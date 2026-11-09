@@ -67,8 +67,28 @@ public sealed class Outfitting(IMenuPolicy? inner = null) : IMenuPolicy
         return true;
     }
 
+    /// <summary>Whether the next shop opened is shopped in: what's better than the party has is bought, then the shop left.</summary>
+    public bool Shopping
+    {
+        get => _shopping;
+        set => (_shopping, _presses, _buying) = (value, 0, null);
+    }
+
+    private bool _shopping;
+
+    /// <summary>The gold kept back from shopping.</summary>
+    public uint GoldReserve { get; set; } = 1000;
+
+    /// <summary>Everything bought at shops, in order.</summary>
+    public List<string> Bought { get; } = [];
+
+    private RecordId? _buying;
+    private readonly HashSet<RecordId> _unbought = [];
+
     public MenuAction Press(PlaythroughHost host, PauseMenu menu)
     {
+        if (Shopping && menu.Tab == PauseTab.Party && menu.Window is BarterMenu { Shop: { } shop } barter)
+            return Shop(host, barter, shop);
         if (!_wanted || menu.Tab != PauseTab.Party || menu.Window is not PartyMenu party)
             return Inner.Press(host, menu);
         if (++_presses > 2000)
@@ -130,6 +150,75 @@ public sealed class Outfitting(IMenuPolicy? inner = null) : IMenuPolicy
     }
 
     public int? Popup(PlaythroughHost host, TrekPopup popup) => Inner.Popup(host, popup);
+
+    /// <summary>
+    /// In a shop: the stock's row that gains the party most over the best it has of its kind (<see cref="Gain"/>), within the gold less
+    /// <see cref="GoldReserve"/>, is bought by the stick to the stock, its row and A, one at a time; then B leaves. Outfitting puts it on
+    /// after.
+    /// </summary>
+    private MenuAction Shop(PlaythroughHost host, BarterMenu barter, Shop shop)
+    {
+        if (++_presses > 2000)
+        {
+            Shopping = false;
+            return MenuAction.Back;
+        }
+        if (barter.HasPopup)
+        {
+            // Refused (the gold, a full inventory): not asked again.
+            if (_buying is { } refused)
+                _unbought.Add(refused);
+            _buying = null;
+            return MenuAction.Accept;
+        }
+        var party = barter.Party.Party;
+        var gold = party.Gold > GoldReserve ? party.Gold - GoldReserve : 0;
+        var rows = barter.Pile.Rows;
+        var (row, best) = (-1, Least);
+        for (var i = 0; i < rows.Count; i++)
+        {
+            var item = rows[i].Item;
+            if (_unbought.Contains(item.Id) || shop.BuyPrice(rows[i].Instance) > gold)
+                continue;
+            if (Gain(party, item) is var gain && gain > best)
+                (row, best) = (i, gain);
+        }
+        _buying = null;
+        if (row < 0)
+        {
+            Shopping = false;
+            return MenuAction.Back;
+        }
+        if (!barter.OnPile)
+            return MenuAction.Left;
+        if (barter.Pile.Cursor != row)
+            return barter.Pile.Cursor < row ? MenuAction.Down : MenuAction.Up;
+        _buying = rows[row].Item.Id;
+        Bought.Add($"{host.Clock.Ticks} {rows[row].Item.Name} for {shop.BuyPrice(rows[row].Instance)} gold (+{best:0.#})");
+        return MenuAction.Accept;
+    }
+
+    /// <summary>
+    /// What an item would gain the party: the most it's worth to a living member who can use it, over the best of its kind they wear or
+    /// the inventory holds for them.
+    /// </summary>
+    public float Gain(Party party, Item item)
+    {
+        var best = 0f;
+        foreach (var member in party.Members.Where(m => !m.IsDead))
+        {
+            if (!CanUse(member, item) || Worth(member, item) is not { } worth)
+                continue;
+            var have = Replaces(member, item) is { } worn ? Worth(member, worn.Item) ?? 0 : 0;
+            foreach (var stack in party.Inventory.Stacks)
+            {
+                if (stack.Item.Kind == item.Kind && CanUse(member, stack.Item) && Worth(member, stack.Item) is { } carried)
+                    have = Math.Max(have, carried);
+            }
+            best = Math.Max(best, worth - have);
+        }
+        return best;
+    }
 
     /// <summary>
     /// The best thing to put on: the member and the carried item that gains most over what it replaces, by <see cref="Worth"/>, of what

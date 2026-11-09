@@ -19,6 +19,10 @@ namespace HBHT.Core.Playthrough;
 /// <param name="WriteSaves">Whether saves are written at all.</param>
 /// <param name="TrainerReach">How far, in units of walking, a trainer may be from where a step leaves the player to be visited.</param>
 /// <param name="GoldReserve">The gold kept back from training.</param>
+/// <param name="ShopReach">
+/// How far a shop may be from where a step leaves the player to be visited, 1.5 times it of walking: further than a trainer, since the
+/// shops are in the towns' interiors, where nothing wanders.
+/// </param>
 /// <param name="MenuPatience">How long the pause menu may stay open: long, for spending a battle's experience.</param>
 public sealed record RunOptions(
     long MostTicks = long.MaxValue,
@@ -30,7 +34,8 @@ public sealed record RunOptions(
     bool WriteSaves = true,
     float TrainerReach = 40,
     uint GoldReserve = 300,
-    int MenuPatience = 60 * 60 * 10)
+    int MenuPatience = 60 * 60 * 10,
+    float ShopReach = 150)
 {
     public static readonly RunOptions Default = new();
 }
@@ -74,6 +79,8 @@ public sealed class Playthrough
     private PassGoal? _passing;
     private readonly HashSet<PlanState> _unbanned = [];
     private readonly HashSet<BattleFought> _told = [];
+    private readonly Dictionary<RecordId, List<PlayerAction>> _shops = [];
+    private readonly Dictionary<RecordId, uint> _shopped = [];
     private readonly Dictionary<int, int> _rerolls = [];
 
     /// <summary>How many times a step whose Troubadour check went against it is played again.</summary>
@@ -112,6 +119,13 @@ public sealed class Playthrough
                     && ways.Ways.Any(w => w.End == ScriptEndKind.Train))
                     _trainers.Add((chunk.ObjectId(npc.Index), npc.Entity));
             }
+        }
+        // The npcs whose conversation has a way that opens their shop, with those ways.
+        foreach (var action in model.Actions.Where(a => a is { Kind: ActionKind.Talk, Buys: null, Place: { } } && a.Way?.End == ScriptEndKind.Shop))
+        {
+            if (!_shops.TryGetValue(action.Place!.Value, out var ways))
+                _shops[action.Place.Value] = ways = [];
+            ways.Add(action);
         }
     }
 
@@ -244,6 +258,7 @@ public sealed class Playthrough
                     failures[goal] = 0;
                     _rest[goal] = steps.Skip(1).ToList();
                     VisitTrainer();
+                    VisitShop();
                 }
                 else
                 {
@@ -690,6 +705,65 @@ public sealed class Playthrough
             return;
         }
     }
+
+    /// <summary>
+    /// After a step done, a shop within <see cref="RunOptions.ShopReach"/> of walking from where it left the player, whose keeper's
+    /// conversation has a way to it that can be taken now, and whose stock has something better than the party has of its kind
+    /// (<see cref="Outfitting.Gain"/>) within the gold less its reserve, is walked up to and talked to by that way; the shop policy buys
+    /// (<see cref="Outfitting.Shopping"/>), and the pilot's dressing puts it on. A shop isn't visited again until the party has more gold
+    /// than when it last was.
+    /// </summary>
+    private void VisitShop()
+    {
+        if (!Host.PlayerHasControl || Here() is not { } here)
+            return;
+        var party = Game.Party;
+        if (party.Gold <= Outfitting.GoldReserve)
+            return;
+        var gold = party.Gold - Outfitting.GoldReserve;
+        var catalog = party.Inventory.Catalog;
+        PlanState? state = null;
+        foreach (var (id, actions) in _shops)
+        {
+            if (_shopped.TryGetValue(id, out var at) && party.Gold <= at)
+                continue;
+            var chunk = Model.Plugins.Get<ChunkRecord>(ChunkRecord.ChunkOf(id));
+            if (chunk.MapSet != here.MapSet || chunk.Object(ChunkRecord.IndexOf(id)) is not NpcObject npc)
+                continue;
+            var at3 = Model.Plugins.Get<MapSetRecord>(chunk.MapSet).Origin(chunk) + npc.Position;
+            if (System.Numerics.Vector3.Distance(at3, here.Feet) > Options.ShopReach
+                || WorldGraph.ObjectGates(id, npc).Any(g => g.Closed(Game.Flags))
+                || Items.Shop.For(Model.Plugins.All<ShopRecord>(RecordTypes.Shop), npc.Entity) is not { } shop
+                || !shop.Stock.Any(s => catalog[s.Item] is var item && item.Price * 3 / 2 <= gold && Outfitting.Gain(party, item) > Outfitting.Least))
+                continue;
+            state ??= PlanState.From(Model, Game);
+            if (actions.FirstOrDefault(state.CanDo) is not { } action
+                || StepTranslation.Translate(action, Model, Game, Graph) is not { Step: { } step, Unmet.Count: 0 })
+                continue;
+            if (Graph.Route(Game, here, id) is not { Route: { } route } || route.Length > Options.ShopReach * 1.5f)
+                continue;
+            _shopped[id] = party.Gold;
+            var bought = Outfitting.Bought.Count;
+            Outfitting.Shopping = true;
+            try
+            {
+                new Pilot(Graph, PilotOptions.Default with { Rest = Resting, Triggers = Triggers, Dress = Outfitting, Waits = WaitsForTheHour })
+                    .Run(Host, step with { Expect = [] }, Options.StepTicks);
+            }
+            finally
+            {
+                Outfitting.Shopping = false;
+            }
+            foreach (var b in Outfitting.Bought.Skip(bought))
+                Report.Purchases.Add($"bought {b}");
+            Shops++;
+            Progress?.Invoke($"     shopped with {Name(npc.Entity)} at {id}: {Outfitting.Bought.Count - bought} bought");
+            return;
+        }
+    }
+
+    /// <summary>How many times a shop was visited.</summary>
+    public int Shops { get; private set; }
 
     /// <summary>How many times a trainer was visited.</summary>
     public int Trainings { get; private set; }

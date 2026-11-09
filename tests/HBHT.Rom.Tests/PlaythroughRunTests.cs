@@ -193,6 +193,34 @@ public sealed class PlaythroughRunTests(Na10Import fixture, ITestOutputHelper ou
         Assert.DoesNotContain(gone.Played, s => s.Action.Effects.Contains(new Join(dead.Entity)));
     }
 
+    [Fact]
+    public void AtAShopTheBestGainsAreBoughtByTheShopsPresses()
+    {
+        // Before Rooughah, in Terminor, at the fighters' shop (STTE02, 8/A07/2, which sells the Helm of Defense): its keeper's way to the
+        // shop is talked through, and with Shopping set the barter window buys from the stock what gains the party most over what it has, with the
+        // party's gold, by its presses; then the shop is left.
+        var (model, graph) = Built;
+        var host = PlaythroughHost.From(AtCheckpoint("Before Rooughah, in Terminor"));
+        Assert.Equal(HostRun.Done, host.RunUntilControl(10_000));
+        var outfitting = new Outfitting { GoldReserve = 0 };
+        host.Menus = new Levelling(outfitting);
+        host.Game.Party.Gold = 100_000;
+        var keeper = Ids.MapObject(8, "A07", 2);
+        var state = PlanState.From(model, host.Game);
+        var action = model.Actions.First(a => a.Place == keeper && a.Kind == ActionKind.Talk && a.Way?.End == Core.Scripts.ScriptEndKind.Shop && state.CanDo(a));
+        var step = StepTranslation.Translate(action, model, host.Game, graph).Step!;
+        outfitting.Shopping = true;
+        var outcome = new Pilot(graph).Run(host, step with { Expect = [] }, 30_000);
+        foreach (var b in outfitting.Bought)
+            output.WriteLine(b);
+        Assert.True(outcome.Done, outcome.Reason);
+        Assert.Contains(outcome.Transitions, t => t.Transition is Transition.OpenShop);
+        Assert.NotEmpty(outfitting.Bought);
+        Assert.True(host.Game.Party.Gold < 100_000);
+        Assert.False(outfitting.Shopping);
+        Assert.True(host.PlayerHasControl);
+    }
+
     // Yeraza in the Overworld's C08 (script 1476).
     private static readonly RecordId Yeraza = Ids.MapObject(0, "C08", 31);
 
