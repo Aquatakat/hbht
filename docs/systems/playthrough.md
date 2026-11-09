@@ -239,7 +239,7 @@ The first build that fits is chosen afresh each time from the member's own skill
 
 Weapons that fly, rings, scrolls and wands are left as they are. What it put on is in the report's purchases as `wore`.
 
-**Shops.** After a step that's done, as with trainers, a shopkeeper is visited if they're within 40 of the player (60 of walking), their gates are open, a way through their conversation that opens the shop can be taken now, and their stock has something that gains the party more than half a point over the best of its kind it wears or carries (`Outfitting.Gain`) for one and a half times its price, within the gold less a reserve of 1,000. The pilot talks to them by that way, and `Outfitting`, with `Shopping` set, buys in the shop by its own presses (the stick to the stock, the row, A), the best gain first, one at a time, until nothing more is worth it; the dressing puts it on after. A shop isn't visited again until the party has more gold than when it last was. What was bought is in the report's purchases as `bought`. Before it, the party fought the whole game in what it joined with: at the Lighthouse Alaron had a Short Sword and Leather Armor, with Warfang, Partial Platemail and a Scorpion Shield in the inventory and 63,000 gold.
+**Shops.** After a step that's done, as with trainers, a shopkeeper is visited if they're within 150 of the player (225 of walking: the shops are in the towns' interiors, where nothing wanders), their gates are open, a way through their conversation that opens the shop can be taken now, and their stock has something that gains the party more than half a point over the best of its kind it wears or carries (`Outfitting.Gain`) for one and a half times its price, within the gold less a reserve of 1,000. The pilot talks to them by that way, and `Outfitting`, with `Shopping` set, buys in the shop by its own presses (the stick to the stock, the row, A), the best gain first, one at a time, until nothing more is worth it; the dressing puts it on after. A shop isn't visited again until the party has more gold than when it last was. What was bought is in the report's purchases as `bought`. Before it, the party fought the whole game in what it joined with: at the Lighthouse Alaron had a Short Sword and Leather Armor, with Warfang, Partial Platemail and a Scorpion Shield in the inventory and 63,000 gold.
 
 **How it fares.** From the user's checkpoints, whose parties carry 400,000 to 800,000 unspent experience a member, the AI-played party wins the early Overworld's battles, but loses most mid-game ones. Before Shamsuk's Tower it lost all 9 mid-game encounters tried. It also spends many turns on resistance spells. A run that levels as it goes should lose fewer. Spending a large hoard takes about 2,000 ticks of the post-battle window, so the run raises the host's `MenuPatience`.
 
@@ -404,18 +404,25 @@ A goal is a flag to set (`flag:<n>`), someone joining (`member`), or `ending`: t
 
 ## Where it stands
 
-From a new game toward the ending, the run plays 24 steps, 898,437 ticks (about 250 game minutes), in 340 s of wall time:
+From a new game the run reaches the ending: the Coronation of Alaron plays and the ending's credits roll. It plays 84 steps, 4,122,658 ticks (about 1,145 game minutes), in about 600 s of wall time (the run is deterministic: the same plugins play the same run).
 
-- It fills the party in 6 steps (Abrecan, Brenna, Rheda), reaches Erromon and the goblin camp, crosses D14's toggle as Arturo joins, and reaches Jundar, its gatekeeper and the herb (0/H12/62, 222).
-- It fights 79 battles, losing 18 first, with 2 stalemates (camp ambushes where nobody was hit for 3 minutes) and 4 deaths (Brenna, Rheda, Godric, Abrecan), and camps 35 times.
-- The party is under-levelled for the north and east: most lost-first battles and every death are there. At the herb Alaron is level 9 and Arturo 12. Walking across the world costs most: the walk from C09 to P24/3 crossed about 30 battles and ran out of its 216,000 ticks.
+- It fills the party in 6 steps (Abrecan, Brenna, Rheda), and reaches Erromon (step 7), the goblin camp, Jundar (16) and the herb (22), Port Saiid and the Lighthouse (27), Terminor (36), EhudUnder (38), Ugarit (48), the Barrows (51), the Shadow's merge (80), Roog's cave and Rooughah's naming (82), and the last scenes at Gwernia castle (84).
+- It fights 273 battles: 55 lost first and 31 won with a member dead, each played again and won outright; 4 stalemates; no deaths in battle stand; Niesen's death in EhudUnder is the story's. It camps 59 times, trains once, shops at 4 shopkeepers (5 bought) and puts on better gear 49 times.
+- The party at its milestones: Alaron 2 as Rheda joins; 12 at the herb; 13 at Terminor as Niesen joins; 16 at Ugarit; 18 at the Shadow's merge; 19 at the ending, with Brenna and Rheda 18 and Abrecan 16. The user's own game had Alaron at 14 before Shamsuk's Tower and 20 before Rooughah.
+- The lost-first battles cluster on the long walks: 17 of them on the walk from the goblin camp's C09 to the Jundar gate (P24/3) at level 7, and most of the rest in EhudUnder.
 
-**Where it stops.** The way from the herb to Jundar's 11/K01/2 (0x03FE) crosses the dryads' trigger at Overworld G12/5 (cut-scene 0x0531, radius 15, enabled by 5540). The scene plays each time the player walks in until its task is taken on (3647, then 1160), the default first choice doesn't take it, and the planner treats story triggers on a way as optional, so the step runs out of ticks. This looks intended in the original, a story gate, not a softlock.
+**Blockers met, in order** (every one the bot's):
 
-**No game-side findings yet.** Every blocker so far was the bot's.
+1. The dryads' scene at G12/5 turned the player back with the Amaranth ([story triggers](#story-triggers)).
+2. The party fought the whole game in what it joined with, and deaths left Alaron alone, until a battle was lost before the party's first turn and the game ended at the Lighthouse (gear, shops and deaths played again, in [battles](#battles)).
+3. The pilot walked straight at a lip below EhudUnder's teleporter C03/3 and moved nowhere (the step aside).
+4. The Barrows' B01/0 tripwire, entered at the edge of its radius, didn't go off (used once its flag is written), and with it and Ugarit2's 14/C03/1 both banned the run found no step (the bans tried once more).
+5. The Burial Chamber's door in Ugarit2 A05, which night opens (the pilot waits for the hour).
+
+**No game-side findings.** Every blocker was the bot's. Two things seen once that didn't come back: in one run the player stalled two steps running beside Overworld P17's teleporter P17/4, where a save of the same moment walks on (the run now saves and loads after a step stuck); and a shop visit to Tamberlain in Terminor bought nothing in the run where the same visit from a save of the moment buys the Boots of Speed.
 
 **Next for the bot:**
 
-- Story triggers on a way, as gates or actions.
-- Levelling: grinding goals, better builds, or less wandering.
-- The camp ambushes' stalemates, probably the AI's pathing (`ArenaGrid.FindPath`).
+- Levelling on the way: the walk from C09 to the Jundar gate at level 7 is where the party is weakest; a grinding goal before it, or a planner that weighs the regions' danger, would cut the lost-first battles.
+- The shops weigh gain alone, not its price: the Belt of Life was bought for 26,650 gold for a gain of 4.
+- 0x0404 and 0x039F are still cut at 50,000 runs in their full-party branches; the rounds' flood keeps one way per place; camp ambushes' stalemates.

@@ -645,7 +645,9 @@ public sealed class Playthrough
             _joined++;
             milestones.Add((MilestoneKind.Joined, $"{Name(joined)} joined"));
         }
-        var died = Model.Members.Where(m => game.Flags.IsSet(m.Value.Died) && !before.Died.Contains(m.Key)).Select(m => m.Key)
+        // A death in a battle still playing as the step ran out is told once it's over, since it may yet be played again.
+        var playing = Host.BattlesFought.LastOrDefault() is { Ended: null } now ? now.Deaths : [];
+        var died = Model.Members.Where(m => game.Flags.IsSet(m.Value.Died) && !before.Died.Contains(m.Key) && !playing.Contains(m.Key)).Select(m => m.Key)
             .Union(ended.Where(b => b.Outcome != Combat.BattleOutcome.Lost && !b.Undone).SelectMany(b => b.Deaths)).Distinct();
         foreach (var dead in died)
             milestones.Add((MilestoneKind.Died, $"{Name(dead)} died"));
