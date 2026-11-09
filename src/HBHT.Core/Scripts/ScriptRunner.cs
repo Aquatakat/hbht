@@ -72,6 +72,20 @@ public enum ScriptEndKind
     Camp,
 }
 
+/// <summary>
+/// Stands in for the game where a script reads or changes it: a tool that walks a script's ways (the playthrough's planner) answers
+/// each condition as the way it's exploring has it, and takes each state-changing effect (<see cref="ScriptOps.ChangesState"/>) rather
+/// than the game. The runner walks as it always does.
+/// </summary>
+public interface IScriptProbe
+{
+    /// <summary>The value of node <paramref name="node"/>'s condition, in place of the game's.</summary>
+    int Condition(int node, ScriptOp.Check check);
+
+    /// <summary>Node <paramref name="node"/>'s effect, taken in place of the game; true where it worked.</summary>
+    bool Effect(int node, ScriptOp op);
+}
+
 /// <summary>How a script ended, for the runtime to carry on from.</summary>
 /// <param name="Speaker">
 /// The keeper of a shop or the trainer the op names, or else the speaker of the last line shown. In a conversation with
@@ -131,6 +145,7 @@ public sealed class ScriptRunner
     private readonly ScriptStart _start;
     /// <summary>The condition ops and the effect ops that change the game's state, which triggers run too.</summary>
     private readonly ScriptOps _ops;
+    private readonly IScriptProbe? _probe;
 
     // The original's dialougeInstance.
     private readonly bool[] _visited;
@@ -160,9 +175,11 @@ public sealed class ScriptRunner
     /// <param name="scripts">Finds another script, for <see cref="ScriptOp.ScriptRandomLine"/>.</param>
     /// <param name="random">The stream skill rolls and random lines draw from.</param>
     /// <param name="randomSkillChecks">While this flag is set, skill checks roll 0–21 (<see cref="StateFlagsRecord.RandomSkillChecks"/>).</param>
+    /// <param name="probe">Answers the conditions and takes the state-changing effects in the game's place, for a tool that walks a script's ways.</param>
     public ScriptRunner(ScriptRecord script, FlagNetwork flags, IScriptWorld world, IScriptHost host, IRandom random,
-        Func<RecordId, ScriptRecord?> scripts, ScriptStart? start = null, RecordId? randomSkillChecks = null)
+        Func<RecordId, ScriptRecord?> scripts, ScriptStart? start = null, RecordId? randomSkillChecks = null, IScriptProbe? probe = null)
     {
+        _probe = probe;
         _script = script;
         _flags = flags;
         _world = world;
@@ -615,7 +632,9 @@ public sealed class ScriptRunner
     /// Evaluates a node's condition, or 0 if it has none (<c>DialogEvalCallback</c>, <see cref="ScriptOps.Condition"/>):
     /// a skill check's first result is kept for the rest of the script, and the map object that started it remembers it.
     /// </summary>
-    private int Condition(int node) => Node(node).Condition is ScriptOp.Check check ? _ops.Condition(check) : 0;
+    private int Condition(int node) => Node(node).Condition is ScriptOp.Check check
+        ? _probe is not null ? _probe.Condition(node, check) & 0xFFFF : _ops.Condition(check)
+        : 0;
 
     /// <summary>
     /// Runs a node's effect (<c>dialoug_func_c_check</c> and <c>DialogCallbackC</c>). Ops that take time mark the node as
@@ -628,7 +647,7 @@ public sealed class ScriptRunner
         if (ScriptOps.ChangesState(op))
         {
             // A member joining a conversation leaves the map with the party.
-            if (_ops.Effect(op) && op is ScriptOp.PartyAddMember && _script.Mode == ScriptMode.Conversation)
+            if ((_probe is not null ? _probe.Effect(node, op) : _ops.Effect(op)) && op is ScriptOp.PartyAddMember && _script.Mode == ScriptMode.Conversation)
                 _partnerJoined = true;
             return;
         }
