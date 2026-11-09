@@ -20,22 +20,46 @@ namespace HBHT.Core.Playthrough;
 public sealed class WalkGraph
 {
     /// <summary>The cache file's format, and the explorer's settings it was made with: bump it when either changes.</summary>
-    internal const int Version = 2;
+    internal const int Version = 3;
 
     private readonly int[] _x, _z, _y;
     private readonly byte[] _fx, _fz, _fy;   // where in the cell the feet were on average, in 1/255 of it
     private readonly int[] _start;   // CSR: _start[i].._start[i + 1] index _to
     private readonly int[] _to;
+    private readonly Dictionary<int, (int To, int Toggle)[]> _gated;
     private Dictionary<long, int>? _index;
     private Dictionary<long, int[]>? _columns;
 
-    private WalkGraph(RecordId mapSet, int[] x, int[] z, int[] y, byte[] fx, byte[] fy, byte[] fz, int[] start, int[] to)
+    private WalkGraph(RecordId mapSet, int[] x, int[] z, int[] y, byte[] fx, byte[] fy, byte[] fz, int[] start, int[] to,
+        RecordId[] toggles, (int From, int To, int Toggle)[] gated)
     {
         MapSet = mapSet;
         (_x, _z, _y, _fx, _fy, _fz, _start, _to) = (x, z, y, fx, fy, fz, start, to);
+        Toggles = toggles;
+        GatedCount = gated.Length;
+        _gated = gated.GroupBy(g => g.From).ToDictionary(g => g.Key, g => g.Select(e => (e.To, e.Toggle)).ToArray());
     }
 
     public RecordId MapSet { get; }
+
+    /// <summary>
+    /// The map set's tripwires that change collision whose open toggles let the player take <see cref="GatedSteps"/>: a gated step's
+    /// toggle is an index into these.
+    /// </summary>
+    public IReadOnlyList<RecordId> Toggles { get; }
+
+    /// <summary>How many gated steps.</summary>
+    public int GatedCount { get; }
+
+    /// <summary>
+    /// The steps from <paramref name="i"/> only an open toggle lets the player take (a gate's wall opened by its tripwire, the Jundar
+    /// gate among them), each with the index of its toggle's tripwire in <see cref="Toggles"/>. Ground only they lead to is joined
+    /// by plain <see cref="Steps"/>.
+    /// </summary>
+    public ReadOnlySpan<(int To, int Toggle)> GatedSteps(int i) => _gated.TryGetValue(i, out var steps) ? steps : default;
+
+    /// <summary>Every cell with a gated step from it.</summary>
+    public IEnumerable<int> GatedFrom => _gated.Keys;
 
     /// <summary>How many cells.</summary>
     public int Count => _x.Length;
@@ -131,42 +155,157 @@ public sealed class WalkGraph
     // Building.
 
     /// <summary>
-    /// Explores a map set from where play puts the player in it (<see cref="Reach.Starts"/>) and keeps what he reached. Takes minutes
-    /// for the larger sets.
+    /// Explores a map set from where play puts the player in it (<see cref="Reach.Starts"/>) and keeps what he reached, then explores
+    /// about each of its collision toggles (<see cref="TogglesIn"/>) with the toggle opened, and keeps the steps that only an open toggle
+    /// lets him take as <see cref="GatedSteps"/>. Takes minutes for the larger sets.
     /// </summary>
     public static WalkGraph Explore(PluginSet plugins, MapSetRecord set, Reach.Options options)
     {
-        var reach = Reach.Explore(plugins, set, Reach.Starts(plugins, set), options with { Edges = true });
-        return From(reach);
+        options = options with { Edges = true };
+        var reach = Reach.Explore(plugins, set, Reach.Starts(plugins, set), options);
+        var opened = new List<(RecordId, Reach)>();
+        var known = reach.Cells.ToHashSet();
+        var feet = new Dictionary<Reach.Cell, Vector3>();
+        var left = TogglesIn(plugins, set).ToList();
+        // A toggle beyond another (the Barrows' doorways) is explored from the ground the first opened, so round again while any is
+        // explored.
+        for (var grew = true; grew && left.Count > 0;)
+        {
+            grew = false;
+            foreach (var toggle in left.ToList())
+            {
+                var (min, max) = (toggle.Min - new Vector3(ToggleMargin), toggle.Max + new Vector3(ToggleMargin));
+                bool Near(Vector3 p, float more) => p.X >= min.X - more && p.Z >= min.Z - more && p.Y >= min.Y - more
+                    && p.X <= max.X + more && p.Z <= max.Z + more && p.Y <= max.Y + more;
+                var starts = known.Select(c => feet.TryGetValue(c, out var f) ? f : reach.Feet(c)).Where(f => Near(f, 0))
+                    .Select(f => (f + new Vector3(0, PlayerMotion.Radius, 0), (float?)f.Y)).ToList();
+                if (starts.Count == 0)
+                    continue;
+                // He sets off again only near the toggle, or from ground none of the explorations so far reached.
+                var around = Reach.Explore(plugins, set, starts, options, [toggle.Tripwire],
+                    at => Near(at, 4) || !known.Contains(Reach.Cell.Of(at - new Vector3(0, PlayerMotion.Radius, 0))));
+                opened.Add((toggle.Tripwire, around));
+                foreach (var c in around.Cells)
+                    if (known.Add(c))
+                        feet[c] = around.Feet(c);
+                left.Remove(toggle);
+                grew = true;
+            }
+        }
+        return From(reach, opened);
     }
 
-    /// <summary>Keeps a reach (made with <see cref="Reach.Options.Edges"/>) as a graph.</summary>
-    public static WalkGraph From(Reach reach)
+    /// <summary>How far about a toggle's triangles the ground to explore it from reaches.</summary>
+    private const float ToggleMargin = 6;
+
+    /// <summary>A tripwire that changes its chunk's collision, and the box its toggles' triangles span, in the world's coordinates.</summary>
+    public readonly record struct ToggleSite(RecordId Tripwire, Vector3 Min, Vector3 Max);
+
+    /// <summary>
+    /// The map set's tripwires that change their chunk's collision (<see cref="ChangeCollisionAction"/>, <see cref="Reach.Explore"/>'s
+    /// <c>tripped</c>), with the toggles' triangles' box: those with no triangle to change are left out.
+    /// </summary>
+    public static IEnumerable<ToggleSite> TogglesIn(PluginSet plugins, MapSetRecord set)
     {
-        var cells = reach.Cells.OrderBy(c => c.X).ThenBy(c => c.Z).ThenBy(c => c.Y).ToArray();
+        foreach (var chunk in plugins.ChunksIn(set.Id))
+        {
+            var tripwires = chunk.Objects.OfType<TripwireObject>().Where(t => t.Does is ChangeCollisionAction).ToList();
+            if (tripwires.Count == 0 || chunk.Collision is not { } asset)
+                continue;
+            var mesh = HBHT.Plugins.Assets.CollisionMesh.For(plugins, asset);
+            var origin = set.Origin(chunk);
+            foreach (var t in tripwires)
+            {
+                var toggle = ((ChangeCollisionAction)t.Does).Toggle;
+                var corners = mesh.Where(c => c.Role == HBHT.Plugins.Assets.CollisionRole.Toggle && c.Target == toggle)
+                    .SelectMany(c => new[] { c.A, c.B, c.C }).Select(p => p + origin).ToList();
+                if (corners.Count > 0)
+                    yield return new ToggleSite(chunk.ObjectId(t.Index), corners.Aggregate(Vector3.Min), corners.Aggregate(Vector3.Max));
+            }
+        }
+    }
+
+    /// <summary>
+    /// How many steps of the ground a new game loads a gated step between two cells of it must save to be kept: one that only cuts a
+    /// corner the open ground already goes round isn't the toggle's.
+    /// </summary>
+    private const int ShortCut = 8;
+
+    /// <summary>
+    /// Keeps a reach (made with <see cref="Reach.Options.Edges"/>) as a graph, with the explorations about its toggles, each with its
+    /// tripwire taken as gone off: a step one of them made from ground the reach or another exploration has into ground it alone
+    /// found, or between cells of the reach that are more than <see cref="ShortCut"/> of its steps apart, is a gated step of the
+    /// toggle; a step from ground it alone found is open, since only a gated step leads there.
+    /// </summary>
+    public static WalkGraph From(Reach reach, IReadOnlyList<(RecordId Tripwire, Reach Opened)>? opened = null)
+    {
+        opened ??= [];
+        var all = reach.Cells.ToHashSet();
+        var feetOf = new Dictionary<Reach.Cell, Vector3>();
+        foreach (var (_, around) in opened)
+            foreach (var c in around.Cells)
+                if (all.Add(c))
+                    feetOf[c] = around.Feet(c);
+        var cells = all.OrderBy(c => c.X).ThenBy(c => c.Z).ThenBy(c => c.Y).ToArray();
         var index = new Dictionary<Reach.Cell, int>(cells.Length);
         for (var i = 0; i < cells.Length; i++)
             index[cells[i]] = i;
-        var counts = new int[cells.Length + 1];
-        var edges = new List<(int From, int To)>(reach.Edges.Count);
+
+        var open = new HashSet<(int From, int To)>();
         foreach (var (a, b) in reach.Edges)
-        {
             if (index.TryGetValue(a, out var from) && index.TryGetValue(b, out var to))
+                open.Add((from, to));
+        var baseSteps = open.ToLookup(e => e.From, e => e.To);
+        bool Near(int from, int to)
+        {
+            var seen = new HashSet<int> { from };
+            var ring = new List<int> { from };
+            for (var d = 0; d < ShortCut && ring.Count > 0; d++)
             {
-                edges.Add((from, to));
-                counts[from + 1]++;
+                var next = new List<int>();
+                foreach (var c in ring)
+                    foreach (var n in baseSteps[c])
+                    {
+                        if (n == to)
+                            return true;
+                        if (seen.Add(n))
+                            next.Add(n);
+                    }
+                ring = next;
+            }
+            return false;
+        }
+
+        var gated = new SortedSet<(int From, int To, int Toggle)>();
+        for (var t = 0; t < opened.Count; t++)
+        {
+            var around = opened[t].Opened;
+            foreach (var (a, b) in around.Edges)
+            {
+                if (!index.TryGetValue(a, out var from) || !index.TryGetValue(b, out var to) || open.Contains((from, to)))
+                    continue;
+                var mine = !reach.Cells.Contains(a) && !opened.Take(t).Any(o => o.Opened.Cells.Contains(a));
+                if (mine)
+                    open.Add((from, to));
+                else if (!reach.Cells.Contains(b) || !reach.Cells.Contains(a) || !Near(from, to))
+                    gated.Add((from, to, t));
             }
         }
+
+        var counts = new int[cells.Length + 1];
+        foreach (var (from, _) in open)
+            counts[from + 1]++;
         for (var i = 0; i < cells.Length; i++)
             counts[i + 1] += counts[i];
         var next = (int[])counts.Clone();
-        var targets = new int[edges.Count];
-        foreach (var (from, to) in edges)
+        var targets = new int[open.Count];
+        foreach (var (from, to) in open.OrderBy(e => e.From).ThenBy(e => e.To))
             targets[next[from]++] = to;
         static byte Fraction(float v) => (byte)Math.Clamp((int)MathF.Round((v - MathF.Floor(v)) * 255), 0, 255);
-        var feet = cells.Select(reach.Feet).ToArray();
+        var feet = cells.Select(c => feetOf.TryGetValue(c, out var f) ? f : reach.Feet(c)).ToArray();
         return new WalkGraph(reach.Set.Id, [.. cells.Select(c => c.X)], [.. cells.Select(c => c.Z)], [.. cells.Select(c => c.Y)],
-            [.. feet.Select(f => Fraction(f.X))], [.. feet.Select(f => Fraction(f.Y))], [.. feet.Select(f => Fraction(f.Z))], counts, targets);
+            [.. feet.Select(f => Fraction(f.X))], [.. feet.Select(f => Fraction(f.Y))], [.. feet.Select(f => Fraction(f.Z))], counts, targets,
+            [.. opened.Select(o => o.Tripwire)], [.. gated]);
     }
 
     // The cache file: Brotli over a version, the fingerprint the graph was made under, the cells and the steps, each column
@@ -200,6 +339,17 @@ public sealed class WalkGraph
             for (var i = 0; i < Count; i++)
                 foreach (var t in Steps(i))
                     w.Write(t - i);
+            w.Write(Toggles.Count);
+            foreach (var toggle in Toggles)
+                w.Write(toggle.ToString());
+            w.Write(GatedCount);
+            foreach (var from in _gated.Keys.Order())
+                foreach (var (to, toggle) in _gated[from])
+                {
+                    w.Write(from);
+                    w.Write(to);
+                    w.Write(toggle);
+                }
         }
         File.Move(temp, path, overwrite: true);
     }
@@ -247,7 +397,13 @@ public sealed class WalkGraph
             for (var i = 0; i < count; i++)
                 for (var e = start[i]; e < start[i + 1]; e++)
                     to[e] = i + r.ReadInt32();
-            return start[count] == edges ? new WalkGraph(set, x, z, y, fx, fy, fz, start, to) : null;
+            var toggles = new RecordId[r.ReadInt32()];
+            for (var i = 0; i < toggles.Length; i++)
+                toggles[i] = RecordId.Parse(r.ReadString());
+            var gated = new (int, int, int)[r.ReadInt32()];
+            for (var i = 0; i < gated.Length; i++)
+                gated[i] = (r.ReadInt32(), r.ReadInt32(), r.ReadInt32());
+            return start[count] == edges ? new WalkGraph(set, x, z, y, fx, fy, fz, start, to, toggles, gated) : null;
         }
         catch (Exception e) when (e is IOException or InvalidDataException or EndOfStreamException or FormatException)
         {

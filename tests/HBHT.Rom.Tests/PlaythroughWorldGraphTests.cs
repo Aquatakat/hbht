@@ -151,6 +151,75 @@ public sealed class PlaythroughWorldGraphTests(Na10Import fixture)
         Assert.DoesNotContain(portals, p => p.Tangible && p.Gates.Any(g => g.Kind is GateKind.Locked or GateKind.Secret or GateKind.Trapped));
     }
 
+    // Collision toggles.
+
+    // The Jundar gate (Overworld P24, tripwire 1): its toggles open once flag 480 enables the tripwire, and only it joins the mainland
+    // to the south-east island.
+    private static readonly RecordId JundarGate = Object("0/P24/1");
+
+    private static readonly RecordId Riddle = RecordId.Decimal(RecordTypes.Flag, 480);
+
+    /// <summary>A map object on the south-east island, beyond the gate: the save point in O25, which has no gates of its own.</summary>
+    private static RecordId IslandObject() => Object("0/O25/135");
+
+    [Fact]
+    public void EveryCollisionToggleIsATogglesTripwireWithItsGates()
+    {
+        var toggles = Graph.Toggles;
+        Assert.Equal(9, toggles.Count);
+        var gate = Assert.Single(toggles, t => t.Id == JundarGate);
+        Assert.Equal(Riddle, Assert.Single(gate.Gates).Flag);
+        // The Overworld's graph has gated steps across the gate, which a new game's ground alone lacks.
+        var walk = Graph.Walk(RecordId.Decimal(RecordTypes.MapSet, 0));
+        Assert.Contains(JundarGate, walk.Toggles);
+        Assert.True(walk.GatedCount > 0);
+    }
+
+    [Fact]
+    public void ARouteOntoTheSouthEastIslandNeedsTheJundarGatesFlag()
+    {
+        var state = GameState.NewGame(Plugins);
+        var island = IslandObject();
+        // From a new game the way out of the start's ground is shut too (I08/2, enabled by 458): open the rest so only the gate is left.
+        foreach (var other in Graph.Route(state, island).Refusal!.Blockers.Where(b => b.Object != JundarGate))
+            state.Flags.Set(other.Flag!.Value, !other.Invert);
+        var refused = Graph.Route(state, island);
+
+        Assert.False(refused.Found);
+        Assert.Equal(RefusalKind.Gated, refused.Refusal!.Kind);
+        var blocker = Assert.Single(refused.Refusal.Blockers);
+        Assert.Equal(JundarGate, blocker.Object);
+        Assert.Equal(Riddle, blocker.Flag);
+        Assert.False(Graph.CanReach(island, state));
+        var reach = new WorldReach(Graph, state, Graph.PlaceOf(state));
+        Assert.Equal(new Literal[] { new FlagIs(Riddle, true) }, reach.Gates(island));
+
+        state.Flags.Set(Riddle, true);
+        var allowed = Graph.Route(state, island);
+        Assert.True(allowed.Found, allowed.Refusal?.Message);
+        Assert.Contains(JundarGate, allowed.Route!.Legs.SelectMany(l => l.Toggles ?? []));
+        Assert.True(Graph.CanReach(island, state));
+    }
+
+    [Fact]
+    [Trait("Category", "Slow")]
+    public void APilotWalksThroughTheJundarGateOnceItsFlagIsSet()
+    {
+        var state = GameState.NewGame(Plugins);
+        state.Flags.Set(Riddle, true);
+        // From the mainland a little way off the gate, beyond its tripwire's radius: ground a new game's start reaches with the
+        // toggles shut.
+        var overworld = RecordId.Decimal(RecordTypes.MapSet, 0);
+        var gate = Graph.Toggles.Single(t => t.Id == JundarGate);
+        var walk = Graph.Walk(overworld);
+        var mainland = Graph.Flood(Graph.PlaceOf(GameState.NewGame(Plugins)), way => way is Toggle ? null : 0);
+        var start = walk.Near(gate.At.X, gate.At.Z, 30).Where(i => mainland.CellCost(overworld, i) is not null)
+            .Select(i => (Cell: i, Distance: Vector3.Distance(walk.Center(i), gate.At))).Where(c => c.Distance > gate.Range + 2)
+            .MinBy(c => c.Distance).Cell;
+        var (reached, why) = Follow(state, IslandObject(), from: new Place(overworld, walk.Center(start)));
+        Assert.True(reached, why);
+    }
+
     // Following a route.
 
     [Fact]
@@ -169,6 +238,18 @@ public sealed class PlaythroughWorldGraphTests(Na10Import fixture)
         Assert.True(reached, why);
     }
 
+    private static void Trip(GameState state, ChunkStreamer chunks, CollisionWorld world, Vector3 sphere)
+    {
+        if (chunks.MapAt(sphere) is not { } map)
+            return;
+        foreach (var o in map.Record.Objects.OfType<TripwireObject>())
+        {
+            if (o.Does is ChangeCollisionAction change && o.Tangible && map.IsActive(o.Index) && Vector3.Distance(o.Position, sphere - map.Origin) <= o.Radius
+                && (o.Enabled is not { } enabled || state.Flags.IsSet(enabled.Flag) != enabled.Invert))
+                world.ChangeToggles(map.Key, change.Toggle, change.KeepFlags, change.AddFlags);
+        }
+    }
+
     /// <summary>
     /// Walks to a map object as the bot's pilot would, with the real PlayerMotion in the real collision: each tick the stick is pushed
     /// up with the camera turned to the next waypoint, which is passed within 0.8 of it. A pilot that stops getting nearer (the
@@ -176,11 +257,15 @@ public sealed class PlaythroughWorldGraphTests(Na10Import fixture)
     /// by its speed, went over a lip) replans from where it stands with the place it stuck at avoided, as the bot's does. Whether he
     /// ends within use range of the object, in how many replans.
     /// </summary>
-    private (bool Reached, string Why) Follow(GameState state, RecordId target, int maxReplans = 8)
+    /// <remarks>
+    /// A tripwire that changes collision goes off as trek's does (<c>MapObjectUse.Touch</c>): in the chunk he's in, active, enabled by
+    /// the game's flags and within its radius of his sphere, it changes its toggles.
+    /// </remarks>
+    private (bool Reached, string Why) Follow(GameState state, RecordId target, int maxReplans = 8, Place? from = null)
     {
         var actor = Plugins.Get<ActorRecord>(Reach.Alaron);
         var clips = ActorClips.For(Plugins, actor.Scene, actor.RootTransform)!;
-        var place = Graph.PlaceOf(state);
+        var place = from ?? Graph.PlaceOf(state);
         var avoid = new List<Place>();
         var replans = 0;
         // Where the player is set down from, and the height to set him near, when he arrives in a map set; none once he is walking.
@@ -203,7 +288,7 @@ public sealed class PlaythroughWorldGraphTests(Na10Import fixture)
             if (arrival is { } at)
             {
                 world = new CollisionWorld();
-                chunks = new ChunkStreamer(Plugins, GameState.NewGame(Plugins), world, set);
+                chunks = new ChunkStreamer(Plugins, state, world, set);
                 chunks.Update(at);
                 var (ground, grounded) = Reach.SetDownAt(world, at, near);
                 if (!grounded)
@@ -236,6 +321,7 @@ public sealed class PlaythroughWorldGraphTests(Na10Import fixture)
                     way = across.Length() > 1e-3f ? Vector2.Normalize(across) : way;
                     player.Step(world!, new MoveInput(Vector2.UnitY), way, animation);
                     chunks!.Update(player.Sphere.Position);
+                    Trip(state, chunks, world!, player.Sphere.Position);
                 }
                 if (stuck)
                     break;
@@ -263,6 +349,15 @@ public sealed class PlaythroughWorldGraphTests(Na10Import fixture)
             }
             var chunk = Plugins.Get<ChunkRecord>(ChunkRecord.ChunkOf(target));
             var at2 = set.Origin(chunk) + chunk.Object(ChunkRecord.IndexOf(target))!.Position;
+            // On to the object for a second or two, as the pilot goes on to it once the route is walked.
+            for (var t = 0; t < 120 && Vector3.Distance(player.Sphere.Position, at2) > route.UseRange; t++)
+            {
+                var across = new Vector2(at2.X - player.Feet.X, at2.Z - player.Feet.Z);
+                way = across.Length() > 1e-3f ? Vector2.Normalize(across) : way;
+                player.Step(world!, new MoveInput(Vector2.UnitY), way, animation);
+                chunks!.Update(player.Sphere.Position);
+            }
+            centre = player.Sphere.Position;
             var end = Vector3.Distance(centre, at2);
             return (end <= route.UseRange, $"{replans}r {teleports}t ends {end:0.00} of {route.UseRange}");
         }

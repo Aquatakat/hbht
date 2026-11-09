@@ -97,7 +97,9 @@ public sealed record RouteRefusal(RefusalKind Kind, string Message, IReadOnlyLis
 /// </param>
 /// <param name="Teleporter">The teleporter map object used at the end of the leg, or null on the last.</param>
 /// <param name="Arrives">Where the teleporter puts him in the next leg's map set (its arrival point, in world coordinates).</param>
-public sealed record RouteLeg(RecordId MapSet, IReadOnlyList<Vector3> Waypoints, RecordId? Teleporter, Vector3? Arrives);
+/// <param name="Toggles">The tripwires whose opened collision the leg walks through (<see cref="Toggle"/>), in order.</param>
+public sealed record RouteLeg(RecordId MapSet, IReadOnlyList<Vector3> Waypoints, RecordId? Teleporter, Vector3? Arrives,
+    IReadOnlyList<RecordId>? Toggles = null);
 
 /// <summary>A way to the place to stand to use a map object.</summary>
 /// <param name="StandAt">Where to stand to use the object (feet, in the last leg's world coordinates).</param>

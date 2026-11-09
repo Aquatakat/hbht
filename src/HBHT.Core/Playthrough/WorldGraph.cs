@@ -18,7 +18,27 @@ namespace HBHT.Core.Playthrough;
 /// <param name="Arrives">Where it puts the player in <see cref="ToSet"/>, in that set's world coordinates (<see cref="TeleportArrival"/>).</param>
 /// <param name="Gates">Its visibility and enabled flags, and its lock, trap and secret, to be read against a game when a route is asked for.</param>
 public sealed record Portal(RecordId Id, RecordId FromSet, Vector3 At, float Range, RecordId ToSet, Vector3 Arrives, bool Tangible,
-    IReadOnlyList<RouteGate> Gates);
+    IReadOnlyList<RouteGate> Gates) : IGatedWay;
+
+/// <summary>Something on a way that carries gates: a teleporter (<see cref="Portal"/>) or a collision toggle (<see cref="Toggle"/>).</summary>
+public interface IGatedWay
+{
+    /// <summary>Its map object.</summary>
+    RecordId Id { get; }
+
+    IReadOnlyList<RouteGate> Gates { get; }
+}
+
+/// <summary>
+/// A tripwire that changes its chunk's collision (<see cref="ChangeCollisionAction"/>), as the walk graphs' gated steps
+/// (<see cref="WalkGraph.GatedSteps"/>) need it: open while its own gates hold, since it goes off on every tick the player is within its
+/// radius, and its toggles let him through. The nine in the base game each open a wall (docs/systems/map-objects.md#tripwires).
+/// </summary>
+/// <param name="Id">The tripwire.</param>
+/// <param name="At">Its position, in its map set's world coordinates.</param>
+/// <param name="Range">Its radius, within which it goes off.</param>
+/// <param name="Gates">Its visibility and enabled flags (<see cref="WorldGraph.ObjectGates"/>).</param>
+public sealed record Toggle(RecordId Id, RecordId MapSet, Vector3 At, float Range, IReadOnlyList<RouteGate> Gates) : IGatedWay;
 
 /// <summary>How long a map set's walk graph took to come by.</summary>
 /// <param name="Seconds">Exploring it, or reading it from the cache.</param>
@@ -50,6 +70,8 @@ public sealed partial class WorldGraph
     private readonly ConcurrentDictionary<RecordId, Lazy<WalkGraph>> _walks = [];
     private readonly ConcurrentDictionary<RecordId, WalkInfo> _info = [];
     private readonly Lazy<IReadOnlyList<Portal>> _portals;
+    private readonly Lazy<IReadOnlyList<Toggle>> _toggles;
+    private readonly Lazy<Dictionary<RecordId, int>> _toggleIndex;
     private readonly Lazy<string> _fingerprint;
     private readonly ConcurrentDictionary<RecordId, Lazy<Dictionary<int, int[]>>> _portalCells = [];
     private readonly ConcurrentDictionary<int, Lazy<int?>> _arrivals = [];
@@ -65,6 +87,8 @@ public sealed partial class WorldGraph
         _options = options ?? DefaultOptions;
         _cache = cacheDirectory ?? Path.Combine(DataPaths.Root, "cache", "playthrough");
         _portals = new(FindPortals);
+        _toggles = new(FindToggles);
+        _toggleIndex = new(() => Toggles.Select((t, i) => (t.Id, i)).ToDictionary(t => t.Id, t => t.i));
         _fingerprint = new(() => ComputeFingerprint(plugins, _options));
     }
 
@@ -131,6 +155,36 @@ public sealed partial class WorldGraph
         else
             sets.ForEach(id => Walk(id));
     }
+
+    // The collision toggles.
+
+    /// <summary>Every tripwire that changes collision, outside the Battle arenas, with its gates: what the walk graphs' gated steps need open.</summary>
+    public IReadOnlyList<Toggle> Toggles => _toggles.Value;
+
+    private IReadOnlyList<Toggle> FindToggles()
+    {
+        var found = new List<Toggle>();
+        foreach (var chunk in _plugins.All<ChunkRecord>(RecordTypes.Chunk))
+        {
+            if (chunk.MapSet == Arena.MapSet)
+                continue;
+            var set = _plugins.Get<MapSetRecord>(chunk.MapSet);
+            foreach (var t in chunk.Objects.OfType<TripwireObject>().Where(t => t.Does is ChangeCollisionAction))
+            {
+                var id = chunk.ObjectId(t.Index);
+                found.Add(new Toggle(id, chunk.MapSet, set.Origin(chunk) + t.Position, t.Radius, ObjectGates(id, t)));
+            }
+        }
+        return found;
+    }
+
+    /// <summary>A gated step's toggle, by its index in its walk graph's <see cref="WalkGraph.Toggles"/>, as an index into <see cref="Toggles"/>.</summary>
+    private int ToggleOf(WalkGraph graph, int local) =>
+        _toggleIndex.Value.TryGetValue(graph.Toggles[local], out var t) ? t
+            : throw new InvalidDataException($"{graph.MapSet}'s walk graph names {graph.Toggles[local]}, which isn't a toggle.");
+
+    /// <summary>A way's gates: a portal's below <see cref="Portals"/>' count, a toggle's above it.</summary>
+    internal IGatedWay Way(int way) => way < Portals.Count ? Portals[way] : Toggles[way - Portals.Count];
 
     // The teleporters.
 
@@ -354,7 +408,7 @@ public sealed partial class WorldGraph
             found = Search(state, from.MapSet, startCell, chunk.MapSet, goalCells, target, range, pick, options, tolerate: true);
             if (found is null)
                 return Refuse(RefusalKind.NotOnFoot, $"{mapObject} isn't reached on foot from {from.MapSet} at {from.Feet}, even with every gate open.");
-            var blockers = found.Value.Portals.SelectMany(p => Portals[p].Gates).Where(g => g.Closed(state.Flags, pick)).ToList();
+            var blockers = found.Value.Ways.SelectMany(w => Way(w).Gates).Where(g => g.Closed(state.Flags, pick)).Distinct().ToList();
             return Refuse(RefusalKind.Gated, $"The way to {mapObject} crosses closed gates: {string.Join("; ", blockers)}.", blockers);
         }
         return new RouteResult(Assemble(state, mapObject, own, found.Value, goalCells, range, target), null);
@@ -366,10 +420,13 @@ public sealed partial class WorldGraph
     /// <summary>The route from the place the game has the player at (<see cref="PlaceOf"/>).</summary>
     public RouteResult Route(GameState state, RecordId mapObject, RouteOptions? options = null) => Route(state, PlaceOf(state), mapObject, options);
 
-    /// <summary>A route found: its cells, with the portal each was reached through (or -1 where it was walked to), and its cost.</summary>
-    private readonly record struct Found(List<(int Set, int Cell, int Portal)> Path, float Cost)
+    /// <summary>
+    /// A route found: its cells, with the way each was reached through (<see cref="Way"/>: a portal, a toggle's gated step, or -1 where
+    /// it was walked to), and its cost.
+    /// </summary>
+    private readonly record struct Found(List<(int Set, int Cell, int Way)> Path, float Cost)
     {
-        public IEnumerable<int> Portals => Path.Select(p => p.Portal).Where(p => p >= 0);
+        public IEnumerable<int> Ways => Path.Select(p => p.Way).Where(p => p >= 0).Distinct();
     }
 
     private readonly List<RecordId> _setList = [];
@@ -405,12 +462,12 @@ public sealed partial class WorldGraph
 
         var leading = SetsLeadingTo(goalSet);
         var open = new Dictionary<int, float>();
-        float Toll(int p)
+        float Toll(int way)
         {
-            if (open.TryGetValue(p, out var toll))
+            if (open.TryGetValue(way, out var toll))
                 return toll;
-            var closed = Portals[p].Gates.Count(g => g.Closed(state.Flags, pick));
-            return open[p] = closed == 0 ? 0 : tolerate ? closed * ClosedCost : float.PositiveInfinity;
+            var closed = Way(way).Gates.Count(g => g.Closed(state.Flags, pick));
+            return open[way] = closed == 0 ? 0 : tolerate ? closed * ClosedCost : float.PositiveInfinity;
         }
 
         var graphs = new Dictionary<int, WalkGraph>();
@@ -462,6 +519,13 @@ public sealed partial class WorldGraph
             foreach (var to in graph.Steps(cell))
                 if (skip is null || !skip.Contains(to))
                     Relax(Pack(set, to), graph.Length(cell, to), -1);
+            foreach (var (to, local) in graph.GatedSteps(cell))
+            {
+                var way = Portals.Count + ToggleOf(graph, local);
+                var toll = Toll(way);
+                if (!float.IsPositiveInfinity(toll) && (skip is null || !skip.Contains(to)))
+                    Relax(Pack(set, to), graph.Length(cell, to) + toll, way);
+            }
 
             if (PortalCells(_setList[set]).TryGetValue(cell, out var here))
             {
@@ -482,21 +546,33 @@ public sealed partial class WorldGraph
         var legs = new List<RouteLeg>();
         var gates = new List<RouteGate>();
         var cells = new List<int>();
+        var toggles = new List<RecordId>();
         var current = _setList[found.Path[0].Set];
-        foreach (var (set, cell, portal) in found.Path)
+        foreach (var (set, cell, way) in found.Path)
         {
-            if (portal >= 0)
+            if (way >= Portals.Count)
+            {
+                // A toggle's gated step is walked, as part of the leg.
+                var toggle = Toggles[way - Portals.Count];
+                if (!toggles.Contains(toggle.Id))
+                {
+                    toggles.Add(toggle.Id);
+                    gates.AddRange(toggle.Gates);
+                }
+            }
+            else if (way >= 0)
             {
                 // The cell reached through a teleporter starts the next leg, whether it is another map set or the same one.
-                var p = Portals[portal];
-                legs.Add(new RouteLeg(current, Simplify(Walk(current), cells), p.Id, p.Arrives));
+                var p = Portals[way];
+                legs.Add(new RouteLeg(current, Simplify(Walk(current), cells), p.Id, p.Arrives, toggles));
                 gates.AddRange(p.Gates);
                 cells = [];
+                toggles = [];
                 current = _setList[set];
             }
             cells.Add(cell);
         }
-        legs.Add(new RouteLeg(current, Simplify(Walk(current), cells), null, null));
+        legs.Add(new RouteLeg(current, Simplify(Walk(current), cells), null, null, toggles));
         gates.AddRange(own);
         var standCell = found.Path[^1].Cell;
         return new WorldRoute(target, legs, Walk(current).Center(standCell), range, goalCells[standCell], found.Cost, gates);
@@ -554,6 +630,9 @@ public sealed partial class WorldGraph
         var key = new StringBuilder().Append(from.MapSet).Append('@').Append(from.Feet.ToString()).Append(pick ? 'p' : '-');
         foreach (var p in Portals)
             key.Append(p.Gates.Any(g => g.Closed(state.Flags, pick)) ? '0' : '1');
+        var toggleOpen = Toggles.Select(t => !t.Gates.Any(g => g.Closed(state.Flags, pick))).ToArray();
+        foreach (var open in toggleOpen)
+            key.Append(open ? '1' : '0');
         var text = key.ToString();
         lock (_closureLock)
         {
@@ -573,6 +652,14 @@ public sealed partial class WorldGraph
             foreach (var to in graph.Steps(node.Cell))
             {
                 if (!seen[to])
+                {
+                    seen[to] = true;
+                    queue.Enqueue((node.Set, to));
+                }
+            }
+            foreach (var (to, local) in graph.GatedSteps(node.Cell))
+            {
+                if (!seen[to] && toggleOpen[ToggleOf(graph, local)])
                 {
                     seen[to] = true;
                     queue.Enqueue((node.Set, to));

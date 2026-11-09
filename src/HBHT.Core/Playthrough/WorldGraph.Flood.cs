@@ -7,18 +7,19 @@ public sealed partial class WorldGraph
 {
     /// <summary>
     /// Every cell the player can get to from <paramref name="from"/>, by map set, each with the fewest closed gates on a way to it and
-    /// the teleporters that carry them: what the planner's places need (<see cref="WorldReach"/>). <paramref name="toll"/> says what a
-    /// teleporter costs to take: 0 if it's open, the number of its closed gates the plan can open, or null where it can never be taken.
-    /// A search over costs by bucket, so one flood answers every place.
+    /// the teleporters and toggles that carry them: what the planner's places need (<see cref="WorldReach"/>). <paramref name="toll"/>
+    /// says what a teleporter or a toggle's gated step costs to take: 0 if it's open, the number of its closed gates the plan can open,
+    /// or null where it can never be taken. A toggle already on the way to a cell costs nothing again, so the gated steps across one
+    /// wall count once. A search over costs by bucket, so one flood answers every place.
     /// </summary>
-    public GateFlood Flood(Place from, Func<Portal, int?> toll)
+    public GateFlood Flood(Place from, Func<IGatedWay, int?> toll)
     {
         var flood = new GateFlood(this);
         if (_plugins.TryGet<MapSetRecord>(from.MapSet) is null || Walk(from.MapSet).Snap(from.Feet, 6) is not { } startCell)
             return flood;
-        var tolls = new int?[Portals.Count];
-        for (var p = 0; p < Portals.Count; p++)
-            tolls[p] = toll(Portals[p]);
+        var tolls = new int?[Portals.Count + Toggles.Count];
+        for (var w = 0; w < tolls.Length; w++)
+            tolls[w] = toll(Way(w));
 
         var buckets = new List<Stack<long>>();
         void Push(int cost, int set, int cell)
@@ -49,6 +50,22 @@ public sealed partial class WorldGraph
                         here.Chain[to] = chain;
                         bucket.Push(Pack(s, to));
                     }
+                }
+                foreach (var (to, local) in here.Graph.GatedSteps(cell))
+                {
+                    var way = Portals.Count + ToggleOf(here.Graph, local);
+                    if (tolls[way] is not { } cost)
+                        continue;
+                    var crossed = cost == 0 || flood.Carries(chain, way);
+                    var nd = crossed ? d : d + cost;
+                    if (here.Cost[to] <= nd)
+                        continue;
+                    here.Cost[to] = nd;
+                    here.Chain[to] = crossed ? chain : flood.Link(way, chain);
+                    if (nd == d)
+                        bucket.Push(Pack(s, to));
+                    else
+                        Push(nd, s, to);
                 }
                 if (!PortalCells(here.Graph.MapSet).TryGetValue(cell, out var portals))
                     continue;
@@ -81,7 +98,7 @@ public sealed class GateFlood
 {
     private readonly WorldGraph _graph;
     private readonly Dictionary<RecordId, FloodSet> _byId = [];
-    private readonly List<(int Portal, int Prev)> _chains = [];
+    private readonly List<(int Way, int Prev)> _chains = [];
     private readonly Dictionary<RecordId, Dictionary<(int Row, int Column), int>> _chunkBest = [];
 
     internal GateFlood(WorldGraph graph) => _graph = graph;
@@ -112,9 +129,9 @@ public sealed class GateFlood
         return set;
     }
 
-    internal int Link(int portal, int prev)
+    internal int Link(int way, int prev)
     {
-        _chains.Add((portal, prev));
+        _chains.Add((way, prev));
         return _chains.Count - 1;
     }
 
@@ -122,10 +139,10 @@ public sealed class GateFlood
     public bool Started => Sets.Count > 0;
 
     /// <summary>
-    /// The way to the place to stand to use a map object with the fewest closed gates: their teleporters, first first, or null if no
+    /// The way to the place to stand to use a map object with the fewest closed gates: their teleporters and toggles, first first, or null if no
     /// way reaches it however the gates stand. The object's own gates aren't counted.
     /// </summary>
-    public IReadOnlyList<Portal>? To(RecordId mapObject)
+    public IReadOnlyList<IGatedWay>? To(RecordId mapObject)
     {
         var plugins = _graph.Plugins;
         if (plugins.TryGet<ChunkRecord>(ChunkRecord.ChunkOf(mapObject)) is not { } chunk || chunk.Object(ChunkRecord.IndexOf(mapObject)) is not { } o
@@ -138,11 +155,11 @@ public sealed class GateFlood
             if (set.Cost[cell] != int.MaxValue && (best < 0 || set.Cost[cell] < set.Cost[best]))
                 best = cell;
         }
-        return best < 0 ? null : Portals(set.Chain[best]);
+        return best < 0 ? null : Ways(set.Chain[best]);
     }
 
     /// <summary>The way into a chunk with the fewest closed gates, as <see cref="To"/>: to any ground in its cell.</summary>
-    public IReadOnlyList<Portal>? ToChunk(RecordId chunkId)
+    public IReadOnlyList<IGatedWay>? ToChunk(RecordId chunkId)
     {
         var plugins = _graph.Plugins;
         if (plugins.TryGet<ChunkRecord>(chunkId) is not { } chunk || !_byId.TryGetValue(chunk.MapSet, out var set))
@@ -161,7 +178,7 @@ public sealed class GateFlood
                     best[key] = i;
             }
         }
-        return best.TryGetValue((chunk.Row, chunk.Column), out var cell) ? Portals(set.Chain[cell]) : null;
+        return best.TryGetValue((chunk.Row, chunk.Column), out var cell) ? Ways(set.Chain[cell]) : null;
     }
 
     /// <summary>The fewest closed gates on a way to a cell of a map set's walk graph, or null if no way reaches it.</summary>
@@ -171,12 +188,21 @@ public sealed class GateFlood
     /// <summary>Whether the flood reached a map set at all.</summary>
     public bool Reached(RecordId mapSet) => _byId.ContainsKey(mapSet);
 
-    private List<Portal> Portals(int chain)
+    private List<IGatedWay> Ways(int chain)
     {
-        var list = new List<Portal>();
+        var list = new List<IGatedWay>();
         for (var c = chain; c >= 0; c = _chains[c].Prev)
-            list.Add(_graph.Portals[_chains[c].Portal]);
+            list.Add(_graph.Way(_chains[c].Way));
         list.Reverse();
         return list;
+    }
+
+    /// <summary>Whether a way is on a chain already.</summary>
+    internal bool Carries(int chain, int way)
+    {
+        for (var c = chain; c >= 0; c = _chains[c].Prev)
+            if (_chains[c].Way == way)
+                return true;
+        return false;
     }
 }

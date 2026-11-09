@@ -186,10 +186,32 @@ public sealed class Reach
     }
 
     /// <summary>Explores a map set from <paramref name="starts"/> (<see cref="Starts"/>).</summary>
-    public static Reach Explore(PluginSet plugins, MapSetRecord set, IEnumerable<(Vector3 At, float? Near)> starts, Options options)
+    /// <param name="tripped">
+    /// Tripwires that change their chunk's collision (<see cref="ChangeCollisionAction"/>) to take as gone off: their toggles are
+    /// changed whenever a chunk loads, as trek's tripwire changes them while the player is within its radius
+    /// (<see cref="MapObjectUse.Trip"/>). The ground a toggle opens, for the playthrough bot's walk graphs. None if null: the map set as
+    /// a new game loads it.
+    /// </param>
+    /// <param name="setsOff">Whether he sets off again from a place he came to rest at (not a start); everywhere if null.</param>
+    public static Reach Explore(PluginSet plugins, MapSetRecord set, IEnumerable<(Vector3 At, float? Near)> starts, Options options,
+        IReadOnlyCollection<RecordId>? tripped = null, Func<Vector3, bool>? setsOff = null)
     {
         var world = new CollisionWorld();
         var chunks = new ChunkStreamer(plugins, GameState.NewGame(plugins), world, set);
+        if (tripped is { Count: > 0 })
+        {
+            var changes = tripped.Select(id => (Chunk: ChunkRecord.ChunkOf(id),
+                Change: plugins.Get<ChunkRecord>(ChunkRecord.ChunkOf(id)).Object(ChunkRecord.IndexOf(id)) is TripwireObject { Does: ChangeCollisionAction c }
+                    ? c : throw new ArgumentException($"{id} isn't a tripwire that changes collision.", nameof(tripped)))).ToList();
+            // Every loaded chunk's again, whichever loaded: a neighbour's copy of a toggle changes with it (CollisionWorld.ChangeToggles).
+            chunks.Loaded += (_, _) =>
+            {
+                foreach (var (chunk, map) in chunks.All)
+                    foreach (var (id, change) in changes)
+                        if (chunk.Id == id)
+                            world.ChangeToggles(map.Key, change.Toggle, change.KeepFlags, change.AddFlags);
+            };
+        }
         var actor = plugins.Get<ActorRecord>(Alaron);
         var clips = ActorClips.For(plugins, actor.Scene, actor.RootTransform)
             ?? throw new InvalidDataException($"{Alaron} has no animations.");
@@ -204,7 +226,8 @@ public sealed class Reach
 
         void Queue(Vector3 at, (Vector3, Vector2)? parent)
         {
-            if (!Inside(at, options) || chunks.ChunkAt(at) is not { } chunk || !started.Add(Cell.Of(at, options.StartCell)))
+            if (!Inside(at, options) || chunks.ChunkAt(at) is not { } chunk || (parent is not null && setsOff?.Invoke(at) == false)
+                || !started.Add(Cell.Of(at, options.StartCell)))
                 return;
             if (parent is { } run)
                 parents.TryAdd(at, run);

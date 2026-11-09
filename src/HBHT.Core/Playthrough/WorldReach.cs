@@ -53,7 +53,7 @@ public sealed class WorldReach : IPlaceReach
     public GateFlood Flood { get; }
 
     /// <summary>What a teleporter costs: its closed gates the plan can open, or null for a wall.</summary>
-    private int? Toll(Portal portal)
+    private int? Toll(IGatedWay portal)
     {
         var cost = 0;
         foreach (var gate in portal.Gates)
