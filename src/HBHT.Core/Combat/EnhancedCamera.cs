@@ -330,34 +330,59 @@ public sealed class EnhancedCamera
         _leadBy = null;
     }
 
-    /// <summary>A tick, after the original's camera has stepped.</summary>
+    /// <summary>The live battle as this tick reads it, under Camera: Enhanced.</summary>
+    private readonly CameraScene _live = new();
+
+    /// <summary>The scene this tick reads.</summary>
+    private CameraScene _scene = null!;
+
+    /// <summary>
+    /// A tick of Camera: Enhanced, after the original's camera has stepped: it reads the live battle (<see cref="CameraScene.Read"/>).
+    /// </summary>
     /// <param name="original">The original's camera, which goes on underneath.</param>
     /// <param name="glide">The bodies the original's glide runs between, while one is on.</param>
     internal void Step(Battle battle, FollowCamera original, (Body From, Body To)? glide)
     {
+        _live.Read(battle);
+        Step(_live, new DrawnCamera(original.Position, original.Aim, original.LookXZ), glide is { } g
+            ? (new ShotSubject(g.From.Sphere.Position, g.From.ScaledRadius), g.To != g.From ? new ShotSubject(g.To.Sphere.Position, g.To.ScaledRadius) : null)
+            : null);
+    }
+
+    /// <summary>
+    /// What else each shot must hold this tick, beyond what it finds for itself: Start Early's director's beats of other actions
+    /// (<see cref="BattleDirector"/>). None under Camera: Enhanced.
+    /// </summary>
+    public Func<Shot, IReadOnlyList<ShotSubject>, Shot>? Reframe { get; set; }
+
+    /// <summary>A tick, reading <paramref name="scene"/>: the live battle's, or the drawing's.</summary>
+    /// <param name="original">The original's camera, which goes on underneath.</param>
+    /// <param name="glide">Where the bodies the original's glide runs between are, while one is on.</param>
+    public void Step(CameraScene scene, DrawnCamera original, (ShotSubject From, ShotSubject? To)? glide)
+    {
+        _scene = scene;
         var t = Tuning;
-        if (!ReferenceEquals(_world, battle.World) || _finder is null)
+        if (!ReferenceEquals(_world, scene.World) || _finder is null)
         {
-            _world = battle.World;
+            _world = scene.World;
             _finder = new ShotFinder(new SightLines(_world), t);
         }
         _finder.Tuning = t;
-        _finder.Field = battle.Arena is null ? null
-            : (new Vector2(battle.Origin.X, battle.Origin.Z), new Vector2(battle.Origin.X + battle.Grid.Width, battle.Origin.Z + battle.Grid.Depth));
+        _finder.Field = scene.Field;
         var sight = _finder.Sight;
         sight.Radius = t.SightRadius;
         sight.BodyScale = t.BodyOcclusion;
         sight.Bodies.Clear();
-        foreach (var c in battle.Combatants)
+        foreach (var b in scene.Bodies)
         {
-            if (!c.Freed)
-                sight.Bodies.Add(Sphere(c.Body));
+            if (!b.Freed)
+                sight.Bodies.Add(b.Sphere);
         }
-        PlaceVantage(battle);
+        PlaceVantage();
         // The point the shot follows whoever's turn it is by, drawn after their body, or put on it where it was put somewhere.
-        if (battle.Current is { } followed)
+        if (scene.Current is { } followed)
         {
-            var body = followed.Body.Sphere.Position;
+            var body = scene.Centre(followed);
             if (_followOf != followed || Vector3.Distance(body, _follow.At) > t.FollowReach)
             {
                 _follow.Reset(body);
@@ -374,17 +399,17 @@ public sealed class EnhancedCamera
         }
         var originalShot = Shot.Of(original.Position, original.Aim, _motion?.Current.Yaw ?? Shot.YawOf(original.LookXZ));
         _from = _motion?.Current.Yaw ?? originalShot.Yaw;
-        var fresh = battle.Current != _turnOf;
+        var fresh = scene.Current != _turnOf;
         if (fresh)
         {
-            _turnOf = battle.Current;
+            _turnOf = scene.Current;
             TurnEnded();
         }
         // The player's turn begun, or come back to from a menu or an aim: the one tick of it that may cut.
-        var entering = battle.State == CombatState.Turn && (fresh || _stateWas != CombatState.Turn);
-        _stateWas = battle.State;
+        var entering = scene.State == CombatState.Turn && (fresh || _stateWas != CombatState.Turn);
+        _stateWas = scene.State;
         // Aiming takes the camera back from the player's hand.
-        if (battle.State is CombatState.TargetAttack or CombatState.TargetSpell or CombatState.TargetThrown or CombatState.PlaceArea)
+        if (scene.State is CombatState.TargetAttack or CombatState.TargetSpell or CombatState.TargetThrown or CombatState.PlaceArea)
             Released = false;
 
         var aimed = _aiming;
@@ -399,19 +424,23 @@ public sealed class EnhancedCamera
         if (intent.Swung is { } swung)
             intent.Swung = swung with { Ago = swung.Ago + 1 };
         intent.Rail.Clear();
-        var goal = Decide(battle, originalShot, glide, aimed);
+        var goal = Decide(originalShot, glide, aimed);
+        // Start Early's director: widened, or another taken, to hold what else is happening.
+        if (!Released && Reframe is { } reframe)
+            goal = reframe(goal, _subjects);
         // The player's own camera is the original's as it is; the director's shots keep their distance.
         if (!Released)
             goal = goal with { Pitch = Math.Clamp(goal.Pitch, Rad(-60), Rad(89)), Distance = MathF.Max(goal.Distance, t.NearestDistance) };
         Goal = goal;
 
         var caps = t.Caps;
-        Walking = !Released && _aiming is null && battle.State == CombatState.Turn && battle.Current is { Controlled: false };
+        var player = scene.Current is { } who && !scene.Controlled(who) ? who : null;
+        Walking = !Released && _aiming is null && scene.State == CombatState.Turn && player is not null;
         // Whether the character is out of the shot shown in their turn, which their turn's first tick cuts for.
         var edge = 0f;
-        if (!Released && battle.State == CombatState.Turn && battle.Current is { Controlled: false } me && _motion is { } shown)
+        if (!Released && scene.State == CombatState.Turn && player is { } me && _motion is { } shown)
         {
-            var (x, y, depth) = ShotFraming.OnScreen(shown.Current, me.Body.Sphere.Position, t.Lens);
+            var (x, y, depth) = ShotFraming.OnScreen(shown.Current, scene.Centre(me), t.Lens);
             edge = depth <= 0 ? float.PositiveInfinity : MathF.Max(MathF.Abs(x), MathF.Abs(y));
         }
         var lost = edge > 1;
@@ -439,7 +468,7 @@ public sealed class EnhancedCamera
         // the change of framing is capped, so the view never trails one who runs, and stops as they stop. It's carried by the point that
         // follows them, so their stride doesn't jolt it.
         var (carriedBy, turnedBy) = (Vector3.Zero, 0f);
-        if ((Walking || _tracking) && _followOf is { } walker && walker == battle.Current)
+        if ((Walking || _tracking) && _followOf is { } walker && walker == _scene.Current)
         {
             (carriedBy, turnedBy) = (_follow.Moved, _turnBy);
             // Gliding, the turn carried is smoothed: its speed follows the orbit's and the easing's as a critically damped spring
@@ -473,11 +502,11 @@ public sealed class EnhancedCamera
         // Into an aim, about one, or back from one to the turn, the move is a pan, not a cut, so the player sees where they're aiming. A
         // pan carries on through its state, its end following the goal; a new state is judged afresh.
         var (aimingNow, wasAiming) = (_aiming is not null, aimed is not null);
-        if (Released || _cutNow || _pan is { } p && p.State != battle.State)
+        if (Released || _cutNow || _pan is { } p && p.State != _scene.State)
             _pan = null;
         if (_pan is null && !Released && !_cutNow
             && (aimingNow && (wasAiming ? cut : travel > 1 || turn > Rad(10) || tilt > Rad(10)) || wasAiming && entering && cut))
-            _pan = (battle.State, now, 0, Math.Clamp((int)MathF.Round(t.PanTicks + travel * t.PanTicksPerUnit), t.PanTicks, Math.Max(t.PanTicks, t.PanMostTicks)));
+            _pan = (_scene.State, now, 0, Math.Clamp((int)MathF.Round(t.PanTicks + travel * t.PanTicksPerUnit), t.PanTicks, Math.Max(t.PanTicks, t.PanMostTicks)));
         Quick |= _pan is not null;
         if (_pan is { } pan)
         {
@@ -538,7 +567,7 @@ public sealed class EnhancedCamera
         if (_subjectsNew)
             intent.Subjects.AddRange(_subjects);
         (intent.Goal, intent.Shown, intent.Kind, intent.Lens) = (goal, shot, Kind, t.Lens);
-        (intent.Turn, intent.Target, intent.Follow) = (battle.Current, battle.State == CombatState.Turn ? _behind?.Target ?? Target : Target, FollowAt);
+        (intent.Turn, intent.Target, intent.Follow) = (_scene.Current, _scene.State == CombatState.Turn ? _behind?.Target ?? Target : Target, FollowAt);
         (intent.Vantage, intent.Field) = (_vantage, _finder.Field);
     }
 
@@ -559,9 +588,9 @@ public sealed class EnhancedCamera
         _subjectsNew = true;
     }
 
-    private Shot Decide(Battle battle, Shot originalShot, (Body From, Body To)? glide, (CombatState, Combatant, float)? aimed)
+    private Shot Decide(Shot originalShot, (ShotSubject From, ShotSubject? To)? glide, (CombatState, Combatant, float)? aimed)
     {
-        if (battle.Current is not { } current)
+        if (_scene.Current is not { } current)
         {
             Kind = "the original's";
             return originalShot;
@@ -571,7 +600,7 @@ public sealed class EnhancedCamera
             Kind = "the original's, the player's hand on it";
             return originalShot;
         }
-        var acting = current.Controlled || battle.State is CombatState.Facing or CombatState.Action or CombatState.Cast or CombatState.Result
+        var acting = _scene.Controlled(current) || _scene.State is CombatState.Facing or CombatState.Action or CombatState.Cast or CombatState.Result
             or CombatState.Moving or CombatState.WaitIdle;
         if (!acting)
         {
@@ -579,42 +608,40 @@ public sealed class EnhancedCamera
             _volley = null;
             _walk = null;
         }
-        if (battle.State != CombatState.Turn && battle.State != CombatState.TargetSpell)
+        if (_scene.State != CombatState.Turn && _scene.State != CombatState.TargetSpell)
             _framing = null;
-        if (battle.State != CombatState.Turn)
+        if (_scene.State != CombatState.Turn)
         {
             _ahead = null;
             _behind = null;
             _framingTo = null;
         }
-        if (battle.State != CombatState.TargetSpell)
+        if (_scene.State != CombatState.TargetSpell)
             _spellAim = null;
-        if (battle.State != CombatState.TargetAttack)
+        if (_scene.State != CombatState.TargetAttack)
             _blowAim = null;
         if (acting)
-            return ActionShot(battle, current, originalShot);
+            return ActionShot(current, originalShot);
         var t = Tuning;
-        switch (battle.State)
+        switch (_scene.State)
         {
-            case CombatState.PlaceArea when current.CurrentSpell(battle) is { } source:
+            case CombatState.PlaceArea when _scene.Facts.AreaMarker is { } marker:
             {
-                var level = Casting.Level(current.Sheet, source);
-                var marker = battle.Aim ?? new AimMarker(battle.AreaAim, level, Spell: true);
                 Kind = "placing an area, from above";
-                return AreaShot(battle, current, aimed, marker);
+                return AreaShot(current, aimed, marker);
             }
             case CombatState.TargetThrown:
                 Kind = "aiming a throw";
-                return Aimed(battle, current, aimed, Ground(battle, battle.ThrownAim, current), 1, Rad(t.AimPitch));
-            case CombatState.TargetSpell when battle.Aim is { } reach:
-                return SpellAim(battle, current, reach);
-            case CombatState.TargetAttack when IsRanged(current):
+                return Aimed(current, aimed, Ground(_scene.Facts.ThrownAim, current), 1, Rad(t.AimPitch));
+            case CombatState.TargetSpell when _scene.Facts.Aim is { } reach:
+                return SpellAim(current, reach);
+            case CombatState.TargetAttack when _scene.Facts.Ranged:
                 Kind = "aiming a ranged attack";
-                return Aimed(battle, current, aimed, Reticle(battle, current), 1, Rad(t.AimPitch));
+                return Aimed(current, aimed, Reticle(current), 1, Rad(t.AimPitch));
             case CombatState.TargetAttack:
-                return BlowAim(battle, current, originalShot);
+                return BlowAim(current, originalShot);
             case CombatState.Turn:
-                return TurnShot(battle, current, originalShot);
+                return TurnShot(current, originalShot);
             case CombatState.MenuSpells or CombatState.MenuItems or CombatState.TroubadourPrompt or CombatState.Pause
                 or CombatState.PauseRequested when _motion is { } m:
                 // The player choosing: the view holds where it is, rather than going to the original's close shot.
@@ -622,15 +649,15 @@ public sealed class EnhancedCamera
                 return m.Current;
         }
         NewSubjects();
-        var owner = battle.CameraOwner is { Freed: false } o ? o : current;
-        _subjects.Add(Sphere(owner.Body));
-        if (owner != current && !current.Freed)
-            _subjects.Add(Sphere(current.Body));
+        var owner = Owner() ?? current;
+        _subjects.Add(_scene.Sphere(owner));
+        if (owner != current && !_scene.Freed(current))
+            _subjects.Add(_scene.Sphere(current));
         if (glide is { } g)
         {
-            _subjects.Add(Sphere(g.From));
-            if (g.To != g.From)
-                _subjects.Add(Sphere(g.To));
+            _subjects.Add(g.From);
+            if (g.To is { } to)
+                _subjects.Add(to);
         }
         return Cleared(originalShot, _subjects, "the original's");
     }
@@ -680,20 +707,21 @@ public sealed class EnhancedCamera
     /// they've done anything. With no enemy ahead, it trails them on a leash as a third person's camera does, its aim leading them by how
     /// fast they go (<see cref="CameraTuning.LeadTime"/>). Its goal glides after the shot found here (<see cref="ShotGlide"/>).
     /// </summary>
-    private Shot TurnShot(Battle battle, Combatant current, Shot originalShot)
+    private Shot TurnShot(Combatant current, Shot originalShot)
     {
         var t = Tuning;
-        var me = current.Body.Sphere.Position;
+        var me = _scene.Centre(current);
         // What the shot is placed by: the point that follows them, so their stride doesn't jolt it.
         var anchor = _followOf == current ? _follow.At : me;
-        var heading = current.Body.Heading;
+        var heading = _scene.Heading(current);
         // The most the speed the shot's turned at by itself changes in a tick.
         var speedUp = Rad(t.TurnAcceleration) / 3600;
         _candidates.Clear();
-        foreach (var c in battle.Combatants)
+        var hostile = _scene.Hostile(current);
+        foreach (var c in _scene.Bodies)
         {
-            if (c.Hostile != current.Hostile && !c.Freed && !c.Sheet.IsDead && c.Active)
-                _candidates.Add(new TargetCandidate(c, c.Body.Sphere.Position));
+            if (c.Hostile != hostile && !c.Freed && !c.Dead && c.Active)
+                _candidates.Add(new TargetCandidate(c.Who, c.Centre));
         }
         var opening = !_opened;
         if (!_opened)
@@ -701,7 +729,7 @@ public sealed class EnhancedCamera
             _opened = true;
             _opening = (me, heading);
             _cone.Pick(me, heading, _candidates, t, atOnce: true);
-            if (Target is null && Nearest(battle, current) is { } nearest && Flat(nearest.Body.Sphere.Position - me) <= t.TargetRange)
+            if (Target is null && Nearest(current) is { } nearest && Flat(_scene.Centre(nearest) - me) <= t.TargetRange)
                 _cone.Hold(nearest);
             _sinceDecide = int.MaxValue / 2;
             _framing = null;
@@ -716,13 +744,13 @@ public sealed class EnhancedCamera
         if (_opening is null && _cone.Pick(me, heading, _candidates, t))
             _sinceDecide = int.MaxValue / 2;
         NewSubjects();
-        _subjects.Add(Sphere(current.Body));
+        _subjects.Add(_scene.Sphere(current));
         // A target let go is still shot over the shoulder at for a moment (TrailAfter), so heading past one toward another doesn't put the
         // trailing shot between them, its aim flung about and back.
         var target = Target;
         if (target is not null)
             _letGo = 0;
-        else if (_behind is { Target: { Freed: false, Active: true } was } && !was.Sheet.IsDead && ++_letGo < t.TrailAfter)
+        else if (_behind is { Target: var was } && !_scene.Freed(was) && _scene.Active(was) && !_scene.Dead(was) && ++_letGo < t.TrailAfter)
             target = was;
         if (target is null)
         {
@@ -789,9 +817,9 @@ public sealed class EnhancedCamera
         if (_ahead is not null)
             LeaveSwing();
         _ahead = null;
-        _subjects.Add(Sphere(target.Body));
+        _subjects.Add(_scene.Sphere(target));
         // The target's pack: the shot leads toward the middle of them all, and holds them while they're near.
-        var at = target.Body.Sphere.Position;
+        var at = _scene.Centre(target);
         // Each of the pack counted as far as it's in it, fading out over the last PackFade of ClusterRadius from the target, and held as
         // far as the character is near it too, over the last PackFade of PackRange: so a body comes into the framing and the aim's lead
         // bit by bit, rather than all at once, and the view doesn't jump as one does.
@@ -831,7 +859,7 @@ public sealed class EnhancedCamera
         // Held as far as each is: a body barely in the pack is drawn in toward the aim, so it asks the framing for little room.
         foreach (var (other, held) in _pack)
         {
-            var sphere = Sphere(other.Body);
+            var sphere = _scene.Sphere(other);
             var aim = _frameBy.Aim!.Value;
             _subjects.Add(new ShotSubject(aim + (sphere.At - aim) * held, sphere.Radius * held) { Weight = t.ClusterWeight * held });
         }
@@ -1085,7 +1113,7 @@ public sealed class EnhancedCamera
     }
 
     /// <summary>Whether a combatant attacks from afar: a ranged weapon and a ranged action.</summary>
-    private static bool IsRanged(Combatant c) =>
+    internal static bool IsRanged(Combatant c) =>
         Battle.WeaponOf(c) is { } w && (w.Range > 0 || w.Missile is not null) && c.Action is CombatAction.Ranged or CombatAction.MeleeOrRanged;
 
     // ---------------------------------------------------------------------------------------------------------------------------
@@ -1100,28 +1128,28 @@ public sealed class EnhancedCamera
     /// it has acted), the shot now stays. An action at someone further off, or a spell at an ally, is two shots instead
     /// (<see cref="Volley"/>).
     /// </summary>
-    private Shot ActionShot(Battle battle, Combatant current, Shot originalShot)
+    private Shot ActionShot(Combatant current, Shot originalShot)
     {
-        if (Volley(battle, current) is { } volley)
+        if (Volley(current) is { } volley)
             return volley;
-        var ai = current.Controlled;
+        var ai = _scene.Controlled(current);
         NewSubjects();
-        _subjects.Add(Sphere(current.Body));
+        _subjects.Add(_scene.Sphere(current));
         var to = Destination(current);
         if (to is { } d)
-            _subjects.Add(new ShotSubject(d, current.Body.ScaledRadius));
+            _subjects.Add(new ShotSubject(d, _scene.Radius(current)));
         _acted.Clear();
         // One fleeing acts on no one, whoever it last had in mind.
-        if (!current.Fleeing)
+        if (!_scene.Facts.Fleeing)
         {
-            Acted(battle, ai ? current.Ai?.Target ?? -1 : battle.Target);
-            foreach (var slot in battle.TargetsB.SelectedSlots)
-                Acted(battle, slot);
+            Acted(ai ? _scene.Facts.AiTarget : _scene.Facts.Target);
+            foreach (var c in _scene.Facts.ChosenB)
+                Acted(c);
         }
         foreach (var c in _acted)
-            _subjects.Add(Sphere(c.Body));
-        if (battle.CameraOwner is { Freed: false } owner && owner != current && !_acted.Contains(owner))
-            _subjects.Add(Sphere(owner.Body));
+            _subjects.Add(_scene.Sphere(c));
+        if (Owner() is { } owner && owner != current && !_acted.Contains(owner))
+            _subjects.Add(_scene.Sphere(owner));
         _pairs.Clear();
         foreach (var c in _acted)
             AddPair(current, c);
@@ -1133,14 +1161,14 @@ public sealed class EnhancedCamera
         if (ai && _followOf == current && (to is not null || _walk is { } held && held.Who == current))
         {
             if (to is { } end && (_walk is not { } w || w.Who != current || Flat(w.To - end) > 1))
-                _walk = PlanWalk(battle, current, end);
+                _walk = PlanWalk(current, end);
             // Stopped, perhaps short of where it was going: its end framed again from the same way round where it stands, whom it acts
             // on held in it.
             if (to is null && _walk is { Arrived: false } stopped)
             {
                 var planned = Shot.Of(stopped.EyeEnd, stopped.AimEnd);
                 var framed = _finder!.Framed(_subjects, planned.Yaw, planned.Pitch);
-                _walk = stopped with { To = current.Body.Sphere.Position, EyeEnd = framed.Eye, AimEnd = framed.Aim, Last = null, Arrived = true };
+                _walk = stopped with { To = _scene.Centre(current), EyeEnd = framed.Eye, AimEnd = framed.Aim, Last = null, Arrived = true };
             }
             var (was, walked) = (_walk!.Value.Last, WalkShot(current));
             if (was is { } from)
@@ -1148,7 +1176,7 @@ public sealed class EnhancedCamera
             _plan = (current, walked);
             _planMissed = _subjects.Count(s => !ShotFraming.Holds(walked, s with { Radius = 0 }, screen));
             _sinceDecide = 0;
-            Kind = (current.Fleeing ? "an AI's flight" : "an AI's walk") + (to is null ? ", ended" : ", turned after");
+            Kind = (_scene.Facts.Fleeing ? "an AI's flight" : "an AI's walk") + (to is null ? ", ended" : ", turned after");
             return walked;
         }
         _walk = null;
@@ -1166,7 +1194,7 @@ public sealed class EnhancedCamera
             Kind = kind;
             return p.Shot;
         }
-        if (_plan is null && battle.State == CombatState.AI)
+        if (_plan is null && _scene.State == CombatState.AI)
         {
             Kind = "an AI's turn, thinking";
             return _motion?.Current ?? originalShot;
@@ -1175,7 +1203,7 @@ public sealed class EnhancedCamera
         if (_plan is null)
             _shown.Clear();
         _shown.AddRange(_subjects.Take(to is null ? 1 : 2));
-        if (_finder!.Planned([.. _subjects, .. _shown], _from, NextYaw(battle), _pairs) is not var (shot, _))
+        if (_finder!.Planned([.. _subjects, .. _shown], _from, NextYaw(), _pairs) is not var (shot, _))
             return originalShot;
         _plan = (current, shot);
         _sinceDecide = 0;
@@ -1192,7 +1220,7 @@ public sealed class EnhancedCamera
     /// <see cref="CameraTuning.WalkPanMost"/>, aimed at the walker. The one seeing both best, whom it acts on seen beside it as it sets
     /// off if they can be, from the vantage's side, turning least from the shot now and to the next player's turn.
     /// </summary>
-    private Walk PlanWalk(Battle battle, Combatant who, Vector3 to)
+    private Walk PlanWalk(Combatant who, Vector3 to)
     {
         var t = Tuning;
         var finder = _finder!;
@@ -1201,8 +1229,8 @@ public sealed class EnhancedCamera
         var length = Flat(way);
         _ends.Clear();
         _starts.Clear();
-        _ends.Add(new ShotSubject(to, who.Body.ScaledRadius));
-        _starts.Add(new ShotSubject(from, who.Body.ScaledRadius));
+        _ends.Add(new ShotSubject(to, _scene.Radius(who)));
+        _starts.Add(new ShotSubject(from, _scene.Radius(who)));
         // After the walker and where it goes: whom it acts on and whom the original's camera follows.
         for (var i = 2; i < _subjects.Count; i++)
         {
@@ -1211,7 +1239,7 @@ public sealed class EnhancedCamera
         }
         var ahead = length > 1e-3f ? MathF.Atan2(way.X, way.Z) : _from;
         var share = length > 1e-3f ? MathF.Min(t.WalkPan, t.WalkPanMost / length) : 0;
-        var next = NextYaw(battle);
+        var next = NextYaw();
         (Shot End, float Score)? best = null;
         foreach (var dy in t.WalkYaws)
         {
@@ -1238,13 +1266,13 @@ public sealed class EnhancedCamera
     /// </summary>
     private float LayRail(Combatant who, Vector3 from, Vector3 to)
     {
-        var body = who.Body;
-        var radius = body.ScaledRadius;
+        var facts = _scene.Facts;
+        var radius = _scene.Radius(who);
         _corners.Clear();
         _corners.Add(new Vector2(from.X, from.Z));
-        if (body.Moving)
-            _corners.Add(body.Goal);
-        foreach (var (goal, _) in body.Queued)
+        if (facts.Moving)
+            _corners.Add(facts.Goal);
+        foreach (var goal in facts.Queued)
             _corners.Add(goal);
         _corners.Add(new Vector2(to.X, to.Z));
         _railRaw.Clear();
@@ -1339,7 +1367,7 @@ public sealed class EnhancedCamera
             _walk = w with { Last = still };
             return still;
         }
-        var measured = Measure(_followOf == who ? _follow.At : who.Body.Sphere.Position, w.Measured);
+        var measured = Measure(_followOf == who ? _follow.At : _scene.Centre(who), w.Measured);
         // Tracked as a critically damped pair, place and speed: the speed made up from what's left of the way to the walker, so a steady
         // walker isn't trailed, and their stride's bursts are smoothed away rather than passed on.
         var k = 1 / MathF.Max(t.WalkSmoothing, 1e-3f) / 60;
@@ -1366,12 +1394,15 @@ public sealed class EnhancedCamera
         return shot;
     }
 
-    /// <summary>Adds the combatant in a slot to those an action acts on, if it's on the field and not already one.</summary>
-    private void Acted(Battle battle, int slot)
+    /// <summary>Adds a combatant to those an action acts on, if it's on the field and not already one.</summary>
+    private void Acted(Combatant? c)
     {
-        if (slot >= 0 && slot < battle.Slots.Count && battle.Slots[slot] is { Freed: false } c && c != battle.Current && !_acted.Contains(c))
+        if (c is not null && !_scene.Freed(c) && c != _scene.Current && !_acted.Contains(c))
             _acted.Add(c);
     }
+
+    /// <summary>Whom the original's camera follows, if it's on the field.</summary>
+    private Combatant? Owner() => _scene.CameraOwner is { } o && !_scene.Freed(o) ? o : null;
 
     // ---------------------------------------------------------------------------------------------------------------------------
     // An arrow, a throw or a spell at someone further off: the loosing, then the hit
@@ -1384,11 +1415,11 @@ public sealed class EnhancedCamera
     /// been shown <see cref="CameraTuning.LoosingTicks"/>; or as the blow lands: the target close, three-quarters on from the vantage's
     /// side (<see cref="HitShot"/>). Null for anything else; a spell's next target is a volley of its own.
     /// </summary>
-    private Shot? Volley(Battle battle, Combatant current)
+    private Shot? Volley(Combatant current)
     {
         var t = Tuning;
-        if (battle.State is not (CombatState.Facing or CombatState.Action or CombatState.Cast or CombatState.Result)
-            || battle.Target < 0 || battle.Target >= battle.Slots.Count || battle.Slots[battle.Target] is not { } target)
+        var facts = _scene.Facts;
+        if (_scene.State is not (CombatState.Facing or CombatState.Action or CombatState.Cast or CombatState.Result) || facts.Target is not { } target)
         {
             _volley = null;
             return null;
@@ -1401,7 +1432,7 @@ public sealed class EnhancedCamera
                 Kind = "the hit, at the target";
                 return own.Shot;
             }
-            if (battle.TargetsA.Selected != 0 || !battle.TargetsB.IsSelected(battle.Target) || battle.SpellTargetCount(current) <= 1)
+            if (facts.SelectedA != 0 || !facts.TargetInB || facts.SpellTargets <= 1)
             {
                 _volley = null;
                 return null;
@@ -1414,12 +1445,11 @@ public sealed class EnhancedCamera
         if (_volley is not { } v || v.Who != current || v.At != target)
         {
             // A new one only for a target selected: in a walk's facing the target is the last action's.
-            var spell = battle.TargetsA.Selected == 0 && battle.TargetsB.IsSelected(battle.Target);
-            var missile = battle.TargetsA.IsSelected(battle.Target)
-                && (battle.Flight is not null || current.Action == CombatAction.Flask || IsRanged(current));
+            var spell = facts.SelectedA == 0 && facts.TargetInB;
+            var missile = facts.TargetInA && (facts.Flight is not null || facts.Flask || facts.Ranged);
             // A spell at an ally is shown landing on them however near, as a buff's or a heal's effect is the point of it.
-            var ally = spell && target.Hostile == current.Hostile;
-            if (target.Freed || !spell && !missile || !ally && Flat(target.Body.Sphere.Position - current.Body.Sphere.Position) <= t.ReleaseDistance)
+            var ally = spell && _scene.Hostile(target) == _scene.Hostile(current);
+            if (_scene.Freed(target) || !spell && !missile || !ally && Flat(_scene.Centre(target) - _scene.Centre(current)) <= t.ReleaseDistance)
             {
                 _volley = null;
                 return null;
@@ -1431,10 +1461,10 @@ public sealed class EnhancedCamera
         if (!hit)
         {
             shown++;
-            if (battle.CastLoosed)
+            if (facts.CastLoosed)
                 loosed++;
-            var flown = battle.Flight is { Length: > 0 } f && Vector3.Distance(f.Position, f.From) >= f.Length * t.HitAt;
-            if ((flown || loosed > t.ReleaseBeat) && shown >= t.LoosingTicks || battle.State == CombatState.Result)
+            var flown = facts.Flight is { Length: > 0 } f && Vector3.Distance(f.Position, f.From) >= f.Length * t.HitAt;
+            if ((flown || loosed > t.ReleaseBeat) && shown >= t.LoosingTicks || _scene.State == CombatState.Result)
             {
                 shot = HitShot(current, target);
                 hit = true;
@@ -1450,10 +1480,10 @@ public sealed class EnhancedCamera
     private Shot Loosing(Combatant who, Combatant at)
     {
         var t = Tuning;
-        var (me, there) = (who.Body.Sphere.Position, at.Body.Sphere.Position);
+        var (me, there) = (_scene.Centre(who), _scene.Centre(at));
         NewSubjects();
-        _subjects.Add(Sphere(who.Body));
-        _subjects.Add(Sphere(at.Body) with { Weight = t.ClusterWeight });
+        _subjects.Add(_scene.Sphere(who));
+        _subjects.Add(_scene.Sphere(at) with { Weight = t.ClusterWeight });
         _pairs.Clear();
         AddPair(who, at);
         var behind = Look(me, there);
@@ -1469,15 +1499,15 @@ public sealed class EnhancedCamera
     private Shot HitShot(Combatant who, Combatant at)
     {
         var t = Tuning;
-        var there = at.Body.Sphere.Position;
+        var there = _scene.Centre(at);
         NewSubjects();
-        _subjects.Add(Sphere(at.Body));
+        _subjects.Add(_scene.Sphere(at));
         if (who == at)
         {
             var from = _vantage is { } toward ? MathF.Atan2(toward.X - there.X, toward.Y - there.Z) : _from;
             return _finder!.Best(_subjects, from, from)?.Shot ?? _finder.Framed(_subjects, from, Rad(t.PreferredPitch));
         }
-        var along = Look(who.Body.Sphere.Position, there);
+        var along = Look(_scene.Centre(who), there);
         var turn = Rad(t.HitTurn);
         var yaw = along + turn;
         if (_vantage is { } v)
@@ -1500,15 +1530,15 @@ public sealed class EnhancedCamera
     /// and again once the line between the party's middle and the enemies' has turned <see cref="CameraTuning.VantageTurn"/> from the one
     /// it was placed for.
     /// </summary>
-    private void PlaceVantage(Battle battle)
+    private void PlaceVantage()
     {
         var (party, enemies) = (Vector2.Zero, Vector2.Zero);
         var (np, ne) = (0, 0);
-        foreach (var c in battle.Combatants)
+        foreach (var c in _scene.Bodies)
         {
-            if (c.Freed || c.Sheet.IsDead || !c.Active)
+            if (c.Freed || c.Dead || !c.Active)
                 continue;
-            var at = new Vector2(c.Body.Sphere.Position.X, c.Body.Sphere.Position.Z);
+            var at = new Vector2(c.Centre.X, c.Centre.Z);
             if (c.Hostile)
             {
                 enemies += at;
@@ -1545,7 +1575,7 @@ public sealed class EnhancedCamera
     /// <summary>Adds the side two who deal with each other should be framed on, a party member and their enemy, the way the vantage sees them.</summary>
     private void AddPair(Combatant a, Combatant b)
     {
-        if (a.Hostile != b.Hostile && _vantage is { } v && Vantage.Side(a.Body.Sphere.Position, b.Body.Sphere.Position, v) is { } side)
+        if (_scene.Hostile(a) != _scene.Hostile(b) && _vantage is { } v && Vantage.Side(_scene.Centre(a), _scene.Centre(b), v) is { } side)
             _pairs.Add(side);
     }
 
@@ -1555,16 +1585,16 @@ public sealed class EnhancedCamera
     /// </summary>
     private Vector3? Destination(Combatant c)
     {
-        var body = c.Body;
+        var facts = _scene.Facts;
         Vector2 goal;
-        if (body.Queued.Count > 0)
-            goal = body.Queued.Last().Goal;
-        else if (body.Moving)
-            goal = body.Goal;
+        if (facts.Queued.Count > 0)
+            goal = facts.Queued[^1];
+        else if (facts.Moving)
+            goal = facts.Goal;
         else
             return null;
-        var y = body.Sphere.Position.Y;
-        var radius = body.ScaledRadius;
+        var y = _scene.Centre(c).Y;
+        var radius = _scene.Radius(c);
         return new Vector3(goal.X, Height(goal.X, goal.Y, y - radius) + radius, goal.Y);
     }
 
@@ -1572,29 +1602,27 @@ public sealed class EnhancedCamera
     /// The yaw of the next player's turn's likely shot: over that character's shoulder at its nearest enemy. With no player's turn left in
     /// the round, the way from the party's middle to the enemies'.
     /// </summary>
-    private float NextYaw(Battle battle)
+    private float NextYaw()
     {
-        var order = battle.Order;
-        for (var i = order.Now + 1; i < order.Turns.Count; i++)
+        foreach (var next in _scene.Facts.Upcoming)
         {
-            if (order.Turns[i] < battle.Slots.Count && battle.Slots[order.Turns[i]] is { Controlled: false, Freed: false } next
-                && !next.Sheet.IsDead && Nearest(battle, next) is { } enemy)
-                return Look(next.Body.Sphere.Position, enemy.Body.Sphere.Position);
+            if (!_scene.Controlled(next) && !_scene.Freed(next) && !_scene.Dead(next) && Nearest(next) is { } enemy)
+                return Look(_scene.Centre(next), _scene.Centre(enemy));
         }
         var (party, enemies) = (Vector3.Zero, Vector3.Zero);
         var (np, ne) = (0, 0);
-        foreach (var c in battle.Combatants)
+        foreach (var c in _scene.Bodies)
         {
-            if (c.Freed || c.Sheet.IsDead)
+            if (c.Freed || c.Dead)
                 continue;
             if (c.Hostile)
             {
-                enemies += c.Body.Sphere.Position;
+                enemies += c.Centre;
                 ne++;
             }
             else
             {
-                party += c.Body.Sphere.Position;
+                party += c.Centre;
                 np++;
             }
         }
@@ -1602,19 +1630,20 @@ public sealed class EnhancedCamera
     }
 
     /// <summary>The nearest of a combatant's enemies, alive and on the field.</summary>
-    private static Combatant? Nearest(Battle battle, Combatant of)
+    private Combatant? Nearest(Combatant of)
     {
         Combatant? nearest = null;
         var best = float.MaxValue;
-        foreach (var c in battle.Combatants)
+        var (hostile, at) = (_scene.Hostile(of), _scene.Centre(of));
+        foreach (var c in _scene.Bodies)
         {
-            if (c.Hostile == of.Hostile || c.Freed || c.Sheet.IsDead || !c.Active)
+            if (c.Hostile == hostile || c.Freed || c.Dead || !c.Active)
                 continue;
-            var d = Vector3.DistanceSquared(c.Body.Sphere.Position, of.Body.Sphere.Position);
+            var d = Vector3.DistanceSquared(c.Centre, at);
             if (d < best)
             {
                 best = d;
-                nearest = c;
+                nearest = c.Who;
             }
         }
         return nearest;
@@ -1634,14 +1663,14 @@ public sealed class EnhancedCamera
     // Aiming
 
     /// <summary>An aim's shot (<see cref="ShotFinder.Aimed"/>), from the yaw the view had as the aim began.</summary>
-    private Shot Aimed(Battle battle, Combatant c, (CombatState State, Combatant Who, float Yaw)? aimed, Vector3 reticle, float radius, float pitch) =>
-        _finder!.Aimed(reticle, radius, AimYaw(battle, c, aimed), pitch);
+    private Shot Aimed(Combatant c, (CombatState State, Combatant Who, float Yaw)? aimed, Vector3 reticle, float radius, float pitch) =>
+        _finder!.Aimed(reticle, radius, AimYaw(c, aimed), pitch);
 
     /// <summary>The yaw the view had as the aim began, now the aim's.</summary>
-    private float AimYaw(Battle battle, Combatant c, (CombatState State, Combatant Who, float Yaw)? aimed)
+    private float AimYaw(Combatant c, (CombatState State, Combatant Who, float Yaw)? aimed)
     {
-        var yaw = aimed is { } a && a.State == battle.State && a.Who == c ? a.Yaw : _from;
-        _aiming = (battle.State, c, yaw);
+        var yaw = aimed is { } a && a.State == _scene.State && a.Who == c ? a.Yaw : _from;
+        _aiming = (_scene.State, c, yaw);
         return yaw;
     }
 
@@ -1650,19 +1679,19 @@ public sealed class EnhancedCamera
     /// attacker and the body under the cursor and hides neither, as the player's turn's over the shoulder at it does; else over the
     /// attacker's shoulder at that body, found once for it.
     /// </summary>
-    private Shot BlowAim(Battle battle, Combatant current, Shot originalShot)
+    private Shot BlowAim(Combatant current, Shot originalShot)
     {
         var t = Tuning;
-        _aiming = (battle.State, current, _from);
+        _aiming = (_scene.State, current, _from);
         NewSubjects();
-        _subjects.Add(Sphere(current.Body));
-        if (battle.CameraOwner is not { Freed: false } cursor || cursor == current)
+        _subjects.Add(_scene.Sphere(current));
+        if (Owner() is not { } cursor || cursor == current)
         {
             _blowAim = null;
             Kind = "aiming a blow";
             return _motion?.Current ?? originalShot;
         }
-        _subjects.Add(Sphere(cursor.Body));
+        _subjects.Add(_scene.Sphere(cursor));
         if (_blowAim is { } held && held.Cursor == cursor)
         {
             Kind = "aiming a blow, the shot held";
@@ -1679,7 +1708,7 @@ public sealed class EnhancedCamera
                 return k;
             }
         }
-        var (me, there) = (current.Body.Sphere.Position, cursor.Body.Sphere.Position);
+        var (me, there) = (_scene.Centre(current), _scene.Centre(cursor));
         _pairs.Clear();
         AddPair(current, cursor);
         var behind = Look(me, there);
@@ -1703,18 +1732,18 @@ public sealed class EnhancedCamera
     /// near side down to the conversation box's top (<see cref="ShotFinder.Placed"/>), so the ring is as big as the screen allows
     /// whatever its size.
     /// </summary>
-    private Shot AreaShot(Battle battle, Combatant c, (CombatState State, Combatant Who, float Yaw)? aimed, AimMarker marker)
+    private Shot AreaShot(Combatant c, (CombatState State, Combatant Who, float Yaw)? aimed, AimMarker marker)
     {
         var t = Tuning;
-        var centre = Ground(battle, marker.Centre, c);
-        var yaw = AimYaw(battle, c, aimed);
+        var centre = Ground(marker.Centre, c);
+        var yaw = AimYaw(c, aimed);
         var pitch = Rad(t.TopDownPitch);
         NewSubjects();
         const int points = 16;
         for (var i = 0; i < points; i++)
         {
             var (sin, cos) = MathF.SinCos(MathF.Tau * i / points);
-            _subjects.Add(new ShotSubject(Ground(battle, marker.Centre + new Vector2(cos, sin) * (marker.Radius + MarkerRim), c)));
+            _subjects.Add(new ShotSubject(Ground(marker.Centre + new Vector2(cos, sin) * (marker.Radius + MarkerRim), c)));
         }
         return _finder!.Placed(centre, _subjects, yaw, pitch);
     }
@@ -1725,30 +1754,30 @@ public sealed class EnhancedCamera
     /// (<see cref="CameraTuning.ReachWeight"/>), which a low shot sees just above them. The caster needn't be in it: the line in the box
     /// says who casts. Found again as the cursor or the selection changes.
     /// </summary>
-    private Shot SpellAim(Battle battle, Combatant caster, AimMarker reach)
+    private Shot SpellAim(Combatant caster, AimMarker reach)
     {
         var t = Tuning;
         NewSubjects();
         _acted.Clear();
-        foreach (var slot in battle.TargetsB.SelectedSlots)
-            Acted(battle, slot);
-        var cursor = battle.CameraOwner is { Freed: false } o && o != caster ? o : null;
+        foreach (var c in _scene.Facts.ChosenB)
+            Acted(c);
+        var cursor = Owner() is { } o && o != caster ? o : null;
         if (cursor is not null && !_acted.Contains(cursor))
             _acted.Add(cursor);
-        var me = caster.Body.Sphere.Position;
+        var me = _scene.Centre(caster);
         var middle = me;
         if (_acted.Count == 0)
         {
             // At the caster themselves.
-            _subjects.Add(Sphere(caster.Body));
+            _subjects.Add(_scene.Sphere(caster));
         }
         else
         {
             middle = Vector3.Zero;
             foreach (var c in _acted)
             {
-                _subjects.Add(Sphere(c.Body));
-                middle += c.Body.Sphere.Position;
+                _subjects.Add(_scene.Sphere(c));
+                middle += _scene.Centre(c);
             }
             middle /= _acted.Count;
         }
@@ -1757,12 +1786,12 @@ public sealed class EnhancedCamera
             AddPair(caster, cursor);
         var targets = _subjects.Count;
         // Its ring's nearest point to the targets: from its centre through their middle.
-        var centre = battle.Origin + new Vector3(reach.Centre.X, 0, reach.Centre.Y);
+        var centre = _scene.Origin + new Vector3(reach.Centre.X, 0, reach.Centre.Y);
         var way = new Vector2(middle.X - centre.X, middle.Z - centre.Z);
         if (way.LengthSquared() < 1e-4f)
             way = -(_motion?.Current.LookXZ ?? Vector2.UnitY);
         var edge = reach.Centre + Vector2.Normalize(way) * reach.Radius;
-        var ring = new ShotSubject(Ground(battle, edge, caster) + new Vector3(0, 0.5f, 0), 0, t.ReachWeight);
+        var ring = new ShotSubject(Ground(edge, caster) + new Vector3(0, 0.5f, 0), 0, t.ReachWeight);
         var behind = _acted.Count > 0 ? Look(me, middle) : _from;
         _frameBy = (null, null);
         // The reach is shown only where it doesn't draw the shot far back from the targets: a wide spell's ring is far beyond them.
@@ -1772,7 +1801,7 @@ public sealed class EnhancedCamera
         var shown = withRing <= MathF.Max(alone, t.MinDistance) * t.ReachStretch;
         if (shown)
             _subjects.Add(ring);
-        var key = (cursor, battle.TargetsB.Selected, shown);
+        var key = (cursor, _scene.Facts.SelectedB, shown);
         Frame(behind, force: _spellAim != key);
         _spellAim = key;
         var shot = FramedNow(behind);
@@ -1783,24 +1812,21 @@ public sealed class EnhancedCamera
             shot = _finder.Framed(_subjects, shot.Yaw, shot.Pitch);
         }
         Kind = shown ? "aiming a spell, its targets and some of its reach" : "aiming a spell, its targets";
-        _aiming = (battle.State, caster, behind);
+        _aiming = (_scene.State, caster, behind);
         return shot;
     }
 
     /// <summary>What the player aims at: the body the cursor is on, or the caster's own.</summary>
-    private static Vector3 Reticle(Battle battle, Combatant current) =>
-        (battle.CameraOwner is { Freed: false } o ? o : current).Body.Sphere.Position;
+    private Vector3 Reticle(Combatant current) => _scene.Centre(Owner() ?? current);
 
     /// <summary>A point of the grid on the ground, at the caster's height where none is found.</summary>
-    private Vector3 Ground(Battle battle, Vector2 cell, Combatant c)
+    private Vector3 Ground(Vector2 cell, Combatant c)
     {
-        var at = battle.Origin + new Vector3(cell.X, 0, cell.Y);
-        return new Vector3(at.X, Height(at.X, at.Z, c.Body.Sphere.Position.Y), at.Z);
+        var at = _scene.Origin + new Vector3(cell.X, 0, cell.Y);
+        return new Vector3(at.X, Height(at.X, at.Z, _scene.Centre(c).Y), at.Z);
     }
 
     private float Height(float x, float z, float fallback) => _finder?.Sight.GroundAt(x, z, fallback + 30) ?? fallback;
-
-    private static ShotSubject Sphere(Body body) => new(body.Sphere.Position, body.ScaledRadius);
 
     private static float Rad(float degrees) => degrees * MathF.PI / 180;
 
