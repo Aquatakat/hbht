@@ -75,7 +75,7 @@ Each plain flag that can't be set is given its reason:
 
 A goal the relaxation can't reach comes back with why: what sets it, and the first thing each setter needs that never comes true.
 
-**The plans today ignore travel.** Every place counts as reachable (`Everywhere`) until the world graph answers `IPlaceReach`, so the plans follow the story's flag gates alone, and most of the game's progression is geography. From a new game:
+**Places.** On its own, the planner counts every place as reachable (`Everywhere`), so its plans follow the story's flag gates alone, though most of the game's progression is geography. The run puts the world graph behind `IPlaceReach`, which turns the gates on a place's way into preconditions (see [the run](#the-run)). Without it, from a new game:
 
 - the first member is three steps: the opening, script 0x0362, then the companions' scene at Overworld I13 (0x0527), where Abrecan joins;
 - the ending is seven: the opening, 0x0362, Roog's scene (0x04F4), the tripwire at M06, and the last three scenes at Gwernia castle (0x04FC to 0x04FE), with the two battles won.
@@ -246,21 +246,99 @@ The first build that fits is chosen afresh each time from the member's own skill
 - reading a loaded save and playing its opening if it stands nowhere;
 - the menu's save.
 
+## The run
+
+`Playthrough` (`Playthrough.cs`, `StepTranslation.cs`, `WorldReach.cs`, `WorldGraph.Flood.cs`, `RunReport.cs`) plays from a host's game to a goal:
+
+```
+hbht playthrough run --goal flag:<n>|member|ending [--save <save>] [--saves <dir>] [--report <path>] [--most-ticks <n>] [--most-minutes <n>]
+```
+
+It prints a line a step and a line a milestone, then the report. It exits 0 if the goal was reached, else 2.
+
+**Each step:**
+
+1. It plans from the real state (`PlanState.From`), with the world graph behind the planner's places. The rest of the last plan is kept while it still holds from there.
+2. It turns the plan's first action into the pilot's step and plays it.
+3. It compares what the game did with what the step expected.
+
+**Failure.** A step that fails (no route, stuck, not used, out of ticks, or an expectation missed) is reported. Its action is banned in the state it was tried from, and for good after three failures. A step whose object the pilot never used still counts as done if what it was for came about, as when an encounter catches the party first. The run gives up on a goal after 8 failed steps in a row (`MostFailures`), or when the game's ticks or the wall time run out. It also stops when the planner has no step, saying what the relaxed plan's next steps are and what keeps each from being done.
+
+**Places in plans.** One flood of the walk graphs from where the player stands (`WorldGraph.Flood`) finds, for every cell, the fewest closed gates on a way to it. A teleporter costs its closed gates, read against the game's flags, derived ones included:
+
+- a lock the party's thief picks (level under 10, thief skill above it) is open;
+- a gate with no flag, or whose literal no order of steps can make true, is a wall. That is judged by a relaxation over every action, with every place reached, from the real state.
+
+A place's gates (`WorldReach.Gates`) are the literals of the closed gates on its way, such as `flag 50 set` for the lock on Oriana's hut's door (6/E03/2). The relaxation and the backward chain take them as preconditions of the actions there (`QuestModel.Needs`), and the search checks them in each plan state. So a plan to a place behind a closed door first makes its flag true. From inside the hut, every place outside needs 50, and only Oriana's conversation (0x0394) sets it.
+
+A place no way reaches, however the gates stand, is off foot. The relaxation takes it as reached, since the story moves the player itself (the ambush's battle ends in the hut), but the search never steps there. A gate open now is taken to stay open. The flood takes a few seconds the first time, while it loads every graph, and about 0.1 s after.
+
+**Translation.** An action's place becomes the map object to use. A chunk (a world map region) becomes the nearest object that walking up to sets off nothing, used with `UseKind.Arrive`.
+
+| Action kind | Use |
+| --- | --- |
+| Talk, Fight | Talk |
+| Open, FindSecret, Disarm, PickLock | Press |
+| Enter | Arrive |
+| Play, Trip | as the object is (Auto) |
+
+- **Choices.** Each choice becomes the page that offers it: the first menu or case of the script linking its node.
+- **Effects.** They become what the step should leave so: the last word on each plain flag, member (while there's room) and item, less items a drop chance or a shop decides.
+- **Code gates** are weighed against the party (`CodeCheck`). Gold, stats and locks are read, and one not met keeps the step from being played. A lock on the way to the place sets the route's `PickLocks`. Skill checks, traps, drop chances and the merge are left to the game, and reported if the step misses. Shops' purchases aren't made.
+- **Events** (the opening) are played by running the host until the player has the controls.
+
+**Trainers.** After a step that's done, a trainer is visited if all of these hold:
+
+- they are within 40 of the player (60 of walking);
+- their gates are open;
+- they teach something a member's build wants that the party's experience and gold, less a reserve of 300, can buy.
+
+The pilot walks up (`Arrive`), and `Levelling.Train` buys. A trainer isn't visited again until the party has more experience than when it last was.
+
+**From a new game**, the member goal takes 4 steps and 48,150 ticks, about 8 s of wall time:
+
+1. The way to the castle's 4/I01/6 plays Edur's scene, Alaron's, the Goblin Ambush and Oriana's cut-scenes, and ends in her hut, whose door is shut.
+2. Talking to Oriana sets 50, and her training opens. The builds buy Alaron Strength twice and Air Shield.
+3. The castle, with a battle at K08 lost and won outright.
+4. 0x03A0 at 4/G01/6: Abrecan joins.
+
+Brenna (0x03A3) and Rheda (0x039E) follow, filling the party in six steps.
+
+**Left out:**
+
+- Transports the story makes aren't modelled, beyond the off-foot rule.
+- A wanted choice not offered isn't retried with the way's other choices.
+- Choices in scripts that a way runs on into (`script.ended` triggers) aren't mapped to pages.
+- Map sets entered are checked at a step's end.
+- The trainer rule looks only where a step leaves the player, not along its route.
+- While off-foot places are free in the relaxation, progress on foot doesn't lower the heuristic, so a search that fails takes about a minute.
+
 ## Goals and the party
 
-A goal is a flag to set (`flag:<n>`), or `ending`: the ending's credits rolling. The run keeps a stack of them, and a goal above another supersedes it while it's there.
+A goal is a flag to set (`flag:<n>`), someone joining (`member`), or `ending`: the ending's credits rolling. The run's goal is at the bottom of its stack.
 
-- **A party member.** While the party has an empty slot (`Party.Count < Party.MaxSize`), the goal is a member joining (a script's `AddMember` on someone living who isn't in the party). It's pursued while the planner finds a way to it; when it finds none, the goal below resumes, and the member goal is tried again after each milestone. A new game has Alaron alone, so the first goal is always a member, which leads into the story anyway.
-- **Deaths.** A member who dies in battle is gone for good, as in the original: their slot empties, and the member goal comes back. If Alaron dies, the game is over: the battle is played again from its start and won outright, as a lost battle is.
+- **A party member.** While a slot is empty of a living member (`Party.HasEmptySlot()`), the member goal comes first, as long as the planner has a step towards it (a partial plan included). A new game has Alaron alone, so its first goal is a member, which leads into the story anyway. When the planner has no step towards a member, or 8 steps towards one fail in a row, the member goal rests until the next milestone wakes it, and the report says so.
+- **Deaths.** A member who dies in battle leaves the party as it ends, as in the original. Their died flag keeps them out of the member goal, and their slot brings the goal back. From Before Rooughah with Sholeh gone, the next step is the companions' scene at I13 (0x0527). A lost battle is played again from its start, which undoes its deaths.
 
 ## The report
 
-Each entry has what was expected, what happened, the tick, where the player stood, and the save made just before it:
+`RunReport` holds the entries, the milestones, every step and what was bought. Each entry has what was expected, what happened, the tick, where the player stood, and the save from just before its step. The game is kept before every step and written out once an entry needs it. The entries, by kind:
 
-- a step whose effects didn't happen (the plan expected a flag that wasn't set, or a member who didn't join);
-- a route the pilot couldn't walk, or an object it couldn't use;
-- a goal the planner can't reach from where the run stands;
-- a battle won outright because the party lost it, or a death;
-- the host's warnings (`ITrekHost.Warn`, where a script stopped where the original would crash) and any exception.
+- `StepMissed`: a step used its object, but its effects didn't all happen.
+- `NoRoute`, `Stuck`, `NotUsed`, `OutOfTicks`: the pilot's failures.
+- `ChoiceMissed`: a wanted choice not offered, or a page that never came.
+- `CodeGate`: a gate the party doesn't meet, or a roll that went against the plan.
+- `Unreachable`: no step towards a goal, with the relaxed plan's next steps and why.
+- `LostFirst`, `Stalemate`, `Death`: battles.
+- `Warning`: the host's warnings and the battle pilot's problems.
+- `Exception`.
 
-Saves go to `<saves>/playthrough/<nn>-<milestone>.sav` in save format 2, and load in the runtime and the editor.
+**Milestones** are the start, a member joining or dying, a journal entry added (a flag naming one turning on), a cinematic played, a map set first entered, and the goal reached. Each writes a save in format 2, as the menu's save does, to `<saves>/playthrough/<nn>-<kind>-<what>.sav` (the data folder's saves, or `--saves`). The saves load in the runtime and the editor.
+
+**The summary** gives the steps, the game's ticks and the wall time, the party's levels at each milestone, battles fought with the `LostFirst` and `Stalemate` counts, deaths, trainer visits, entries by kind, and the goal reached or why not. `--report <path>` writes `<path>.txt` and `<path>.json`.
+
+## Where it stands
+
+From a new game toward the ending, the run fills the party in 6 steps (Abrecan, Brenna, Rheda), then stops after 7 steps and 52,297 ticks, 100 s of wall time. It played 7 battles, losing 1 first, with 9 milestones saved. Its findings:
+
+- **The south-east island is cut off.** The walk graphs stand on the collision a new game loads. The Overworld's collision toggle 0/P24/1 (enabled by flag 480, which 0x04A3 sets) joins the mainland to the south-east island: O25 and its interior 6/G05, the Barrows (9), and Ugarit (13 and 14). It stands 0.1 from the mainland's cells and 2.3 from the island's. Every plan to the ending needs the island, so the run stops there, from a new game and from Before Shamsuk's Tower alike. The Overworld's other collision toggles are 0/T27/0 (flag 3699) and 0/D14/0 (flag 5533).
