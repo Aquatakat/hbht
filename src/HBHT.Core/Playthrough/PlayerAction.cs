@@ -61,6 +61,9 @@ public sealed record PlayerAction(
     /// </summary>
     public IReadOnlyList<IReadOnlyList<int>> OtherChoices { get; init; } = [];
 
+    /// <summary>The way through its script it takes, for an action that plays one.</summary>
+    public ScriptWay? Way { get; init; }
+
     /// <summary>Its gates the game decides in code, which the planner takes to hold.</summary>
     public IEnumerable<CodeGate> Gates => Presence.Concat(Requires).OfType<CodeGate>();
 

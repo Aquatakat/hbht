@@ -114,61 +114,82 @@ public static class Builds
     /// <summary>The most spells the AI fights with: its first five action slots.</summary>
     public const int AiSpells = 5;
 
+    // The rules the builds are weighed by (docs/systems/combat-actions.md, docs/systems/characters.md):
+    // - a melee blow's chance is Strength + Endurance + Level + the weapon's hit + 6 × the weapon skill + 2 × Warrior, less the target's
+    //   2 × Dexterity, Level and shield defence (the shield's defence × the shield skill, + Warrior);
+    // - its damage is (the weapon's dice + Strength's tier) d6, the tiers stepping at 4, 9, 17, 24, 28, 32, 36 and 39, less protection;
+    // - hit points are Endurance + Stamina + Level, and spells and skills spend Stamina;
+    // - a point or level from n costs (n + 1)² × its cost: Stamina 4, Strength, Endurance, Intelligence and Willpower 12, Dexterity 24,
+    //   a weapon skill 600, the shield 500, Warrior 1,000, Wizard 1,500.
+    // So the weapon skill is the cheapest chance to hit (6 a level), the shield skill the cheapest defence with a big shield (a Tower
+    // Shield's 6 a level, three times Dexterity's), Stamina the cheapest hit point, and Strength is worth its price at the tiers.
+
     /// <summary>
-    /// A caster, whose Wizard is at least 2 and above their Warrior: Wizard, their spells and Intelligence first, Stamina for the casting,
-    /// their weapon a little.
+    /// A caster, whose Wizard is at least 2 and above their Warrior, the party's artillery and support as a D&amp;D wizard is: Wizard and
+    /// their spells together, since a spell is cast at the lesser of the two; Intelligence for the casting; Stamina, which every cast
+    /// spends and which is their hit points; Willpower against the foes' magic. Their weapon only once the magic is strong.
     /// </summary>
     public static readonly Build Mage = new("Mage", new BuildFit(Skill.Wizard, 2, Over: Skill.Warrior),
     [
         BuildStep.Raise(1, Skill.Wizard, 4), BuildStep.Spells(1, 4), BuildStep.Raise(1, Stat.Intelligence, 20), BuildStep.Raise(1, Stat.Stamina, 35),
         BuildStep.Learn(1, 3),
-        BuildStep.Raise(2, Skill.Wizard, 6), BuildStep.Spells(2, 6), BuildStep.Raise(2, Stat.Intelligence, 24), BuildStep.Raise(2, Stat.Willpower, 18),
-        BuildStep.Raise(2, Stat.Endurance, 20), BuildStep.Weapon(2, 4), BuildStep.Learn(2, AiSpells),
-        BuildStep.Raise(3, Skill.Wizard, 8), BuildStep.Spells(3, 8), BuildStep.Raise(3, Stat.Intelligence, 28), BuildStep.Raise(3, Stat.Stamina, 50),
-        BuildStep.Raise(3, Stat.Dexterity, 22),
+        BuildStep.Raise(2, Skill.Wizard, 6), BuildStep.Spells(2, 6), BuildStep.Raise(2, Stat.Intelligence, 24), BuildStep.Raise(2, Stat.Stamina, 45),
+        BuildStep.Raise(2, Stat.Willpower, 18), BuildStep.Raise(2, Stat.Endurance, 18), BuildStep.Learn(2, AiSpells),
+        BuildStep.Raise(3, Skill.Wizard, 8), BuildStep.Spells(3, 8), BuildStep.Raise(3, Stat.Intelligence, 28), BuildStep.Raise(3, Stat.Stamina, 55),
+        BuildStep.Raise(3, Stat.Dexterity, 20), BuildStep.Weapon(3, 4),
         BuildStep.Raise(4, Skill.Wizard, 10), BuildStep.Spells(4, 10), BuildStep.Raise(4, Stat.Intelligence, 30), BuildStep.Raise(4, Stat.Willpower, 25),
-        BuildStep.Raise(4, Stat.Endurance, 25), BuildStep.Weapon(4, 6),
+        BuildStep.Raise(4, Stat.Endurance, 24), BuildStep.Raise(4, Stat.Stamina, 65),
     ]);
 
     /// <summary>
-    /// A fighter who casts too, with both Wizard and Warrior: the weapon and Warrior first, then Wizard and the spells, Strength and
-    /// Stamina for the blows.
+    /// A fighter who casts too, with Wizard: Alaron, whose death ends the game, so he's built to last first, as a D&amp;D party's paladin
+    /// fronts the line: the weapon, the shield and Stamina as a fighter's are, then Wizard and his spells alongside, Warrior and the
+    /// Strength tiers after.
     /// </summary>
     public static readonly Build Spellsword = new("Spellsword", new BuildFit(Skill.Wizard, 1),
     [
-        BuildStep.Weapon(1, 4), BuildStep.Raise(1, Skill.Warrior, 4), BuildStep.Raise(1, Stat.Strength, 18), BuildStep.Raise(1, Stat.Stamina, 35),
-        BuildStep.Raise(1, Skill.Wizard, 2), BuildStep.Spells(1, 2), BuildStep.Learn(1, 2),
-        BuildStep.Weapon(2, 6), BuildStep.Raise(2, Skill.Warrior, 6), BuildStep.Raise(2, Skill.Wizard, 4), BuildStep.Spells(2, 4),
-        BuildStep.Raise(2, Stat.Strength, 22), BuildStep.Raise(2, Stat.Endurance, 20), BuildStep.Shield(2, 4), BuildStep.Learn(2, 4),
-        BuildStep.Weapon(3, 8), BuildStep.Raise(3, Skill.Warrior, 8), BuildStep.Raise(3, Skill.Wizard, 6), BuildStep.Spells(3, 6),
-        BuildStep.Raise(3, Stat.Dexterity, 22), BuildStep.Raise(3, Stat.Stamina, 50), BuildStep.Learn(3, AiSpells),
-        BuildStep.Weapon(4, 10), BuildStep.Raise(4, Skill.Warrior, 10), BuildStep.Raise(4, Skill.Wizard, 8), BuildStep.Spells(4, 8),
-        BuildStep.Raise(4, Stat.Strength, 26), BuildStep.Raise(4, Stat.Endurance, 26), BuildStep.Shield(4, 7),
+        BuildStep.Weapon(1, 5), BuildStep.Shield(1, 3), BuildStep.Raise(1, Stat.Stamina, 40), BuildStep.Raise(1, Stat.Strength, 18),
+        BuildStep.Raise(1, Skill.Wizard, 3), BuildStep.Spells(1, 3), BuildStep.Learn(1, 2),
+        BuildStep.Weapon(2, 7), BuildStep.Shield(2, 5), BuildStep.Raise(2, Stat.Stamina, 50), BuildStep.Raise(2, Skill.Warrior, 4),
+        BuildStep.Raise(2, Stat.Strength, 24), BuildStep.Raise(2, Skill.Wizard, 5), BuildStep.Spells(2, 5), BuildStep.Raise(2, Stat.Endurance, 20),
+        BuildStep.Learn(2, 4),
+        BuildStep.Weapon(3, 9), BuildStep.Shield(3, 7), BuildStep.Raise(3, Skill.Warrior, 6), BuildStep.Raise(3, Skill.Wizard, 7), BuildStep.Spells(3, 7),
+        BuildStep.Raise(3, Stat.Stamina, 60), BuildStep.Raise(3, Stat.Dexterity, 20), BuildStep.Learn(3, AiSpells),
+        BuildStep.Weapon(4, 10), BuildStep.Shield(4, 9), BuildStep.Raise(4, Skill.Warrior, 8), BuildStep.Raise(4, Skill.Wizard, 9), BuildStep.Spells(4, 9),
+        BuildStep.Raise(4, Stat.Strength, 28), BuildStep.Raise(4, Stat.Endurance, 26),
     ]);
 
-    /// <summary>A thief, whose Thief is at least 3 and above their Warrior: the weapon, Dexterity and Thief, Stealth beside them.</summary>
+    /// <summary>
+    /// A thief, whose Thief is at least 3 and above their Warrior, a D&amp;D rogue who strikes from behind: a blow from behind adds Thief × 10
+    /// to the chance and Thief × 2 to the damage, so the weapon and Thief come first; Dexterity is their defence, twice over; Stamina
+    /// their hit points. Stealth is left: the AI doesn't sneak, and the scripts' Stealth check is a stub.
+    /// </summary>
     public static readonly Build Rogue = new("Rogue", new BuildFit(Skill.Thief, 3, Over: Skill.Warrior),
     [
-        BuildStep.Weapon(1, 4), BuildStep.Raise(1, Stat.Dexterity, 25), BuildStep.Raise(1, Stat.Stamina, 30), BuildStep.Raise(1, Skill.Thief, 4),
-        BuildStep.Weapon(2, 6), BuildStep.Raise(2, Stat.Dexterity, 28), BuildStep.Raise(2, Stat.Endurance, 16), BuildStep.Raise(2, Skill.Thief, 6),
-        BuildStep.Raise(2, Skill.Stealth, 4), BuildStep.Raise(2, Skill.Warrior, 2),
-        BuildStep.Weapon(3, 8), BuildStep.Raise(3, Stat.Strength, 15), BuildStep.Raise(3, Stat.Stamina, 45), BuildStep.Raise(3, Skill.Warrior, 4),
-        BuildStep.Raise(3, Skill.Thief, 8),
-        BuildStep.Weapon(4, 10), BuildStep.Raise(4, Stat.Dexterity, 30), BuildStep.Raise(4, Stat.Endurance, 22), BuildStep.Raise(4, Skill.Warrior, 6),
-        BuildStep.Raise(4, Skill.Thief, 10),
+        BuildStep.Weapon(1, 5), BuildStep.Raise(1, Skill.Thief, 4), BuildStep.Raise(1, Stat.Dexterity, 25), BuildStep.Raise(1, Stat.Stamina, 35),
+        BuildStep.Weapon(2, 7), BuildStep.Raise(2, Skill.Thief, 6), BuildStep.Raise(2, Stat.Dexterity, 28), BuildStep.Raise(2, Stat.Stamina, 45),
+        BuildStep.Raise(2, Skill.Warrior, 2), BuildStep.Raise(2, Stat.Endurance, 16),
+        BuildStep.Weapon(3, 9), BuildStep.Raise(3, Skill.Thief, 8), BuildStep.Raise(3, Stat.Strength, 17), BuildStep.Raise(3, Stat.Stamina, 55),
+        BuildStep.Raise(3, Skill.Warrior, 4),
+        BuildStep.Weapon(4, 10), BuildStep.Raise(4, Skill.Thief, 10), BuildStep.Raise(4, Stat.Dexterity, 30), BuildStep.Raise(4, Stat.Endurance, 22),
+        BuildStep.Raise(4, Skill.Warrior, 6), BuildStep.Raise(4, Stat.Stamina, 65),
     ]);
 
-    /// <summary>Everyone else: the weapon, Warrior, the shield, Strength, Endurance and Stamina.</summary>
+    /// <summary>
+    /// Everyone else, the front line, as a D&amp;D fighter: the weapon skill first (the cheapest chance to hit), the shield beside it (its
+    /// defence multiplies the skill), Stamina (the cheapest hit points), Strength to its tiers for the damage dice, then Warrior, which adds
+    /// to the chance, the defence and the protection at once, and Endurance.
+    /// </summary>
     public static readonly Build Fighter = new("Fighter", new BuildFit(),
     [
-        BuildStep.Weapon(1, 4), BuildStep.Raise(1, Skill.Warrior, 4), BuildStep.Raise(1, Stat.Strength, 18), BuildStep.Raise(1, Stat.Stamina, 35),
-        BuildStep.Shield(1, 3),
-        BuildStep.Weapon(2, 6), BuildStep.Raise(2, Skill.Warrior, 6), BuildStep.Raise(2, Stat.Strength, 22), BuildStep.Raise(2, Stat.Endurance, 22),
-        BuildStep.Shield(2, 5), BuildStep.Raise(2, Stat.Stamina, 45),
-        BuildStep.Weapon(3, 8), BuildStep.Raise(3, Skill.Warrior, 8), BuildStep.Raise(3, Stat.Strength, 26), BuildStep.Raise(3, Stat.Endurance, 26),
-        BuildStep.Raise(3, Stat.Dexterity, 22), BuildStep.Shield(3, 7),
-        BuildStep.Weapon(4, 10), BuildStep.Raise(4, Skill.Warrior, 10), BuildStep.Raise(4, Stat.Strength, 30), BuildStep.Raise(4, Stat.Endurance, 30),
-        BuildStep.Raise(4, Stat.Stamina, 60), BuildStep.Shield(4, 10),
+        BuildStep.Weapon(1, 5), BuildStep.Shield(1, 3), BuildStep.Raise(1, Stat.Stamina, 40), BuildStep.Raise(1, Stat.Strength, 18),
+        BuildStep.Raise(1, Skill.Warrior, 3),
+        BuildStep.Weapon(2, 7), BuildStep.Shield(2, 5), BuildStep.Raise(2, Stat.Stamina, 50), BuildStep.Raise(2, Stat.Strength, 24),
+        BuildStep.Raise(2, Skill.Warrior, 5), BuildStep.Raise(2, Stat.Endurance, 22),
+        BuildStep.Weapon(3, 9), BuildStep.Shield(3, 7), BuildStep.Raise(3, Stat.Strength, 28), BuildStep.Raise(3, Skill.Warrior, 7),
+        BuildStep.Raise(3, Stat.Endurance, 26), BuildStep.Raise(3, Stat.Dexterity, 20),
+        BuildStep.Weapon(4, 10), BuildStep.Shield(4, 10), BuildStep.Raise(4, Stat.Strength, 32), BuildStep.Raise(4, Skill.Warrior, 10),
+        BuildStep.Raise(4, Stat.Stamina, 70), BuildStep.Raise(4, Stat.Endurance, 30),
     ]);
 
     /// <summary>The base game's builds, first fit first; the last fits anyone.</summary>

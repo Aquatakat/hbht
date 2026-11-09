@@ -79,13 +79,22 @@ public sealed class BattleFought(long begun, BattleSetup setup)
     /// <summary>Whether this is the battle played again from its start after the party lost it (<see cref="BattlePilot"/>).</summary>
     public bool LostFirst { get; internal set; }
 
+    /// <summary>
+    /// Whether this is the battle played again from its start after a member died in it (<see cref="BattlePilot.RewindDeaths"/>), as a
+    /// player reloads.
+    /// </summary>
+    public bool DiedFirst { get; internal set; }
+
+    /// <summary>Whether the battle was undone, played again from its start: its deaths, flags and rewards never stood.</summary>
+    public bool Undone { get; internal set; }
+
     /// <summary>Whether it was won outright because neither side could end it (<see cref="BattlePilot.QuietTicks"/>).</summary>
     public bool Stalemate { get; internal set; }
 
     public List<RecordId> Deaths { get; } = [];
 
     public override string ToString() =>
-        $"{Begun}–{Ended}: {Setup.Party?.ToString() ?? Setup.Source.ToString()} {Outcome}{(WonOutright ? " (won outright)" : "")}{(LostFirst ? " (lost first)" : "")}{(Stalemate ? " (stalemate)" : "")}"
+        $"{Begun}–{Ended}: {Setup.Party?.ToString() ?? Setup.Source.ToString()} {Outcome}{(WonOutright ? " (won outright)" : "")}{(LostFirst ? " (lost first)" : "")}{(DiedFirst ? " (died first)" : "")}{(Undone ? " (undone)" : "")}{(Stalemate ? " (stalemate)" : "")}"
         + (Deaths.Count > 0 ? $", {Deaths.Count} died" : "");
 }
 

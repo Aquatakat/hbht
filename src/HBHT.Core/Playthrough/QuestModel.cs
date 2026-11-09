@@ -267,14 +267,14 @@ public sealed class QuestModel
                 var fighters = npc is not null ? npc.Fighters.Select(f => f.Entity) : way.Enemies;
                 if (Merge(fighters) is { } merge)
                     Add(kind, id, scriptId, way.Choices, presence, [.. requires, .. merge.Requires], [.. effects, .. merge.Effects], true,
-                        fault: way.Fault, others: way.OtherChoices);
+                        fault: way.Fault, others: way.OtherChoices, way: way);
                 requires.Add(Won);
                 // In a conversation with someone who wanders, the original fights their party instead (BattleSetup.Against).
                 effects.AddRange(npc is not null
                     ? Battle(Sure(npc.Fighters), npc.BattleFlag, npc.Loot, npc.BattleRules)
                     : Battle(way.Enemies, null, null, script.BattleRules));
             }
-            var action = Add(kind, id, scriptId, way.Choices, presence, requires, effects, wins, fault: way.Fault, others: way.OtherChoices);
+            var action = Add(kind, id, scriptId, way.Choices, presence, requires, effects, wins, fault: way.Fault, others: way.OtherChoices, way: way);
             if (action is null || way.End != ScriptEndKind.Shop)
                 continue;
             // A shop or training with someone who wanders is theirs (set_shopkeep); else the op's keeper's, their first shop.
@@ -284,7 +284,7 @@ public sealed class QuestModel
             foreach (var stock in shop.Stock.Where(s => _keyItems.ContainsKey(s.Item)).DistinctBy(s => s.Item))
             {
                 Add(kind, id, scriptId, way.Choices, presence, [.. requires, new CodeGate($"the gold to buy {stock.Item}") { Check = new(CodeCheckKind.Buy, A: stock.Item) }],
-                    [.. effects, new Gain(stock.Item)], wins, stock.Item, way.Fault, way.OtherChoices);
+                    [.. effects, new Gain(stock.Item)], wins, stock.Item, way.Fault, way.OtherChoices, way);
             }
         }
     }
@@ -404,13 +404,14 @@ public sealed class QuestModel
 
     private PlayerAction? Add(ActionKind kind, RecordId? place, RecordId? script, IReadOnlyList<int> choices, List<Literal>? presence,
         IReadOnlyList<Literal> requires, IReadOnlyList<Effect> effects, bool wins = false, RecordId? buys = null, string? fault = null,
-        IReadOnlyList<IReadOnlyList<int>>? others = null)
+        IReadOnlyList<IReadOnlyList<int>>? others = null, ScriptWay? way = null)
     {
         if (presence is null || !Consistent(presence.Concat(requires)))
             return null;
         var action = new PlayerAction(_actions.Count, kind, place, script, choices, [.. presence], requires, effects, wins, buys, fault)
         {
             OtherChoices = others ?? [],
+            Way = way,
         };
         _actions.Add(action);
         return action;

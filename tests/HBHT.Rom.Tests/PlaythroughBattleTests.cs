@@ -179,8 +179,9 @@ public sealed class PlaythroughBattleTests(Na10Import fixture, ITestOutputHelper
     {
         // Before Rooughah, the AI-played party wins against Overworld O16's Skeleton Archers and Skeletons (object 6), but a companion
         // dies: they leave the party as the battle ends, as in the original (Party.AfterBattle), their died flag set and their joined
-        // flag kept, so the run sees a slot to fill. The battle isn't played again: only Alaron's death or the whole party's loses it.
-        var pilot = new BattlePilot();
+        // flag kept, so the run sees a slot to fill. Without RewindDeaths the battle isn't played again: only Alaron's death or the whole
+        // party's loses it.
+        var pilot = new BattlePilot { RewindDeaths = false };
         var host = Host(AtCheckpoint("Before Rooughah"), pilot);
         Assert.False(host.Game.Party.HasEmptySlot());
         var fought = Fight(host, Encounter(host, "aidyn:mapobject/0/O16/6"));
@@ -197,6 +198,52 @@ public sealed class PlaythroughBattleTests(Na10Import fixture, ITestOutputHelper
         if (flags.Left is { } left)
             Assert.False(host.Game.Flags.IsSet(left));
         Assert.Empty(pilot.Problems);
+    }
+
+    [Fact]
+    public void ABattleWonWithACompanionDeadIsPlayedAgainAndWonOutright()
+    {
+        // The same battle, with RewindDeaths as the run has it: the win with a companion dead is undone, as a player reloads, and the
+        // battle played again from its start and won outright. Nobody died that stands, and the party is whole.
+        var pilot = new BattlePilot();
+        var host = Host(AtCheckpoint("Before Rooughah"), pilot);
+        var before = host.BattlesFought.Count;
+        host.Session.CueBattle(Encounter(host, "aidyn:mapobject/0/O16/6"));
+        Assert.Equal(HostRun.Done, host.RunUntil(h => h.BattlesFought.Count > before + 1 && h.BattlesFought[^1].Ended is not null && h.PlayerHasControl, 300_000));
+        Report(host, pilot);
+        var (first, replay) = (host.BattlesFought[^2], host.BattlesFought[^1]);
+        Assert.True(first.Undone);
+        Assert.Single(first.Deaths);
+        Assert.Equal((BattleOutcome.Won, true, true, false), (replay.Outcome, replay.WonOutright, replay.DiedFirst, replay.LostFirst));
+        Assert.Empty(replay.Deaths);
+        Assert.Equal(4, host.Game.Party.Count);
+        Assert.All(host.Game.Party.Members, m => Assert.False(Set.Get<EntityRecord>(m.Entity).Member is { } f && host.Game.Flags.IsSet(f.Died)));
+        Assert.Empty(pilot.Problems);
+    }
+
+    [Fact]
+    public void BetterGearInTheInventoryIsPutOnThroughThePartyTab()
+    {
+        // Before Shamsuk's Tower Alaron wears a Short Sword, Enchanted Hide and a Small Shield, with better in the party's inventory: the
+        // Party tab's presses put on him what gains him most of each kind, each for more than what it replaced, which goes back in the
+        // inventory. The game's own equip does it.
+        var game = AtCheckpoint("Before Shamsuk's Tower");
+        var alaron = game.Party.Members.Single(m => m.Entity == Entity(0x023F));
+        var before = (alaron.Equipment.Weapon!.Item, alaron.Equipment.Armor!.Item, alaron.Equipment.Shield!.Item);
+        var outfitting = new Outfitting();
+        var host = Host(game, WinOutright.Instance, new Levelling(outfitting));
+        Assert.True(outfitting.TryDress(host));
+        Assert.Equal(HostRun.Done, host.RunUntil(h => h.PlayerHasControl && h.Session.Mode == GameMode.Trek, 20_000));
+        foreach (var worn in outfitting.Worn)
+            output.WriteLine(worn.ToString());
+        Assert.All(outfitting.Worn, w => Assert.True(w.Gain > 0));
+        Assert.True(Outfitting.Worth(alaron, alaron.Equipment.Weapon!.Item) > Outfitting.Worth(alaron, before.Item1));
+        Assert.True(Outfitting.Worth(alaron, alaron.Equipment.Armor!.Item) > Outfitting.Worth(alaron, before.Item2));
+        Assert.True(Outfitting.Worth(alaron, alaron.Equipment.Shield!.Item) > Outfitting.Worth(alaron, before.Item3));
+        Assert.NotNull(game.Party.Inventory.Find(before.Item1.Id));
+        Assert.NotNull(game.Party.Inventory.Find(before.Item2.Id));
+        // Nothing better is left: it doesn't open the tab again.
+        Assert.Null(outfitting.Best(game.Party));
     }
 
     [Fact]
@@ -282,6 +329,8 @@ public sealed class PlaythroughBattleTests(Na10Import fixture, ITestOutputHelper
         Trainer? last = null;
         foreach (var entity in new[] { Entity(0x02B5), Entity(0x02BA) })
         {
+            // 1,500 at each: either alone would spend it all.
+            party.Gold = 1500;
             var trainer = last = Trainer.From(Set.Get<EntityRecord>(entity), host.Game.Rules, Set.Get<SpellRecord>);
             var goldBefore = party.Gold;
             var here = levelling.Train(host, trainer);

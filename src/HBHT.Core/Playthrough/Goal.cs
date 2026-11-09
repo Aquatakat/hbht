@@ -38,6 +38,21 @@ public sealed record MemberGoal : Goal
     public override string Describe() => "a member joins";
 }
 
+/// <summary>
+/// A story trigger letting the player by (<see cref="StoryTriggers"/>): its gates closed, or a way it would play that doesn't turn him
+/// back. The run puts it ahead of its goals when a step's way is turned back there.
+/// </summary>
+public sealed record PassGoal(RecordId Trigger) : Goal
+{
+    public override string Describe() => $"get past {Trigger}";
+}
+
+/// <summary>The model's facts all true: one of the ways a <see cref="PassGoal"/> is planned for.</summary>
+public sealed record FactsGoal(IReadOnlyList<int> Facts, string What) : Goal
+{
+    public override string Describe() => What;
+}
+
 /// <summary>The ending's credits rolling: the last scene's end plays the ending's cinematic, whose end rolls them.</summary>
 public sealed record EndingGoal : Goal
 {

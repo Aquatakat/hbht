@@ -33,8 +33,14 @@ public sealed class QuestPlanner
 
     public QuestModel Model => _model;
 
+    /// <summary>The story triggers, for <see cref="PassGoal"/>s; none if null.</summary>
+    public StoryTriggers? Triggers { get; set; }
+
     /// <summary>The actions whose effects make a fact true.</summary>
     public IReadOnlyList<int> Adders(int fact) => _adders[fact] ?? (IReadOnlyList<int>)[];
+
+    /// <summary>Whether a goal is met by any one of its facts rather than all of them.</summary>
+    public static bool AnyFact(Goal goal) => goal is MemberGoal;
 
     /// <summary>Whether a state meets the goal, against who could join as the plan began.</summary>
     public bool Achieved(PlanState state, Goal goal, IReadOnlyCollection<int> goalFacts) => goal switch
@@ -42,10 +48,15 @@ public sealed class QuestPlanner
         FlagGoal f => state.IsSet(f.Flag),
         MemberGoal => goalFacts.Any(f => _model.Facts(state)[f]),
         EndingGoal => state.Credits,
+        PassGoal p => Triggers?.Get(p.Trigger) is not { } t || !Triggers.Blocks(t, state),
+        FactsGoal g => _model.Facts(state) is var facts && g.Facts.All(f => facts[f]),
         _ => false,
     };
 
-    /// <summary>The facts that meet the goal: all of them, or for a member any one.</summary>
+    /// <summary>
+    /// The facts that meet the goal: all of them, or for a member any one. A <see cref="PassGoal"/> is planned as each of its ways in turn
+    /// (<see cref="StoryTriggers.PassOptions"/>), and has none of its own.
+    /// </summary>
     public IReadOnlyList<int> GoalFacts(PlanState state, Goal goal) => goal switch
     {
         FlagGoal f when _model.Flags.TryHandle(f.Flag, out var h) => [_model.FlagFact(h, true)],
@@ -53,8 +64,38 @@ public sealed class QuestPlanner
             .Where(m => !state.InParty(m.Key) && !state.IsSet(m.Value.Died))
             .Select(m => _model.PersonFact(m.Key, true)).OfType<int>()],
         EndingGoal => [_model.CreditsFact],
+        FactsGoal g => g.Facts,
         _ => [],
     };
+
+    /// <summary>
+    /// The steps that get the player past a story trigger: the shortest plan found to any of its ways (<see cref="StoryTriggers.PassOptions"/>),
+    /// never walking into it the way that turns him back. A partial plan isn't one: no way found, no steps.
+    /// </summary>
+    private Plan PlanPass(PlanState state, PassGoal pass, int budget, IReadOnlySet<int>? banned)
+    {
+        if (Triggers?.Get(pass.Trigger) is not { } trigger)
+            return new Plan(pass, false, [], $"{pass.Trigger} isn't a story trigger.", [], 0, 0);
+        if (Achieved(state, pass, []))
+            return new Plan(pass, true, [], null, [], 0, 0);
+        var ban = new HashSet<int>([.. banned ?? new HashSet<int>(), .. Triggers.BlockingPlays(trigger)]);
+        Plan? best = null;
+        var whys = new List<string>();
+        var (relevant, expanded) = (0, 0);
+        foreach (var facts in Triggers.PassOptions(trigger, state))
+        {
+            var what = string.Join(" and ", facts.Select(_model.DescribeFact));
+            var plan = Plan(state, new FactsGoal(facts, what), budget, ban);
+            (relevant, expanded) = (relevant + plan.Relevant, expanded + plan.Expanded);
+            if (plan.Found && (best is null || plan.Steps.Count < best.Steps.Count))
+                best = plan;
+            else if (!plan.Found)
+                whys.Add($"{what}: {plan.Why?.Split(Environment.NewLine)[0]}");
+        }
+        return best is not null
+            ? best with { Goal = pass, Relevant = relevant, Expanded = expanded }
+            : new Plan(pass, false, [], whys.Count > 0 ? string.Join("; ", whys) : "Nothing the model has lets the player past it.", [], relevant, expanded);
+    }
 
     /// <summary>The actions that matter to the goal: what makes its facts true, what makes theirs true, and so on back.</summary>
     public HashSet<int> Relevant(IEnumerable<int> goalFacts)
@@ -110,12 +151,19 @@ public sealed class QuestPlanner
     /// <param name="banned">Actions the plan mustn't take: the run's, for steps that failed where it stands.</param>
     public Plan Plan(PlanState state, Goal goal, int budget = 20_000, IReadOnlySet<int>? banned = null)
     {
+        if (goal is PassGoal pass)
+            return PlanPass(state, pass, budget, banned);
         var goalFacts = GoalFacts(state, goal);
         if (Achieved(state, goal, goalFacts))
             return new Plan(goal, true, [], null, [], 0, 0);
         if (goalFacts.Count == 0)
-            return new Plan(goal, false, [], goal is MemberGoal ? "No one living is left to join." : "No such flag.", [], 0, 0);
-        var any = goal is MemberGoal;
+            return new Plan(goal, false, [], goal switch
+            {
+                MemberGoal => "No one living is left to join.",
+                PassGoal => "Nothing the model has lets the player past it.",
+                _ => "No such flag.",
+            }, [], 0, 0);
+        var any = AnyFact(goal);
 
         // Can it be reached at all, even with nothing undone?
         var everything = new Relaxation(_model, Enumerable.Range(0, _model.Actions.Count).Where(a => banned?.Contains(a) != true));

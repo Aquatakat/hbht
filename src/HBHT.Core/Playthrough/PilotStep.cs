@@ -111,6 +111,12 @@ public enum StepFailure
 
     /// <summary>The game ended under it (<see cref="PlaythroughHost.End"/>): a game over, Quit or Return to Title.</summary>
     GameOver,
+
+    /// <summary>
+    /// The only way there walks into a story trigger that turns the player back (<see cref="StepOutcome.Blocker"/>): known to, or seen to
+    /// play the same way twice.
+    /// </summary>
+    Blocked,
 }
 
 /// <summary>A wanted choice that the page didn't offer when it came up, and what it offered.</summary>
@@ -158,6 +164,9 @@ public sealed record StepOutcome(
     IReadOnlyList<ChoiceWanted> ChoicesNotReached,
     Place? Where)
 {
+    /// <summary>The story trigger that turned the player back, for <see cref="StepFailure.Blocked"/>.</summary>
+    public RecordId? Blocker { get; init; }
+
     /// <summary>The object was used, its consequences played out, and nothing stopped it. Expectation misses don't count: they're the report's.</summary>
     public bool Done => Failure == StepFailure.None;
 

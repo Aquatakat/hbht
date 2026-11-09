@@ -19,6 +19,8 @@ public enum EntryKind
     NotUsed,
     /// <summary>The step's ticks ran out.</summary>
     OutOfTicks,
+    /// <summary>A story trigger on the way turned the player back, and getting past it comes first.</summary>
+    Blocked,
     /// <summary>A wanted choice that the page didn't offer, or whose page never came, in a step that missed.</summary>
     ChoiceMissed,
     /// <summary>A code gate the party doesn't meet (a lock it can't pick, the gold it lacks, a purchase the run doesn't make), or a roll that came out against the plan.</summary>
@@ -27,6 +29,8 @@ public enum EntryKind
     Unreachable,
     /// <summary>A battle the party lost, played again and won outright.</summary>
     LostFirst,
+    /// <summary>A battle won with a member dead, played again from its start and won outright.</summary>
+    DiedFirst,
     /// <summary>A battle neither side could end, won outright.</summary>
     Stalemate,
     /// <summary>A member died.</summary>
@@ -114,6 +118,9 @@ public sealed record RunSummary(
 {
     /// <summary>How many times the party camped, hurt (<see cref="Resting"/>).</summary>
     public int Camps { get; init; }
+
+    /// <summary>Battles won with a member dead, played again from their start and won outright.</summary>
+    public int DiedFirst { get; init; }
 }
 
 /// <summary>
@@ -145,7 +152,7 @@ public sealed class RunReport
             text.AppendLine($"Goal: {s.Goal}: {(s.Reached ? "reached" : $"not reached: {s.Why}")}");
             text.AppendLine(string.Create(CultureInfo.InvariantCulture,
                 $"{s.Steps} steps, {s.Ticks} ticks of game time ({s.Ticks / 60.0 / 60:0.0} minutes), {s.WallSeconds:0} s of wall time"));
-            text.AppendLine($"{s.Battles} battles: {s.LostFirst} lost first, {s.Stalemates} stalemates; {s.Deaths} deaths; {s.Trainings} visits to trainers; {s.Camps} camps");
+            text.AppendLine($"{s.Battles} battles: {s.LostFirst} lost first, {s.DiedFirst} died first, {s.Stalemates} stalemates; {s.Deaths} deaths; {s.Trainings} visits to trainers; {s.Camps} camps");
             text.AppendLine($"Entries: {(s.EntriesByKind.Count == 0 ? "none" : string.Join(", ", s.EntriesByKind.Select(e => $"{e.Key} {e.Value}")))}");
             text.AppendLine();
         }

@@ -90,7 +90,7 @@ A goal the relaxation can't reach comes back with why: what sets it, and the fir
 - the `item.gained` and `spell.trained` triggers;
 - the cut-scene chain at a named place.
 
-A tangible script object or tripwire goes off as the player walks past it. The planner treats it as optional, so the pilot must route around the ones it doesn't want. A condition on a derived flag, read after the same script wrote one of its inputs, is read against the state the script started with.
+A tangible script object or tripwire goes off as the player walks past it. The planner treats it as optional, so the pilot routes around the ones it doesn't want, and one that turns the player back is got past first ([story triggers](#story-triggers)). A condition on a derived flag, read after the same script wrote one of its inputs, is read against the state the script started with.
 
 ## The world graph
 
@@ -139,7 +139,7 @@ Each is explored about with its tripwire taken as gone off (`Reach.Explore`'s `t
 
 **Left out:**
 
-- Story triggers on a way (a tripwire or tangible script object that plays a cut-scene) aren't gates: a route walks through them as if they set off nothing that stops it.
+- Story triggers on a way (a tangible script object that plays a cut-scene) aren't gates: a route walks through them as if they set off nothing that stops it, and the run finds the ones that turn the player back by walking into them ([story triggers](#story-triggers)).
 - Teleporters reached by trigger triangles aren't edges.
 - Only running is tried.
 - Ground reached only some way other than `Reach.Starts` isn't in a graph.
@@ -151,7 +151,7 @@ Each is explored about with its tripwire taken as gone off (`Reach.Explore`'s `t
 **Steering.** The stick is read along the trek camera's look: `PlayerMotion.Control` turns it by `LookXZ`, a rotation that is its own inverse. So the way the pilot wants to go becomes a stick through the camera's current look (`StickFor`). It walks the world graph's route:
 
 - a waypoint is passed within 0.8 across the ground, looking up to 3 ahead;
-- a stall is 1.5 s without getting 0.2 nearer, after which it replans, avoiding where it stuck;
+- a stall is 1.5 s without getting 0.2 nearer, after which it steps aside for half a second (to one side of the way it wanted, the other, back, and between, in turn) and replans from there, avoiding where it stuck: walking straight at a lip the sphere doesn't climb moves him nowhere at all, as in EhudUnder's C03 below the teleporter C03/3, where the walk graph's step up was made from another approach;
 - it also replans whenever trek gets the controls back (after a cut-scene, a conversation, a battle a wanderer started, a menu or a teleport), when the map set changes, and when the player jumps more than 3 in a tick;
 - it gives up after 10 stalls or 40 replans.
 
@@ -172,7 +172,7 @@ The step is done once trek has had the controls for a second after the use, so w
 
 `GameSnapshot` takes the plain flags, the members, the inventory and the gold before and after. The outcome lists what was expected and doesn't hold (`Misses`), and what changed that wasn't expected (`Unexpected`). The unexpected changes are information, not failure.
 
-**Outcome.** A `StepOutcome` says the step was done, or why not: `NoRoute` (with the graph's refusal), `Stuck`, `NotUsed`, `OutOfTicks` or `GameOver`. It also carries the ticks, replans, stalls, changes, and the transitions, pages and battles it saw.
+**Outcome.** A `StepOutcome` says the step was done, or why not: `NoRoute` (with the graph's refusal), `Stuck`, `NotUsed`, `OutOfTicks`, `GameOver`, or `Blocked` by a story trigger that turned the player back (`StepOutcome.Blocker`, [story triggers](#story-triggers)). It also carries the ticks, replans, stalls, changes, and the transitions, pages and battles it saw.
 
 **How the story leaves I08.** The Goblin Ambush's starters are all enabled by derived flag 5466: flag 45 set and 11 clear. Only Edur's cut-scene (0x0391, script object I08/4) sets 45. The opening leaves the player on raised ground, and its only way off passes within about 6 of that object. Then every way on to the ambush crosses one of Alaron's cut-scene's objects (0x0364: I08/8, I08/11, H08/5), so nothing can be kept clear of from a new game, and the story plays as it does for a player. Played from a new game:
 
@@ -203,12 +203,14 @@ Elsewhere, an npc 122 away in Gwernia is talked to in 1,978 ticks, and a chest t
 
 So the flag, the gold, the experience, the post-battle windows and trek where the battle began each come once, and anyone who died in the lost battle is alive again. The replay's `BattleFought` is marked `LostFirst`, the report's sign that the party is under-levelled there. A replay lost again is left to end the game, and noted.
 
+**A death is played again too** (`BattlePilot.RewindDeaths`, on by default), the bot's choice: a battle won with a member dead in it goes back to its start the same way and is won outright, as a player who loses a companion reloads. The replay is marked `DiedFirst`, and the battle undone (`BattleFought.Undone`) counts no deaths. The save keeps the game's random streams, so playing it again by the AI would go the same way. Deaths cost the run more than anything else: a party of four that loses two in one dungeon is left with Alaron alone, whose every battle is then lost first, until one is lost before the party's first turn and the game ends, as it did at the Lighthouse.
+
 **Stalemates.** The AI walks by the original's greedy path (`ArenaGrid.FindPath`), which any pocket stops. Against a player that rarely matters, but two AIs who both find no way rest turn after turn: a new game's Alaron and B06's Ogre do, in arena 16/E03. A battle is routed and won outright, marked `Stalemate`, when either holds:
 
 - nobody's hit points change for three minutes (`QuietTicks`);
 - it goes on half an hour (`MostTicks`).
 
-**Deaths.** A member who dies holds their slot until the battle ends. Then they leave the party as in the original (`GameState.BringOutYourDead`, `Party.AfterBattle`): their died flag is set, their joined flag stays, and their gear goes to the inventory ([characters](characters.md)). `Party.HasEmptySlot()` counts only the living, so the run sees the slot at once. `BattleFought.Deaths` lists who died in each battle.
+**Deaths.** With `RewindDeaths` off, or where a replay can't undo one, a member who dies holds their slot until the battle ends. Then they leave the party as in the original (`GameState.BringOutYourDead`, `Party.AfterBattle`): their died flag is set, their joined flag stays, and their gear goes to the inventory ([characters](characters.md)). `Party.HasEmptySlot()` counts only the living, so the run sees the slot at once. `BattleFought.Deaths` lists who died in each battle.
 
 **Levelling.** Experience is spent only where the game lets it be ([characters](characters.md#training)):
 
@@ -217,14 +219,24 @@ So the flag, the gold, the experience, the post-battle windows and trek where th
 
 `Levelling` (`Levelling.cs`), a menu policy over the host's default, does both through the windows' own presses, so the game's rules decide every purchase. What it buys is each member's build (`Builds.cs`, a table a mod can replace):
 
-| Build | Fits | Leans on |
-| --- | --- | --- |
-| Mage | Wizard 2 or more, and above Warrior | Wizard, spells, Intelligence, Stamina, Willpower |
-| Spellsword | Wizard 1 or more | the weapon, Warrior, Strength, Stamina, then Wizard and spells, a shield |
-| Rogue | Thief 3 or more, and above Warrior | the weapon, Dexterity, Thief, Stamina, Stealth |
-| Fighter | anyone | the weapon, Warrior, Strength, Stamina, Endurance, a shield |
+The builds are chosen as an experienced D&D player would by role, from the rules' own terms: a melee blow's chance is Strength + Endurance + Level + the weapon's hit + 6 × the weapon skill + 2 × Warrior, less the target's 2 × Dexterity, Level and shield defence (the shield's defence × the shield skill, + Warrior); its damage is (the weapon's dice + Strength's tier) d6, the tiers stepping at 4, 9, 17, 24, 28, 32, 36 and 39, less protection; hit points are Endurance + Stamina + Level, and spells spend Stamina. A point or level from n costs (n + 1)² × its cost: Stamina 4; Strength, Endurance, Intelligence and Willpower 12; Dexterity 24; a weapon skill 600, the shield 500, Warrior 1,000 and Wizard 1,500. So the weapon skill is the cheapest chance to hit, the shield skill the cheapest defence with a big shield (a Tower Shield's 6 a level, three times Dexterity's), Stamina the cheapest hit point, and Strength is worth its price at the tiers.
+
+| Build | Fits | Leans on | Why |
+| --- | --- | --- | --- |
+| Mage | Wizard 2 or more, and above Warrior | Wizard and spells together, Intelligence, Stamina, Willpower | A wizard: a spell is cast at the lesser of its level and Wizard, Intelligence is the casting, Stamina pays for each cast and is the hit points, Willpower is the defence against magic; the weapon only late. |
+| Spellsword | Wizard 1 or more | the weapon, the shield, Stamina, Strength, then Wizard and spells, Warrior | A paladin fronting the line: Alaron, whose death ends the game, is built to last as a fighter first, his magic alongside. |
+| Rogue | Thief 3 or more, and above Warrior | the weapon, Thief, Dexterity, Stamina | A rogue striking from behind, where Thief adds ×10 to the chance and ×2 to the damage; Dexterity is their defence. Stealth is left: the AI doesn't sneak, and the scripts' Stealth check is a stub. |
+| Fighter | anyone | the weapon, the shield, Stamina, Strength to its tiers, Warrior, Endurance | The front line: the cheapest chance to hit, the cheapest defence, the cheapest hit points, then the damage tiers and Warrior, which adds to chance, defence and protection at once. |
 
 The first build that fits is chosen afresh each time from the member's own skills, so any recruit gets one. Each build is in tiers of lines such as "Wizard to 4". In the lowest tier with anything buyable there, the cheapest affordable thing is bought, and a tier whose wants can't yet be afforded is saved for. No one learns more than five spells, since the AI fights with only the first five. `Levelling.Train(host, trainer)` buys at a trainer what the builds want, within the gold less `GoldReserve`. Everything bought is in `Bought`, and anything a window refused in `Refused`.
+
+**Gear.** Loot goes into the inventory, and a player puts on what's better. `Outfitting` (`Outfitting.cs`), a menu policy under `Levelling`, does so through the Party tab's presses: every 300 ticks with the controls in trek, the pilot asks it (`PilotOptions.Dress`), and once the inventory holds something that gains a member more than half a point, it opens the tab, and presses C-left to the member, the stick to the inventory, the row and A, until nothing better is left. The game's rules equip it and refuse what the member can't use, which isn't asked again. It weighs by the rules' terms (`Outfitting.Worth`):
+
+- a melee weapon by its chance to hit against a middling foe (the member's Strength, Endurance, Level, Warrior and skill with it, plus its hit, less 50, from 5 to 95%) times its damage ((its dice + Strength's tier) × 3.5 + Level);
+- body armor and gear by 4 × their protection, which comes off every blow, and the attributes they add, Dexterity twice;
+- a shield by its defence × the member's shield skill, and 4 × its protection.
+
+Weapons that fly, rings, scrolls and wands are left as they are. What it put on is in the report's purchases as `wore`. Before it, the party fought the whole game in what it joined with: at the Lighthouse Alaron had a Short Sword and Leather Armor, with Warfang, Partial Platemail and a Scorpion Shield in the inventory and 63,000 gold.
 
 **How it fares.** From the user's checkpoints, whose parties carry 400,000 to 800,000 unspent experience a member, the AI-played party wins the early Overworld's battles, but loses most mid-game ones. Before Shamsuk's Tower it lost all 9 mid-game encounters tried. It also spends many turns on resistance spells. A run that levels as it goes should lose fewer. Spending a large hoard takes about 2,000 ticks of the post-battle window, so the run raises the host's `MenuPatience`.
 
@@ -280,7 +292,7 @@ It prints a line a step and a line a milestone, then the report. It exits 0 if t
 2. It turns the plan's first action into the pilot's step and plays it.
 3. It compares what the game did with what the step expected.
 
-**Failure.** A step that fails (no route, stuck, not used, out of ticks, or an expectation missed) is reported. Its action is banned in the state it was tried from, and for good after three failures. A step whose object the pilot never used still counts as done if what it was for came about, as when an encounter catches the party first. The run gives up on a goal after 8 failed steps in a row (`MostFailures`), or when the game's ticks or the wall time run out. It also stops when the planner has no step, saying what the relaxed plan's next steps are and what keeps each from being done.
+**Failure.** A step that fails (no route, stuck, not used, out of ticks, or an expectation missed) is reported. A step stuck the first time isn't banned: the game is saved and loaded where the player stands, as a player whose party is wedged does from the System tab, and the step may be tried again from the fresh start. Its action is banned in the state it was tried from, and for good after three failures. A step whose object the pilot never used still counts as done if what it was for came about, as when an encounter catches the party first. The run gives up on a goal after 8 failed steps in a row (`MostFailures`), or when the game's ticks or the wall time run out. It also stops when the planner has no step, saying what the relaxed plan's next steps are and what keeps each from being done.
 
 **Places in plans.** One flood of the walk graphs from where the player stands (`WorldGraph.Flood`) finds, for every cell, the fewest closed gates on a way to it. A teleporter costs its closed gates, read against the game's flags, derived ones included:
 
@@ -343,9 +355,28 @@ Brenna (0x03A3) and Rheda (0x039E) follow, filling the party in six steps.
 - The rounds' flood keeps each place's first-reached way; ways with other literals aren't kept as alternatives.
 - 0x0404 (Arturo's scene at the bridge) and 0x039F (Becan's) are still cut short at 50,000 runs, in their deep full-party branches, where each member present may be asked to leave. Their member checks that only spawn actors are detours (`ScriptWays.Detours`), not branches, and branches are walked shallowest first, so the ways that matter come before the cut.
 
+## Story triggers
+
+`StoryTriggers` (`StoryTriggers.cs`) are the 239 tangible script objects in the base game whose script the model has ways for: each plays its cut-scene as the player walks within its radius, wherever he was going. Most play once and close their own gates, and the pilot keeps clear of the rest where it can. Some can't be kept clear of and play again every time: the dryads' scene at Overworld G12/5 (`0x0531`, radius 15, enabled by derived 5540) stands in the way out of their wood. With the Amaranth taken (222) and no task from them (229 and 3647 clear), it sends the player to their queen: 3646 opens the teleporter G12/3 about it, and the tripwire G12/1 where he arrives clears the scene's done flag 661, so walking out plays it again.
+
+**Seen to turn back.** The pilot (`PilotOptions.Triggers`) notes, as each story trigger other than the step's own is cued, the ways its script would take as the game stands, before the script runs. A trigger cued a second time on one step with the same ways has turned the player back. The triggers learn those ways (`StoryTrigger.Blocking`), and the step fails `Blocked`, naming the trigger. A trigger that plays once and lets him by, or sends him somewhere that suits the step, isn't caught: only the same way twice is.
+
+**Getting past.** The run then puts a `PassGoal` for the trigger ahead of its goals, until the trigger no longer turns the player back as the game stands: its gates are closed, or the ways it would take are none of those learned. `QuestPlanner` plans for it as each of its options in turn (`StoryTriggers.PassOptions`), and takes the shortest plan found:
+
+- one of the trigger's gates closed, as a single fact (derived ones by their formulas);
+- for each way not learned to turn back, the conditions it needs that don't hold yet, all of them (`FactsGoal`).
+
+The trigger's own plays of a learned way are banned from these plans, since walking into it that way is what the goal is to get past. A partial plan isn't one: with no option found, the pass goal is given up on until the next milestone, and the run's goals go on.
+
+From the herb, the dryads' scene sends the player to the queen twice, and the step fails `Blocked`. The plan to get past it is one step: the male dryad's conversation (G12/7, `0x03F9`) by its choice 10, which offends them (229) and ends in a battle. Walking out after it, the scene's way for 229 sets the Gorgon's task (3647) and sends him to the cave's mouth at I10 (3648 opens G12/2), outside the wood, and the step to Jundar's 11/K01/2 goes on from there. The queen's way, her Troubadour check for 231 and her scene `0x03FC` (233, which closes the trigger for good), is the other option.
+
+**Which ways send the player elsewhere** is also found from the data (`StoryTrigger.Sends`): a way whose effects open a tangible teleporter whose radius takes in the trigger. Seven triggers have such ways, the dryads' three among them. It isn't taken as turning back, since being sent to the Gorgon's cave is the way out of the wood, and the planner doesn't know where the player stands.
+
+**Rolls tried again.** A Troubadour check isn't kept by its map object (`ScriptOps.SkillCheck`), so a step that missed because one rolled against it is played again, up to 8 times, before it's banned, and these tries don't count against the goal's failures in a row. A skill check that can't come out in the range a way wants at all, as a Troubadour check with no one who has the skill, keeps the step from being played (`CodeGates.CanRoll`, 400 rolls of the party's real check).
+
 ## Goals and the party
 
-A goal is a flag to set (`flag:<n>`), someone joining (`member`), or `ending`: the ending's credits rolling. The run's goal is at the bottom of its stack.
+A goal is a flag to set (`flag:<n>`), someone joining (`member`), or `ending`: the ending's credits rolling. The run's goal is at the bottom of its stack; getting past a story trigger that turned the player back ([above](#story-triggers)) is at the top.
 
 - **A party member.** While a slot is empty of a living member (`Party.HasEmptySlot()`), the member goal comes first, as long as the planner has a step towards it (a partial plan included). A new game has Alaron alone, so its first goal is a member, which leads into the story anyway. When the planner has no step towards a member, or 8 steps towards one fail in a row, the member goal rests until the next milestone wakes it, and the report says so.
 - **Deaths.** A member who dies in battle leaves the party as it ends, as in the original. Their died flag keeps them out of the member goal, and their slot brings the goal back. From Before Rooughah with Sholeh gone, the next step is the companions' scene at I13 (0x0527). A lost battle is played again from its start, which undoes its deaths.
@@ -356,10 +387,11 @@ A goal is a flag to set (`flag:<n>`), someone joining (`member`), or `ending`: t
 
 - `StepMissed`: a step used its object, but its effects didn't all happen.
 - `NoRoute`, `Stuck`, `NotUsed`, `OutOfTicks`: the pilot's failures.
+- `Blocked`: a story trigger turned the player back, and getting past it comes first.
 - `ChoiceMissed`: a wanted choice not offered, or a page that never came.
 - `CodeGate`: a gate the party doesn't meet, or a roll that went against the plan.
 - `Unreachable`: no step towards a goal, with the relaxed plan's next steps and why.
-- `LostFirst`, `Stalemate`, `Death`: battles.
+- `LostFirst`, `DiedFirst`, `Stalemate`, `Death`: battles.
 - `Warning`: the host's warnings and the battle pilot's problems.
 - `Exception`.
 

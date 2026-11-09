@@ -35,6 +35,12 @@ public sealed class BattlePilot : IBattlePolicy
     /// </summary>
     public bool CastsBlasts { get; init; }
 
+    /// <summary>
+    /// Whether a battle won with a member dead in it is played again from its start and won outright, as a battle lost is: a player who
+    /// loses a companion reloads. The replay's <see cref="BattleFought.DiedFirst"/> says so. On by default.
+    /// </summary>
+    public bool RewindDeaths { get; init; } = true;
+
     /// <summary>What went wrong that the host's records don't say: a battle lost with no save to go back to, or lost again.</summary>
     public IReadOnlyList<string> Problems => _problems;
 
@@ -43,6 +49,9 @@ public sealed class BattlePilot : IBattlePolicy
 
     /// <summary>The next battle to begin is the one lost, played again to be won outright.</summary>
     private bool _replayNext;
+
+    /// <summary>The replay to come is of a battle won with a death.</summary>
+    private bool _diedNext;
 
     /// <summary>The battle playing is the one lost, played again to be won outright.</summary>
     private bool _replaying;
@@ -77,7 +86,13 @@ public sealed class BattlePilot : IBattlePolicy
         if (_replaying)
         {
             if (host.BattlesFought.LastOrDefault() is { Ended: null } fought)
-                fought.LostFirst = true;
+            {
+                if (_diedNext)
+                    fought.DiedFirst = true;
+                else
+                    fought.LostFirst = true;
+            }
+            _diedNext = false;
             return;
         }
         foreach (var member in battle.Combatants.Where(c => c.Party).ToList())
@@ -126,7 +141,9 @@ public sealed class BattlePilot : IBattlePolicy
     {
         var replayed = _replaying;
         _replaying = false;
-        if (battle.Outcome != BattleOutcome.Lost)
+        var fought = host.BattlesFought.LastOrDefault();
+        var died = battle.Outcome != BattleOutcome.Lost && RewindDeaths && !replayed && fought is { Deaths.Count: > 0 } && _cued is not null;
+        if (battle.Outcome != BattleOutcome.Lost && !died)
             return;
         if (replayed || _cued is not var (save, setup))
         {
@@ -135,7 +152,10 @@ public sealed class BattlePilot : IBattlePolicy
         }
         var plugins = host.Game.Plugins;
         var game = GameState.Load(plugins, SaveFile.Parse(save, plugins));
+        if (fought is not null)
+            fought.Undone = true;
         _replayNext = true;
+        _diedNext = died;
         host.Restart(game, h => h.Session.CueBattle(setup));
     }
 

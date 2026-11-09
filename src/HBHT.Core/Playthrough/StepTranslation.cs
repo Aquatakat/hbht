@@ -64,7 +64,10 @@ public static class StepTranslation
         var picks = reach?.Picks(place) == true || PicksOnTheWay(graph, game, target);
         var step = new PilotStep(target, UseOf(action.Kind), choices, expect)
         {
-            Ways = action.Script is { } script && action.Choices.Count > 0 ? (script, [action.Choices, .. action.OtherChoices]) : null,
+            // A way with no choices of its own may stand for others that take some: the female dryads' fight (0x03FA) is node 7's choice
+            // 13 before flag 229 is set, and no choice after.
+            Ways = action.Script is { } script && (action.Choices.Count > 0 || action.OtherChoices.Count > 0)
+                ? (script, [action.Choices, .. action.OtherChoices]) : null,
         };
         return new TranslatedStep(action, step, picks, unmet, rolls, notes);
     }
@@ -181,7 +184,25 @@ public static class CodeGates
             CodeCheckKind.MemberStat when Stat(check.B) is { } s => In(((IScriptWorld)game).MemberStat(check.A, s) & 0xFFFF),
             CodeCheckKind.Lock => WorldReach.CanPick(game.Party, check.Lo),
             CodeCheckKind.Buy => false,
+            CodeCheckKind.Skill when check.Lo > 0 && check.A is { } skill && SkillId.TryFromRecord(skill) is { IsSkill: true } id
+                => CanRoll(game, id.Slot, check.Lo, check.Hi) ? null : false,
             _ => null,
         };
+    }
+
+    /// <summary>
+    /// Whether the party's check of a skill can come out in a range at all: some of many rolls does. A Troubadour check with no one who
+    /// has the skill is always 0, so a way that wants 2 or more never comes.
+    /// </summary>
+    public static bool CanRoll(GameState game, int skill, int lo, int hi)
+    {
+        var random = new Rng.Lcg(0x5EED);
+        for (var i = 0; i < 400; i++)
+        {
+            var step = ((Scripts.IScriptWorld)game).SkillCheck(skill, random) & 0xFF;
+            if (step >= lo && step <= hi)
+                return true;
+        }
+        return false;
     }
 }

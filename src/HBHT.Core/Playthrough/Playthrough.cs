@@ -39,7 +39,11 @@ public sealed record RunOptions(
 /// <param name="Done">The step did what it was expected to: played out, its expectations held.</param>
 /// <param name="Outcome">The pilot's outcome, or null for an event or a step not played.</param>
 /// <param name="Translated">The step as the pilot was given it.</param>
-public sealed record RunStep(int Number, Goal Goal, PlayerAction Action, bool Done, string Summary, StepOutcome? Outcome, TranslatedStep Translated);
+public sealed record RunStep(int Number, Goal Goal, PlayerAction Action, bool Done, string Summary, StepOutcome? Outcome, TranslatedStep Translated)
+{
+    /// <summary>A step that missed on a roll it may try again, which isn't counted against its goal.</summary>
+    public bool Again { get; init; }
+}
 
 /// <summary>
 /// The playthrough bot's run (docs/systems/playthrough.md, layer 6): it plays from a host's game to a goal. Each step it plans from the
@@ -67,6 +71,12 @@ public sealed class Playthrough
     private string? _before;
     private string? _beforePath;
     private bool _memberResting;
+    private PassGoal? _passing;
+    private readonly Dictionary<int, int> _rerolls = [];
+
+    /// <summary>How many times a step whose Troubadour check went against it is played again.</summary>
+    private const int MostRerolls = 8;
+    private readonly HashSet<RecordId> _hopeless = [];
     private int _joined;
     private long _startTicks;
 
@@ -81,9 +91,11 @@ public sealed class Playthrough
         Graph = graph;
         Goal = goal;
         Options = options ?? RunOptions.Default;
-        _planner = new QuestPlanner(model);
+        Triggers = new StoryTriggers(model);
+        _planner = new QuestPlanner(model) { Triggers = Triggers };
         Battles = new BattlePilot();
-        Levelling = new Levelling { GoldReserve = Options.GoldReserve };
+        Outfitting = new Outfitting();
+        Levelling = new Levelling(Outfitting) { GoldReserve = Options.GoldReserve };
         host.Battles = Battles;
         Resting = new Resting(Levelling);
         host.Menus = Resting;
@@ -113,6 +125,12 @@ public sealed class Playthrough
     public RunOptions Options { get; }
 
     public BattlePilot Battles { get; }
+
+    /// <summary>What puts better gear on the party from the inventory, a menu policy under <see cref="Levelling"/>.</summary>
+    public Outfitting Outfitting { get; }
+
+    /// <summary>The story triggers, with the ways the run has seen turn the player back.</summary>
+    public StoryTriggers Triggers { get; }
 
     public Levelling Levelling { get; }
 
@@ -207,6 +225,9 @@ public sealed class Playthrough
                     break;
                 }
                 var step = Play(steps[0], goal, state, reach);
+                // Turned back by a story trigger: getting past it comes first.
+                if (step.Outcome is { Failure: StepFailure.Blocked, Blocker: { } blocker } && !_hopeless.Contains(blocker))
+                    _passing = new PassGoal(blocker);
                 if (step.Done)
                 {
                     failures[goal] = 0;
@@ -216,10 +237,16 @@ public sealed class Playthrough
                 else
                 {
                     _rest.Remove(goal);
-                    failures[goal] = failures.GetValueOrDefault(goal) + 1;
+                    if (!step.Again)
+                        failures[goal] = failures.GetValueOrDefault(goal) + 1;
                     if (failures[goal] >= Options.MostFailures)
                     {
-                        if (goal is MemberGoal && Goal is not MemberGoal)
+                        if (goal is PassGoal pass)
+                        {
+                            GiveUp(pass, $"{Options.MostFailures} steps towards it failed in a row");
+                            failures[goal] = 0;
+                        }
+                        else if (goal is MemberGoal && Goal is not MemberGoal)
                         {
                             Rest($"{Options.MostFailures} steps towards it failed in a row");
                             failures[goal] = 0;
@@ -261,6 +288,21 @@ public sealed class Playthrough
     /// </summary>
     private (Goal Goal, List<PlayerAction> Steps, Plan? Plan) Choose(PlanState state)
     {
+        if (_passing is { } pass)
+        {
+            if (_planner.Achieved(state, pass, []))
+            {
+                _passing = null;
+                _rest.Remove(pass);
+            }
+            else
+            {
+                var (steps, plan) = PlanTo(pass, state);
+                if (steps.Count > 0)
+                    return (pass, steps, plan);
+                GiveUp(pass, $"no step towards it: {plan?.Why ?? "the planner found none"}");
+            }
+        }
         if (Goal is not MemberGoal && !_memberResting && Game.Party.HasEmptySlot())
         {
             var member = new MemberGoal();
@@ -284,7 +326,7 @@ public sealed class Playthrough
             return "";
         var relevant = _planner.Relevant(facts);
         var relaxation = new Relaxation(Model, relevant);
-        if (relaxation.Extract(relaxation.Run(state), facts, goal is MemberGoal) is not { } relaxed)
+        if (relaxation.Extract(relaxation.Run(state), facts, QuestPlanner.AnyFact(goal)) is not { } relaxed)
             return "";
         var lines = relaxed.Helpful.Take(5).Select(a => Model.Actions[a]).Select(a =>
             a.Presence.OfType<Reaches>().FirstOrDefault(r => reach.OffFoot(r.Place)) is { } far
@@ -304,10 +346,19 @@ public sealed class Playthrough
         if (facts.Count == 0)
             return null;
         var relaxation = new Relaxation(Model, _planner.Relevant(facts));
-        if (relaxation.Extract(relaxation.Run(state), facts, goal is MemberGoal) is not { } relaxed)
+        if (relaxation.Extract(relaxation.Run(state), facts, QuestPlanner.AnyFact(goal)) is not { } relaxed)
             return null;
         var banned = Banned(state);
         return relaxed.Helpful.Select(a => Model.Actions[a]).FirstOrDefault(a => !banned.Contains(a.Index) && state.CanDo(a));
+    }
+
+    /// <summary>Getting past a story trigger is given up on until the next milestone, and the run's goals go on.</summary>
+    private void GiveUp(PassGoal pass, string why)
+    {
+        _hopeless.Add(pass.Trigger);
+        _passing = null;
+        _rest.Remove(pass);
+        Entry(EntryKind.Unreachable, null, pass.Describe(), $"given up on until the next milestone: {why}", fromStep: false);
     }
 
     /// <summary>The member goal rests until the next milestone.</summary>
@@ -423,7 +474,7 @@ public sealed class Playthrough
         }
         else
         {
-            var pilot = new Pilot(Graph, PilotOptions.Default with { PickLocks = translated.PickLocks, Rest = Resting });
+            var pilot = new Pilot(Graph, PilotOptions.Default with { PickLocks = translated.PickLocks, Rest = Resting, Triggers = Triggers, Dress = Outfitting });
             outcome = pilot.Run(Host, pilotStep, Math.Min(Options.StepTicks, Math.Max(1, Options.MostTicks - (Host.Clock.Ticks - _startTicks))));
             var expect = pilotStep.Expect ?? [];
             // Done by the way: what it was for came about though the pilot didn't use it (an encounter caught the party first).
@@ -433,15 +484,39 @@ public sealed class Playthrough
                 : byTheWay ? $"{outcome.Failure}, but what it was for came about" : $"{outcome.Failure}: {outcome.Reason}";
             Compare(action, outcome, translated, byTheWay);
         }
-        if (!done)
+        // A Troubadour check isn't kept by its map object, so a step that rolled against it is played again, a few times, before it's banned.
+        var reroll = !done && outcome is { Used: true } && translated.Rolls.Any(g => g.Check is { Kind: CodeCheckKind.Skill, A: { } skill }
+            && Characters.SkillId.TryFromRecord(skill) is { } id && id.Slot == (int)Characters.Skill.Troubadour)
+            && (_rerolls[action.Index] = _rerolls.GetValueOrDefault(action.Index) + 1) <= MostRerolls;
+        // Stuck the first time, the game is saved and loaded where he stands, and the step may be tried again from there.
+        var reloaded = outcome?.Failure == StepFailure.Stuck && _failedTimes.GetValueOrDefault(action.Index) == 0 && SaveAndLoad();
+        if (reloaded)
+            _failedTimes[action.Index] = 1;
+        else if (!done && !reroll)
             Ban(action, state);
         AfterStep(action, before, startTick);
         var line = new StepLine(number, goal.Describe(), action.Describe(), summary, Host.Clock.Ticks - startTick, clock.Elapsed.TotalSeconds, startTick);
         Report.Steps.Add(line);
         Progress?.Invoke($"{number,4} {Host.Clock.Ticks,10} [{goal}] {action.Describe()}: {summary}");
-        var step = new RunStep(number, goal, action, done, summary, outcome, translated);
+        var step = new RunStep(number, goal, action, done, summary, outcome, translated) { Again = reroll };
         Played.Add(step);
         return step;
+    }
+
+    /// <summary>
+    /// After the pilot stuck, the game is saved and loaded where the player stands, as a player whose party is wedged does from the
+    /// System tab: the session starts again on the save, the player set down afresh. In one run he stalled at Overworld P17 by the
+    /// teleporter P17/4, 2 short of a waypoint, through two steps; from a save of the same moment he walks on.
+    /// </summary>
+    private bool SaveAndLoad()
+    {
+        if (!Host.PlayerHasControl || !Host.Session.NotePlace())
+            return false;
+        var save = SaveFile.Serialize(Save());
+        Host.Restart(GameState.Load(Model.Plugins, SaveFile.Parse(save, Model.Plugins)));
+        Host.RunUntilControl(Options.StepTicks);
+        Progress?.Invoke("     saved and loaded where the player stood");
+        return true;
     }
 
     /// <summary>The report's entries for what the pilot's outcome says went differently.</summary>
@@ -454,6 +529,7 @@ public sealed class Playthrough
                 StepFailure.NoRoute => EntryKind.NoRoute,
                 StepFailure.Stuck => EntryKind.Stuck,
                 StepFailure.NotUsed => EntryKind.NotUsed,
+                StepFailure.Blocked => EntryKind.Blocked,
                 _ => EntryKind.OutOfTicks,
             };
             if (outcome.Failure != StepFailure.GameOver)
@@ -478,7 +554,7 @@ public sealed class Playthrough
 
     /// <summary>What a step's milestones are measured against: the members, the journal flags set, and how far the host's records went.</summary>
     private sealed record Before(HashSet<RecordId> Members, HashSet<RecordId> Journal, HashSet<RecordId> Died, int Transitions, int Battles, int Notes,
-        int Problems, int Purchases)
+        int Problems, int Purchases, int Outfits)
     {
         public static Before Take(Playthrough run)
         {
@@ -488,7 +564,7 @@ public sealed class Playthrough
                 [.. run._journal.Where(game.Flags.IsSet)],
                 [.. run.Model.Members.Where(m => game.Flags.IsSet(m.Value.Died)).Select(m => m.Key)],
                 run.Host.Transitions.Count, run.Host.BattlesFought.Count, run.Host.Notes.Count, run.Battles.Problems.Count,
-                run.Levelling.Bought.Count);
+                run.Levelling.Bought.Count, run.Outfitting.Worn.Count);
         }
     }
 
@@ -501,10 +577,12 @@ public sealed class Playthrough
             var name = fought.Setup.Party?.ToString() ?? fought.Setup.Source.ToString();
             if (fought.LostFirst)
                 Entry(EntryKind.LostFirst, action, $"the party wins against {name}", "lost; played again from its start and won outright");
+            if (fought.DiedFirst)
+                Entry(EntryKind.DiedFirst, action, $"the party wins against {name} with everyone living", "won with a member dead; played again from its start and won outright");
             if (fought.Stalemate)
                 Entry(EntryKind.Stalemate, action, $"the battle against {name} ends", "nobody could end it; won outright");
             // A battle lost is played again from its start, which undoes its deaths: the replay's are the ones that stand.
-            if (fought.Outcome == Combat.BattleOutcome.Lost)
+            if (fought.Outcome == Combat.BattleOutcome.Lost || fought.Undone)
                 continue;
             foreach (var dead in fought.Deaths)
                 Entry(EntryKind.Death, action, $"{Name(dead)} lives", $"{Name(dead)} died against {name}");
@@ -515,6 +593,11 @@ public sealed class Playthrough
             Entry(EntryKind.Warning, action, "the battle pilot plays it", problem);
         foreach (var bought in Levelling.Bought.Skip(before.Purchases))
             Report.Purchases.Add(bought.ToString());
+        foreach (var worn in Outfitting.Worn.Skip(before.Outfits))
+        {
+            Report.Purchases.Add($"wore {worn}");
+            Progress?.Invoke($"     wore {worn}");
+        }
 
         var milestones = new List<(MilestoneKind, string)>();
         foreach (var joined in game.Party.Members.Select(m => m.Entity).Where(m => !before.Members.Contains(m)))
@@ -523,7 +606,7 @@ public sealed class Playthrough
             milestones.Add((MilestoneKind.Joined, $"{Name(joined)} joined"));
         }
         var died = Model.Members.Where(m => game.Flags.IsSet(m.Value.Died) && !before.Died.Contains(m.Key)).Select(m => m.Key)
-            .Union(Host.BattlesFought.Skip(before.Battles).Where(b => b.Outcome != Combat.BattleOutcome.Lost).SelectMany(b => b.Deaths)).Distinct();
+            .Union(Host.BattlesFought.Skip(before.Battles).Where(b => b.Outcome != Combat.BattleOutcome.Lost && !b.Undone).SelectMany(b => b.Deaths)).Distinct();
         foreach (var dead in died)
             milestones.Add((MilestoneKind.Died, $"{Name(dead)} died"));
         foreach (var entry in _journal.Where(f => game.Flags.IsSet(f) && !before.Journal.Contains(f)).OrderBy(f => f.Key.Length).ThenBy(f => f.Key, StringComparer.Ordinal))
@@ -570,7 +653,7 @@ public sealed class Playthrough
                 continue;
             if (Graph.Route(Game, here, id) is not { Route: { } route } || route.Length > Options.TrainerReach * 1.5f)
                 continue;
-            var walk = new Pilot(Graph, PilotOptions.Default with { Rest = Resting }).Run(Host, new PilotStep(id, UseKind.Arrive), Options.StepTicks);
+            var walk = new Pilot(Graph, PilotOptions.Default with { Rest = Resting, Triggers = Triggers, Dress = Outfitting }).Run(Host, new PilotStep(id, UseKind.Arrive), Options.StepTicks);
             if (!walk.Done || !Host.PlayerHasControl)
                 return;
             var bought = Levelling.Train(Host, trainer);
@@ -638,6 +721,7 @@ public sealed class Playthrough
     private void Milestone(MilestoneKind kind, string what)
     {
         _memberResting = false;
+        _hopeless.Clear();
         string? path = null;
         if (Options.WriteSaves && Host.End == HostEnd.None && Host.PlayerHasControl && Host.Session.NotePlace())
         {
@@ -667,11 +751,12 @@ public sealed class Playthrough
             battles.Count,
             battles.Count(b => b.LostFirst),
             battles.Count(b => b.Stalemate),
-            battles.Where(b => b.Outcome != Combat.BattleOutcome.Lost).Sum(b => b.Deaths.Count),
+            battles.Where(b => b.Outcome != Combat.BattleOutcome.Lost && !b.Undone).Sum(b => b.Deaths.Count),
             Trainings,
             Report.Entries.GroupBy(e => e.Kind.ToString()).OrderBy(g => g.Key, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.Count()))
         {
             Camps = Resting.Camps,
+            DiedFirst = battles.Count(b => b.DiedFirst),
         };
     }
 

@@ -18,6 +18,14 @@ namespace HBHT.Core.Playthrough;
 /// <param name="JumpDistance">How far the player may move in one tick before it counts as being moved, and the route is asked for again.</param>
 /// <param name="PickLocks">Whether routes may take locked doors (<see cref="RouteOptions.PickLocks"/>).</param>
 /// <param name="Rest">What makes the party camp when it's hurt, checked each tick the player has the controls; never if null.</param>
+/// <param name="Triggers">
+/// The story triggers: one that plays the same way twice on a step, other than the step's own, has turned the player back, and the step
+/// fails <see cref="StepFailure.Blocked"/>, teaching the triggers that way. Not watched if null.
+/// </param>
+/// <param name="Dress">What puts better gear on the party from the inventory, checked as <paramref name="Rest"/> is; never if null.</param>
+/// <param name="SidestepTicks">
+/// How long the player steps aside after a stall before the way is asked for again: to one side, the other, back, and between, in turn.
+/// </param>
 /// <param name="KeepClear">
 /// Whether routes keep out of the script objects walking into would set off, other than the step's own, while a route that does is
 /// to be had: the step plays what it was asked to, and not the story's cut-scenes on the way.
@@ -34,7 +42,10 @@ public sealed record PilotOptions(
     float JumpDistance = 3,
     bool PickLocks = false,
     bool KeepClear = true,
-    Resting? Rest = null)
+    Resting? Rest = null,
+    StoryTriggers? Triggers = null,
+    Outfitting? Dress = null,
+    int SidestepTicks = 30)
 {
     public static readonly PilotOptions Default = new();
 }
@@ -120,7 +131,10 @@ public sealed class Pilot : IInputPolicy
                 }
                 host.Step();
                 if (!walk.Used)
+                {
                     Noticed(host, walk, control);
+                    Watch(host, walk);
+                }
             }
         }
         finally
@@ -136,7 +150,37 @@ public sealed class Pilot : IInputPolicy
         return new StepOutcome(step, walk.Failure ?? StepFailure.None, walk.Arrived, walk.Used, walk.Reason, walk.Refusal,
             host.Clock.Ticks - start, Math.Max(0, walk.Plans - 1), walk.Stalls, changes, [.. expect.Where(e => !e.Holds(host.Game))],
             changes.Except(expect), [.. host.Transitions.Skip(transitions)], [.. host.Pages.Skip(pages)], [.. host.BattlesFought.Skip(battles)],
-            [.. choices.Taken], [.. choices.Missed], [.. choices.NotReached], where);
+            [.. choices.Taken], [.. choices.Missed], [.. choices.NotReached], where)
+        {
+            Blocker = walk.Blocker,
+        };
+    }
+
+    /// <summary>
+    /// After a tick: a story trigger other than the step's own cued as the player walked into it, with the ways it plays as the game
+    /// stands, before its script runs. The second time one cues the same ways on a step, it has turned him back: the triggers learn
+    /// those ways, and the step fails <see cref="StepFailure.Blocked"/>.
+    /// </summary>
+    private void Watch(PlaythroughHost host, Walk walk)
+    {
+        if (Options.Triggers is not { } triggers || host.Session is not { Mode: GameMode.Trek } session)
+            return;
+        var cued = session.Trek.Cued;
+        if (cued is not { Start.MapObject: { } source } || walk.Cued == source)
+        {
+            walk.Cued = cued?.Start.MapObject;
+            return;
+        }
+        walk.Cued = source;
+        if (source == walk.Step.MapObject || triggers.Get(source) is null)
+            return;
+        var ways = triggers.WaysNow(source, host.Game);
+        var key = $"{source} {string.Join(",", ways)}";
+        if (walk.Fired.Add(key))
+            return;
+        triggers.Learn(source, ways);
+        walk.Blocker = source;
+        walk.Fail(StepFailure.Blocked, $"{source} ({cued.Value.Script.Id.Key}) played the same way twice on the way, ways {string.Join(", ", ways)}: it turns the player back");
     }
 
     /// <summary>What the step's object is, where, and how it's used.</summary>
@@ -202,7 +246,7 @@ public sealed class Pilot : IInputPolicy
         if (_walk is not { Failure: null, Used: false } walk || !host.PlayerHasControl)
             return TickInput.None;
         // Hurt: the party camps first, and the way is asked for again after.
-        if (Options.Rest?.TryCamp(host) == true)
+        if (Options.Rest?.TryCamp(host) == true || Options.Dress?.TryDress(host) == true)
         {
             walk.Replan = true;
             walk.Steering = null;
@@ -214,6 +258,12 @@ public sealed class Pilot : IInputPolicy
         if (walk.Last is { } last && (last.Set != set || Vector3.Distance(last.Feet, feet) > Options.JumpDistance))
             walk.Replan = true;
         walk.Last = (set, feet);
+        // Stalled: a step aside first, as a player does who walks into a lip, and the way is asked for again from where it leaves him.
+        if (walk.Sidestep is { } aside && walk.SidestepTicks > 0)
+        {
+            walk.SidestepTicks--;
+            return new TickInput(new PlayerInput(StickFor(aside, trek.Camera.LookXZ)), []);
+        }
         if (walk.Replan && !Plan(host, walk, new Place(set, feet)))
             return TickInput.None;
 
@@ -401,6 +451,13 @@ public sealed class Pilot : IInputPolicy
             stalled();
             walk.Replan = true;
             walk.Steering = null;
+            if (distance > 1e-3f)
+            {
+                var angle = SidestepAngles[(walk.Stalls - 1) % SidestepAngles.Length] * MathF.PI / 180;
+                var way = across / distance;
+                walk.Sidestep = new Vector2(way.X * MathF.Cos(angle) - way.Y * MathF.Sin(angle), way.X * MathF.Sin(angle) + way.Y * MathF.Cos(angle));
+                walk.SidestepTicks = Options.SidestepTicks;
+            }
             return TickInput.None;
         }
         if (distance < 1e-3f)
@@ -452,6 +509,9 @@ public sealed class Pilot : IInputPolicy
     private static void AvoidEnd(Walk walk, RouteLeg leg, Vector3 feet) =>
         Avoid(walk, leg.MapSet, leg.Waypoints.Count > 0 ? leg.Waypoints[^1] : feet);
 
+    /// <summary>The turns from the way wanted that each stall's step aside takes, in turn: to the sides, back, and between.</summary>
+    private static readonly float[] SidestepAngles = [90, -90, 180, 45, -45, 135, -135];
+
     /// <summary>What the pilot steers for.</summary>
     private enum Goal
     {
@@ -498,6 +558,12 @@ public sealed class Pilot : IInputPolicy
         public int InRange;
         public int DirectOff;
         public (RecordId Set, Vector3 Feet)? Last;
+
+        public Vector2? Sidestep;
+        public int SidestepTicks;
+        public RecordId? Cued;
+        public readonly HashSet<string> Fired = [];
+        public RecordId? Blocker;
 
         public bool Arrived;
         public bool Used;

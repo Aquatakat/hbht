@@ -212,6 +212,34 @@ public sealed class PlaythroughPlannerTests(Na10Import fixture)
         Assert.True(wrong.Count == 0, $"{wrong.Count} of {open.Count} differ:\n{string.Join("\n", wrong.Take(20))}");
     }
 
+    [Fact]
+    public void TheDryadsTriggerOnceSeenToTurnThePlayerBackIsGotPastByAWayThatDoesnt()
+    {
+        // The dryads' scene at Overworld G12/5 (0x0531) plays as the player walks out of their wood. With the Amaranth taken (222) and
+        // no task from them (229, 3647), it sends him to their queen (3646 opens the teleporter G12/3 about it), every time.
+        var triggers = new StoryTriggers(Model);
+        var dryads = triggers.Get(Ids.MapObject(0, "G12", 5))!;
+        Assert.NotNull(dryads);
+        var herb = NewGame().With(Flag(3), true).With(Flag(222), true);
+        var queen = Assert.Single(triggers.WaysIn(dryads, herb));
+        Assert.Contains(new SetFlag(Flag(3646), true), dryads.Ways[queen].Effects);
+        // The ways that open a teleporter about it: to the queen, and to the Gorgon's cave (3648 opens G12/2) twice.
+        Assert.Equal(3, dryads.Sends.Count);
+        Assert.Contains(queen, dryads.Sends);
+        Assert.False(triggers.Blocks(dryads, herb));
+
+        // Seen to turn him back: getting past it is planned for by another of its ways or its gates closed, never by walking into it.
+        triggers.Learn(dryads.Id, [queen]);
+        Assert.True(triggers.Blocks(dryads, herb));
+        var planner = new QuestPlanner(Model) { Triggers = triggers };
+        var plan = planner.Plan(herb, new PassGoal(dryads.Id), 4000);
+        Assert.True(plan.Found, plan.Why);
+        Assert.NotEmpty(plan.Steps);
+        Assert.DoesNotContain(plan.Steps, s => s.Place == dryads.Id && s.Way == dryads.Ways[queen]);
+        var after = Play(herb, plan.Steps);
+        Assert.False(triggers.Blocks(dryads, after));
+    }
+
     /// <summary>Applies each step in turn, asserting it can be done where it comes.</summary>
     private static PlanState Play(PlanState state, IEnumerable<PlayerAction> steps)
     {
