@@ -250,6 +250,24 @@ public sealed partial class Battle
         c.Ai = EnemyAI.Init(c, spare, AllowsMelee, c.Sheet.Record.Combat?.BossStyle == true);
     }
 
+    /// <summary>
+    /// Hands a party member's turns to the AI, as Sholeh's are played on the party's side: it gets an AI record from its sheet as she does
+    /// (<see cref="EnemyAI.Init"/>, with no spare weapon) and from then on plays as she does, a turn it's already in going to the AI's state
+    /// at its next tick. The playthrough bot's seam, not the original's; a battle that never calls it plays as before. Whether it did: not
+    /// for one the AI already plays, or one on the enemies' side.
+    /// </summary>
+    /// <remarks>
+    /// The AI's rules hold for it as for Sholeh: a spell it casts takes no reagent and a flask it throws isn't taken from the inventory,
+    /// and it never flees, as fleeing is the enemies' alone (<see cref="EnemyAI.IsFleeing"/>).
+    /// </remarks>
+    public bool PlayByAi(Combatant c)
+    {
+        if (c.Controlled || c.Hostile)
+            return false;
+        GiveAi(c, null);
+        return true;
+    }
+
     /// <summary>The flee points' most: <c>flee0</c>–<c>flee7</c>.</summary>
     public const int MaxFleePoints = 8;
 

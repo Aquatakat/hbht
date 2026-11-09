@@ -76,10 +76,17 @@ public sealed class BattleFought(long begun, BattleSetup setup)
 
     public bool WonOutright { get; internal set; }
 
+    /// <summary>Whether this is the battle played again from its start after the party lost it (<see cref="BattlePilot"/>).</summary>
+    public bool LostFirst { get; internal set; }
+
+    /// <summary>Whether it was won outright because neither side could end it (<see cref="BattlePilot.QuietTicks"/>).</summary>
+    public bool Stalemate { get; internal set; }
+
     public List<RecordId> Deaths { get; } = [];
 
     public override string ToString() =>
-        $"{Begun}–{Ended}: {Setup.Party?.ToString() ?? Setup.Source.ToString()} {Outcome}{(WonOutright ? " (won outright)" : "")}";
+        $"{Begun}–{Ended}: {Setup.Party?.ToString() ?? Setup.Source.ToString()} {Outcome}{(WonOutright ? " (won outright)" : "")}{(LostFirst ? " (lost first)" : "")}{(Stalemate ? " (stalemate)" : "")}"
+        + (Deaths.Count > 0 ? $", {Deaths.Count} died" : "");
 }
 
 /// <summary>Why the host stopped playing.</summary>

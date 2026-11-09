@@ -43,6 +43,7 @@ Base values read capped at the base cap, and modified ones at the cap and at lea
 `Training` is the three training screens' `Confirm` and `Purchase`. A quote is the price in experience and gold, or why it's refused, with the original's order of checks.
 
 - **After a battle**, with no trainer, a character spends experience alone on its attributes, on the skills it's above level 0 in, and on the spells it knows. A skill at 0 isn't offered, so it has to be started at a trainer.
+- **Nowhere else.** The Party tab lists the same stats, skills and spells, but A on them trains nothing: on a skill it opens the skill's crafting, and on a stat or a spell it does nothing (`PartyMenu.Accept`). So experience won waits for the next battle won or a trainer, and a weapon skill also rises on its own in battle, from a hit's roll ([combat-actions](combat-actions.md#an-attack)).
 - **At a trainer**, the character raises what the trainer teaches: the trainer's skills above 0, and spells, up to the trainer's own level of each. Experience costs 80% (in single precision, truncated), and gold (n + 1) × 40 for raising level *n*, or 200 from level 0 or for a new spell. Oriana charges no gold (`trainsFree`). Attributes aren't offered.
 - **Prices in experience** are (n + 1)² × the cost for raising level *n*, for stats, skills and spells alike.
 - **The window** at a trainer is in [ui](pause-menu.md#training), with what its lines show.

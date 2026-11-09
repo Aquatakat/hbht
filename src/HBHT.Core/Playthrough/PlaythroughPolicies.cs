@@ -99,6 +99,14 @@ public sealed class FirstChoice : IConversationPolicy
 /// </summary>
 public interface IBattlePolicy
 {
+    /// <summary>
+    /// Trek has cued a battle and faded out, and it's about to begin (<see cref="GameSession.BeginBattle"/>): the last moment the game stands in
+    /// trek, where a save can be made.
+    /// </summary>
+    void Cued(PlaythroughHost host, BattleSetup setup)
+    {
+    }
+
     /// <summary>The battle has begun on its arena (<see cref="Transition.StartedBattle"/>).</summary>
     void Begin(PlaythroughHost host, Battle battle)
     {

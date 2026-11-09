@@ -168,6 +168,7 @@ public sealed partial class PlaythroughHost
             return null;
         _now = Clock.Ticks + 1;
         Clock.Start();
+        _stepping = true;
         try
         {
             var session = Session;
@@ -182,6 +183,8 @@ public sealed partial class PlaythroughHost
                     session.BeginCutScene();
                     break;
                 case SessionStep.BattleCued:
+                    if (session.Trek.CuedBattle is { } setup)
+                        Battles.Cued(this, setup);
                     session.BeginBattle();
                     break;
                 case SessionStep.CutSceneOver:
@@ -196,12 +199,18 @@ public sealed partial class PlaythroughHost
                 _load = null;
                 Load(path);
             }
+            if (_restart is var (game, then))
+            {
+                _restart = null;
+                RestartNow(game, then);
+            }
             if (End == HostEnd.None)
                 Follow();
             return step;
         }
         finally
         {
+            _stepping = false;
             Clock.Stop();
         }
     }
@@ -227,6 +236,34 @@ public sealed partial class PlaythroughHost
             if (!_actors.ContainsKey(actor))
                 _actors[actor] = MotionOf(actor.Look.Actor);
         }
+    }
+
+    /// <summary>A game to start again on once the tick being stepped is over, and what to do then (<see cref="Restart"/>).</summary>
+    private (GameState Game, Action<PlaythroughHost>? Then)? _restart;
+
+    /// <summary>Whether a tick is being stepped.</summary>
+    private bool _stepping;
+
+    /// <summary>
+    /// Starts the game again on <paramref name="game"/> where it stands (<see cref="GameStart.For"/>), with no opening, as a save loaded from
+    /// the System tab starts again, and then does <paramref name="then"/>, such as cueing a battle: at once between ticks, or once the tick
+    /// being stepped is over when a policy asks for it. The game goes on even if it had ended; the records so far are kept, and the
+    /// policies stay.
+    /// </summary>
+    public void Restart(GameState game, Action<PlaythroughHost>? then = null)
+    {
+        if (_stepping)
+            _restart = (game, then);
+        else
+            RestartNow(game, then);
+    }
+
+    private void RestartNow(GameState game, Action<PlaythroughHost>? then)
+    {
+        End = HostEnd.None;
+        _menuOpen = 0;
+        StartSession(game, GameStart.For(game), opening: false);
+        then?.Invoke(this);
     }
 
     /// <summary>Steps until <paramref name="done"/> holds, the game ends, or <paramref name="most"/> ticks have been stepped. Why it stopped.</summary>
