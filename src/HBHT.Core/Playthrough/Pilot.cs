@@ -216,6 +216,11 @@ public sealed class Pilot : IInputPolicy
         if (here && Vector3.Distance(sphere, walk.At) <= walk.Range)
         {
             walk.Arrived = true;
+            if (walk.How == UseKind.Arrive)
+            {
+                walk.Used = true;
+                return TickInput.None;
+            }
             if (walk.How == UseKind.Press)
             {
                 if (Reaches(trek, walk.Step.MapObject))

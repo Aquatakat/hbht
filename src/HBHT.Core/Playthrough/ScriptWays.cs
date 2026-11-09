@@ -309,12 +309,12 @@ public sealed class ScriptWays
                     AtomType.Member => new MemberIs(atom.A!.Value, lo == 1),
                     AtomType.Item => new ItemIs(atom.A!.Value, lo == 1),
                     AtomType.PartySize => new PartySizeIn(lo, hi),
-                    AtomType.Gold => new CodeGate($"gold {Range(lo, hi)}"),
-                    AtomType.Skill => new CodeGate($"a {Name(atom.A)} check of {Range(lo, hi)}"),
-                    AtomType.BestStat => new CodeGate($"the best {Name(atom.A)} {Range(lo, hi)}"),
-                    AtomType.WorstStat => new CodeGate($"the worst {Name(atom.A)} {Range(lo, hi)}"),
-                    AtomType.MemberStat => new CodeGate($"{atom.A}'s {Name(atom.B)} {Range(lo, hi)}"),
-                    _ => new CodeGate($"an unknown check {Range(lo, hi)}"),
+                    AtomType.Gold => new CodeGate($"gold {Range(lo, hi)}") { Check = new(CodeCheckKind.Gold, lo, hi) },
+                    AtomType.Skill => new CodeGate($"a {Name(atom.A)} check of {Range(lo, hi)}") { Check = new(CodeCheckKind.Skill, lo, hi, atom.A) },
+                    AtomType.BestStat => new CodeGate($"the best {Name(atom.A)} {Range(lo, hi)}") { Check = new(CodeCheckKind.BestStat, lo, hi, atom.A) },
+                    AtomType.WorstStat => new CodeGate($"the worst {Name(atom.A)} {Range(lo, hi)}") { Check = new(CodeCheckKind.WorstStat, lo, hi, atom.A) },
+                    AtomType.MemberStat => new CodeGate($"{atom.A}'s {Name(atom.B)} {Range(lo, hi)}") { Check = new(CodeCheckKind.MemberStat, lo, hi, atom.A, atom.B) },
+                    _ => new CodeGate($"an unknown check {Range(lo, hi)}") { Check = new(CodeCheckKind.Unknown, lo, hi) },
                 });
             }
             return new ScriptWay([.. _choices], requires, [.. _effects], end, keeper, enemies, fault);

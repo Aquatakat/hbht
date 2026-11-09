@@ -6,11 +6,13 @@ namespace HBHT.Core.Playthrough;
 /// The choices a step wants taken, keyed by the script and the node of the page that offers them, to the node of the choice; any other
 /// page with choices is left to <see cref="Fallback"/>, the host's default. A wanted choice the page doesn't offer (a conversation hides
 /// those taken, and a script's conditions hide others) is recorded, and the fallback takes one instead. A wanted choice is taken once:
-/// the page come back to after it goes to the fallback.
+/// the page come back to after it goes to the next choice wanted there, in order, and once they're spent, to the fallback.
 /// </summary>
 public sealed class WantedChoices(IEnumerable<ChoiceWanted> wanted, IConversationPolicy? fallback = null) : IConversationPolicy
 {
-    private readonly Dictionary<(RecordId Script, int Node), ChoiceWanted> _wanted = wanted.ToDictionary(w => (w.Script, w.Node));
+    private readonly Dictionary<(RecordId Script, int Node), List<ChoiceWanted>> _wanted = wanted
+        .GroupBy(w => (w.Script, w.Node)).ToDictionary(g => g.Key, g => g.ToList());
+    private readonly Dictionary<(RecordId Script, int Node), int> _next = [];
     private readonly List<ChoiceWanted> _taken = [];
     private readonly List<ChoiceMiss> _missed = [];
     private readonly HashSet<ChoiceWanted> _asked = [];
@@ -26,13 +28,17 @@ public sealed class WantedChoices(IEnumerable<ChoiceWanted> wanted, IConversatio
     public IReadOnlyList<ChoiceMiss> Missed => _missed;
 
     /// <summary>The wanted choices whose page never came up.</summary>
-    public IEnumerable<ChoiceWanted> NotReached => _wanted.Values.Where(w => !_asked.Contains(w));
+    public IEnumerable<ChoiceWanted> NotReached => _wanted.Values.SelectMany(w => w).Where(w => !_asked.Contains(w)).Distinct();
 
     public int Choose(ChoiceContext page)
     {
-        // A page come back to after its wanted choice was taken hides it, as a conversation hides the choices taken: the fallback goes on.
-        if (!_wanted.TryGetValue((page.Script.Id, page.Page.Line.Node), out var want) || _taken.Contains(want))
+        var key = (page.Script.Id, page.Page.Line.Node);
+        var next = _next.GetValueOrDefault(key);
+        // A page come back to after its wanted choices were taken hides them, as a conversation hides the choices taken: the fallback goes on.
+        if (!_wanted.TryGetValue(key, out var list) || next >= list.Count)
             return Fallback.Choose(page);
+        var want = list[next];
+        _next[key] = next + 1;
         _asked.Add(want);
         for (var i = 0; i < page.Page.Choices.Count; i++)
         {

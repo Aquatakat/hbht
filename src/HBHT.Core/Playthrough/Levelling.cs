@@ -31,7 +31,7 @@ public sealed class Levelling(IMenuPolicy? inner = null, IReadOnlyList<Build>? b
     public IMenuPolicy Inner { get; } = inner ?? new TakeLootLeaveTheRest();
 
     /// <summary>The builds, first fit first.</summary>
-    public IReadOnlyList<Build> Builds { get; } = builds ?? Playthrough.Builds.Default;
+    public IReadOnlyList<Build> Builds { get; } = builds ?? HBHT.Core.Playthrough.Builds.Default;
 
     /// <summary>The gold kept back from training, for what else the party needs.</summary>
     public uint GoldReserve { get; set; }
@@ -177,8 +177,8 @@ public sealed class Levelling(IMenuPolicy? inner = null, IReadOnlyList<Build>? b
         {
             if (party.Slots[slot] is not { IsDead: false } member)
                 continue;
-            if (Playthrough.Builds.Next(member, Builds, trainer, gold, p => _refused.Contains((member.Entity, Name(p)))) is { } pick)
-                return (slot, pick, Playthrough.Builds.For(member, Builds)!.Name);
+            if (HBHT.Core.Playthrough.Builds.Next(member, Builds, trainer, gold, p => _refused.Contains((member.Entity, Name(p)))) is { } pick)
+                return (slot, pick, HBHT.Core.Playthrough.Builds.For(member, Builds)!.Name);
         }
         return null;
     }

@@ -21,6 +21,11 @@ internal static class PlaythroughReport
           hbht playthrough plan --goal flag:<n>|member|ending [--save <save>] [--budget <states>]
                                                the planner's steps from a new game (or the save) to the goal, each with
                                                the choices it takes and what code decides, or why there are none
+          hbht playthrough run --goal flag:<n>|member|ending [--save <save>] [--saves <dir>] [--report <path>]
+                               [--most-ticks <n>] [--most-minutes <n>]
+                                               plays from a new game (or the save) to the goal, a line a step, saving
+                                               at each milestone in <dir> (the data folder's saves/playthrough), and
+                                               writes the report as text and JSON (<path>.txt and <path>.json)
         """;
 
     public static int Run(PluginSet plugins, string[] args)
@@ -31,6 +36,7 @@ internal static class PlaythroughReport
             {
                 ["reachable", .. var rest] => Reachable(plugins, rest),
                 ["plan", .. var rest] => Plan(plugins, rest),
+                ["run", .. var rest] => RunTo(plugins, rest),
                 _ => throw new ArgumentException(Usage),
             };
         }
@@ -140,7 +146,7 @@ internal static class PlaythroughReport
         var plan = new QuestPlanner(model).Plan(state, goal, budget);
         Console.WriteLine($"Goal: {goal}. {(plan.Found ? $"{plan.Steps.Count} steps" : "No plan")}, from {plan.Relevant} relevant actions, " +
             $"{plan.Expanded} states looked at, in {clock.Elapsed.TotalSeconds:F1} s.");
-        Console.WriteLine("Places are taken as reachable until the world graph answers (IPlaceReach).");
+        Console.WriteLine("Places are all taken as reachable here; the run plans with the world graph from where the player stands.");
         var step = 0;
         foreach (var action in plan.Steps)
         {
@@ -164,6 +170,60 @@ internal static class PlaythroughReport
             Console.WriteLine(why);
         }
         return plan.Found ? 0 : 2;
+    }
+
+    private static int RunTo(PluginSet plugins, string[] args)
+    {
+        string? save = null, saves = null, report = null;
+        Goal? goal = null;
+        var options = RunOptions.Default;
+        for (var i = 0; i < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "--save" when i + 1 < args.Length:
+                    save = args[++i];
+                    break;
+                case "--saves" when i + 1 < args.Length:
+                    saves = args[++i];
+                    break;
+                case "--report" when i + 1 < args.Length:
+                    report = args[++i];
+                    break;
+                case "--goal" when i + 1 < args.Length:
+                    goal = Goal.Parse(args[++i]);
+                    break;
+                case "--most-ticks" when i + 1 < args.Length && long.TryParse(args[i + 1], NumberStyles.None, CultureInfo.InvariantCulture, out var ticks):
+                    options = options with { MostTicks = ticks };
+                    i++;
+                    break;
+                case "--most-minutes" when i + 1 < args.Length && double.TryParse(args[i + 1], NumberStyles.Float, CultureInfo.InvariantCulture, out var minutes):
+                    options = options with { MostWall = TimeSpan.FromMinutes(minutes) };
+                    i++;
+                    break;
+                default:
+                    throw new ArgumentException(Usage);
+            }
+        }
+        if (goal is null)
+            throw new ArgumentException(Usage);
+        options = options with { Saves = saves };
+        var clock = Stopwatch.StartNew();
+        var model = QuestModel.Build(plugins);
+        var graph = new WorldGraph(plugins);
+        Console.WriteLine($"{model.Actions.Count} actions over {model.Ways.Count} scripts, in {clock.Elapsed.TotalSeconds:F1} s; walk graphs in {graph.Fingerprint[..8]}'s cache");
+        var host = save is null ? PlaythroughHost.NewGame(plugins) : PlaythroughHost.From(GameState.Load(plugins, SaveFile.Read(save, plugins)));
+        var run = new Playthrough(host, model, graph, goal, options) { Progress = Console.WriteLine };
+        Console.WriteLine($"Goal: {goal}, from {(save is null ? "a new game" : Path.GetFileName(save))}; saves in {run.SavesFolder}");
+        var result = run.Run();
+        Console.WriteLine();
+        Console.Write(result.ToText());
+        if (report is not null)
+        {
+            result.Write(report);
+            Console.WriteLine($"Report: {Path.ChangeExtension(Path.GetFullPath(report), ".txt")} and .json");
+        }
+        return result.Summary?.Reached == true ? 0 : 2;
     }
 
     private static string Name(PluginSet plugins, RecordId entity) => plugins.TryGet<EntityRecord>(entity)?.Name ?? entity.ToString();

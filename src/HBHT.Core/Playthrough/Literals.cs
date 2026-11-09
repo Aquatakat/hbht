@@ -53,8 +53,43 @@ public sealed record Reaches(RecordId Place) : Literal
 /// </summary>
 public sealed record CodeGate(string What) : Literal
 {
+    /// <summary>What the game decides, as data the run can weigh against the party (<see cref="CodeGates.Meets"/>); null if unknown.</summary>
+    public CodeCheck? Check { get; init; }
+
     public override string Describe() => What;
 }
+
+/// <summary>What kind of thing the game decides in code.</summary>
+public enum CodeCheckKind
+{
+    /// <summary>The party's gold in <see cref="CodeCheck.Lo"/>–<see cref="CodeCheck.Hi"/>.</summary>
+    Gold,
+    /// <summary>A script's check of a skill (<see cref="CodeCheck.A"/>), a roll the first of which the map object keeps.</summary>
+    Skill,
+    /// <summary>The party's best value of a stat (<see cref="CodeCheck.A"/>).</summary>
+    BestStat,
+    /// <summary>The party's worst value of a stat (<see cref="CodeCheck.A"/>).</summary>
+    WorstStat,
+    /// <summary>A member's (<see cref="CodeCheck.A"/>) value of a stat (<see cref="CodeCheck.B"/>).</summary>
+    MemberStat,
+    /// <summary>Picking a lock of level <see cref="CodeCheck.Lo"/>.</summary>
+    Lock,
+    /// <summary>Disarming a trap of level <see cref="CodeCheck.Lo"/>, a roll.</summary>
+    Trap,
+    /// <summary>A loot table's drop of <see cref="CodeCheck.A"/>, at <see cref="CodeCheck.Lo"/> percent.</summary>
+    Chance,
+    /// <summary>Buying <see cref="CodeCheck.A"/> at the shop a script opens.</summary>
+    Buy,
+    /// <summary>Winning a battle.</summary>
+    Win,
+    /// <summary>The Shadow reaching Alaron and merging with him.</summary>
+    Merge,
+    /// <summary>A check of a kind the model doesn't know.</summary>
+    Unknown,
+}
+
+/// <summary>A code gate as data: its kind, the range it wants, and what it's of.</summary>
+public sealed record CodeCheck(CodeCheckKind Kind, int Lo = 0, int Hi = 0, RecordId? A = null, RecordId? B = null);
 
 /// <summary>What an action does to the state, in order.</summary>
 public abstract record Effect

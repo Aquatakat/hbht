@@ -33,7 +33,7 @@ public sealed record WalkInfo(RecordId MapSet, double Seconds, bool FromCache, l
 /// and <see cref="Route"/> finds the way, on foot and through teleporters, to the place to stand to use a map object, with the gates
 /// on the way read against the game it is asked for rather than baked into the graph.
 /// </summary>
-public sealed class WorldGraph
+public sealed partial class WorldGraph
 {
     /// <summary>What a teleporter costs a route beyond the walk, in units, so a short way across a map set beats a long way round through one.</summary>
     public const float TeleportCost = 8;

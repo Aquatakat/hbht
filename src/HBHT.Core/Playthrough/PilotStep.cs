@@ -16,6 +16,12 @@ public enum UseKind
 
     /// <summary>Walk up to the npc's or encounter's body where it wanders now, and press A once A would reach it.</summary>
     Talk,
+
+    /// <summary>
+    /// Only get within its use range, using nothing: to walk into a chunk (whose world map region's flag entering sets), or to stand by
+    /// a trainer whom the run trains with itself.
+    /// </summary>
+    Arrive,
 }
 
 /// <summary>A choice the step wants taken: at <paramref name="Node"/> of <paramref name="Script"/>, the choice whose node is <paramref name="Choice"/>.</summary>

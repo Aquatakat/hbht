@@ -22,7 +22,8 @@ public sealed class Relaxation
         _counts = new int[model.Actions.Count];
         foreach (var a in _actions)
         {
-            var pre = model.Pre(a);
+            // Its own preconditions, and what the way to its place needs (the closed gates the plan can open).
+            var pre = model.Needs(a);
             _counts[a] = pre.Count;
             foreach (var f in pre)
                 (_requiredBy[f] ??= []).Add(a);
@@ -80,7 +81,7 @@ public sealed class Relaxation
             var action = model.Actions[a];
             excluded[a] = action.Effects.Any(e => e is EndGame)
                 || action.Kind == ActionKind.Event && !state.Opening
-                || action.Presence.OfType<Reaches>().Any(r => !model.Reach.CanReach(r.Place, state));
+                || model.Unplaced(a);
         }
 
         var current = new List<int>();
@@ -216,7 +217,7 @@ public sealed class Relaxation
                 {
                     if (plan.Add(by))
                     {
-                        foreach (var p in model.Pre(by))
+                        foreach (var p in model.Needs(by))
                             Want(p);
                     }
                 }

@@ -172,7 +172,7 @@ public sealed class QuestModel
     }
 
     /// <summary>A win the planner takes as given: the battle pilot plays it, and plays it again until it's won.</summary>
-    private static readonly CodeGate Won = new("winning the battle");
+    private static readonly CodeGate Won = new("winning the battle") { Check = new(CodeCheckKind.Win) };
 
     /// <summary>
     /// A battle with the Shadow can end in its merging with Alaron instead, while the party carries the Horn of Kynon (the combat
@@ -187,7 +187,7 @@ public sealed class QuestModel
         if (Plugins.TryGet<CinematicRecord>(shadow.Cinematic) is { } cinematic)
             effects.Add(new SetFlag(cinematic.DoneFlag, true));
         effects.Add(new SetFlag(shadow.Boost.Flag, true));
-        return ([new ItemIs(shadow.Item, true), new CodeGate("the Shadow reaching Alaron and merging")], effects);
+        return ([new ItemIs(shadow.Item, true), new CodeGate("the Shadow reaching Alaron and merging") { Check = new(CodeCheckKind.Merge) }], effects);
     }
 
     /// <summary>
@@ -283,7 +283,7 @@ public sealed class QuestModel
                 continue;
             foreach (var stock in shop.Stock.Where(s => _keyItems.ContainsKey(s.Item)).DistinctBy(s => s.Item))
             {
-                Add(kind, id, scriptId, way.Choices, presence, [.. requires, new CodeGate($"the gold to buy {stock.Item}")],
+                Add(kind, id, scriptId, way.Choices, presence, [.. requires, new CodeGate($"the gold to buy {stock.Item}") { Check = new(CodeCheckKind.Buy, A: stock.Item) }],
                     [.. effects, new Gain(stock.Item)], wins, stock.Item, way.Fault, way.OtherChoices);
             }
         }
@@ -307,9 +307,9 @@ public sealed class QuestModel
         if (c.Kind is not (ContainerKind.Herb or ContainerKind.Spice or ContainerKind.Gem))
         {
             if (c.TrapLevel != 0)
-                requires.Add(new CodeGate($"disarming a trap of level {c.TrapLevel}"));
+                requires.Add(new CodeGate($"disarming a trap of level {c.TrapLevel}") { Check = new(CodeCheckKind.Trap, c.TrapLevel) });
             if (c.LockLevel != 0)
-                requires.Add(new CodeGate($"picking a lock of level {c.LockLevel}"));
+                requires.Add(new CodeGate($"picking a lock of level {c.LockLevel}") { Check = new(CodeCheckKind.Lock, c.LockLevel) });
             if (c.Opened is { } opened)
                 effects.Add(new SetFlag(opened, true));
         }
@@ -321,7 +321,7 @@ public sealed class QuestModel
             {
                 effects.Add(new Gain(item));
                 if (chance < 100)
-                    requires.Add(new CodeGate($"a {chance}% chance of {item}"));
+                    requires.Add(new CodeGate($"a {chance}% chance of {item}") { Check = new(CodeCheckKind.Chance, chance, A: item) });
             }
         }
         if (effects.Count > 0)
@@ -341,13 +341,13 @@ public sealed class QuestModel
         if (door.TrapLevel != 0 && door.DisarmFlag is { } disarmed)
         {
             List<Literal> requires = door.TrapFlag is { } trap ? [new FlagIs(trap, false)] : [];
-            Add(ActionKind.Disarm, id, null, [], presence, [.. requires, new CodeGate($"disarming a trap of level {door.TrapLevel}")],
+            Add(ActionKind.Disarm, id, null, [], presence, [.. requires, new CodeGate($"disarming a trap of level {door.TrapLevel}") { Check = new(CodeCheckKind.Trap, door.TrapLevel) }],
                 [new SetFlag(disarmed, true)]);
         }
         if (door.LockLevel != 0 && door.PickedFlag is { } picked)
         {
             List<Literal> requires = door.LockFlag is { } locked ? [new FlagIs(locked, false)] : [];
-            Add(ActionKind.PickLock, id, null, [], presence, [.. requires, new CodeGate($"picking a lock of level {door.LockLevel}")],
+            Add(ActionKind.PickLock, id, null, [], presence, [.. requires, new CodeGate($"picking a lock of level {door.LockLevel}") { Check = new(CodeCheckKind.Lock, door.LockLevel) }],
                 [new SetFlag(picked, true)]);
         }
     }
@@ -485,6 +485,44 @@ public sealed class QuestModel
 
     /// <summary>The facts an action's effects make true.</summary>
     public IReadOnlyList<int> Adds(int action) => _adds[action];
+
+    private (IPlaceReach Reach, int[]?[] Facts)? _placed;
+
+    private static readonly int[] NoFacts = [];
+
+    /// <summary>
+    /// The facts the way to an action's places needs under <see cref="Reach"/> (<see cref="IPlaceReach.Gates"/>): none for a place
+    /// reached as the gates stand, or null if one of its places can't be reached however they stand. Kept until the reach changes.
+    /// </summary>
+    public IReadOnlyList<int>? PlaceNeeds(int action)
+    {
+        if (_placed is not { } placed || !ReferenceEquals(placed.Reach, Reach))
+            _placed = placed = (Reach, new int[]?[_actions.Count]);
+        if (placed.Facts[action] is { } known)
+            return known.Length == 1 && known[0] < 0 ? null : known;
+        int[]? facts = NoFacts;
+        foreach (var reaches in _actions[action].Presence.OfType<Reaches>())
+        {
+            if (Reach.Gates(reaches.Place) is not { } gates)
+            {
+                facts = null;
+                break;
+            }
+            if (gates.Count > 0)
+                facts = [.. facts!.Concat(gates.Select(Fact).OfType<int>()).Distinct()];
+        }
+        placed.Facts[action] = facts ?? [-1];
+        return facts;
+    }
+
+    /// <summary>
+    /// Everything an action needs as facts: its own preconditions (<see cref="Pre"/>), and what the way to its place needs
+    /// (<see cref="PlaceNeeds"/>), which the relaxation and the planner's backward chain take as preconditions too.
+    /// </summary>
+    public IReadOnlyList<int> Needs(int action) => PlaceNeeds(action) is { Count: > 0 } placed ? [.. Pre(action).Concat(placed).Distinct()] : Pre(action);
+
+    /// <summary>Whether an action can never be done for its places: one the reach says nothing gets to (<see cref="IPlaceReach.Gates"/> null).</summary>
+    public bool Unplaced(int action) => PlaceNeeds(action) is null;
 
     /// <summary>The facts a forced action needs: its requirements alone, not its object's gates.</summary>
     public IEnumerable<int> RequiresFacts(PlayerAction action) => action.Requires.Select(Fact).OfType<int>().Distinct();

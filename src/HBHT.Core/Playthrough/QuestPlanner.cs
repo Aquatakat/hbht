@@ -72,7 +72,7 @@ public sealed class QuestPlanner
         {
             if (!actions.Add(a))
                 return;
-            foreach (var p in _model.Pre(a))
+            foreach (var p in _model.Needs(a))
                 Want(p);
             // A trigger that starts a script object's cut-scene makes its ways the next step.
             foreach (var start in _model.Actions[a].Effects.OfType<StartScript>())
@@ -107,7 +107,8 @@ public sealed class QuestPlanner
 
     /// <summary>The next steps from a state to a goal.</summary>
     /// <param name="budget">How many states the search may look at before it gives up.</param>
-    public Plan Plan(PlanState state, Goal goal, int budget = 20_000)
+    /// <param name="banned">Actions the plan mustn't take: the run's, for steps that failed where it stands.</param>
+    public Plan Plan(PlanState state, Goal goal, int budget = 20_000, IReadOnlySet<int>? banned = null)
     {
         var goalFacts = GoalFacts(state, goal);
         if (Achieved(state, goal, goalFacts))
@@ -117,7 +118,7 @@ public sealed class QuestPlanner
         var any = goal is MemberGoal;
 
         // Can it be reached at all, even with nothing undone?
-        var everything = new Relaxation(_model, Enumerable.Range(0, _model.Actions.Count));
+        var everything = new Relaxation(_model, Enumerable.Range(0, _model.Actions.Count).Where(a => banned?.Contains(a) != true));
         var full = everything.Run(state);
         if (!(any ? goalFacts.Any(full.Reached) : goalFacts.All(full.Reached)))
         {
@@ -127,6 +128,8 @@ public sealed class QuestPlanner
         }
 
         var relevant = Relevant(goalFacts);
+        if (banned is not null)
+            relevant.ExceptWith(banned);
         var relaxation = new Relaxation(_model, relevant);
         var search = new Search(this, relaxation, relevant, goal, goalFacts, any, budget);
         var steps = search.Run(state);
@@ -193,7 +196,7 @@ public sealed class QuestPlanner
             foreach (var a in adders.Take(3))
             {
                 var action = _model.Actions[a];
-                var blocker = _model.Pre(a).FirstOrDefault(p => !result.Reached(p), -1);
+                var blocker = _model.Needs(a).FirstOrDefault(p => !result.Reached(p), -1);
                 if (blocker >= 0)
                 {
                     lines.Add($"{indent}  {action.Describe()} needs {_model.DescribeFact(blocker)}");
