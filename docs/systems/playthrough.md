@@ -17,6 +17,40 @@ The hard part is deciding what to do next, not playing it: the core already play
 5. **Battles** (`BattlePilot`). The party is played by the original's combat AI, as the enemies are. A battle it loses is played again from its start and won outright, and the report says so: it's a sign the party is under-levelled there. Experience goes up by a build per character (what each spends its points on at a level), and trainers on the way are used.
 6. **The run** (`Playthrough`). Holds the goals, replans after every step, saves at each milestone, and writes the report.
 
+## The world graph
+
+`WorldGraph` (`WorldGraph.cs`, `WalkGraph.cs`, `RouteTypes.cs`) is where the player can walk, and how he gets to the place to stand to use a map object.
+
+**Walk graphs.** Each map set has one, made from `Reach`'s exploration at the original's movement and pace (`Reach.Options.Edges`). A node is a 1×1×1 cell his feet passed over on the ground. An edge is a step he made from one cell to the next in a run, so it goes one way and is something the real `PlayerMotion` did: a ledge dropped off has a way down and none up unless some run climbed it. Each cell keeps the mean place of his feet in it (`Reach.Feet`), which is what a pilot steers for, since steering at cells' middles runs into walls' corners. A graph is made when its map set is first asked for and cached under the data folder's `cache/playthrough`, keyed by a fingerprint of the graph's format, the explorer's options and the plugins. The base plugin's file times are left out of it, so importing the same ROM again keeps the cache. From a cold cache, all 17 map sets take about 245 s serially (the Overworld about 186 s, its 1,007,448 cells 8 MB of the 9.5 MB). A warm read takes milliseconds.
+
+**Teleporters** join the map sets. There are 894 outside the Battle arenas, and 96 carry a gate that stops the way: a visibility or enabled flag, or a lock its flag opens. A tangible teleporter's lock, trap and secret are skipped, as `MapObjectUse.Touch` skips them. Traps, and secret doors needing no skill, never block, but they are reported. 42 teleporters have no reached ground within their radius, and one (`0/C09/14`) has no arrival ground, so they aren't edges. The gates are data (`RouteGate`), read against the `GameState` when a route is asked for, so one graph serves every moment of the game.
+
+**Routes.** `Route(state, from, mapObject)` runs A* across the graphs and the teleporters, to the nearest ground within the object's use range by trek's rule:
+
+- a container's reach plus 0.5;
+- the radius of a teleporter, tripwire, script object or save point;
+- about 1.5 for an npc or encounter, which wanders.
+
+It returns waypoints per map set, the teleporters between them, and where to stand, in about 0.2 s. With no route, it says why:
+
+- **`ObjectGated`**: the object's own gates are shut.
+- **`Gated`**: a route exists only through closed gates. A second search lets gates through at a heavy cost, and names the fewest that block.
+- **`NotOnFoot`**: the object isn't connected even with every gate open.
+
+`CanReach(mapObject, state)` answers the planner from a flood cached per start and per state of the gates. 3,012 asks take 0.16 s.
+
+**Following a route.** The graph promises that someone walked each step, not that steering from any approach works. The original's sphere physics carries speed over lips and into pockets, so a pilot must watch for a stall (no progress for about 1.5 s) and replan from where it stands, avoiding where it stuck (`RouteOptions.Avoid`). The tests steer the real `PlayerMotion` this way:
+
+- to a chest in the next Overworld chunk from a new game's start: arrived, with no replans;
+- to a chest through a teleporter in the Gwernia interiors: arrived, with two replans.
+
+**Left out:**
+
+- Toggles and triggers stand as a new game loads them, so collision that changes in play isn't modelled.
+- Teleporters reached by trigger triangles aren't edges.
+- Only running is tried.
+- Ground reached only some way other than `Reach.Starts` isn't in a graph.
+
 ## The headless host
 
 `PlaythroughHost` (`PlaythroughHost.cs`, `.Transitions.cs`, `.Presses.cs`) owns a `GameSession` and steps it as `Game.Tick` and `_Process` do, without drawing:

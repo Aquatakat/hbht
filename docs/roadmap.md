@@ -191,9 +191,9 @@ Mostly testing rather than engineering (XL).
 | Slice | Size | Status |
 | --- | --- | --- |
 | Planner: actions, preconditions and effects over `QuestIndex`; the static reachability pass; steps to a goal (`QuestPlanner`) | L | In progress |
-| World graph: `Reach`'s cells per map set joined by teleporters, with their gates; routes to a map object (`WorldGraph`) | M | In progress |
+| World graph: `Reach`'s cells per map set joined by teleporters, with their gates; routes to a map object (`WorldGraph`) | M | Done: 17 map sets in about 245 s, cached; 894 teleporters, 96 gated; routes walked with the real `PlayerMotion` |
 | Headless host: every `Transition` carried out as the runtime does, a new game played to trek with no input (`PlaythroughHost`) | M | Done: a new game reaches trek at I08 in 988 ticks with nobody at the controls; policies for input, pages, battles and menus |
-| Pilot: a route walked by the stick, an object used, a conversation's choice picked, the step checked (`Pilot`) | L | |
+| Pilot: a route walked by the stick, an object used, a conversation's choice picked, the step checked (`Pilot`) | L | In progress |
 | Battles: the party played by the combat AI, a loss replayed and won outright, deaths, levelling builds and trainers (`BattlePilot`) | L | In progress |
 | The run: goals with the party member's supersedes, replanning, saves at milestones, the report, `hbht playthrough` (`Playthrough`) | M | |
 | A full pass from a new game to the ending, and what it finds | L | |
