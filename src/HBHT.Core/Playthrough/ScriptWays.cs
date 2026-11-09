@@ -63,15 +63,21 @@ public sealed class ScriptWays
     }
 
     /// <summary>Every way through a script, merged where ways differ only in a condition that changed nothing.</summary>
+    /// <remarks>
+    /// The branches are taken shallowest first, so a script too big to walk whole within <see cref="MaxRuns"/> (0x0404's full party,
+    /// where each member present may be asked to leave) has its early choices and conditions each walked, and only its deepest
+    /// combinations cut.
+    /// </remarks>
     public ScriptWaysResult Explore(ScriptRecord script)
     {
-        var stack = new Stack<List<int>>();
-        stack.Push([]);
+        var pending = new PriorityQueue<List<int>, (int Depth, long Order)>();
+        var order = 0L;
+        pending.Enqueue([], (0, order++));
         var seen = new HashSet<(ulong, ulong)>();
         var ways = new Dictionary<string, ScriptWay>();
         var runs = 0;
         var truncated = false;
-        while (stack.Count > 0)
+        while (pending.Count > 0)
         {
             if (runs == MaxRuns)
             {
@@ -79,13 +85,13 @@ public sealed class ScriptWays
                 break;
             }
             runs++;
-            var prefix = stack.Pop();
+            var prefix = pending.Dequeue();
             var run = new Run(this, script, prefix, seen);
             var way = run.Play();
             foreach (var (depth, options) in run.NewPoints)
             {
-                for (var k = options - 1; k >= 1; k--)
-                    stack.Push([.. run.Decisions.Take(depth), k]);
+                for (var k = 1; k < options; k++)
+                    pending.Enqueue([.. run.Decisions.Take(depth), k], (depth + 1, order++));
             }
             if (way is not null)
             {
@@ -200,6 +206,42 @@ public sealed class ScriptWays
             }
         }
         return merged;
+    }
+
+    private readonly Dictionary<RecordId, HashSet<int>> _detours = [];
+
+    /// <summary>How many nodes a detour may run before it rejoins.</summary>
+    private const int MaxDetour = 4;
+
+    /// <summary>
+    /// The script's if nodes whose holding only takes a detour that changes nothing and rejoins the way it skips: from the node the
+    /// condition holding leads to, single-linked lines with no op that changes the state (only actors spawned and turned, the camera
+    /// moved) back to the node it not holding leads to. Which way such a condition goes changes neither what the script needs nor what
+    /// it does, so it isn't a branch: the cut-scenes that spawn each member present one by one (0x0404, 0x039F, eleven or more
+    /// member checks each) would otherwise be walked once for every combination of them.
+    /// </summary>
+    private HashSet<int> Detours(ScriptRecord script)
+    {
+        if (_detours.TryGetValue(script.Id, out var known))
+            return known;
+        var detours = new HashSet<int>();
+        foreach (var node in script.Nodes)
+        {
+            if (node.Kind != ScriptNodeKind.If || node.Links is not [var holds, var skips])
+                continue;
+            var at = holds;
+            for (var hop = 0; hop < MaxDetour && at != skips && at >= 0 && at < script.Nodes.Count; hop++)
+            {
+                var n = script.Nodes[at];
+                if (n.Kind != ScriptNodeKind.Line || n.Links is not [var next] || (n.Ops ?? []).Any(op => ScriptOps.ChangesState(op) || op is ScriptOp.Check
+                    or ScriptOp.ScriptEnd or ScriptOp.StartScript))
+                    break;
+                at = next;
+            }
+            if (at == skips)
+                detours.Add(node.Index);
+        }
+        return _detours[script.Id] = detours;
     }
 
     private static Literal? Flip(Literal literal) => literal switch
@@ -383,6 +425,9 @@ public sealed class ScriptWays
 
         public int Condition(int node, ScriptOp.Check check)
         {
+            // A condition whose holding only takes a detour that changes nothing goes the short way, unasked.
+            if (owner.Detours(script!).Contains(node))
+                return 0;
             var at = script!.Nodes[node];
             IEnumerable<ScriptRange> ranges = at.Kind == ScriptNodeKind.Case
                 ? (at.Links ?? []).Select(l => script.Nodes[l].Selects).OfType<ScriptRange>()

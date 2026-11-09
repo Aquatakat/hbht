@@ -61,6 +61,19 @@ public sealed class PlaythroughPlannerTests(Na10Import fixture)
     }
 
     [Fact]
+    public void ACutScenesMemberChecksThatOnlySpawnActorsAreNotBranches()
+    {
+        // Arturo's scene at the bridge (0x0404) spawns each member present, one check each, before anything that matters: walked as
+        // branches, they cut its search short before its ways that let the party cross (3460) or take Arturo on (3461, his joining).
+        var ways = Model.Ways[Ids.Script(0x0404)].Ways;
+        Assert.Contains(ways, w => w.Effects.Contains(new SetFlag(Flag(3460), true)));
+        Assert.Contains(ways, w => w.Effects.Contains(new SetFlag(Flag(3461), true)));
+        Assert.Contains(ways, w => w.Effects.Contains(new Join(Ids.Entity(0x0240))));
+        // Crossing needs no one in particular in the party.
+        Assert.Contains(ways, w => w.Effects.Contains(new SetFlag(Flag(3460), true)) && !w.Requires.OfType<MemberIs>().Any());
+    }
+
+    [Fact]
     public void TheStaticPassFromANewGameReachesTheEndingAndEveryMember()
     {
         var pass = StaticPass.Run(Model, NewGame(), fixture.Data.Index);
