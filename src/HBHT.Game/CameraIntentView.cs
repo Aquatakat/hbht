@@ -10,7 +10,7 @@ namespace HBHT.Game;
 /// The F3 overlay's drawing of what Camera: Enhanced is trying to do in a battle (<see cref="CameraIntent"/>). On the screen: a ring
 /// round each body it tries to hold (yellow, a pack held where it can be orange, the target red), the frame the lens holds them within,
 /// where the goal and the shot shown aim, and an AI's walk's rail. In the corner, a map from above turned with the view: the bodies, the
-/// eye shown and what it sees, the goal's eye and what it would, the vantage, the way over the shoulder with its band, and the walk's rail
+/// eye shown and what it sees, the goal's eye and what it would, the vantage, the way over the shoulder with the framings held and eased onto, and the walk's rail
 /// with where its eye starts and ends. A debug build's alone, as the overlay is.
 /// </summary>
 public partial class CameraIntentView : Control
@@ -18,7 +18,7 @@ public partial class CameraIntentView : Control
     private static readonly Color Held = new(1, 0.9f, 0.2f), Lesser = new(1, 0.55f, 0.1f), TargetRed = new(1, 0.25f, 0.25f),
         Shown = Colors.White, GoalCyan = new(0.3f, 0.95f, 1), VantageMagenta = new(1, 0.35f, 1), FollowGreen = new(0.4f, 1, 0.4f),
         Party = new(0.4f, 0.65f, 1), Enemy = new(1, 0.4f, 0.4f), Dead = new(0.5f, 0.5f, 0.5f), Frame = new(1, 1, 1, 0.5f),
-        RailOrange = new(1, 0.6f, 0.2f), Band = new(0.3f, 0.95f, 1, 0.18f), Legend = new(1, 1, 1, 0.7f);
+        RailOrange = new(1, 0.6f, 0.2f), Legend = new(1, 1, 1, 0.7f);
 
     /// <summary>The map's size and margin, and the legend's text, as shares of the view's height.</summary>
     private const float MapShare = 0.32f, MarginShare = 0.012f, TextShare = 0.0135f;
@@ -164,18 +164,17 @@ public partial class CameraIntentView : Control
             for (var i = 1; i < corners.Length; i++)
                 ClippedLine(box, corners[i - 1], corners[i], Frame, 1 * _px);
         }
-        // The band over the shoulder, and the way straight over it.
+        // Over the shoulder: the way straight over it (grey), the framing held (white) and the one it eases onto (cyan), each the side the
+        // eye stands.
         if (intent.Behind is { } behind && intent.Follow is { } from)
         {
             var origin = At3(from);
-            if (intent.Band is var (lo, hi))
-            {
-                var points = new List<Vector2> { origin };
-                for (var i = 0; i <= 12; i++)
-                    points.Add(origin + Way(behind + lo + (hi - lo) * i / 12) * 60);
-                DrawColoredPolygon(points.Select(p => Clip(box, origin, p)).ToArray(), Band);
-            }
-            ClippedLine(box, origin, origin + Way(behind) * 60, new Color(1, 1, 1, 0.5f), 1 * _px);
+            var reachOut = mapSize / 4;
+            ClippedLine(box, origin, origin + Way(behind) * reachOut, new Color(1, 1, 1, 0.35f), _px);
+            if (intent.Framing is { } framing)
+                ClippedLine(box, origin, origin + Way(framing) * reachOut, Shown with { A = 0.8f }, 2 * _px);
+            if (intent.FramingTo is { } towards)
+                ClippedLine(box, origin, origin + Way(towards) * reachOut, GoalCyan, 2 * _px);
         }
         // The walk's rail, and its eye's.
         for (var i = 1; i < intent.Rail.Count; i++)

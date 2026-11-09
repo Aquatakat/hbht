@@ -37,10 +37,12 @@ public sealed class CameraIntent
 
     public (Vector2 Min, Vector2 Max)? Field { get; set; }
 
-    /// <summary>Over the shoulder: the yaw straight over it at the target, and the band of yaws whose framings hold what it must.</summary>
+    /// <summary>Over the shoulder: the yaw straight over it at the target, the framing's, and the one it eases onto.</summary>
     public float? Behind { get; set; }
 
-    public (float From, float To)? Band { get; set; }
+    public float? Framing { get; set; }
+
+    public float? FramingTo { get; set; }
 
     /// <summary>An AI's walk: the way its shot's aim rides, where the eye starts and ends, and how far along it is.</summary>
     public List<Vector3> Rail { get; } = [];

@@ -63,9 +63,9 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
     [Fact]
     public void TheCamerasAccelerationStaysWithinItsCapsAndItsEyeOffItsAimThroughABattle()
     {
-        // The party walks forward in each turn, then attacks: turns, aims, glides and the AI's walks, all under the caps.
-        // A cut starts again at rest, and the player's hand and an aim raise the caps, so those ticks aren't measured.
-        var caps = CameraTuning.Default.Caps;
+        // The party walks forward in each turn, then attacks: turns, aims, glides and the AI's walks, all under the caps in force, each
+        // change of speed measured against them as a share. A cut starts again at rest, and the player's hand and an aim raise the caps
+        // further, so those ticks aren't measured.
         var (aimMost, turnMost, zoomMost) = (0f, 0f, 0f);
         (Vector3 Aim, float Yaw, float Pitch, float Distance)? last = null;
         var cuts = 0;
@@ -82,20 +82,21 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
                 last = null;
                 return;
             }
+            var caps = m.Caps;
             if (last is { } l)
             {
-                aimMost = MathF.Max(aimMost, (m.AimSpeed - l.Aim).Length() * 60);
-                turnMost = MathF.Max(turnMost, MathF.Max(MathF.Abs(y - l.Yaw), MathF.Abs(p - l.Pitch)) * 60 * 180 / MathF.PI);
-                zoomMost = MathF.Max(zoomMost, MathF.Abs(d - l.Distance) * 60);
+                aimMost = MathF.Max(aimMost, (m.AimSpeed - l.Aim).Length() * 60 / caps.Aim);
+                turnMost = MathF.Max(turnMost, MathF.Max(MathF.Abs(y - l.Yaw), MathF.Abs(p - l.Pitch)) * 60 * 180 / MathF.PI / caps.Turn);
+                zoomMost = MathF.Max(zoomMost, MathF.Abs(d - l.Distance) * 60 / caps.Zoom);
             }
             last = (m.AimSpeed, y, p, d);
         });
         var enhanced = run.Battle.CombatCamera.Enhanced!;
         TestContext.Current.TestOutputHelper?.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"most acceleration: aim {aimMost:F1}, turn {turnMost:F1}, zoom {zoomMost:F1}; cuts {enhanced.Cuts}; {run.Ticks} ticks"));
-        Assert.True(aimMost <= caps.Aim * 1.001f, $"aim {aimMost}");
-        Assert.True(turnMost <= caps.Turn * 1.001f, $"turn {turnMost}");
-        Assert.True(zoomMost <= caps.Zoom * 1.001f, $"zoom {zoomMost}");
+            $"most acceleration of its cap: aim {aimMost:F2}, turn {turnMost:F2}, zoom {zoomMost:F2}; cuts {enhanced.Cuts}; {run.Ticks} ticks"));
+        Assert.True(aimMost <= 1.001f, $"aim {aimMost}");
+        Assert.True(turnMost <= 1.001f, $"turn {turnMost}");
+        Assert.True(zoomMost <= 1.001f, $"zoom {zoomMost}");
     }
 
     [Fact]
@@ -151,7 +152,8 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
     {
         // Each member's turn: walking toward the camera, away from the enemies, then across the view and back. With no enemy ahead the view
         // trails them as a third person's camera does: a step across it turns it round after them, a step toward it or away only draws it
-        // along; and its aim leads them the way they face. All of it by the point that follows them (FollowSmoothing), not their body.
+        // along; and its aim leads them no further than AimLeadMost. All of it by the point that follows them (FollowSmoothing), not their
+        // body.
         var t = CameraTuning.Default;
         var (ticks, led, across, turnedAfter, along, still) = (0, 0, 0, 0, 0, 0);
         (Combatant Who, Vector3 At, float Yaw)? last = null;
@@ -159,16 +161,17 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
         {
             var battle = run.Battle;
             var e = battle.CombatCamera.Enhanced!;
+            // The trailing shot shown: not while a target let go is still shot over the shoulder at (TrailAfter).
             if (battle.State != CombatState.Turn || battle.Current is not { Controlled: false } me || !e.Walking || e.Target is not null
-                || e.Motion is not { } m || e.FollowAt is not { } at)
+                || !e.Kind.StartsWith("no enemy ahead", StringComparison.Ordinal) || e.Motion is not { } m || e.FollowAt is not { } at)
             {
                 last = null;
                 return;
             }
             ticks++;
             var g = e.Goal;
-            var lead = MathF.Min(t.AimLead * t.LookAhead, t.AimLeadMost);
-            if (Vector3.Distance(g.Aim, at + new Vector3(me.Body.Heading.X, 0, me.Body.Heading.Y) * lead) < 0.01f)
+            // The aim leads them no further than AimLeadMost (WithNoEnemyAheadTheAimLeadsByHowFastTheyGo).
+            if (Flat(g.Aim - at) <= t.AimLeadMost + 0.01f)
                 led++;
             if (last is { } l && l.Who == me)
             {
@@ -195,12 +198,63 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
             last = (me, at, g.Yaw);
         });
         TestContext.Current.TestOutputHelper?.WriteLine(
-            $"{ticks} ticks with no enemy ahead: the aim leading on {led}; {turnedAfter} of {across} steps across turned it after the character, " +
+            $"{ticks} ticks with no enemy ahead: the aim within its lead on {led}; {turnedAfter} of {across} steps across turned it after the character, " +
             $"{still} of {along} steps toward or away left it be");
         Assert.True(across > 100 && along > 30, $"{across} steps across, {along} along");
         Assert.Equal(ticks, led);
         Assert.True(turnedAfter >= across * 0.95, $"{turnedAfter} of {across} turned after");
         Assert.True(still >= along * 0.95, $"{still} of {along} left be");
+    }
+
+    [Fact]
+    public void WithNoEnemyAheadTheAimLeadsByHowFastTheyGo()
+    {
+        // Rheda runs away from the enemies in her turns, then stands three seconds. With no enemy ahead, the aim leads her
+        // by where she'll be LeadTime from now, the way she goes, once she's run one way a second; and a second after she stops, it's on
+        // her, so one standing is framed in the middle, not off toward where she might go.
+        var t = CameraTuning.Default;
+        var (running, ahead, standing, centred, steady, still) = (0, 0, 0, 0, 0, 0);
+        var heading = Vector3.Zero;
+        Combatant? who = null;
+        Play(host => Plain(Set, 1, host), CameraStyle.Enhanced, "Rheda=stick:0:-1:200/wait:180/skip;*=accept/accept", run =>
+        {
+            var battle = run.Battle;
+            var e = battle.CombatCamera.Enhanced!;
+            if (battle.State != CombatState.Turn || battle.Current is not { Controlled: false } me || !e.Walking
+                || !e.Kind.StartsWith("no enemy ahead", StringComparison.Ordinal) || e.FollowAt is not { } at || e.FollowSpeed is not { } speed)
+            {
+                (steady, still, who) = (0, 0, null);
+                return;
+            }
+            if (who != me)
+                (steady, still, who) = (0, 0, me);
+            var off = e.Goal.Aim - at;
+            var way = Flat(speed) > 1 ? Vector3.Normalize(speed with { Y = 0 }) : Vector3.Zero;
+            if (way == Vector3.Zero || Vector3.Dot(way, heading) < MathF.Cos(ShotFinder.Rad(15)))
+                (steady, heading) = (0, way);
+            else
+                steady++;
+            still = Flat(speed) < 0.05f ? still + 1 : 0;
+            if (steady > 60)
+            {
+                running++;
+                var lead = MathF.Min(Flat(speed) * t.LeadTime, t.AimLeadMost);
+                if (Vector3.Dot(off, way) > lead * 0.7f && Flat(off) <= t.AimLeadMost + 0.01f)
+                    ahead++;
+            }
+            if (still > 60)
+            {
+                standing++;
+                if (Flat(off) < 0.15f)
+                    centred++;
+            }
+        });
+        TestContext.Current.TestOutputHelper?.WriteLine($"{running} ticks running one way a second, the aim ahead of them by their lead on {ahead}; " +
+            $"{standing} ticks standing a second, the aim on them on {centred}");
+        Assert.True(running > 100, $"{running} running");
+        Assert.True(ahead >= running * 0.95, $"ahead on {ahead} of {running}");
+        Assert.True(standing > 100, $"{standing} standing");
+        Assert.Equal(standing, centred);
     }
 
     [Fact]
@@ -701,13 +755,13 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
     public void AnAIsWalkIsShownTurningAfterItFromNearWhereItEnds(int bandits, string plan, string kind)
     {
         // Four bandits walk to the party, or the rats flee it. Each walk is shown from near where it ends: the walker on the screen every
-        // tick, the eye moving no more than WalkPan of the way they walk, the view turning after them, and it ends holding them and whom
+        // tick, the eye moving no more than WalkPan of the way they walk (its rail rounding their corners), the view turning after them, and it ends holding them and whom
         // they go for.
         var t = CameraTuning.Default;
         var bandit = RecordId.Hex(RecordTypes.Entity, 0x025E);
         var lens = t.Lens with { Margin = 1, Floor = 1 };
         var (walks, lost, panned, turned, unframed) = (0, 0, 0, 0f, 0);
-        (Combatant Who, Shot Goal, Vector3 From, Vector3 At, float Eye, float Turned, bool Walking)? walk = null;
+        (Combatant Who, Shot Goal, Vector3 From, Vector3 At, float Walked, float Eye, float Turned, bool Walking)? walk = null;
         Combatant? target = null;
         void Done()
         {
@@ -715,7 +769,7 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
             {
                 walks++;
                 turned += w.Turned;
-                if (w.Eye > t.WalkPan * Flat(w.At - w.From) + 0.5f)
+                if (w.Eye > t.WalkPan * w.Walked + 0.5f)
                     panned++;
                 if (target is { Freed: false } to && !ShotFraming.Holds(w.Goal, new ShotSubject(to.Body.Sphere.Position, 0), lens))
                     unframed++;
@@ -741,14 +795,15 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
                 var walking = e.Kind.EndsWith(", turned after", StringComparison.Ordinal);
                 walk = w with
                 {
-                    Goal = g, At = walking ? at : w.At, Eye = w.Eye + (walking ? Vector3.Distance(g.Eye, w.Goal.Eye) : 0),
+                    Goal = g, At = walking ? at : w.At, Walked = w.Walked + (walking ? Flat(at - w.At) : 0),
+                    Eye = w.Eye + (walking ? Vector3.Distance(g.Eye, w.Goal.Eye) : 0),
                     Turned = w.Turned + (walking ? MathF.Abs(Shot.Wrap(g.Yaw - w.Goal.Yaw)) : 0), Walking = walking,
                 };
             }
             else
             {
                 Done();
-                walk = (me, g, at, at, 0, 0, true);
+                walk = (me, g, at, at, 0, 0, 0, true);
                 target = !me.Fleeing && me.Ai?.Target is int slot && slot >= 0 && slot < battle.Slots.Count ? battle.Slots[slot] : null;
             }
             if (!ShotFraming.Holds(g, new ShotSubject(me.Body.Sphere.Position, 0), lens))
@@ -833,6 +888,89 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
         TestContext.Current.TestOutputHelper?.WriteLine($"{ticks} ticks walking, the turn's speed changing hard on {hard}");
         Assert.True(ticks > 2000, $"{ticks} ticks");
         Assert.True(hard <= ticks / 2000, $"{hard} hard of {ticks}");
+    }
+
+
+    [Fact]
+    public void OverTheShoulderTheViewsAccelerationChangesSmoothly()
+    {
+        // Walking at four bandits, then round them: the goal glides (ShotGlide) and the turn carried is smoothed (TurnSmoothing), so how
+        // fast the shown view's turn and its distance change changes smoothly, a new framing, target or pack member bending its course
+        // rather than kicking it. Before both, the turn's acceleration jumped by 13,600°/s³ at the 99th percentile, the distance's by
+        // 810 units/s³.
+        var bandit = RecordId.Hex(RecordTypes.Entity, 0x025E);
+        var (turnJerk, zoomJerk) = (new List<float>(), new List<float>());
+        (Combatant Who, int Cuts, float Yaw, float Distance, float? YawSpeed, float? ZoomSpeed, float? YawAccel, float? ZoomAccel)? last = null;
+        Play(host => Plain(Set, 1, host, [.. Enumerable.Repeat(new PartyEnemy(bandit, 1, 1), 4)]), CameraStyle.Enhanced,
+            "*=stick:0:1:40/stick:1:1:50/stick:-1:1:60/stick:1:0:40/wait:10/accept/accept", run =>
+            {
+                var battle = run.Battle;
+                var e = battle.CombatCamera.Enhanced!;
+                if (battle.State != CombatState.Turn || battle.Current is not { Controlled: false } me || !e.Walking || e.Motion is not { } m)
+                {
+                    last = null;
+                    return;
+                }
+                var shot = m.Current;
+                if (last is not { } l || l.Who != me || l.Cuts != e.Cuts)
+                {
+                    last = (me, e.Cuts, shot.Yaw, shot.Distance, null, null, null, null);
+                    return;
+                }
+                var (yawSpeed, zoomSpeed) = (Shot.Wrap(shot.Yaw - l.Yaw) * 60, (shot.Distance - l.Distance) * 60);
+                (float? yawAccel, float? zoomAccel) = l.YawSpeed is { } ys && l.ZoomSpeed is { } zs ? ((yawSpeed - ys) * 60, (zoomSpeed - zs) * 60) : ((float?)null, (float?)null);
+                if (yawAccel is { } ya && l.YawAccel is { } la && zoomAccel is { } za && l.ZoomAccel is { } lz)
+                {
+                    turnJerk.Add(MathF.Abs(ya - la) * 60 * 180 / MathF.PI);
+                    zoomJerk.Add(MathF.Abs(za - lz) * 60);
+                }
+                last = (me, e.Cuts, shot.Yaw, shot.Distance, yawSpeed, zoomSpeed, yawAccel, zoomAccel);
+            });
+        turnJerk.Sort();
+        zoomJerk.Sort();
+        var (turn, zoom) = (turnJerk[turnJerk.Count * 99 / 100], zoomJerk[zoomJerk.Count * 99 / 100]);
+        TestContext.Current.TestOutputHelper?.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"{turnJerk.Count} ticks walking: at the 99th percentile the turn's acceleration changing by {turn:F0}°/s³, the distance's by {zoom:F0} units/s³"));
+        Assert.True(turnJerk.Count > 2000, $"{turnJerk.Count} ticks");
+        Assert.True(turn < 6000, $"the turn's {turn}");
+        Assert.True(zoom < 400, $"the distance's {zoom}");
+    }
+
+    [Fact]
+    public void AnAIsWalkShotRidesItsRailSteadily()
+    {
+        // Four bandits walk to the party. Each walk's shot rides its rail, how far along it tracked from the point that follows the walker,
+        // so the view turns after them steadily: tick to tick its turn's acceleration changes by a median of under 150°/s³. Following the
+        // walker's place itself, it was 214.
+        var bandit = RecordId.Hex(RecordTypes.Entity, 0x025E);
+        var jerk = new List<float>();
+        (Combatant Who, float Yaw, float? Speed, float? Accel)? last = null;
+        Play(host => Plain(Set, 1, host, [.. Enumerable.Repeat(new PartyEnemy(bandit, 1, 1), 4)]), CameraStyle.Enhanced, "*=skip", run =>
+            {
+                var e = run.Battle.CombatCamera.Enhanced!;
+                if (!e.Kind.StartsWith("an AI's walk, turned after", StringComparison.Ordinal) || e.Motion is not { } m || run.Battle.Current is not { } me)
+                {
+                    last = null;
+                    return;
+                }
+                var yaw = m.Current.Yaw;
+                if (last is not { } l || l.Who != me)
+                {
+                    last = (me, yaw, null, null);
+                    return;
+                }
+                var speed = Shot.Wrap(yaw - l.Yaw) * 60;
+                float? accel = l.Speed is { } s ? (speed - s) * 60 : null;
+                if (accel is { } a && l.Accel is { } la)
+                    jerk.Add(MathF.Abs(a - la) * 60 * 180 / MathF.PI);
+                last = (me, yaw, speed, accel);
+            });
+        jerk.Sort();
+        var median = jerk[jerk.Count / 2];
+        TestContext.Current.TestOutputHelper?.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"{jerk.Count} ticks of walks: the turn's acceleration changing by a median of {median:F0}°/s³"));
+        Assert.True(jerk.Count > 2000, $"{jerk.Count} ticks");
+        Assert.True(median < 150, $"median {median}");
     }
 
     private static float Flat(Vector3 v) => MathF.Sqrt(v.X * v.X + v.Z * v.Z);

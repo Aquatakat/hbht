@@ -581,6 +581,62 @@ public sealed class EnhancedCameraTests
     // ---- Tuning
 
     [Fact]
+    public void AGlidedGoalLandsOnAJumpInItsTimeNeverPastItItsAccelerationStartingFromNothing()
+    {
+        // The ideal jumps 4 across, 30° round and twice as far back; the glide lands 95% of the way within its time, never past it, and
+        // its acceleration starts from nothing and changes evenly (ShotGlide).
+        var glide = new ShotGlide { Time = 1 };
+        var from = new Shot(Vector3.Zero, 0, 0.2f, 8);
+        glide.Reset(from, default);
+        var ideal = new Shot(new Vector3(4, 0, 0), 0.5f, 0.2f, 16);
+        var (landed, most, firstAccel, jerk) = (-1, 0f, 0f, 0f);
+        (float Speed, float? Accel)? last = null;
+        for (var tick = 1; tick <= 120; tick++)
+        {
+            glide.Step(ideal);
+            var g = glide.Current;
+            most = MathF.Max(most, g.Aim.X);
+            Assert.True(g.Yaw <= 0.5f + 1e-4f && g.Distance <= 16 + 1e-3f, $"past the ideal at tick {tick}");
+            if (landed < 0 && g.Aim.X >= 0.95f * 4 && Shot.Wrap(g.Yaw) >= 0.95f * 0.5f)
+                landed = tick;
+            var speed = glide.Speeds.Aim.X;
+            if (last is { } l)
+            {
+                var accel = (speed - l.Speed) * 60;
+                if (tick == 2)
+                    firstAccel = accel;
+                if (l.Accel is { } la)
+                    jerk = MathF.Max(jerk, MathF.Abs(accel - la) * 60);
+                last = (speed, accel);
+            }
+            else
+            {
+                last = (speed, null);
+            }
+        }
+        Assert.InRange(landed, 50, 63);
+        Assert.True(most <= 4 + 1e-4f, $"overshot to {most}");
+        // A single spring would start at ω²×4 at once, ω = 7.75 a second: 240 units a second squared. The pair's grows from nothing.
+        Assert.True(MathF.Abs(firstAccel) < 10, $"starting at {firstAccel}");
+        Assert.True(jerk < 400, $"jerk {jerk}");
+    }
+
+    [Fact]
+    public void AGlidedGoalFollowsAnIdealMovingEvenlyWithoutTrailingIt()
+    {
+        // An ideal drawn back steadily, 1.5 a second, as a character nears a pack: once under way, the glide is on it.
+        var glide = new ShotGlide { Time = 1 };
+        glide.Reset(new Shot(Vector3.Zero, 0, 0.2f, 8), default);
+        var distance = 8f;
+        for (var tick = 0; tick < 180; tick++)
+        {
+            distance += 1.5f / 60;
+            glide.Step(new Shot(Vector3.Zero, 0, 0.2f, distance));
+        }
+        Assert.True(MathF.Abs(glide.Current.Distance - distance) < 0.35f, $"{glide.Current.Distance} for {distance}");
+    }
+
+    [Fact]
     public void TheTuningIsSetByName()
     {
         var t = CameraTuning.Default.Parse("aimacceleration=20, ConeAngle=30,Pitches=30;60,TargetHold=5");

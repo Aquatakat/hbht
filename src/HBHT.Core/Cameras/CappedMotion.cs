@@ -119,7 +119,6 @@ public sealed class CappedMotion
     /// <summary>A tick toward <paramref name="goal"/>.</summary>
     public void Step(Shot goal)
     {
-        var caps = Caps;
         // The goal's own motion, eased over a few ticks, unless it jumped.
         if (_lastGoal is { } last)
         {
@@ -148,7 +147,23 @@ public sealed class CappedMotion
         _goalYawSpeed = Math.Clamp(_goalYawSpeed, -turnSpeed, turnSpeed);
         _goalPitchSpeed = Math.Clamp(_goalPitchSpeed, -turnSpeed, turnSpeed);
         _goalDistanceSpeed = Math.Clamp(_goalDistanceSpeed, -turnSpeed, turnSpeed);
+        Move(goal);
+    }
 
+    /// <summary>
+    /// A tick toward <paramref name="goal"/>, which moves at <paramref name="speeds"/> (as <see cref="Speeds"/> are given): a goal that
+    /// glides (<see cref="ShotGlide"/>), so it's followed at its own speed, which needn't be guessed from how it moved, and never stops dead.
+    /// </summary>
+    public void Step(Shot goal, (Vector3 Aim, float Yaw, float Pitch, float Distance) speeds)
+    {
+        _lastGoal = goal;
+        (_goalAimSpeed, _goalYawSpeed, _goalPitchSpeed, _goalDistanceSpeed) = speeds;
+        Move(goal);
+    }
+
+    private void Move(Shot goal)
+    {
+        var caps = Caps;
         var c = Current;
         var aim = c.Aim;
         Channel(ref aim, ref _aimSpeed, goal.Aim, _goalAimSpeed, caps.Aim, caps.Settle);

@@ -68,6 +68,31 @@ public sealed record CameraTuning
     public float CarryTurn { get; init; } = 90;
 
     /// <summary>
+    /// How long the player's turn's goal takes to glide onto a shot found anew (a new framing, target or distance), seconds: 95% of the way
+    /// (<see cref="Cameras.ShotGlide"/>). Every change of framing in their turn takes about this long, easing in and out, and the camera rides
+    /// the glide.
+    /// </summary>
+    public float GlideTime { get; init; } = 1;
+
+    /// <summary>
+    /// What the caps are times while the camera rides the glide in the player's turn: the glide's own course is what keeps the motion
+    /// smooth, and the caps only keep a jump far across it from whipping.
+    /// </summary>
+    public float GlidePace { get; init; } = 3;
+
+    /// <summary>
+    /// While gliding, how quickly the turn the shot's carried by (the orbit's and a new framing's easing) follows them, seconds: its speed
+    /// follows theirs as a critically damped spring this long, so the view starts and stops turning without a kick.
+    /// </summary>
+    public float TurnSmoothing { get; init; } = 0.12f;
+
+    /// <summary>
+    /// How slowly the shot over the shoulder comes in to stand nearer, seconds: the time over which what's left of the way in falls by e. It
+    /// draws back at once to hold what it must, so the view doesn't pump in and out as the bodies shift about.
+    /// </summary>
+    public float ZoomInTime { get; init; } = 1;
+
+    /// <summary>
     /// How smoothly the camera follows whom it's carried with, seconds: the time of a critically damped spring drawing the point it
     /// follows after their body (<see cref="Cameras.FollowPoint"/>), so their stride, a step a frame, and a root stopping and pushing off,
     /// doesn't jolt the view. It trails a walker by twice this times their speed and settles as they stop, never past them. 0 follows the
@@ -113,6 +138,18 @@ public sealed record CameraTuning
     public float[] WalkYaws { get; init; } = [40, -40, 60, -60, 80, -80, 100, -100];
 
     /// <summary>
+    /// How far either side along an AI's walk its rail's points are averaged over, units, rounding its corners: the way its shot rides
+    /// (<see cref="EnhancedCamera"/>).
+    /// </summary>
+    public float WalkRound { get; init; } = 1.5f;
+
+    /// <summary>
+    /// How smoothly an AI's walk's shot goes along its rail after the walker, seconds: how far along they are is tracked, place and speed,
+    /// as a critically damped pair this long, which doesn't trail a steady walker, so their stride's unevenness doesn't shake it.
+    /// </summary>
+    public float WalkSmoothing { get; init; } = 0.3f;
+
+    /// <summary>
     /// The caps times this while the player has the camera in their turn, so the view follows their own hand closely and still swoops,
     /// quicker, from a wide shot.
     /// </summary>
@@ -120,27 +157,6 @@ public sealed record CameraTuning
 
     /// <summary>The aim's cap times this while the player aims, so the reticle stays near the middle of the screen as it moves.</summary>
     public float AimingAcceleration { get; init; } = 6;
-
-    /// <summary>
-    /// The aim's and the distance's caps times this in the player's own turn, as they walk the character about (the settle by its square
-    /// root): slower than the rest, so the view's framing drifts round after them rather than following every step. The turn's aren't:
-    /// the shot is carried with the character, and a turn slower than that would trail in after it.
-    /// </summary>
-    public float WalkPace { get; init; } = 0.5f;
-
-    /// <summary>
-    /// The caps times this in the player's turn once the character is at the edge of the shot shown or out of it (the settle by its
-    /// square root), so the view keeps them rather than leaving them off the screen. The caps go up toward it from the walk's as the
-    /// character goes out from <see cref="CatchUpFrom"/> of the way to the edge, at once, and come back down over
-    /// <see cref="CatchUpTicks"/>.
-    /// </summary>
-    public float LostPace { get; init; } = 2;
-
-    /// <inheritdoc cref="LostPace"/>
-    public float CatchUpFrom { get; init; } = 0.5f;
-
-    /// <inheritdoc cref="LostPace"/>
-    public int CatchUpTicks { get; init; } = 20;
 
     /// <summary>
     /// The most of a moving goal's own speed followed at while the player has the camera in their hand, units a second: a running body's.
@@ -262,6 +278,12 @@ public sealed record CameraTuning
     public int LoseHold { get; init; } = 45;
 
     /// <summary>
+    /// How many ticks a target let go is still shot over the shoulder at, with none in its place: so heading past one toward another goes
+    /// straight from one to the other, not through the trailing shot between them.
+    /// </summary>
+    public int TrailAfter { get; init; } = 30;
+
+    /// <summary>
     /// The target held stays it while it's within this across the ground and the character doesn't head away from it by more than
     /// <see cref="HoldNearAngle"/>: running round a pack for a backstab keeps the camera on it.
     /// </summary>
@@ -284,6 +306,12 @@ public sealed record CameraTuning
 
     /// <summary>The weight of the target's pack, each, beside the character's and the target's 1.</summary>
     public float ClusterWeight { get; init; } = 0.5f;
+
+    /// <summary>
+    /// Over how much of <see cref="ClusterRadius"/> (from the target) and <see cref="PackRange"/> (from the character) a body fades into the
+    /// pack and out of it, units: so it comes into the framing and the aim's lead bit by bit, not all at once.
+    /// </summary>
+    public float PackFade { get; init; } = 3;
 
     /// <summary>
     /// Taken off a shot, up to this, for framing two who deal with each other, a party member and their enemy, the other way round from
@@ -404,10 +432,16 @@ public sealed record CameraTuning
     public float AimLeadMost { get; init; } = 3;
 
     /// <summary>
-    /// With no enemy ahead, the shot leads toward a point this far along the way the character faces (by <see cref="AimLead"/>, at most
-    /// <see cref="AimLeadMost"/>), so there's room ahead of them on the screen.
+    /// With no enemy ahead, how far ahead of the character the aim leads, as how long from now: where the point that follows them will be
+    /// then, seconds, no further than <see cref="AimLeadMost"/>. So it's on them standing, a little ahead walking and more running.
     /// </summary>
-    public float LookAhead { get; init; } = 10;
+    public float LeadTime { get; init; } = 0.6f;
+
+    /// <summary>
+    /// How slowly the aim's lead from the character changes in their turn, seconds: it follows where it's wanted (toward the pack over the
+    /// shoulder, the way they go with no enemy ahead) as a critically damped spring this long, so it neither jumps nor swings.
+    /// </summary>
+    public float LeadSmoothing { get; init; } = 0.25f;
 
     /// <summary>Taken off for each radian a framing turns the view from where it is.</summary>
     public float TurnCost { get; init; } = 0.4f;
