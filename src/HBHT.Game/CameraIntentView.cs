@@ -226,8 +226,9 @@ public partial class CameraIntentView : Control
         var font = ThemeDB.FallbackFont;
         var line = text * 1.3f;
         DrawString(font, new Vector2(box.Position.X, box.End.Y + line), intent.Kind, HorizontalAlignment.Left, mapSize, text, Colors.White);
-        DrawString(font, new Vector2(box.Position.X, box.End.Y + line * 2), "white shown, cyan goal, yellow held, orange if it can be,", HorizontalAlignment.Left, mapSize, text - 2, Legend);
-        DrawString(font, new Vector2(box.Position.X, box.End.Y + line * 3), "red target, magenta vantage, green follow point", HorizontalAlignment.Left, mapSize, text - 2, Legend);
+        string[] legend = ["white shown, cyan its goal", "yellow held, orange if it can be, red the target", "magenta the vantage, green the follow point"];
+        for (var i = 0; i < legend.Length; i++)
+            DrawString(font, new Vector2(box.Position.X, box.End.Y + line * (i + 2)), legend[i], HorizontalAlignment.Left, mapSize, text - 2, Legend);
 
         // The way across the map of a yaw, the side the eye stands.
         Vector2 Way(float yaw)
