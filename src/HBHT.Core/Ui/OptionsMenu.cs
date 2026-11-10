@@ -395,9 +395,10 @@ public sealed partial class OptionsMenu
             Choice("Status Auras", ["Original", "More Often"], () => s.SpellAuras == Combat.AuraTurns.EachCharacter ? 1 : 0,
                 v => s.SpellAuras = v == 1 ? Combat.AuraTurns.EachCharacter : Combat.AuraTurns.Battle),
             Choice("Combat Turns", ["Original", "Start Early"], () => (int)s.CombatTurns, v => s.CombatTurns = (Combat.CombatTurns)v),
-            // Under Start Early, Start Early chooses the battle's camera, so the row says so and can't be changed.
+            // Under Start Early the battle's camera is always Camera: Enhanced, filming the drawing (its director), so the row says so and
+            // can't be changed.
             s.CombatTurns == Combat.CombatTurns.StartEarly
-                ? Choice("Camera", ["Start Early's"], () => 0, _ => { })
+                ? Choice("Camera", ["Enhanced"], () => 0, _ => { })
                 : Choice("Camera", ["Original", "Enhanced"], () => (int)s.Camera, v => s.Camera = (Cameras.CameraStyle)v),
         ];
     }

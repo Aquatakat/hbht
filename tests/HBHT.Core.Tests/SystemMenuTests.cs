@@ -93,7 +93,7 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     }
 
     [Fact]
-    public void TheCameraRowSaysStartEarlyChoosesUnderStartEarly()
+    public void TheCameraRowSaysEnhancedUnderStartEarly()
     {
         var settings = new Settings();
         var options = new OptionsMenu(settings, inGame: true);
@@ -104,10 +104,11 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         options.Change(1);
         Assert.Equal(HBHT.Core.Cameras.CameraStyle.Enhanced, settings.Camera);
         Assert.Equal("Enhanced", options.Rows.Rows[labels.IndexOf("Camera")].ValueName);
-        // Combat Turns to Start Early: the Camera row is Start Early's, and the setting is kept for when it's Original again.
+        // Combat Turns to Start Early: the Camera row is Enhanced, which Start Early's director always is, and can't be changed; the
+        // setting is kept for when it's Original again.
         options.Point(labels.IndexOf("Combat Turns"));
         options.Change(1);
-        Assert.Equal(["Start Early's"], options.Rows.Rows[labels.IndexOf("Camera")].Values);
+        Assert.Equal(["Enhanced"], options.Rows.Rows[labels.IndexOf("Camera")].Values);
         options.Point(labels.IndexOf("Camera"));
         options.Change(1);
         Assert.Equal(HBHT.Core.Cameras.CameraStyle.Enhanced, settings.Camera);

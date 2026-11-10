@@ -205,6 +205,18 @@ public sealed class BattleComposerTests
     }
 
     [Fact]
+    public void StartEarlysShotQuestionLetsBeatsAcrossTheFieldOverlapAndKeepsFarOnesApart()
+    {
+        // The director's answer (BeatShots): two beats 24 apart share a wide shot, so C's turn starts on the first drawn tick; 120 apart,
+        // none holds both, and C's beat waits. Each question it's asked again is answered as before, without looking again.
+        var shots = new BeatShots(null, null, HBHT.Core.Combat.CameraTuning.Default);
+        Assert.Equal(1, Draw(Beating(new(-12, 0, 5), new(12, 0, 5)), shots).Starts[1]);
+        var far = new BeatShots(null, null, HBHT.Core.Combat.CameraTuning.Default);
+        Assert.True(Draw(Beating(new(-60, 0, 5), new(60, 0, 5)), far).Starts[1] > 1);
+        Assert.True(far.Looked < far.Asked, $"looked into {far.Looked} of {far.Asked}");
+    }
+
+    [Fact]
     public void APlayersTurnWaitsForTheBeatsBeforeIt()
     {
         // C walks up to B and hits it 60 ticks in, then stands 60; then A's turn, far off.

@@ -523,6 +523,44 @@ public sealed record CameraTuning
     public float ReachStretch { get; init; } = 1.4f;
 
     /// <summary>The caps on the camera's motion.</summary>
+    // ---- Start Early's director (BattleDirector, BeatShots)
+
+    /// <summary>
+    /// How far ahead a beat to come is held, as a share over the time the aim takes to cross to it at its cap: a beat is in the goal from
+    /// <c>PlanSlack × 2√(d / AimAcceleration)</c> seconds before it strikes, plus <see cref="PlanMargin"/>, so the camera arrives as it lands.
+    /// </summary>
+    public float PlanSlack { get; init; } = 1.3f;
+
+    /// <summary>The ticks a beat to come is held before it strikes beyond its crossing (<see cref="PlanSlack"/>).</summary>
+    public int PlanMargin { get; init; } = 20;
+
+    /// <summary>The most ticks ahead a beat to come is held: four seconds.</summary>
+    public int PlanMost { get; init; } = 240;
+
+    /// <summary>
+    /// The ticks before a beat strikes from which, if the shot shown still doesn't hold it, the director cuts to one that does, so no result
+    /// is ever off the screen. The planned move usually lands first.
+    /// </summary>
+    public int BeatCutAhead { get; init; } = 10;
+
+    /// <summary>The farthest the eye stands from the beats one shot holds (<see cref="BeatShots"/>): wide shots are welcome.</summary>
+    public float BeatDistance { get; init; } = 40;
+
+    /// <summary>The pitches a shot holding several beats is tried at, low across the field first, up to near enough straight down.</summary>
+    public float[] BeatPitches { get; init; } = [20, 35, 50, 65, 80];
+
+    /// <summary>The step, degrees, of the yaws all the way round that a shot holding several beats is tried at.</summary>
+    public float BeatYawStep { get; init; } = 30;
+
+    /// <summary>The pitch a shot holding several beats is liked best at.</summary>
+    public float BeatPitch { get; init; } = 30;
+
+    /// <summary>What an action's combatant counts for beside the result it deals, in a shot holding beats: shown where it fits.</summary>
+    public float SourceWeight { get; init; } = 0.5f;
+
+    /// <summary>The radius a turn's combatant is held by when the composer asks whether its turn can open on a beat.</summary>
+    public float TurnRadius { get; init; } = 0.6f;
+
     public MotionCaps Caps => new(AimAcceleration, TurnAcceleration, ZoomAcceleration, Settle, TurnSettle, ZoomSettle);
 
     /// <summary>The lens shots are judged by.</summary>

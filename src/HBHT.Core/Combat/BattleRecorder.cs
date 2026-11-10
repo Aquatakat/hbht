@@ -94,7 +94,7 @@ public sealed class BattleRecorder : ICombatHost, ISoundOutput
         var owner = Keying;
         if (owner is not null)
             _owners[handle] = owner;
-        _sounds.Add(new SoundCall.Start(handle, sequence, volume, pan, loop, durationMs) { Owner = owner });
+        _sounds.Add(new SoundCall.Start(handle, sequence, volume, pan, loop, durationMs) { Owner = owner, Place = PlaceOf(owner) });
         return handle;
     }
 
@@ -111,7 +111,7 @@ public sealed class BattleRecorder : ICombatHost, ISoundOutput
     public void Set(SoundHandle handle, byte volume, byte pan)
     {
         if (!handle.IsNone)
-            _sounds.Add(new SoundCall.Set(handle, volume, pan) { Owner = Of(handle) });
+            _sounds.Add(new SoundCall.Set(handle, volume, pan) { Owner = Of(handle), Place = PlaceOf(Of(handle)) });
     }
 
     public void SetDuration(SoundHandle handle, int ms)
@@ -133,6 +133,10 @@ public sealed class BattleRecorder : ICombatHost, ISoundOutput
     }
 
     public void Play(OneShot sound) => _sounds.Add(new SoundCall.Play(sound) { Owner = Keying });
+
+    /// <summary>Where a body's sound is heard from now: the body, and the camera the keys hear by (<see cref="AudioKeys.Eye"/>, <see cref="AudioKeys.Aim"/>).</summary>
+    private SoundPlace? PlaceOf(Combatant? owner) =>
+        owner is not null && Keys is { } keys ? new SoundPlace(owner.Body.Sphere.Position, keys.Eye, keys.Aim) : null;
 
     /// <summary>Whose body started the sound <paramref name="handle"/>, if a body's did.</summary>
     private Combatant? Of(SoundHandle handle) => _owners.GetValueOrDefault(handle);
@@ -157,7 +161,7 @@ public sealed class BattleRecorder : ICombatHost, ISoundOutput
             var held = c.Held;
             var actor = c.Actor?.Machine;
             bodies[i++] = new DrawnBody(c, c.Body.Sphere.Position, c.Body.Heading, c.Body.Movement, c.Alpha, c.Tint.State, c.Unfogged,
-                actor?.State ?? 0, actor?.Clock ?? 0, held[0], held[1], held[2], c.Sheet.Hp);
+                actor?.State ?? 0, actor?.Clock ?? 0, held[0], held[1], held[2], c.Sheet.Hp, CameraScene.BodyStateOf(c));
         }
         var camera = battle.Camera;
         var frame = new BattleFrame
@@ -179,6 +183,8 @@ public sealed class BattleRecorder : ICombatHost, ISoundOutput
             SkyDim = battle.Fx.Sky.Value,
             FogLifted = battle.FogLifted,
             Camera = new DrawnCamera(camera.Position, camera.Aim, camera.LookXZ),
+            Facts = SceneFacts.Of(battle),
+            Handed = battle.CombatCamera.Handed is not null,
             Gui = battle.Gui.Snapshot(battle),
             Menu = battle.Menu,
             Aura = battle.Aura,

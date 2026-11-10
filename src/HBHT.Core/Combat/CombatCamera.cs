@@ -80,8 +80,23 @@ public sealed class CombatCamera
     /// <summary>The enhanced camera, while it's what's shown: under Camera: Enhanced in a battle whose turns are the original's.</summary>
     public EnhancedCamera? Enhanced => _enhancedOn ? _enhanced : null;
 
-    /// <summary>The camera shown, which the stick and the aim are read against: the enhanced camera's while it's on, else the original's.</summary>
-    public FollowCamera Shown => _enhancedOn ? _enhanced!.Camera : Camera;
+    /// <summary>
+    /// The camera shown, which the stick and the aim are read against: the one drawn while it's handed to the battle (Start Early's
+    /// director's in a turn the player plays, <see cref="Handed"/>), the enhanced camera's while it's on, else the original's.
+    /// </summary>
+    public FollowCamera Shown => _handed?.Camera ?? (_enhancedOn ? _enhanced!.Camera : Camera);
+
+    private EnhancedCamera? _handed;
+
+    /// <summary>
+    /// The camera drawn, handed to the battle (Start Early): its director's, in a turn the player plays drawn on the present, so the stick,
+    /// the free cursor and a placed area are read against what the player sees. Null otherwise: the battle running ahead never has it, so
+    /// the AI's turns play by the original's camera as Original's do.
+    /// </summary>
+    public EnhancedCamera? Handed => _handed;
+
+    /// <summary>Hands the battle the camera drawn, or takes it back (null) (<see cref="Handed"/>).</summary>
+    internal void Hand(EnhancedCamera? drawn) => _handed = drawn;
 
     /// <summary>
     /// One tick: the original's camera (<c>ProcessCombatCamera</c>), then under Camera: Enhanced, with the turns the original's, the
@@ -108,7 +123,9 @@ public sealed class CombatCamera
     /// </summary>
     internal void TakeHand()
     {
-        if (_enhancedOn)
+        if (_handed is { } drawn)
+            drawn.TakeHand(Camera);
+        else if (_enhancedOn)
             _enhanced!.TakeHand(Camera);
     }
 

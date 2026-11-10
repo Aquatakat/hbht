@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using HBHT.Core.Audio;
+using HBHT.Core.Cameras;
 using HBHT.Core.Chunks;
 using HBHT.Core.Combat;
 using HBHT.Core.Trek;
@@ -36,6 +37,8 @@ public sealed class StartEarlyTests(Na10Import fixture)
         // Checkpoint 01's ten rats, four on the field and six reserves, the party attacking every turn it can.
         var (original, early) = Both(host => Plain(Set, 1, host), Attacking);
         Same(original, early);
+        Directed(early);
+        Assert.True(early.Watch!.Handed > 0, "the director's camera was never handed to the battle");
         Assert.Equal(BattleOutcome.Won, original.Battle.Outcome);
         Assert.True(original.Battle.NextReserve >= original.Battle.Enemies.Count, "every reserve joined");
     }
@@ -123,8 +126,11 @@ public sealed class StartEarlyTests(Na10Import fixture)
     public void ThePlayersWalksInTurnsOpenedEarlyAreDrawnThroughNoOne()
     {
         // The rats, each party member walking forward 40 ticks of its turn before attacking: the same battle either way, and under Start
-        // Early no body drawn through another (the watch checks every drawn tick).
-        var (original, early) = Both(host => Plain(Set, 1, host), Walking);
+        // Early no body drawn through another (the watch checks every drawn tick). The stick reads the camera the player sees, which
+        // under Start Early is the director's, so the same stick walks elsewhere, the player's own input: here both read the original's,
+        // so their walks compare tick for tick.
+        var original = Play(host => Plain(Set, 1, host), CombatTurns.Original, Walking);
+        var early = Play(host => Plain(Set, 1, host), CombatTurns.StartEarly, Walking, hand: false);
         Same(original, early);
         Assert.True(early.Watch!.OpenedEarly > 0);
         TestContext.Current.TestOutputHelper?.WriteLine($"{early.Drawing.Composer.Forwarded} actions fast-forwarded on their own");
@@ -166,6 +172,7 @@ public sealed class StartEarlyTests(Na10Import fixture)
         var log = Log(path);
         var both = Both(host => FromSetup(Set, log, folder, host: host), player);
         Same(both.Original, both.Early);
+        Directed(both.Early);
         return both;
     }
 
@@ -225,7 +232,7 @@ public sealed class StartEarlyTests(Na10Import fixture)
     }
 
     private Run Play(Func<ICombatHost, Built> build, CombatTurns turns, Action<Run> player, bool stopAtFirstTurn = false, bool stopAtWalk = false,
-        Action<Run>? meanwhile = null)
+        Action<Run>? meanwhile = null, bool hand = true)
     {
         var audio = GameAudio.Silent(Set);
         var recorder = new BattleRecorder(audio);
@@ -233,7 +240,7 @@ public sealed class StartEarlyTests(Na10Import fixture)
         var zone = new ZoneEngine(built.Game, built.Streamer);
         zone.Keys.Output = recorder;
         recorder.Keys = zone.Keys;
-        var drawing = new BattleDrawing(built.Battle, recorder, null, audio) { Budget = null, TicksAhead = 97, Turns = turns };
+        var drawing = new BattleDrawing(built.Battle, recorder, null, audio) { Budget = null, TicksAhead = 97, Turns = turns, HandCamera = hand };
         zone.Camera = drawing.Camera;
         var run = new Run { Built = built, Drawing = drawing, Recorder = recorder, Zone = zone, Meanwhile = meanwhile };
         var watch = turns == CombatTurns.StartEarly ? new Watch(drawing) : null;
@@ -411,8 +418,21 @@ public sealed class StartEarlyTests(Na10Import fixture)
 
         public Dictionary<DrawnAction, int> Starts { get; } = [];
 
+        /// <summary>Ticks the battle stepped with the director's camera handed to it, the stick and cursor read against the camera drawn.</summary>
+        public int Handed { get; private set; }
+
+        private DrawnCamera? _drawnCamera;
+
         public void Recorded(BattleFrame f)
         {
+            // The battle read the stick, the cursor and the bodies' sounds against the camera the player saw: the last drawn.
+            if (f.Handed)
+            {
+                Handed++;
+                var look = drawing.Battle.Camera.LookXZ;
+                Assert.True(_drawnCamera is { } seen && seen.LookXZ == look && seen.Position == drawing.Battle.Camera.Position,
+                    $"tick {f.Tick} was read against {look}, but {_drawnCamera?.LookXZ} was drawn");
+            }
             _places[f.Tick] = f.Bodies.ToDictionary(b => b.Combatant, b => b.Centre);
             foreach (var cue in f.Cues)
                 _recorded[cue] = _recorded.GetValueOrDefault(cue) + 1;
@@ -424,6 +444,7 @@ public sealed class StartEarlyTests(Na10Import fixture)
 
         public void Drew(BattleFrame f)
         {
+            _drawnCamera = f.Camera;
             foreach (var cue in f.Cues)
                 _drawn[cue] = _drawn.GetValueOrDefault(cue) + 1;
             foreach (var call in f.Sounds)
@@ -563,9 +584,83 @@ public sealed class StartEarlyTests(Na10Import fixture)
                     OpenedEarly++;
             }
             _state = f.State;
+            Direct(f, composer, d);
         }
 
         private CombatState _state;
+
+        /// <summary>Beats that struck, and those off the shot drawn or hidden in it as they struck.</summary>
+        public int Struck { get; private set; }
+
+        public List<string> OffShot { get; } = [];
+
+        public List<string> HiddenAtStrike { get; } = [];
+
+        /// <summary>Drawn ticks with beats of different actions playing at once, and those whose shot didn't hold them all.</summary>
+        public int Overlapped { get; private set; }
+
+        public List<string> OverlapOffShot { get; } = [];
+
+        /// <summary>The camera's most acceleration between cuts, as a share of its caps.</summary>
+        public float AimMost { get; private set; }
+
+        public float TurnMost { get; private set; }
+
+        public float ZoomMost { get; private set; }
+
+        private (System.Numerics.Vector3 Aim, float Yaw, float Pitch, float Distance)? _speeds;
+        private int _cuts;
+
+        /// <summary>What the director drew on a drawn tick (Start Early).</summary>
+        private void Direct(BattleFrame f, BattleComposer composer, int d)
+        {
+            var director = drawing.Director;
+            if (director.Camera.Motion is not { } m || director.Camera.Finder is not { } finder)
+                return;
+            var lens = director.Tuning.Lens;
+            var shot = Shot.Of(f.Camera.Position, f.Camera.Aim, m.Current.Yaw);
+            var playing = composer.PlayingNow().ToList();
+            foreach (var p in playing)
+            {
+                if (p.Tick != p.Beat.From)
+                    continue;
+                Struck++;
+                var subject = BeatShots.Subject(p);
+                if (!ShotFraming.Holds(shot, subject with { Radius = 0 }, lens))
+                    OffShot.Add($"{p.Beat} struck off the shot at drawn tick {d} ({director.Camera.Kind}; leading {director.Lead}, live {composer.Live}, walking {director.Camera.Walking})");
+                else if (finder.Sight.Hidden(shot.Eye, subject))
+                    HiddenAtStrike.Add($"{p.Beat} struck hidden at drawn tick {d} ({director.Camera.Kind}; leading {director.Lead}, live {composer.Live}, walking {director.Camera.Walking})");
+            }
+            if (playing.Select(p => p.Beat.Action).Distinct().Count() >= 2)
+            {
+                Overlapped++;
+                foreach (var p in playing)
+                {
+                    if (!ShotFraming.Holds(shot, BeatShots.Subject(p) with { Radius = 0 }, lens))
+                    {
+                        OverlapOffShot.Add($"{p.Beat} off the shot at drawn tick {d} with {playing.Count - 1} others playing ({director.Camera.Kind})");
+                        break;
+                    }
+                }
+            }
+            // Between cuts, and but for the player's hand and an aim, which raise its caps, the acceleration stays within them.
+            var cut = director.Camera.Cuts != _cuts;
+            _cuts = director.Camera.Cuts;
+            var (y, pitch, z) = m.Speeds;
+            if (cut || director.Camera.Quick)
+            {
+                _speeds = null;
+                return;
+            }
+            var caps = m.Caps;
+            if (_speeds is { } l)
+            {
+                AimMost = MathF.Max(AimMost, (m.AimSpeed - l.Aim).Length() * 60 / caps.Aim);
+                TurnMost = MathF.Max(TurnMost, MathF.Max(MathF.Abs(y - l.Yaw), MathF.Abs(pitch - l.Pitch)) * 60 * 180 / MathF.PI / caps.Turn);
+                ZoomMost = MathF.Max(ZoomMost, MathF.Abs(z - l.Distance) * 60 / caps.Zoom);
+            }
+            _speeds = (m.AimSpeed, y, pitch, z);
+        }
 
         private float Between(Combatant x, Combatant y, int t) =>
             _places[t].TryGetValue(x, out var a) && _places[t].TryGetValue(y, out var b) ? System.Numerics.Vector3.Distance(a, b) : float.PositiveInfinity;
@@ -601,6 +696,29 @@ public sealed class StartEarlyTests(Na10Import fixture)
         }
     }
 
+    /// <summary>
+    /// Start Early's director, through a battle drawn: every beat is in the shot drawn and unhidden as it strikes; wherever beats of
+    /// different actions play at once, the shot drawn holds them all, as the composer was told it could; and between cuts the camera's
+    /// acceleration stays within its caps.
+    /// </summary>
+    private static void Directed(Run early)
+    {
+        var w = early.Watch!;
+        var director = early.Drawing.Director;
+        TestContext.Current.TestOutputHelper?.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"Director: {w.Struck} beats struck, {w.OffShot.Count} off the shot, {w.HiddenAtStrike.Count} hidden; {w.Overlapped} drawn ticks " +
+            $"with beats of different actions at once, {w.OverlapOffShot.Count} not all on the screen; most acceleration of its cap: aim " +
+            $"{w.AimMost:F2}, turn {w.TurnMost:F2}, zoom {w.ZoomMost:F2}; cuts {director.Camera.Cuts}, {director.BeatCuts} to keep a beat; " +
+            $"drawn back {director.Widened}, regrouped {director.Regrouped}; the shot question asked {director.Framing.Asked} times, " +
+            $"looked into {director.Framing.Looked}; the battle read the camera drawn on {w.Handed} ticks"));
+        Assert.True(w.OffShot.Count == 0, string.Join("\n", w.OffShot.Take(10)));
+        Assert.True(w.HiddenAtStrike.Count == 0, string.Join("\n", w.HiddenAtStrike.Take(10)));
+        Assert.True(w.OverlapOffShot.Count == 0, string.Join("\n", w.OverlapOffShot.Take(10)));
+        Assert.True(w.AimMost <= 1.001f, $"aim {w.AimMost}");
+        Assert.True(w.TurnMost <= 1.001f, $"turn {w.TurnMost}");
+        Assert.True(w.ZoomMost <= 1.001f, $"zoom {w.ZoomMost}");
+    }
+
     // ---------------------------------------------------------------------------------------------------------------------------
     // What's compared
 
@@ -616,7 +734,8 @@ public sealed class StartEarlyTests(Na10Import fixture)
         var n = Math.Min(original.Recorded.Count, early.Recorded.Count);
         for (var i = 0; i < n; i++)
         {
-            if (original.Recorded[i] != early.Recorded[i])
+            var (x, y) = (original.Recorded[i].Split(Handed), early.Recorded[i].Split(Handed));
+            if (x[0] != y[0] || x[1] != "handed" && y[1] != "handed" && x[1] != y[1])
                 Assert.Fail($"The recorded frames part at tick {i}:\nOriginal:    {original.Recorded[i]}\nStart Early: {early.Recorded[i]}");
         }
         Assert.Equal(original.Recorded.Count, early.Recorded.Count);
@@ -638,12 +757,15 @@ public sealed class StartEarlyTests(Na10Import fixture)
             c is null ? "-" : $"{c} hp {c.Sheet.Hp}/{c.Sheet.MaxHp} cell {c.Cell} at {V(c.Body.Sphere.Position)} freed {c.Freed}";
     }
 
-    /// <summary>A frame as it's drawn, all but what the cosmetic stream decides.</summary>
+    /// <summary>
+    /// A frame as it's drawn, all but what the cosmetic stream decides, and on a tick the battle's camera was the director's (Start Early, a
+    /// turn the player plays), all but what goes by the camera: the camera, the radar's dots and how many sounds were heard.
+    /// </summary>
     private static string Digest(BattleFrame f)
     {
         var s = new StringBuilder();
         s.Append(CultureInfo.InvariantCulture, $"{f.Tick} {f.State} {f.Current?.Slot} {f.Step} fade {f.Fade:R} music {f.MusicHeld} sky {f.SkyDim:R} fog {f.FogLifted}");
-        s.Append(CultureInfo.InvariantCulture, $" camera {V(f.Camera.Position)} {V(f.Camera.Aim)} | bodies");
+        s.Append(" | bodies");
         foreach (var b in f.Bodies)
         {
             s.Append(CultureInfo.InvariantCulture, $" [{b.Combatant.Slot} {V(b.Centre)} {b.Heading.X:R},{b.Heading.Y:R} a{b.Alpha} t{b.Tint.Level:R}/{b.Tint.Rate:R}");
@@ -658,11 +780,16 @@ public sealed class StartEarlyTests(Na10Import fixture)
         if (f.Missile is { } m)
             s.Append(CultureInfo.InvariantCulture, $" | missile {m.Flight.Scene} {V(m.Drawn)}");
         s.Append(CultureInfo.InvariantCulture, $" | aim {f.Aim} ring {f.Ring.Length} {f.RingShown} | log {f.Gui.Log} ({f.Gui.LogPortrait})");
-        s.Append(CultureInfo.InvariantCulture, $" dots {string.Join(",", f.Gui.RadarDots.Select(d => $"{d.X}:{d.Y}"))}");
         s.Append(CultureInfo.InvariantCulture, $" bars {string.Join(",", f.Gui.HpBars.Select(h => $"{h.Fill.Y}:{h.Fill.Height}"))}");
         s.Append(CultureInfo.InvariantCulture, $" menu {f.Menu is not null} aura {f.Aura}");
-        s.Append(CultureInfo.InvariantCulture, $" | sounds {f.Sounds.Count} emitters {string.Join(",", f.Emitters.Select(e => $"{Owner(e.Owner)}:{e.Request}"))}");
+        s.Append(CultureInfo.InvariantCulture, $" | emitters {string.Join(",", f.Emitters.Select(e => $"{Owner(e.Owner)}:{e.Request}"))}");
         s.Append(" | cues ").AppendJoin("; ", f.Cues.Select(Cue));
+        // What goes by the camera, compared only where neither run's battle had the director's.
+        s.Append(Handed);
+        if (f.Handed)
+            s.Append("handed");
+        else
+            s.Append(CultureInfo.InvariantCulture, $"camera {V(f.Camera.Position)} {V(f.Camera.Aim)} dots {string.Join(",", f.Gui.RadarDots.Select(d => $"{d.X}:{d.Y}"))} sounds {f.Sounds.Count}");
         return s.ToString();
 
         static string Owner(object o) => o switch
@@ -672,6 +799,9 @@ public sealed class StartEarlyTests(Na10Import fixture)
             _ => o.ToString() ?? "",
         };
     }
+
+    /// <summary>What parts what goes by the camera from the rest of a frame's digest.</summary>
+    private const string Handed = " || ";
 
     private static string Cue(CombatCue cue) => cue switch
     {

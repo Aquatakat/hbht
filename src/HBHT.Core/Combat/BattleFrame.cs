@@ -69,8 +69,20 @@ public sealed class BattleFrame
     /// <summary>Whether the drawn fog thins away: a battle under Wind (<see cref="Battle.FogLifted"/>).</summary>
     public required bool FogLifted { get; init; }
 
-    /// <summary>The combat camera.</summary>
-    public required DrawnCamera Camera { get; init; }
+    /// <summary>
+    /// The combat camera: the battle's (<see cref="Battle.Camera"/>) on a frame it recorded, and under Start Early the director's on a
+    /// frame drawn (<see cref="BattleDirector"/>).
+    /// </summary>
+    public required DrawnCamera Camera { get; set; }
+
+    /// <summary>What the battle's camera read of the tick (<see cref="CameraScene"/>), which Start Early's director films it by; none on a frame a test made.</summary>
+    public SceneFacts? Facts { get; init; }
+
+    /// <summary>
+    /// Whether the battle's camera on this tick was the one drawn (Start Early's director's, handed to the battle in a turn the player
+    /// plays, <see cref="CombatCamera.Handed"/>): the stick, the cursor, the radar and the bodies' sounds went by it.
+    /// </summary>
+    public bool Handed { get; init; }
 
     /// <summary>The battle screen.</summary>
     public required CombatGuiFrame Gui { get; init; }
@@ -159,7 +171,8 @@ public readonly record struct DrawnBody(
     HeldModel? Arm,
     HeldModel? Hand,
     HeldModel? Notes,
-    int Hp)
+    int Hp,
+    BodyState Standing = BodyState.Active)
 {
     /// <summary>Where its feet are.</summary>
     public Vector3 Feet => Centre - new Vector3(0, Combatant.Body.Sphere.Radius, 0);
@@ -192,11 +205,20 @@ public readonly record struct DrawnCamera(Vector3 Position, Vector3 Aim, Vector2
 /// <summary>An actor started its emitters for a request: a combatant's or a spell's visual's (<see cref="Actors.ActorMotion.Starts"/>).</summary>
 public readonly record struct EmitterStart(object Owner, int Request);
 
+/// <summary>Where a body's sound was heard from: the body's place, and the camera's eye and aim its keys heard it by.</summary>
+public readonly record struct SoundPlace(Vector3 At, Vector3 Eye, Vector3 Aim);
+
 /// <summary>One call the bodies' sounds made (<see cref="ISoundOutput"/>), with the recording's own handle for the sound.</summary>
 public abstract record SoundCall
 {
     /// <summary>The combatant whose body's keys made it, or null if none was keying (<see cref="AudioKeys.Keying"/>).</summary>
     public Combatant? Owner { get; init; }
+
+    /// <summary>
+    /// Where a body's sound was heard from as it started or was set: the body, and the battle's camera its keys heard it by, so the
+    /// drawing can hear it from its own camera instead under Start Early. Null for a sound no body's keys made.
+    /// </summary>
+    public SoundPlace? Place { get; init; }
 
     public sealed record Start(SoundHandle Handle, RecordId Sequence, byte Volume, byte Pan, bool Loop, int DurationMs) : SoundCall;
 

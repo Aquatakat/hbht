@@ -48,6 +48,8 @@ public sealed class BattleDrawing
         // What Battle.Begin cued, the bodies made: drawn at once, before the first tick.
         var first = recorder.Sample(battle, BattleStep.Ran);
         _composer = new BattleComposer(first, () => Battle.WaitsOnPlayer, pacing);
+        Director = new BattleDirector(battle) { Tuning = battle.CombatCamera.Tuning };
+        _composer.Framing = Director.Framing;
         Draw(first);
     }
 
@@ -109,6 +111,21 @@ public sealed class BattleDrawing
     /// <summary>The camera as it's drawn, which the arena (its weather and sounds) and the views go by.</summary>
     public FollowCamera Camera { get; } = new(default, System.Numerics.Vector2.UnitY);
 
+    /// <summary>
+    /// Start Early's director, which films the drawing under Start Early (<see cref="BattleDirector"/>) and answers the composer's shot
+    /// question (<see cref="BattleComposer.Framing"/>). Under Original the camera is the battle's.
+    /// </summary>
+    public BattleDirector Director { get; }
+
+    /// <summary>
+    /// Whether the director's camera is handed to the battle in a turn the player plays under Start Early, so the stick reads what the
+    /// player sees (<see cref="CombatCamera.Hand"/>). Only a test comparing the rules with the same stick read against the original's turns it off.
+    /// </summary>
+    public bool HandCamera { get; set; } = true;
+
+    /// <summary>The enhanced camera shown, for F3: the director's under Start Early, Camera: Enhanced's under Original if it's on.</summary>
+    public EnhancedCamera? Enhanced => Turns == CombatTurns.StartEarly ? Director.Camera : Battle.CombatCamera.Enhanced;
+
     /// <summary>How long a tick may step the battle ahead under Start Early; none for no limit but <see cref="TicksAhead"/>.</summary>
     public TimeSpan? Budget { get; set; } = TimeSpan.FromMilliseconds(3);
 
@@ -134,10 +151,11 @@ public sealed class BattleDrawing
     public BattleStep Tick(ZoneEngine arena, bool skyDrawn, Func<PlayerInput>? readInput)
     {
         BattleStep step;
+        Director.Tuning = Battle.CombatCamera.Tuning;
         if (Turns == CombatTurns.Original && CaughtUp)
         {
             // Drawn as it's made, as the battle has always been.
-            var frame = Step(arena, readInput);
+            var frame = Step(arena, readInput, live: false);
             _composer.Settle(frame);
             Draw(frame);
             step = frame.Step;
@@ -154,11 +172,12 @@ public sealed class BattleDrawing
             {
                 // The battle waits on the player: it steps with the drawing once the drawing has caught up, or under Start Early once
                 // the player's turn is drawn up to the present and its aim isn't held (Start Early).
-                Step(arena, readInput);
+                Step(arena, readInput, live: true);
                 _aimHeld = AimHolds();
             }
             var clock = Stopwatch.StartNew();
             var next = _composer.Next();
+            Direct(next);
             SlowestCompose = clock.Elapsed > SlowestCompose ? clock.Elapsed : SlowestCompose;
             Draw(next);
             if (_aimHeld)
@@ -185,14 +204,19 @@ public sealed class BattleDrawing
         var clock = Budget is not null ? Stopwatch.StartNew() : null;
         for (var n = 0; n < TicksAhead && _composer.Actions.Last - _composer.Slowest() < MaxAhead && !Battle.WaitsOnPlayer; n++)
         {
-            Step(arena, readInput: null);
+            Step(arena, readInput: null, live: false);
             if (clock is not null && clock.Elapsed > Budget)
                 break;
         }
     }
 
-    private BattleFrame Step(ZoneEngine arena, Func<PlayerInput>? readInput)
+    /// <param name="live">
+    /// Whether the battle steps with the drawing, waiting on the player: under Start Early, in a turn the player plays drawn on the present,
+    /// the director's camera is handed to it, so the stick reads what the player sees.
+    /// </param>
+    private BattleFrame Step(ZoneEngine arena, Func<PlayerInput>? readInput, bool live)
     {
+        Battle.CombatCamera.Hand(live && HandCamera && Turns == CombatTurns.StartEarly && _composer.Live is not null ? Director.Camera : null);
         Recorder.BeginTick();
         var step = Battle.Tick(arena, readInput);
         var frame = Recorder.Sample(Battle, step);
@@ -297,22 +321,51 @@ public sealed class BattleDrawing
     {
         if (CaughtUp)
             return;
-        Draw(_composer.FastForward());
+        var frame = _composer.FastForward();
+        Direct(frame);
+        Draw(frame);
         _aimHeld = false;
     }
 
+
+    /// <summary>Under Start Early, the director films a frame composed: its camera is the director's.</summary>
+    private void Direct(BattleFrame frame)
+    {
+        if (Turns != CombatTurns.StartEarly)
+            return;
+        var cuts = Director.Camera.Cuts;
+        frame.Camera = Director.Step(_composer, frame);
+        if (Director.Camera.Cuts != cuts)
+            Camera.Cut();
+    }
 
     private void Draw(BattleFrame frame)
     {
         Frame = frame;
         foreach (var cue in frame.Cues)
             _host?.Cue(cue);
-        // What a fast-forward passed over first: a sound already started still stops, but none starts.
-        Play(frame.SkippedSounds, heard: false);
-        Play(frame.Sounds, heard: true);
         Camera.Position = frame.Camera.Position;
         Camera.Aim = frame.Camera.Aim;
         Camera.LookXZ = frame.Camera.LookXZ;
+        // What a fast-forward passed over first: a sound already started still stops, but none starts.
+        Play(frame.SkippedSounds, heard: false);
+        Play(frame.Sounds, heard: true);
+    }
+
+    /// <summary>
+    /// A body's sound's volume and pan as heard from the drawn camera rather than the battle's at the sound's tick, under Start Early: its
+    /// volume scaled by how much louder or quieter the body is from there (<see cref="AudioKeys.VolumeAndPan"/>), its pan from there.
+    /// Under Original the two cameras are one, and the recorded levels play.
+    /// </summary>
+    private (byte Volume, byte Pan) Heard(byte volume, byte pan, SoundPlace? place)
+    {
+        if (Turns != CombatTurns.StartEarly || place is not { } p)
+            return (volume, pan);
+        var (was, _) = AudioKeys.VolumeAndPan(p.At, p.Eye, p.Aim);
+        var (now, panNow) = AudioKeys.VolumeAndPan(p.At, Camera.Position, Camera.Aim);
+        if (was == 0)
+            return (volume, panNow);
+        return ((byte)Math.Clamp((int)MathF.Round(volume * (float)now / was), 0, 255), panNow);
     }
 
     /// <summary>The bodies' sounds of a frame drawn, each handle the recorder gave mapped to the one the audio gave.</summary>
@@ -327,10 +380,12 @@ public sealed class BattleDrawing
                 case SoundCall.Start start when heard:
                     if (_playing.Count > 64)
                         Prune(audio);
-                    _playing[start.Handle] = audio.Start(start.Sequence, start.Volume, start.Pan, start.Loop, start.DurationMs);
+                    var (volume, pan) = Heard(start.Volume, start.Pan, start.Place);
+                    _playing[start.Handle] = audio.Start(start.Sequence, volume, pan, start.Loop, start.DurationMs);
                     break;
                 case SoundCall.Set set when heard && _playing.TryGetValue(set.Handle, out var h):
-                    audio.Set(h, set.Volume, set.Pan);
+                    var (setVolume, setPan) = Heard(set.Volume, set.Pan, set.Place);
+                    audio.Set(h, setVolume, setPan);
                     break;
                 case SoundCall.Duration d when _playing.TryGetValue(d.Handle, out var h):
                     audio.SetDuration(h, d.Ms);

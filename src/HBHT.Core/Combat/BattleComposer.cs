@@ -679,6 +679,27 @@ public sealed class BattleComposer
         }
     }
 
+    /// <summary>
+    /// The beats to come of every action scheduled (Start Early's director plans ahead from them): those that strike after the drawn tick
+    /// now and no more than <paramref name="horizon"/> drawn ticks after it, each as a shot would hold it as it strikes, with how many drawn
+    /// ticks off it strikes. Every one is recorded already; an action not yet scheduled has none here.
+    /// </summary>
+    public IEnumerable<(FramedBeat Beat, int In)> Coming(int horizon)
+    {
+        for (var i = _live; i < _actions.Actions.Count; i++)
+        {
+            var a = _actions.Actions[i];
+            if (a.Start is null)
+                continue;
+            foreach (var beat in a.Beats)
+            {
+                var strike = a.DrawnAt(beat.From);
+                if (strike > _drawn && strike <= _drawn + horizon && Framed(beat, beat.From) is { } framed)
+                    yield return (framed, strike - _drawn);
+            }
+        }
+    }
+
     /// <summary>How long a drawn tick may spend searching for actions' starts.</summary>
     public static readonly TimeSpan SearchBudget = TimeSpan.FromMilliseconds(2);
 
