@@ -10,7 +10,7 @@ namespace HBHT.Plugins.Records;
 /// Base-game flags keep their numbers as the network's handles, and the network evaluates derived
 /// flags in that order, which the original's results depend on.
 /// </remarks>
-/// <param name="Label">What the flag means, where engine code says. Most flags have none.</param>
+/// <param name="Label">What the flag means, by the rules in docs/systems/flags.md#labels. Most base flags have none.</param>
 /// <param name="Initial">Whether a plain flag starts a new game set. Written only where it does; one base flag does.</param>
 /// <param name="Journal">
 /// The journal entry this flag lists. The journal shows the entry while the flag is set, and when the flag turns on the game raises

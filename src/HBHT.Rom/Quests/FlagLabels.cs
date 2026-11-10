@@ -40,7 +40,7 @@ public static class FlagLabels
         foreach (var range in EngineFlags.NeverWritten)
         {
             for (var flag = range.First; flag <= range.Last; flag++)
-                Label((ushort)flag, Bit(range, flag) + " (never written)");
+                Label((ushort)flag, Bit(range, flag));
         }
         var cinematics = Cinematics.Read(rom);
         var titles = db.CinematicTitles.ToDictionary(t => t.Flag, t => t.Text.Trim());
@@ -50,7 +50,7 @@ public static class FlagLabels
             Label(flag, titles.TryGetValue(flag, out var t) ? $"Saw the cinematic “{t}”" : $"Saw cinematic {i}");
         }
         foreach (var (boss, flag) in EngineFlags.BossFlags)
-            Label(flag, $"Beat {names[boss]}");
+            Label(flag, $"Defeated {names[boss]}");
 
         foreach (var m in tables.Party)
         {
@@ -64,7 +64,7 @@ public static class FlagLabels
             Label(k.Held, $"Has {names.GetValueOrDefault(k.Item, k.Item.ToString())}");
         var firstRegion = tables.Regions.Min(r => r.Flag);
         foreach (var region in tables.Regions.GroupBy(r => r.Flag))
-            Label(region.Key, $"World map region {region.Key - firstRegion + 1}");
+            Label(region.Key, $"Revealed world map region {region.Key - firstRegion + 1}");
         foreach (var e in EngineFlags.Writes)
             Label(e.Flag, e.Description);
         foreach (var e in EngineFlags.Reads)

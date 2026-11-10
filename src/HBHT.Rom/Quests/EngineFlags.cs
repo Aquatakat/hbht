@@ -23,7 +23,7 @@ public static class EngineFlags
     // and set_terrain_flags). The importer writes these as the state flags record.
     public static EngineFlagRange MoonPhase { get; } = new(2299, 2, "Moon phase");
     public static EngineFlagRange TimeOfDay { get; } = new(2301, 3, "Time of day");
-    public static EngineFlagRange DayOfSeason { get; } = new(2304, 6, "Day of the season (week × 7 + day of the week)");
+    public static EngineFlagRange DayOfSeason { get; } = new(2304, 6, "Day of the season");
     public static EngineFlagRange Season { get; } = new(2310, 3, "Season");
     public static EngineFlagRange DayOfWeek { get; } = new(2313, 3, "Day of the week");
     public static EngineFlagRange Week { get; } = new(2316, 3, "Week of the season");
@@ -48,7 +48,7 @@ public static class EngineFlags
     [
         MoonPhase, TimeOfDay, DayOfSeason, Season, DayOfWeek, Week, Rain, Terrain,
         new(NewJournalEntry, 1, "A new journal entry is waiting"),
-        new(CampCheck, 1, "Set while the game checks for a camp dialogue"),
+        new(CampCheck, 1, "Checking for camp dialogue"),
     ];
 
     /// <summary>
@@ -64,9 +64,9 @@ public static class EngineFlags
         new(2340, 5, "Party's best Dexterity"),
         new(2345, 5, "Party's best Strength"),
         new(2350, 5, "Party's best Mechanic"),
-        // The skill table's Loremaster entry starts and ends at 2360.
-        new(2355, 5, "Party's best Diplomat (no table entry)"),
-        new(2360, 5, "Party's best Loremaster (the table's entry is 2360 alone)"),
+        // The skill table has no Diplomat entry, and its Loremaster entry starts and ends at 2360.
+        new(2355, 5, "Party's best Diplomat"),
+        new(2360, 5, "Party's best Loremaster"),
         new(2365, 5, "Party's best Wizard"),
     ];
 
@@ -95,26 +95,33 @@ public static class EngineFlags
     /// <summary>Other flags the engine sets.</summary>
     public static IReadOnlyList<EngineFlag> Writes { get; } =
     [
-        new(47, "Set after the Goblin Ambush, when Alaron wakes in Oriana's hut"),
-        new(566, "Set when the Shadow merges with Alaron in combat"),
-        new(622, "Set when Sholeh dies in combat"),
-        new(3611, "Set the first time a trainer teaches a spell, for the spell help"),
-        new(3612, "Set the first time the party buys a potion, for the potion help"),
-        new(3673, "Set by the SLASHING cheat"),
-        new(3675, "Set by the DARKSIDE cheat"),
-        new(3693, "Set by the !CHEATER cheat, which retail allows once"),
-        new(3694, "Set by the !BINGO cheat, which retail allows once"),
+        new(47, "Awoke in Oriana's hut"),
+        new(566, "Merged with the Shadow in combat"),
+        new(622, "Sholeh is dead"),
+        // 3611 and 3612 are set the first time each happens, for the help on spells and on potions.
+        new(3611, "Learned a spell from a trainer"),
+        new(3612, "Bought a potion"),
+        // The cheats (docs/hardcoded-content.md#cheats): !SLASHING and !DARKSIDE show an item; retail allows !CHEATER and !BINGO once each.
+        new(3673, "Used the !SLASHING cheat"),
+        new(3675, "Used the !DARKSIDE cheat"),
+        new(3693, "Used the !CHEATER cheat"),
+        new(3694, "Used the !BINGO cheat"),
     ];
 
     /// <summary>Flags engine code reads, apart from those it also writes.</summary>
     public static IReadOnlyList<EngineFlag> Reads { get; } =
     [
-        new(590, "Alaron has his True Name while set"),
-        new(3442, "When the Rooughah scene (Borg13 1268) ends, the Roog cinematic plays if this is set"),
-        new(RandomSkillChecks, "Party skill checks in dialogue roll 0–21 while set"),
-        new(CampAmbushes, "Camping can be ambushed while set"),
-        new(5017, "The lighthouse chunks swap to their lit scenes while set"),
-        new(5626, "Read after some map object actions; the result is never used"),
+        // What the engine does with each: 590 is Alaron's True Name.
+        new(590, "Alaron has his True Name"),
+        // 3442: as the Rooughah scene (Borg13 1268) ends, the Roog cinematic plays if it is set.
+        new(3442, "Played the whole song for Rooughah"),
+        new(RandomSkillChecks, "Skill checks roll at random"),
+        // 5004: camping can be ambushed.
+        new(CampAmbushes, "At least two of Abrecan, Godric and Rheda are in the party"),
+        // 5017: the lighthouse chunks swap to their lit scenes.
+        new(5017, "The lighthouse is lit"),
+        // Read after some map object actions, only to bring the network up to date; the result is never used.
+        new(5626, "Journal entry 70 is listed"),
     ];
 
     /// <summary>
