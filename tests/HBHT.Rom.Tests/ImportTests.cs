@@ -246,7 +246,7 @@ public sealed class ImportTests(Na10Import fixture)
         Assert.Equal("12×37", catalog.Find(RecordId.Hex(RecordTypes.Image, 0x19F))!.Summary);
         Assert.Contains(catalog.ReferencesTo(RecordId.Hex(RecordTypes.Image, 0x19F)), r => r.From.Type == RecordTypes.Terrain);
         Assert.All(textures, l => Assert.NotNull(catalog.Find(RecordId.Hex(RecordTypes.Texture, l.Index))));
-        Assert.Equal("journal entry 0", catalog.Find(first.Id)!.Summary);
+        Assert.Equal("Saw a spirit in the Oisin forest, journal entry 0", catalog.Find(first.Id)!.Summary);
         Assert.Contains(catalog.ReferencesTo(RecordId.Parse("aidyn:flag/5")), r => r.From == RecordId.Parse("aidyn:flag/5423"));
 
         // Every script, and the entry a conversation makes in the catalog.

@@ -4,11 +4,32 @@ using HBHT.Rom.Engine;
 namespace HBHT.Rom.Quests;
 
 /// <summary>
-/// What engine code means by a flag, such as "Brenna is in the party", where it says. The importer
-/// writes these as the flag records' labels.
+/// The flags' labels, which the importer writes into the flag records (docs/systems/flags.md#labels). The ROM names no
+/// flags: those whose meaning a table in the code segment gives, such as "Brenna is in the party", are made from it,
+/// and the rest are written by hand in <c>FlagNames.tsv</c>.
 /// </summary>
 public static class FlagLabels
 {
+    /// <summary>The names <c>FlagNames.tsv</c> gives, by flag: every used flag no table names.</summary>
+    public static IReadOnlyDictionary<ushort, string> Written { get; } = ReadWritten();
+
+    private static Dictionary<ushort, string> ReadWritten()
+    {
+        using var stream = typeof(FlagLabels).Assembly.GetManifestResourceStream("HBHT.Rom.Quests.FlagNames.tsv")
+            ?? throw new InvalidOperationException("FlagNames.tsv isn't embedded.");
+        using var reader = new StreamReader(stream);
+        var names = new Dictionary<ushort, string>();
+        while (reader.ReadLine() is { } line)
+        {
+            if (line.Length == 0 || line.StartsWith('#'))
+                continue;
+            var tab = line.IndexOf('\t');
+            if (tab < 0 || !ushort.TryParse(line.AsSpan(0, tab), out var flag) || tab == line.Length - 1 || !names.TryAdd(flag, line[(tab + 1)..]))
+                throw new InvalidDataException($"FlagNames.tsv: \"{line}\" isn't a flag's number, a tab and its name, or names a flag again.");
+        }
+        return names;
+    }
+
     public static IReadOnlyDictionary<ushort, string> Read(RomImage rom, GameDb db)
     {
         var tables = EngineTables.Read(rom);
@@ -69,6 +90,11 @@ public static class FlagLabels
             Label(e.Flag, e.Description);
         foreach (var e in EngineFlags.Reads)
             Label(e.Flag, e.Description);
+        foreach (var (flag, name) in Written)
+        {
+            if (flag < 2 || !labels.TryAdd(flag, name))
+                throw new InvalidDataException($"FlagNames.tsv names flag {flag}, which {(flag < 2 ? "is a constant" : $"a table names: {labels[flag]}")}.");
+        }
         return labels;
     }
 }

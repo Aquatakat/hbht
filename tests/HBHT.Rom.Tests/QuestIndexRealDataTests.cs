@@ -61,6 +61,38 @@ public sealed class QuestIndexRealDataTests(Na10Import fixture)
     }
 
     /// <summary>
+    /// Every flag something uses has a label, and no flag nothing uses has one but those the engine's tables name
+    /// (docs/systems/flags.md#labels). A flag is used if anything writes it, it lists a journal entry, or something reads
+    /// it other than a derived flag that's unused itself. Two flags share a label only where the same objects or scripts
+    /// write both, as a container's opened and Used flags, or two derived flags have one formula.
+    /// </summary>
+    [Fact]
+    public void EveryUsedFlagHasALabelOfItsOwn()
+    {
+        var flags = Data.Set.All<FlagRecord>(RecordTypes.Flag).ToDictionary(f => f.Id);
+        var used = new HashSet<RecordId>();
+        for (var changed = true; changed;)
+        {
+            changed = false;
+            foreach (var f in flags.Values.Where(f => !used.Contains(f.Id)))
+            {
+                var uses = Data.Index.UsesOf(f.Id);
+                if (f.Journal is not null || (f.Formula is null && uses.Any(u => u.Access != FlagAccess.Read))
+                    || uses.Any(u => u.Access == FlagAccess.Read && (u.Role != FlagRole.DerivedInput || used.Contains(u.By))))
+                    changed = used.Add(f.Id) || changed;
+            }
+        }
+        Assert.Empty(used.Where(f => flags[f].Label is null && Number(f) > 1).Select(Number));
+        var tabled = FlagLabels.Read(TestRoms.Get(RomVersionId.Na10), GameDb.Read(TestRoms.Get(RomVersionId.Na10))).Keys
+            .Except(FlagLabels.Written.Keys).Select(k => (int)k).ToHashSet();
+        Assert.Empty(flags.Values.Where(f => !used.Contains(f.Id) && f.Label is not null && Number(f.Id) > 1 && !tabled.Contains(Number(f.Id))).Select(f => Number(f.Id)));
+        string Writers(RecordId f) => flags[f].Formula is { } formula ? $"{formula.Describe()} {string.Join(",", formula.Inputs)}" : string.Join(",", Data.Index.UsesOf(f).Where(u => u.Access != FlagAccess.Read).Select(u => u.By.ToString()).Distinct().Order());
+        var shared = flags.Values.Where(f => f.Label is not null).GroupBy(f => f.Label!)
+            .Where(g => g.Count() > 1 && g.Select(f => Writers(f.Id)).Distinct().Count() > 1).Select(g => g.Key);
+        Assert.Empty(shared);
+    }
+
+    /// <summary>
     /// The 49 flags the checkpoints set that a first pass found no data setter for. Engine code sets all
     /// but eight, which nothing in the data or the retail code names (see docs/formats/quests.md).
     /// The index finds the eight, secret doors in Ehud's underground, and the flags' labels name the engine's.
@@ -83,7 +115,7 @@ public sealed class QuestIndexRealDataTests(Na10Import fixture)
         }
         foreach (var secret in new[] { 955, 956, 957, 958, 960, 961, 962, 963 })
         {
-            Assert.Null(flags[secret].Label);
+            Assert.StartsWith("Found the secret door in EhudUnder", flags[secret].Label);
             Assert.Equal([FlagRole.SecretFound], Data.Index.UsesOf(Flag(secret)).Where(u => u.Access != FlagAccess.Read).Select(u => u.Role));
         }
     }

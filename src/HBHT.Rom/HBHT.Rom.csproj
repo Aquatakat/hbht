@@ -5,6 +5,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Quests\FlagNames.tsv" LogicalName="HBHT.Rom.Quests.FlagNames.tsv" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\HBHT.Plugins\HBHT.Plugins.csproj" />
   </ItemGroup>
 

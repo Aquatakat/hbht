@@ -180,7 +180,7 @@ A series of vertical slices, each one playable ([runtime](systems/runtime.md)).
 Mostly testing rather than engineering (XL).
 
 - Walk every region against the emulator and log differences.
-- Use the quest atlas as a checklist: every flag reachable, every journal entry obtainable.
+- Use the quest atlas as a checklist: every flag reachable, every journal entry obtainable. Every used flag has a name ([flags](systems/flags.md#labels), Nov 9, 2026): the 1,353 the map objects write were named from them, and the other 986 were drafted from their scripts and await the user's pass over the story flags. Eleven journal entries are never obtainable in the original.
 - Rules parity: shops, trainers, loot tables and camp encounters for each area.
 - Decide which of the original's bugs to keep or fix, one at a time and with no toggle ([ADR 0018](adr/0018-the-port-fixes-bugs-and-sets-enhancements.md)), such as the `CheckPartyGoldU16` truncation and the crash when `TakeItem` runs on an item the party doesn't have. (The spell auras' turn cycle is settled: the original's by default, each character's as the `SpellAuras` setting.)
 

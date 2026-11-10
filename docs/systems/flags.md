@@ -7,13 +7,22 @@
 The importer writes three record types:
 
 - **Flags** (`aidyn:flag/n`): every `GameStateFunnel` entry from 0 to 5555. A plain flag that starts a new game set has `initial` (only flag 1 does). A derived flag has a formula: its kind, operation, operand and inputs, as record IDs. A flag may have a label ([below](#labels)). A flag that lists a journal entry names it (`journal`).
-- **Journal entries** (`aidyn:journal/n`): the text. The flag that names an entry lists it: the journal shows it while the flag is set, and adds it when the flag turns on. Every entry's flag is plain but entry 32's, derived 5017. A mod adds an entry with its text and a flag that names it.
+- **Journal entries** (`aidyn:journal/n`): the text. The flag that names an entry lists it: the journal shows it while the flag is set, and adds it when the flag turns on. Every entry's flag is plain but entry 32's, derived 5017. A mod adds an entry with its text and a flag that names it. **Eleven entries never show:** nothing in the data or the engine sets their flags (142, 223, 274, 287, 297, 362, 390, 511, 512, 513 and 542, entries 12, 21, 28, 33, 36, 41, 45, 59, 60, 61 and 66), and none is set in any story checkpoint, the one before the final encounter among them. They read as the story's own (the voyage to Cradawgh's Isle, the Horn under the Barrow), so they're entries the game wrote and never wired up. The port keeps that.
 - **The original's journal triggers aren't imported.** 1.0 adds an entry through a derived flag of its own, 5556 + *i*, which is `count(entry i's flag) > 0` and nothing else; nothing else reads those 71 (no formula, script, map object or engine code names them, and saves keep only the plain flags below 5001). The importer checks each is that formula over its entry's flag, leaves them out, and puts `journal` on the entry's own flag; the network does what their writes did ([below](#the-network)).
 - **The state flags** (`aidyn:stateflags/0`): which flags the engine writes its own state into, and the new journal entry flag (3617). It's a layer 3 feature (ADR 0008), so a mod can move them.
 
 ## Labels
 
-The ROM names no flags: a `GameStateFunnel` entry is a kind, a starting value and a formula, and the debug build's strings name none either. Every label is ours. The importer writes them (`FlagLabels`): most from the content tables in the code segment with a name the ROM gives, such as the party's members, the key items, the bosses and the cinematics' titles, and the rest from `EngineFlags`. A label is the simplest phrase that tells a flag apart from every other:
+The ROM names no flags: a `GameStateFunnel` entry is a kind, a starting value and a formula, and the debug build's strings name none either. Every label is ours, and the importer writes them (`FlagLabels`):
+
+- **From the content tables in the code segment**, with a name the ROM gives: the party's members, the key items, the bosses, the cinematics' titles and the world map's regions; and from `EngineFlags`, the flags engine code names.
+- **The rest from `FlagNames.tsv`** (`HBHT.Rom.Quests`, embedded), by number, written by hand. A flag no table names and nothing uses ([below](#which-flags-are-used)) has none. The import fails if the file names a flag a table names. The flag table is the same in 1.0, 1.1 and the debug build, so one file serves each.
+  - **The map objects' flags** were named from the object that writes them: "Opened the chest in Overworld O27", "Defeated the Chaos Scout in Overworld I12", "Talked to Cadme in Overworld E08 or I08", "Found the secret door in EhudUnder C11 (object 3)". Objects of one kind in one chunk add their index. A container sets its opened and Used flags as one act, so where they differ the two share a name.
+  - **The others** were drafted from the scripts that set and read them and the chunks around them.
+
+`QuestIndexRealDataTests.EveryUsedFlagHasALabelOfItsOwn` holds the file to that: every used flag has a label, no unused one has one but the tables', and two flags share one only where the same records write both, or two derived flags have one formula.
+
+A label is the simplest phrase that tells a flag apart from every other:
 
 - **An event in the past tense, a state in the present.** A flag the game sets once and never clears is named for what happened: "Defeated Kitarak", "Awoke in Oriana's hut", "Revealed world map region 1". One that can clear again holds a state: "Brenna is in the party", "Has Rabisat's Asp", "Checking for camp dialogue".
 - **For what sets it.** A flag nothing in the data sets is named for what its readers see ("The lighthouse is lit"), and a derived flag for what its formula says, where that means something ("At least two of Abrecan, Godric and Rheda are in the party").
@@ -22,6 +31,10 @@ The ROM names no flags: a `GameStateFunnel` entry is a kind, a starting value an
 - **Where only the place tells two flags apart,** the entity's ID and the chunk: "Defeated Giant Bat 0x1234 in Overworld A22".
 - **A run of flags holding a number** is its name and the bit: "Day of the season, bit 0 of 6". The party's best stats keep theirs though nothing writes them ([below](#what-the-engine-writes)).
 - **A flag nothing uses has no label.** Flags 0 and 1 are "Always clear" and "Always set".
+
+### Which flags are used
+
+A flag is used if anything writes it, it lists a journal entry, or something reads it other than a derived flag that's unused itself. Of the 5,556, 2,486 are: 2,156 plain and 330 derived. Most of the rest are plain flags nothing in the data or the engine names, and derived flags nothing reads.
 
 ## The network
 
