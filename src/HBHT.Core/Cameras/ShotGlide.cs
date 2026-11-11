@@ -60,6 +60,28 @@ public sealed class ShotGlide
         (_idealAim, _idealYaw, _idealPitch, _idealLog) = (Vector3.Zero, 0, 0, 0);
     }
 
+    /// <summary>
+    /// Starts it for a camera at <paramref name="at"/> moving at <paramref name="speeds"/>, which would come to rest at
+    /// <paramref name="rest"/> (<see cref="CappedMotion.Rest"/>), gliding after <paramref name="ideal"/>. Each of the aim, the yaw, the
+    /// pitch and the distance carries on at the camera's speed only where the ideal is far enough on along its way for the springs to
+    /// land on it (their own stop from a speed <c>v</c> is some <c>4v/ω</c> long, softer than the camera's); else it starts at rest where
+    /// the camera stops, which the camera slows onto under its caps, and glides on from there. Started at the camera's speed whatever
+    /// the ideal, a turn's shot found just ahead of a camera still moving was glided past and come back to.
+    /// </summary>
+    public void Reset(Shot at, (Vector3 Aim, float Yaw, float Pitch, float Distance) speeds, Shot rest, Shot ideal)
+    {
+        var reach = 4 / Omega;
+        var aimSpeed = speeds.Aim.Length();
+        var aimOn = aimSpeed > 1e-6f && Vector3.Dot(ideal.Aim - at.Aim, speeds.Aim / aimSpeed) >= aimSpeed * reach;
+        var yawOn = On(Shot.Wrap(ideal.Yaw - at.Yaw), speeds.Yaw);
+        var pitchOn = On(ideal.Pitch - at.Pitch, speeds.Pitch);
+        var zoomOn = On(MathF.Log(MathF.Max(ideal.Distance, 1e-3f) / MathF.Max(at.Distance, 1e-3f)), speeds.Distance);
+        Reset(new Shot(aimOn ? at.Aim : rest.Aim, yawOn ? at.Yaw : rest.Yaw, pitchOn ? at.Pitch : rest.Pitch, zoomOn ? at.Distance : rest.Distance),
+            (aimOn ? speeds.Aim : Vector3.Zero, yawOn ? speeds.Yaw : 0, pitchOn ? speeds.Pitch : 0, zoomOn ? speeds.Distance : 0));
+
+        bool On(float way, float speed) => speed != 0 && way * MathF.Sign(speed) >= MathF.Abs(speed) * reach;
+    }
+
     /// <summary>Moves it by <paramref name="by"/> as it is, its speeds kept: carried along with the body the camera follows.</summary>
     public void Carry(Vector3 by)
     {

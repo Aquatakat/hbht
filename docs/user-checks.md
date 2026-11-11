@@ -23,11 +23,19 @@ After your Nov 10 play (F3 now rings walkers teal and says how long an outcome h
 8. Do the two-shots-every-tick flicker, Dougal's swing's wobble and the wild spin still happen anywhere?
 9. Do enemies walking while you play, or while another's result shows, stay in view, and do you see where their walks end? Does the view draw back too quickly for them (`DrawBackPace`)?
 10. Stopping with no enemy ahead, does the view rest well where it stopped?
-11. If Dougal's walk stalls again, note who stands nearest him (F3's line has every body's place). A subagent found no way for Start Early to hold a live turn's stick; the likeliest cause is his body pushing against another, or a wall the director's still camera keeps him walking into.
+11. If a walk stalls again (Dougal's on Nov 10, Keelin's on Nov 11 at C03 (50.6, 35.2) to (48.1, 34.7)), read F3's first line as it does: it now ends with the body's request (2 walks, 3 runs) and the stick's tilt. Keelin's recording shows a real slowdown to about half speed for 1.2 seconds, on one smooth plane 6° downhill, no body within 3.5 of her, well inside her field, the camera still: nothing of the arena's, the bodies' or the camera's. What's left is the stick near the 0.8 tilt a body runs from, the request going between walk and run; the recording's turn-order portraits covered the request. A request that flips while the tilt wavers about 0.8 settles it, and then whether to add a margin to the threshold is yours.
 
 After your Nov 10 question about Fireball:
 
-12. Does Fireball (or any spell at several targets, an enemy's or yours) now land on all its targets at once, in one shot holding them all, its casts' sounds and visuals together? Does the caster turning to its last target once the hits have played look right, or would you rather it stayed facing the first ([combat](systems/combat.md#pacing-beats-and-the-players-wait))?
+12. Does Fireball (or any spell at several targets, an enemy's or yours) now land on all its targets at once, in one shot holding them all, its casts' sounds and visuals together? The caster now faces the middle of its targets where they're within a 120° arc of it, and stays as it stood where they surround it (your Nov 11 idea, `CastArc`): does that read right, with a buff on the whole party and with Fireball on a pack ([combat](systems/combat.md#pacing-beats-and-the-players-wait))?
+
+After your Nov 11 recording ([cameras](systems/cameras.md#start-earlys-director), the user's second play):
+
+13. Does the view still go past a shot and come back anywhere? F3 says what it was doing ("holding the outcome", "over the shoulder", "a shot of its own").
+14. Does each of your turns now open with a cut over the shoulder where the view was far round, rather than a swing? Would you rather a quick pan there, as into an aim?
+15. Reserves walking on and throwing: does the wide shot hold through their walk, then cut over the thrower's shoulder, then to the hit with the throw in the air?
+16. Is the notch of a zoom gone from a wait on a throw?
+17. Bandits walking in your turn: does the view widen once for them and stay, without the wobble? Does it stay wide too long after they stop?
 
 ### Combat Turns: Start Early's pacing (piece A)
 

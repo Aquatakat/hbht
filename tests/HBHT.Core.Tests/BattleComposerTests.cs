@@ -329,6 +329,65 @@ public sealed class BattleComposerTests
         Assert.True(composer.Drawn <= script.Frames.Count - 1 - 200, $"drawn in {composer.Drawn} ticks");
     }
 
+    [Theory]
+    // Three targets within 44° of each other to the caster's right: it faces the middle of them.
+    [InlineData(5f, -2f, 6f, 0f, 5f, 2f, 1f, 0f)]
+    // Three all round it, an arc of 180°: it casts as it stood.
+    [InlineData(5f, 0f, -5f, 0f, 0f, -5f, 0f, 1f)]
+    // Two 120° apart, the widest still faced: the middle of them.
+    [InlineData(5f, 0f, -2.5f, 4.330127f, 5f, 0f, 0.5f, 0.8660254f)]
+    public void TheCasterOfASpellAtSeveralTargetsFacesTheMiddleOfThemOrStaysAsItStood(float bx, float bz, float cx, float cz, float dx, float dz,
+        float wantX, float wantZ)
+    {
+        // A, facing +Z as every body of the script does, casts at B, C and D in turn. The recording has it facing +Z throughout (1.0
+        // would turn it to each in turn); drawn, their hits at once, it turns to the middle of them where they're within 120° of
+        // each other about it, and turns back once the cast is over.
+        var script = new Script(_d, _a, _b, _c);
+        script.Place(_a, Vector3.Zero).Place(_b, new(bx, 0, bz)).Place(_c, new(cx, 0, cz)).Place(_d, new(dx, 0, dz));
+        script.Stand(_d, 10);
+        script.Stand(_a, 20);
+        CombatCue? firstHit = null;
+        var handle = 0;
+        foreach (var target in new[] { _b, _c, _d })
+        {
+            var visual = new SpellFxVisual(handle++, SpellFxRole.Caster, HBHT.Plugins.RecordId.Hex(HBHT.Plugins.RecordTypes.Actor, 1), _a, 0) { Other = target };
+            script.Cue(new SpellVisualStarted(visual));
+            script.Cue(new CombatantAnimated(_a, Battle.CastRequest));
+            script.Stand(_a, 40, CombatState.Cast);
+            script.Cue(new SpellVisualEnded(visual));
+            var hit = new CombatantAnimated(target, Battle.HitRequest);
+            firstHit ??= hit;
+            script.Cue(hit);
+            script.Stand(_a, 60, CombatState.Result);
+        }
+        script.Stand(_b, 60);
+
+        var composer = Recorded(script);
+        var want = new Vector2(wantX, wantZ);
+        Vector2? atStrike = null;
+        var last = Vector2.UnitY;
+        var mostTurn = 0f;
+        for (var i = 0; i < 2000 && !composer.CaughtUp; i++)
+        {
+            var frame = composer.Next();
+            var heading = frame.Bodies.Single(b => b.Combatant == _a).Heading;
+            Assert.Equal(1, heading.Length(), 1e-3f);
+            mostTurn = MathF.Max(mostTurn, MathF.Acos(Math.Clamp(Vector2.Dot(heading, last), -1, 1)));
+            last = heading;
+            if (frame.Cues.Contains(firstHit!))
+                atStrike = heading;
+            // No one else's heading is touched.
+            Assert.All(frame.Bodies.Where(b => b.Combatant != _a), b => Assert.Equal(Vector2.UnitY, b.Heading));
+        }
+        Assert.True(composer.CaughtUp);
+        Assert.Equal(3, composer.Actions.Actions[1].Parts.Count);
+        Assert.NotNull(atStrike);
+        Assert.True(Vector2.Distance(want, atStrike.Value) < 1e-3f, $"facing {atStrike} as the hits strike, not {want}");
+        // It turns no faster than a body's facing turn, and is back as the recording has it by the end.
+        Assert.True(mostTurn <= Cadence.PerTick(Body.FaceTurnPerFrame) + 1e-3f, $"turned {mostTurn} in a tick");
+        Assert.Equal(Vector2.UnitY, last);
+    }
+
     [Fact]
     public void ThePlayersStickWaitsTillNoBodyWalkingInTheDrawingIsInItsReach()
     {

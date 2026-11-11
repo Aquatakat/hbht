@@ -67,6 +67,28 @@ public sealed class CappedMotion
     /// <summary>Whether it's still moving, or still short of its last goal.</summary>
     public bool Moving { get; private set; }
 
+    /// <summary>
+    /// Where it comes to rest if it slows from here as fast as its caps let it: each of the aim, the yaw, the pitch and the distance
+    /// <c>v²/2a</c> on the way it goes. A goal put here stops it without its going past and coming back, which one put where it is
+    /// (a shot kept as it is while it moves) doesn't.
+    /// </summary>
+    public Shot Rest
+    {
+        get
+        {
+            var caps = Caps;
+            var c = Current;
+            var turn = caps.Turn * MathF.PI / 180;
+            var speed = _aimSpeed.Length();
+            var aim = speed > 1e-6f ? c.Aim + _aimSpeed / speed * Stop(speed, caps.Aim) : c.Aim;
+            return new Shot(aim, Shot.Wrap(c.Yaw + Stop(_yawSpeed, turn)), c.Pitch + Stop(_pitchSpeed, turn),
+                MathF.Max(c.Distance * MathF.Exp(Stop(_distanceSpeed, caps.Zoom)), NearestDistance));
+
+            // Slowing by the cap each tick from the next: what's left of the way, a tick's half short of v²/2a.
+            static float Stop(float v, float most) => most <= 0 ? 0 : MathF.Sign(v) * MathF.Max(0, v * v / (2 * most) - MathF.Abs(v) * Tick / 2);
+        }
+    }
+
     /// <summary>Jumps to a shot at rest.</summary>
     public void Cut(Shot shot)
     {
@@ -154,26 +176,33 @@ public sealed class CappedMotion
     /// A tick toward <paramref name="goal"/>, which moves at <paramref name="speeds"/> (as <see cref="Speeds"/> are given): a goal that
     /// glides (<see cref="ShotGlide"/>), so it's followed at its own speed, which needn't be guessed from how it moved, and never stops dead.
     /// </summary>
-    public void Step(Shot goal, (Vector3 Aim, float Yaw, float Pitch, float Distance) speeds)
+    /// <param name="lands">
+    /// Where the goal is gliding to, if that's known: the camera goes toward it no faster than its caps can stop it there
+    /// (<c>√(2a|e|)</c>), whatever the goal's own speed. A glide slows as hard as its springs make it, which may be harder than the caps
+    /// allow, and a camera that had fallen behind one and was catching up went past where it landed and came back.
+    /// </param>
+    public void Step(Shot goal, (Vector3 Aim, float Yaw, float Pitch, float Distance) speeds, Shot? lands = null)
     {
         _lastGoal = goal;
         (_goalAimSpeed, _goalYawSpeed, _goalPitchSpeed, _goalDistanceSpeed) = speeds;
-        Move(goal);
+        Move(goal, lands);
     }
 
-    private void Move(Shot goal)
+    private void Move(Shot goal, Shot? lands = null)
     {
         var caps = Caps;
         var c = Current;
         var aim = c.Aim;
-        Channel(ref aim, ref _aimSpeed, goal.Aim, _goalAimSpeed, caps.Aim, caps.Settle);
+        Channel(ref aim, ref _aimSpeed, goal.Aim, _goalAimSpeed, caps.Aim, caps.Settle, lands?.Aim);
         var turn = caps.Turn * MathF.PI / 180;
         var yaw = c.Yaw;
-        Channel(ref yaw, ref _yawSpeed, yaw + Shot.Wrap(goal.Yaw - yaw), _goalYawSpeed, turn, caps.TurnSettle);
+        Channel(ref yaw, ref _yawSpeed, yaw + Shot.Wrap(goal.Yaw - yaw), _goalYawSpeed, turn, caps.TurnSettle,
+            lands is { } l ? yaw + Shot.Wrap(l.Yaw - yaw) : null);
         var pitch = c.Pitch;
-        Channel(ref pitch, ref _pitchSpeed, goal.Pitch, _goalPitchSpeed, turn, caps.TurnSettle);
+        Channel(ref pitch, ref _pitchSpeed, goal.Pitch, _goalPitchSpeed, turn, caps.TurnSettle, lands?.Pitch);
         var log = MathF.Log(MathF.Max(c.Distance, 1e-3f));
-        Channel(ref log, ref _distanceSpeed, MathF.Log(MathF.Max(goal.Distance, 1e-3f)), _goalDistanceSpeed, caps.Zoom, caps.ZoomSettle);
+        Channel(ref log, ref _distanceSpeed, MathF.Log(MathF.Max(goal.Distance, 1e-3f)), _goalDistanceSpeed, caps.Zoom, caps.ZoomSettle,
+            lands is { } to ? MathF.Log(MathF.Max(to.Distance, 1e-3f)) : null);
         var distance = MathF.Exp(log);
         if (distance < NearestDistance)
         {
@@ -185,19 +214,41 @@ public sealed class CappedMotion
             || MathF.Abs(goal.Distance - distance) > 0.01f * MathF.Max(distance, 1) || _aimSpeed.Length() > 0.05f;
     }
 
-    private static void Channel(ref float x, ref float v, float goal, float goalSpeed, float most, float settle)
+    private static void Channel(ref float x, ref float v, float goal, float goalSpeed, float most, float settle, float? lands = null)
     {
         var e = goal - x;
         var want = goalSpeed + MathF.Sign(e) * MathF.Min(MathF.Sqrt(2 * most * MathF.Abs(e)), settle * MathF.Abs(e));
+        // Toward where the goal lands, no faster than stops there.
+        if (lands is { } rest && want * (rest - x) > 0)
+            want = MathF.Sign(want) * MathF.Min(MathF.Abs(want), Stops(MathF.Abs(rest - x), most));
         v += Math.Clamp(want - v, -most * Tick, most * Tick);
         x += v * Tick;
     }
 
-    private static void Channel(ref Vector3 x, ref Vector3 v, Vector3 goal, Vector3 goalSpeed, float most, float settle)
+    /// <summary>
+    /// The fastest from which slowing by <paramref name="most"/> a second squared, a tick at a time, still stops within
+    /// <paramref name="room"/>.
+    /// </summary>
+    private static float Stops(float room, float most)
+    {
+        var step = most * Tick;
+        return step <= 0 ? 0 : step * (MathF.Sqrt(0.25f + 2 * room / (step * Tick)) - 0.5f);
+    }
+
+    private static void Channel(ref Vector3 x, ref Vector3 v, Vector3 goal, Vector3 goalSpeed, float most, float settle, Vector3? lands = null)
     {
         var e = goal - x;
         var length = e.Length();
         var want = goalSpeed + (length > 1e-6f ? e / length * MathF.Min(MathF.Sqrt(2 * most * length), settle * length) : Vector3.Zero);
+        // Toward where the goal lands, no faster than stops there: only its speed that way is held back.
+        if (lands is { } rest && (rest - x).Length() is > 1e-6f and var room)
+        {
+            var way = (rest - x) / room;
+            var along = Vector3.Dot(want, way);
+            var fastest = Stops(room, most);
+            if (along > fastest)
+                want -= way * (along - fastest);
+        }
         var change = want - v;
         var size = change.Length();
         if (size > most * Tick)

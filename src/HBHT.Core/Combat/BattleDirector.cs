@@ -71,8 +71,11 @@ public sealed class BattleDirector
     /// <summary>The outcome hold: the shot a result struck in, kept till the drawn tick given.</summary>
     private (Shot Shot, int Until)? _hold;
 
-    /// <summary>The shot shown, kept the moment before a result it sees strikes.</summary>
+    /// <summary>The shot kept the moment before a result the shot shown sees strikes: chosen as that begins, and kept till it strikes.</summary>
     private Shot? _brace;
+
+    /// <summary>How far the goal is drawn back for the walkers alone, kept while any walks (<see cref="Back"/>).</summary>
+    private float? _back;
 
     private int _drawn;
 
@@ -195,9 +198,15 @@ public sealed class BattleDirector
         }
         var aim = Camera.Motion?.Current.Aim;
         _stillComing.Clear();
+        // The result of the action led with, while the camera stages it (an AI's walk under way, a loosing shown), is the camera's to
+        // come to: the walk's end frames whom it acts on, and the loosing gives way to the hit. Planned toward from the walk's wide
+        // shot, it took a shot of its own on the target seconds before the throw left the hand (the user's, Nov 11).
+        var staged = Camera.Staging ? lead : null;
         foreach (var (f, n) in composer.Coming(t.PlanMost))
         {
             _stillComing.Add(f.Beat);
+            if (f.Beat.Action == staged && n > t.BeatCutAhead)
+                continue;
             if (_planned.Contains(f.Beat) || n <= Ahead(f, aim))
             {
                 _planned.Add(f.Beat);
@@ -236,8 +245,11 @@ public sealed class BattleDirector
         {
             if (struckNow.All(f => _shots.Sees(shown.Current, [BeatShots.Subject(f)], sight.Sight)))
             {
-                // Where it's headed, if that holds them as well; else where it is.
-                var keep = struckNow.All(f => _shots.Sees(Camera.Goal, [BeatShots.Subject(f)], sight.Sight)) ? Camera.Goal : shown.Current;
+                // Where it's headed, if that holds them as well; else where it comes to rest, slowing from here; else where it is.
+                // Kept where it was while it moved, it slid past the shot held and came back (the user's overshoot, Nov 11).
+                var rest = shown.Rest;
+                var keep = struckNow.All(f => _shots.Sees(Camera.Goal, [BeatShots.Subject(f)], sight.Sight)) ? Camera.Goal
+                    : struckNow.All(f => _shots.Sees(rest, [BeatShots.Subject(f)], sight.Sight)) ? rest : shown.Current;
                 _hold = (keep, Math.Max(d + composer.Pacing.OutcomeHold, _hold?.Until ?? 0));
                 Holds++;
                 Camera.Intent.Moved = ("holding the outcome", -1);
@@ -245,8 +257,18 @@ public sealed class BattleDirector
         }
         // A result about to strike that the shot shown already sees: it's kept still till it strikes, so nothing takes it off the screen
         // in the moment before (the hold then follows).
-        _brace = _hold is null && _strikes.Count > 0 && Camera.Motion is { } braced && Camera.Finder is { } braceSight
-            && _shots.Sees(braced.Current, _strikes, braceSight.Sight) ? braced.Current : null;
+        if (_hold is null && _strikes.Count > 0 && Camera.Motion is { } braced && Camera.Finder is { } braceSight
+            && _shots.Sees(braced.Current, _strikes, braceSight.Sight))
+        {
+            // Chosen once and kept: where it was headed, if that sees them too, so a move under way carries on to its end; else where
+            // it comes to rest, slowing from here; else where it is.
+            _brace ??= _shots.Sees(Camera.Goal, _strikes, braceSight.Sight) ? Camera.Goal
+                : braced.Rest is var resting && _shots.Sees(resting, _strikes, braceSight.Sight) ? resting : braced.Current;
+        }
+        else
+        {
+            _brace = null;
+        }
         Camera.Holding = _hold is not null || _brace is not null;
         if (_hold is not null)
             Held++;
@@ -374,13 +396,18 @@ public sealed class BattleDirector
             return _walkers.Count == 0 || Camera.Finder is null ? hold.Shot : WithWalkers(hold.Shot, _playing);
         }
         if (_extra.Count == 0 && _walkers.Count == 0 || Camera.Finder is not { } finder)
+        {
+            _back = null;
             return goal;
+        }
         // A shot cut to for the beats, kept while it holds them: so they play out in one steady shot. And a shot of its own, likewise.
+        // Either is the director's, already shown or being moved to: the camera's own cut to a new shot of its own isn't made to it.
         if (_pin is { } pin)
         {
             if (Sees(pin, _extra))
             {
                 Framed = "pin";
+                Camera.Steady = true;
                 return Kept(pin);
             }
             _pin = null;
@@ -390,16 +417,56 @@ public sealed class BattleDirector
             if (_extra.Count > 0 && Sees(own, _extra))
             {
                 Framed = "own kept";
+                Camera.Steady = true;
                 return Kept(own);
             }
             _own = null;
         }
+        // Only walkers besides: the goal as it is, drawn back to hold each it can, and no nearer again while any still walks.
+        if (_extra.Count == 0)
+            return Back(goal, held);
+        _back = null;
         var found = Hold(goal, held, _walkers.Count > 0) ?? (_walkers.Count > 0 && _extra.Count > 0 ? Hold(goal, held, false) : null);
         if (found is { } shot)
             return shot;
         return _extra.Count > 0 ? Own(goal, held, finder) : goal;
 
         Shot Kept(Shot shot) => _walkers.Count == 0 ? shot : WithWalkers(shot, _extra);
+    }
+
+    /// <summary>
+    /// The goal with only walkers to hold besides: drawn back the same way round, aimed where it was, as far as holds each walker that
+    /// one shot no farther than <see cref="CameraTuning.BeatDistance"/> can hold and see, and kept at least that far while any still
+    /// walks. So the view widens once for them and stays, where it had gone between the goal, a shot drawn back and one aimed at the
+    /// middle of them all as each walker came into reach, was hidden or stopped: the user's wobble as the bandits walked in Alaron's
+    /// turn (Nov 11). It comes in again, under the caps, once none walks.
+    /// </summary>
+    private Shot Back(Shot goal, IReadOnlyList<ShotSubject> held)
+    {
+        var t = Tuning;
+        var finder = Camera.Finder!;
+        var distance = goal.Distance;
+        foreach (var w in _walkers)
+        {
+            _all.Clear();
+            _all.AddRange(held);
+            _all.Add(w);
+            var back = goal with { Distance = MathF.Max(goal.Distance, ShotFraming.DistanceToHold(_all, goal.Aim, goal.Yaw, goal.Pitch, t.Lens)) };
+            _all.RemoveRange(0, _all.Count - 1);
+            if (back.Distance <= t.BeatDistance && _shots.Sees(back, _all, finder.Sight))
+                distance = MathF.Max(distance, back.Distance);
+        }
+        if (distance > (_back ?? goal.Distance) * 1.02f)
+            Moved("drawn back to hold the walkers");
+        _back = MathF.Max(distance, _back ?? 0);
+        if (_back.Value <= goal.Distance * 1.001f)
+        {
+            Framed = "goal";
+            return goal;
+        }
+        Framed = "back, walkers";
+        Widened++;
+        return goal with { Distance = _back.Value };
     }
 
     /// <summary>

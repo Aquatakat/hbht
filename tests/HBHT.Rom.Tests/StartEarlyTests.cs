@@ -25,7 +25,7 @@ namespace HBHT.Rom.Tests;
 /// arena's map sounds and weather draw on it at the drawing's pace, which Start Early runs the battle ahead of, so their draws interleave
 /// with the battle's differently; no rule reads it (the ADR's consequences).
 /// </remarks>
-public sealed class StartEarlyTests(Na10Import fixture)
+public sealed partial class StartEarlyTests(Na10Import fixture)
 {
     private PluginSet Set => fixture.Data.Set;
 
@@ -56,7 +56,13 @@ public sealed class StartEarlyTests(Na10Import fixture)
     }
 
     [Fact]
-    public void TheChaosCastersBattleIsDrawnTheSameEitherWay() => Logged("20261031-123809-setup2/battle-01", Skipping);
+    public void TheChaosCastersBattleIsDrawnTheSameEitherWay()
+    {
+        var (_, early) = Logged("20261031-123809-setup2/battle-01", Skipping);
+        // Its spells cast at several targets: each caster drawn facing the middle of them, or as it stood with them all round it.
+        var (middle, round) = early.Watch!.CastsFacedCount;
+        Assert.True(middle + round > 0, $"casters faced the middle of their targets {middle} times and stayed as they stood {round}");
+    }
 
     [Fact]
     public void TheSkeletonArchersBattleIsDrawnTheSameEitherWay() => Logged("20261031-230020-setup8/battle-01", Skipping);
@@ -244,7 +250,7 @@ public sealed class StartEarlyTests(Na10Import fixture)
     }
 
     private Run Play(Func<ICombatHost, Built> build, CombatTurns turns, Action<Run> player, bool stopAtFirstTurn = false, bool stopAtWalk = false,
-        Action<Run>? meanwhile = null, bool hand = true)
+        Action<Run>? meanwhile = null, bool hand = true, Action<Run>? begun = null)
     {
         var audio = GameAudio.Silent(Set);
         var recorder = new BattleRecorder(audio);
@@ -257,6 +263,7 @@ public sealed class StartEarlyTests(Na10Import fixture)
         var run = new Run { Built = built, Drawing = drawing, Recorder = recorder, Zone = zone, Meanwhile = meanwhile };
         var watch = turns == CombatTurns.StartEarly ? new Watch(drawing) : null;
         run.Watch = watch;
+        begun?.Invoke(run);
         run.Recorded.Add(Digest(drawing.Frame));
         watch?.Recorded(drawing.Frame);
         watch?.Drew(drawing.Frame);
@@ -698,6 +705,9 @@ public sealed class StartEarlyTests(Na10Import fixture)
 
         private readonly Dictionary<Combatant, int> _heldFor = [];
 
+        /// <summary>Called each drawn tick the director drew, with whether it cut: a camera test's own measure.</summary>
+        public Action<BattleFrame, BattleComposer, int, bool>? Trace { get; set; }
+
         /// <summary>What the director drew on a drawn tick (Start Early).</summary>
         private void Direct(BattleFrame f, BattleComposer composer, int d)
         {
@@ -713,6 +723,7 @@ public sealed class StartEarlyTests(Na10Import fixture)
                     continue;
                 Struck++;
                 StruckAt.TryAdd(p.Beat, d);
+                Faces(f, p.Beat.Action, d);
                 var subject = BeatShots.Subject(p);
                 if (!ShotFraming.Holds(shot, subject with { Radius = 0 }, lens))
                     OffShot.Add($"{p.Beat} struck off the shot at drawn tick {d} ({director.Camera.Kind}; leading {director.Lead}, live {composer.Live}, walking {director.Camera.Walking})");
@@ -793,6 +804,7 @@ public sealed class StartEarlyTests(Na10Import fixture)
                 }
                 _lastDrawn[b.Combatant] = b.Centre;
             }
+            Trace?.Invoke(f, composer, d, cut);
             var (y, pitch, z) = m.Speeds;
             if (cut || director.Camera.Quick)
             {
@@ -807,6 +819,55 @@ public sealed class StartEarlyTests(Na10Import fixture)
                 ZoomMost = MathF.Max(ZoomMost, MathF.Abs(z - l.Distance) * 60 / caps.Zoom);
             }
             _speeds = (m.AimSpeed, y, pitch, z);
+        }
+
+        /// <summary>Casts at several targets whose caster faced the middle of them as they struck, stayed as it was for targets all round, or faced elsewhere.</summary>
+        public (int Middle, int Round, List<string> Wrong) CastsFaced { get; } = (0, 0, []);
+
+        private (int Middle, int Round) _castsFaced;
+        private readonly HashSet<DrawnAction> _faced = [];
+
+        public (int Middle, int Round) CastsFacedCount => _castsFaced;
+
+        /// <summary>
+        /// As a spell cast at several targets strikes: its caster is drawn facing the middle of the arc they spread over about it, where
+        /// that's within <see cref="StartEarlyPacing.CastArc"/>.
+        /// </summary>
+        private void Faces(BattleFrame f, DrawnAction a, int d)
+        {
+            if (a.Parts.Count < 2 || a.Current is not { } caster || !_faced.Add(a))
+                return;
+            var me = f.Bodies.FirstOrDefault(b => b.Combatant == caster);
+            if (me.Combatant is null)
+                return;
+            var ways = new List<float>();
+            foreach (var target in a.Parts.Select(p => p.Target).Distinct())
+            {
+                var there = f.Bodies.FirstOrDefault(b => b.Combatant == target);
+                if (target is null || target == caster || there.Combatant is null)
+                    continue;
+                ways.Add(MathF.Atan2(there.Centre.Z - me.Centre.Z, there.Centre.X - me.Centre.X));
+            }
+            if (ways.Count < 2)
+                return;
+            ways.Sort();
+            var (gap, after) = (MathF.Tau - (ways[^1] - ways[0]), 0);
+            for (var i = 1; i < ways.Count; i++)
+            {
+                if (ways[i] - ways[i - 1] > gap)
+                    (gap, after) = (ways[i] - ways[i - 1], i);
+            }
+            var arc = MathF.Tau - gap;
+            if (arc > drawing.Composer.Pacing.CastArc * MathF.PI / 180)
+            {
+                _castsFaced.Round++;
+                return;
+            }
+            _castsFaced.Middle++;
+            var middle = ways[after] + arc / 2;
+            var off = MathF.Acos(Math.Clamp(System.Numerics.Vector2.Dot(me.Heading, new(MathF.Cos(middle), MathF.Sin(middle))), -1, 1)) * 180 / MathF.PI;
+            if (off > 5)
+                CastsFaced.Wrong.Add($"{a}: {caster} faces {off:F0}° off the middle of its {ways.Count} targets as they strike at drawn tick {d}");
         }
 
         private float Between(Combatant x, Combatant y, int t) =>
@@ -868,6 +929,9 @@ public sealed class StartEarlyTests(Na10Import fixture)
         var (casts, parts, together, apart) = w.Volleys();
         TestContext.Current.TestOutputHelper?.WriteLine($"Spells at several targets: {casts}, in {parts} parts; {together} with two or more hits drawn, {apart.Count} of them apart");
         Assert.True(apart.Count == 0, string.Join("\n", apart.Take(10)));
+        // Its caster faces the middle of them as they strike, where they're within an arc of it; all round it, it stays as it stood.
+        TestContext.Current.TestOutputHelper?.WriteLine($"Their casters faced the middle of them {w.CastsFacedCount.Middle} times, stayed for targets all round {w.CastsFacedCount.Round}");
+        Assert.True(w.CastsFaced.Wrong.Count == 0, string.Join("\n", w.CastsFaced.Wrong.Take(10)));
         Assert.True(w.OffShot.Count == 0, string.Join("\n", w.OffShot.Take(10)));
         Assert.True(w.HiddenAtStrike.Count == 0, string.Join("\n", w.HiddenAtStrike.Take(10)));
         Assert.True(w.OverlapOffShot.Count == 0, string.Join("\n", w.OverlapOffShot.Take(10)));

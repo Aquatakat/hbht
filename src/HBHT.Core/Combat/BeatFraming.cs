@@ -81,6 +81,13 @@ public sealed record StartEarlyPacing
     /// </summary>
     public int OutcomeHold { get; init; } = 60;
 
+    /// <summary>
+    /// How wide an arc about its caster, in degrees, the targets of a spell cast at several at once may spread over and still be faced:
+    /// the caster turns to the middle of them. Spread wider, they surround the caster, who casts as they stood
+    /// (<see cref="BattleComposer"/>, the user's, Nov 11).
+    /// </summary>
+    public float CastArc { get; init; } = 120;
+
     /// <summary>How many ticks a beat waits for its body's actor to leave its idle loop before it counts as having no reaction.</summary>
     public int ReactionWait { get; init; } = 12;
 

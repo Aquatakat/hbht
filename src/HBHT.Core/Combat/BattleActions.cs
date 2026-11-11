@@ -632,6 +632,12 @@ public sealed class DrawnAction
     /// <summary>The part being recorded: the last.</summary>
     internal ActionPart Recording => _parts[^1];
 
+    /// <summary>
+    /// For a spell cast at several targets (<see cref="Parts"/>): the way its caster faced before the cast began, as the drawing last
+    /// saw it (<see cref="BattleComposer"/>).
+    /// </summary>
+    internal Vector2? Stood { get; set; }
+
     /// <summary>The part a number, missile or spell's actor it began was begun in.</summary>
     public int PartOf(object thing) => _thingParts.GetValueOrDefault(thing);
 

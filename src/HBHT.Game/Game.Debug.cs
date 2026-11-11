@@ -308,6 +308,12 @@ public partial class Game
 
     // The F3 overlay.
 
+    /// <summary>
+    /// How far the stick was tilted as it was last read, for the overlay: a body walks under <see cref="HBHT.Core.Movement.Body.RunTilt"/>
+    /// and runs from it, so a stick held about there goes between the two.
+    /// </summary>
+    private float _stickTilt;
+
     /// <summary>Notes where the player is this tick, for the overlay's speed.</summary>
     private void TrackPlayer(System.Numerics.Vector3 position)
     {
@@ -325,7 +331,7 @@ public partial class Game
         var motion = _player!.Motion;
         var sphere = motion.Sphere;
         _overlay.Text = (Battle is { } battle ? $"battle in arena {battle.Arena.Chunk.Name}, {battle.State}, {battle.Current?.Sheet.Name ?? "no one"}'s turn {battle.Order.Now + 1} of {battle.Order.Turns.Count}" +
-                $"{(battle.Current is { } now ? $", field {now.Radius} (ring {battle.Ring.RingRadius:F2}, {battle.Ring.Count} teardrops), moves {now.Moves}, {System.Numerics.Vector2.Distance(now.Cell, now.TurnStart):F2} from its start" : "")}\n" +
+                $"{(battle.Current is { } now ? $", field {now.Radius} (ring {battle.Ring.RingRadius:F2}, {battle.Ring.Count} teardrops), moves {now.Moves}, {System.Numerics.Vector2.Distance(now.Cell, now.TurnStart):F2} from its start, request {now.Body.Request}, stick {_stickTilt:F2}" : "")}\n" +
                 $"{string.Join(", ", battle.Combatants.Select(c => $"{c.Slot} {c.Sheet.Name} ({c.Cell.X:F2}, {c.Cell.Y:F2}) r {c.Radius}{(c.Engaged ? " engaged" : "")}"))}, eye {Local(battle.Camera.Position)} aim {Local(battle.Camera.Aim)}{(battle.CanFlee ? "; can flee" : "")}\n" +
                 (Drawing is { Turns: Core.Combat.CombatTurns.StartEarly } drawing ? drawing.Director.Status + "\n"
                     : battle.CombatCamera.Enhanced is { } enhanced ? enhanced.Status + "\n" : "") : "") +

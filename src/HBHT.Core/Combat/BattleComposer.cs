@@ -573,6 +573,112 @@ public sealed class BattleComposer
     }
 
     /// <summary>
+    /// The caster of a spell cast at several targets, their hits drawn at once (<see cref="DrawnAction.Parts"/>), faces them all
+    /// (the user's, Nov 11). In the recording the caster turns to each target as its cast comes, as 1.0 has it, and the action's own
+    /// timeline is the first part's and then the last's, so drawn as recorded the caster faced one target while hits landed all round.
+    /// While the caster's tick is in the cast (its facing, the cast and its result), it's drawn turned, at a body's facing turn
+    /// (<see cref="Body.FaceTurnPerFrame"/>), to the middle of the arc its targets spread over about it, where that's no wider than
+    /// <see cref="StartEarlyPacing.CastArc"/>; where they spread wider, surrounding the caster, it stays as it stood before the cast.
+    /// Out of the cast, or its action over, it turns back to the way the recording has it, and is drawn from the recording again once
+    /// it's there. A target that's the caster counts for nothing, and one target alone is faced as recorded.
+    /// </summary>
+    private void FaceCasts(List<DrawnBody> bodies)
+    {
+        var turn = Cadence.PerTick(Movement.Body.FaceTurnPerFrame);
+        _facingNow.Clear();
+        for (var i = _live; i < _unscheduled; i++)
+        {
+            var a = _actions.Actions[i];
+            if (a.Parts.Count < 2 || a.Current is not { } caster || a.Start is not { } s || s > _drawn
+                || !_tracks.TryGetValue(caster, out var track) || track.Cursor < Math.Max(a.First, _actions.Kept) || track.Cursor > a.Last)
+                continue;
+            var at = bodies.FindIndex(b => b.Combatant == caster);
+            if (at < 0)
+                continue;
+            var frame = _actions[Math.Min(track.Cursor, _actions.Last)];
+            var recorded = bodies[at].Heading;
+            if (frame.Current != caster || frame.State is not (CombatState.Facing or CombatState.Action or CombatState.Cast or CombatState.Result))
+            {
+                if (!_facing.ContainsKey(caster))
+                    a.Stood = recorded;
+                continue;
+            }
+            var stood = a.Stood ?? recorded;
+            _facing[caster] = Facing.Turn(_facing.GetValueOrDefault(caster, stood), CastFacing(a, frame, caster, stood), turn);
+            _facingNow.Add(caster);
+        }
+        // Each caster so turned is drawn that way; one whose cast is over turns back to the recording's way, till it's there.
+        foreach (var caster in _facing.Keys.ToList())
+        {
+            var at = bodies.FindIndex(b => b.Combatant == caster);
+            if (at < 0)
+            {
+                _facing.Remove(caster);
+                continue;
+            }
+            if (!_facingNow.Contains(caster))
+            {
+                var back = Facing.Turn(_facing[caster], bodies[at].Heading, turn);
+                if (Facing.Arrived(back, bodies[at].Heading))
+                {
+                    _facing.Remove(caster);
+                    continue;
+                }
+                _facing[caster] = back;
+            }
+            bodies[at] = bodies[at] with { Heading = _facing[caster] };
+        }
+    }
+
+    /// <summary>The casters drawn turned to their targets' middle (<see cref="FaceCasts"/>), each the way it's drawn facing; and those in a cast this tick.</summary>
+    private readonly Dictionary<Combatant, Vector2> _facing = [];
+
+    private readonly HashSet<Combatant> _facingNow = [];
+
+    /// <summary>
+    /// The way the caster of <paramref name="a"/>, a spell cast at several targets, faces through its cast (<see cref="FaceCasts"/>):
+    /// the middle of the arc the targets spread over about it, as <paramref name="frame"/> has them; <paramref name="stood"/> where
+    /// that's wider than <see cref="StartEarlyPacing.CastArc"/>, or it has no target but itself.
+    /// </summary>
+    private Vector2 CastFacing(DrawnAction a, BattleFrame frame, Combatant caster, Vector2 stood)
+    {
+        Vector3? me = null;
+        foreach (var b in frame.Bodies)
+        {
+            if (b.Combatant == caster)
+                me = b.Centre;
+        }
+        if (me is not { } from)
+            return stood;
+        var ways = new List<float>();
+        foreach (var part in a.Parts)
+        {
+            if (part.Target is not { } target || target == caster)
+                continue;
+            foreach (var b in frame.Bodies)
+            {
+                if (b.Combatant == target && new Vector2(b.Centre.X - from.X, b.Centre.Z - from.Z) is var way && way.LengthSquared() > 1e-6f)
+                    ways.Add(MathF.Atan2(way.Y, way.X));
+            }
+        }
+        if (ways.Count == 0)
+            return stood;
+        ways.Sort();
+        // The arc they spread over: all the way round less the widest gap between two neighbours.
+        var (gap, after) = (MathF.Tau - (ways[^1] - ways[0]), 0);
+        for (var i = 1; i < ways.Count; i++)
+        {
+            if (ways[i] - ways[i - 1] > gap)
+                (gap, after) = (ways[i] - ways[i - 1], i);
+        }
+        var arc = MathF.Tau - gap;
+        if (arc > Pacing.CastArc * MathF.PI / 180 + 1e-4f)
+            return stood;
+        var middle = ways[after] + arc / 2;
+        return new Vector2(MathF.Cos(middle), MathF.Sin(middle));
+    }
+
+    /// <summary>
     /// The tick a body would be drawn from on drawn tick <paramref name="d"/>, the player's turn <paramref name="live"/> opened now,
     /// from <paramref name="cursor"/>, where it's drawn on the drawn tick before, by <see cref="Move"/>'s rules: with the episode of
     /// a started action it's in; between them a tick on, no further than its next episode or the turn's tick; and on the present once
@@ -1657,6 +1763,7 @@ public sealed class BattleComposer
             track.Jumped = false;
         }
         bodies.Sort((x, y) => x.Combatant.Slot.CompareTo(y.Combatant.Slot));
+        FaceCasts(bodies);
 
         // Each number, missile and spell's actor from the action that began it; each lasting scene with its body.
         var missiles = new List<DrawnMissile>();

@@ -87,6 +87,7 @@ public partial class Game
         var stick = new System.Numerics.Vector2(move.X, -move.Y);
         if (Input.IsActionPressed(Action(GameControls.Walk)) && stick.Length() > 0.5f)
             stick = System.Numerics.Vector2.Normalize(stick) * 0.5f;
+        _stickTilt = stick.Length();
 
         var orbit = false;
         var orbitStick = System.Numerics.Vector2.Zero;

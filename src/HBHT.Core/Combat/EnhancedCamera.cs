@@ -176,6 +176,9 @@ public sealed class EnhancedCamera
 
     private (Vector3 At, Vector2 Heading)? _opening;
 
+    /// <summary>The cut a player's turn opens with, owed since it opened in the director's hold: where the character stood then.</summary>
+    private (Vector3 At, Vector2 Heading)? _enterOwed;
+
     /// <summary>
     /// The shot with no enemy ahead: its yaw, pitch and distance, taken from the shot as the target was lost, its yaw trailing the character
     /// on a leash while its aim leads them.
@@ -247,6 +250,21 @@ public sealed class EnhancedCamera
     /// or pan to waits, moved to under the caps if the goal it's handed changes.
     /// </summary>
     public bool Holding { get; set; }
+
+    /// <summary>
+    /// Set by Start Early's director as it hands back a shot of its own it's keeping (one found or cut to for the beats,
+    /// <see cref="BattleDirector"/>) in place of this tick's goal: a cut this camera wanted for its own new shot isn't made, since the
+    /// goal isn't that shot. Cut all the same, the camera still on its way to the director's shot jumped what was left of it: the
+    /// user's notch of a zoom as a loosing gave way to its hit (Nov 11).
+    /// </summary>
+    public bool Steady { get; set; }
+
+    /// <summary>
+    /// Whether it's showing the first of an action's shots that end on its result: an AI's walk under way, whose end frames whom it acts
+    /// on, or a volley's loosing, whose hit is cut to. Start Early's director leaves that action's own result to them rather than
+    /// planning toward it.
+    /// </summary>
+    public bool Staging => _volley is { } volley ? !volley.Hit : _walk is { Arrived: false };
 
     /// <summary>
     /// Set by Start Early's director for an action drawn with its targets' hits at once (a spell cast at several, in parts,
@@ -425,6 +443,22 @@ public sealed class EnhancedCamera
         // The player's turn begun, or come back to from a menu or an aim: the one tick of it that may cut.
         var entering = scene.State == CombatState.Turn && (fresh || _stateWas != CombatState.Turn);
         _stateWas = scene.State;
+        // That tick spent in the director's hold, the cut is owed: taken as the hold ends, if the character still stands as they did.
+        // Dropped, a turn that opened on a hold's last tick was glided to instead, a half-turn round in a second (the user's, Nov 11).
+        if (scene.State != CombatState.Turn || fresh && !Holding)
+        {
+            _enterOwed = null;
+        }
+        else if (scene.Current is { } opener)
+        {
+            var stands = (scene.Centre(opener), scene.Heading(opener));
+            if (entering && Holding)
+                _enterOwed = stands;
+            else if (_enterOwed is { } owed && (Vector3.Distance(owed.At, stands.Item1) > 0.05f || Vector2.Dot(owed.Heading, stands.Item2) < MathF.Cos(Rad(2))))
+                _enterOwed = null;
+            else if (_enterOwed is not null && !Holding)
+                (entering, _enterOwed) = (true, null);
+        }
         // Aiming takes the camera back from the player's hand.
         if (scene.State is CombatState.TargetAttack or CombatState.TargetSpell or CombatState.TargetThrown or CombatState.PlaceArea)
             Released = false;
@@ -443,8 +477,11 @@ public sealed class EnhancedCamera
         intent.Rail.Clear();
         var goal = Decide(originalShot, glide, aimed);
         // Start Early's director: widened, or another taken, to hold what else is happening.
+        Steady = false;
         if (!Released && Reframe is { } reframe)
             goal = reframe(goal, _subjects);
+        if (Steady)
+            _cutNow = false;
         // The player's own camera is the original's as it is; the director's shots keep their distance.
         if (!Released)
             goal = goal with { Pitch = Math.Clamp(goal.Pitch, Rad(-60), Rad(89)), Distance = MathF.Max(goal.Distance, t.NearestDistance) };
@@ -557,11 +594,14 @@ public sealed class EnhancedCamera
             }
             else
             {
+                // From a camera still moving (an action's shot it was on its way to): each of its channels carries on only where the
+                // shot found is far enough on for the glide to land on it; else the camera slows to its rest and the glide goes on from there.
                 var (yawSpeed, pitchSpeed, zoomSpeed) = _motion.Speeds;
-                _glide.Reset(_motion.Current, (_motion.AimSpeed, yawSpeed, pitchSpeed, zoomSpeed));
+                _glide.Reset(_motion.Current, (_motion.AimSpeed, yawSpeed, pitchSpeed, zoomSpeed), _motion.Rest, goal);
             }
             _glide.Step(goal);
-            _motion.Step(_glide.Current, _glide.Speeds);
+            // Ridden no faster than stops on the shot found, where the glide lands: a glide across the field slows harder than the caps do.
+            _motion.Step(_glide.Current, _glide.Speeds, goal);
         }
         else
         {
