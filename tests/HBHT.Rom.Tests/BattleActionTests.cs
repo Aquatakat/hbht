@@ -122,6 +122,55 @@ public sealed class BattleActionTests(Na10Import fixture)
     }
 
     [Fact]
+    public void ABowStillAimsFreelyAndLoosesItsArrowAfterAPotionIsPutAwayOrDrunk()
+    {
+        // The user's Sholeh (Nov 11): her bow's free cursor (state 18) gave way to a blow's aim (state 9) for the rest of a battle, and
+        // her shots' results came with no arrow flown. A potion in hand had put her action back with the drawn flag cleared, where
+        // the original works the flag out from the weapon each time the hands are filled (Combatant.UpdateDrawnFlag, 0x80066A2C).
+        var run = Start();
+        var sholeh = run.TurnOf("Sholeh");
+        // Checkpoint 01's Sholeh carries no bow: the first she can wield, in hand as the battle would have made her with it.
+        var catalog = run.Built.Game.Party.Inventory.Catalog;
+        var held = sholeh.Sheet.Equipment.RemoveWeapon();
+        var bow = Set.All<ItemRecord>(RecordTypes.Item).Where(i => i.Weapon?.Missile?.Scene is not null).Select(i => new HBHT.Core.Items.ItemInstance(catalog[i.Id]))
+            .First(i => sholeh.Sheet.Equipment.EquipWeapon(i) == HBHT.Core.Items.EquipRefusal.None);
+        sholeh.SetDefaultAction(run.Battle.Rules);
+        TestContext.Current.TestOutputHelper?.WriteLine($"Sholeh takes {bow.Item.Record.Name} for {held?.Item.Record.Name}");
+        Assert.True(sholeh.Drawn);
+        var action = sholeh.Action;
+        run.Built.Game.Party.Inventory.Add(PotionId(BasePotion.Strength), 2);
+
+        // A potion in hand isn't aimed freely; put away with B, the bow is again.
+        Choose(run.Battle, true, r => r.Potion?.Id == PotionId(BasePotion.Strength));
+        Assert.Equal((CombatAction.Flask, false), (sholeh.Action, sholeh.Drawn));
+        Assert.True(run.Battle.Cancel());
+        Assert.Equal((action, true), (sholeh.Action, sholeh.Drawn));
+
+        // And drunk: her next turn's A aims freely, and her arrow flies before the blow lands.
+        Choose(run.Battle, true, r => r.Potion?.Id == PotionId(BasePotion.Strength));
+        Assert.True(run.Battle.Confirm());
+        run.UntilTurnEnds(sholeh);
+        Assert.Equal((action, true), (sholeh.Action, sholeh.Drawn));
+        for (var turn = 0; turn < 12; turn++)
+        {
+            run.TurnOf("Sholeh");
+            if (run.Battle.Attack())
+                break;
+            Assert.True(run.Battle.Skip());
+            run.UntilTurnEnds(sholeh);
+        }
+        Assert.Equal(CombatState.TargetThrown, run.Battle.State);
+        Assert.True(run.Battle.Confirm());
+        var flew = false;
+        for (var i = 0; i < 2000 && run.Battle.Current == sholeh; i++)
+        {
+            run.Tick();
+            flew |= run.Battle.Flight is not null;
+        }
+        Assert.True(flew, "no arrow flew");
+    }
+
+    [Fact]
     public void AlaronsPerformanceRestsTheTurnAndEitherPerformsOrFails()
     {
         var run = Start();

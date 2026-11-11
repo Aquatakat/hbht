@@ -65,9 +65,11 @@ public sealed partial class Combatant
     /// a potion in hand holds the flask; a bow holds its arrow in the hand and the bow itself in the arm in place of the shield, at
     /// locators 0 and 1, or 1 and 0 for a body whose <see cref="EntityBody.BowHand"/> is the other; any other weapon holds its own
     /// model, none for a bite or a claw. The hand stays empty for a body whose model has its weapons (<see cref="EntityBody.WeaponsInModel"/>).
+    /// Whether it aims freely is worked out again here too (<see cref="UpdateDrawn"/>), as the original's does, whatever changed the action.
     /// </summary>
     internal void EquipVisuals(CombatRecord? rules)
     {
+        UpdateDrawn();
         _held[HandSlot] = _held[ArmSlot] = null;
         var handLocator = DefaultLocators[HandSlot];
         var armLocator = DefaultLocators[ArmSlot];
@@ -99,6 +101,21 @@ public sealed partial class Combatant
             _held[HandSlot] = new HeldModel(h, handLocator);
         HandLocator = handLocator;
     }
+
+    /// <summary>
+    /// Whether it aims freely (<c>Combatant.UpdateDrawnFlag</c>, <c>0x80066A2C</c>, whose one caller is <c>EquipVisuals</c>, at
+    /// <c>0x80066BBC</c>, whichever way the hand was filled): with a potion's action, a flask (kinds 0 to 3, <c>+0x27</c>); with any
+    /// other, a weapon that flies, a bow (<c>WeaponIsBowKind</c>) or one of the missiles' table (<c>0x800E0C14</c>); with no weapon, not.
+    /// </summary>
+    /// <remarks>
+    /// The port had set it wherever the action changed, and put a potion's action back with it cleared: a member with a bow who took
+    /// a potion in hand, drunk or put away with B, aimed like a blow (state 9) and shot no arrow, the hit landing as the swing ended,
+    /// for the rest of the battle (the user's Sholeh, Nov 11).
+    /// </remarks>
+    private void UpdateDrawn() =>
+        Drawn = Action == CombatAction.Flask
+            ? Potion is { } potion && Items.Potions.IsFlask(potion)
+            : Sheet.Equipment.Weapon?.Item.Weapon?.Missile is not null;
 
     /// <summary>The arrow, flask or thrown weapon leaves the hand as it flies (<c>Combat.StartCastCamera</c>, <c>0x80023434</c>).</summary>
     internal void EmptyHand() => _held[HandSlot] = null;
@@ -220,12 +237,12 @@ public sealed partial class Combatant
     /// <summary>
     /// What A does with its weapon (<c>Combatant.SetDefaultAction</c>, <c>0x800672D4</c>): nothing without one; melee with no range;
     /// with a range, ranged, or melee or ranged for a weapon that may strike in melee too (<c>Weapon.AllowsMelee</c>,
-    /// <c>0x8007B730</c>: a Breath or a Spit, or one that says so, <see cref="WeaponStats.StrikesInMelee"/>). Whether it aims freely too.
+    /// <c>0x8007B730</c>: a Breath or a Spit, or one that says so, <see cref="WeaponStats.StrikesInMelee"/>). Its hands, and with them
+    /// whether it aims freely, follow (<see cref="EquipVisuals"/>).
     /// </summary>
     internal void SetDefaultAction(CombatRecord? rules)
     {
         var item = Sheet.Equipment.Weapon;
-        Drawn = false;
         if (item?.Item.Weapon is not { } weapon)
         {
             Action = CombatAction.None;
@@ -238,7 +255,6 @@ public sealed partial class Combatant
             Action = CombatAction.MeleeOrRanged;
         else
             Action = CombatAction.Ranged;
-        Drawn = weapon.Missile is not null;
         EquipVisuals(rules);
     }
 }

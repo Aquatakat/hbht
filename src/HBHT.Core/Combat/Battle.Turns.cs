@@ -384,7 +384,6 @@ public sealed partial class Battle
         {
             combatant.Action = CombatAction.None;
             combatant.Potion = null;
-            combatant.Drawn = false;
             combatant.EquipVisuals(_rules);
         }
         State = NextState = combatant.Controlled ? CombatState.AI : CombatState.Turn;

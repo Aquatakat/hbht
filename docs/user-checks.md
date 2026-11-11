@@ -43,6 +43,10 @@ After your second Nov 11 play (the battle screen and Dragon Flames):
 19. Do the enemies' portraits now stay put through a Fireball and the enemies' turns: none gone, none empty with its bar, no flicker? A reserve keeps its small frame until the oldest thing still playing is done: is that lag noticeable?
 20. Does the log's portrait now go with its line?
 
+After the bow's lost reticle (Nov 11):
+
+21. With Sholeh's bow, take a potion in hand from C-up and put it away with B, or drink it: does her next A still bring the free cursor, and her arrow fly before the result? If the reticle goes again without a potion, note what she did the turn before.
+
 ### Combat Turns: Start Early's pacing (piece A)
 
 Under Combat Turns: Start Early, in a battle with several enemies (the rats at F09, bandits, the Chaos casters), how the beats, the turn's wait and the held stick feel ([combat](systems/combat.md#pacing-beats-and-the-players-wait)):

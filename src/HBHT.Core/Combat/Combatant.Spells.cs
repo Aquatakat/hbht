@@ -102,7 +102,6 @@ public sealed partial class Combatant
             HeldAction = Action;
         Action = CombatAction.Flask;
         Potion = potion;
-        Drawn = Potions.IsFlask(potion);
         EquipVisuals(battle.Rules);
         if (Performing)
             StopPerforming(battle);
@@ -130,7 +129,6 @@ public sealed partial class Combatant
             Action = HeldAction;
         }
         Potion = null;
-        Drawn = false;
         EquipVisuals(rules);
     }
 
