@@ -148,18 +148,39 @@ public sealed partial class Playthrough
             var (step, action, _, predicted) = _pending!.Value;
             var save = SaveBefore();
             _cover.Branches.Add(new CoverBranch(step, action, save, [.. lost.Select(t => t.Flag)], predicted));
+            // Lost by the places alone: the relaxation with every place reached still sets them, so where the step left the player walls
+            // them off (a way down with none back up, or the world graph's reach from there).
+            var stranded = StrandedOf(state, lost);
             foreach (var target in lost)
             {
                 target.State = TargetState.Lost;
-                target.Why = $"lost at step {step} ({action}); {(save is null ? "no save before it to branch from" : "a branch from the save before it")}";
+                target.Why = $"lost at step {step} ({action}){(stranded.Contains(target.Handle) ? " by the places alone" : "")}; " +
+                    $"{(save is null ? "no save before it to branch from" : "a branch from the save before it")}";
             }
-            Progress?.Invoke($"     step {step} lost {lost.Count} target(s){(predicted ? ", as the loss check said" : "")}: " +
+            Progress?.Invoke($"     step {step} lost {lost.Count} target(s){(predicted ? ", as the loss check said" : "")}" +
+                $"{(stranded.Count > 0 ? $", {stranded.Count} by the places alone" : "")}: " +
                 $"{string.Join(", ", lost.Take(12).Select(t => FlagIs.Key(t.Flag)))}{(lost.Count > 12 ? ", …" : "")}");
         }
         _pending = null;
         _cover.Looks++;
         _cover.LookSeconds += clock.Elapsed.TotalSeconds;
         return (relaxation, result, live);
+    }
+
+    /// <summary>The targets of those lost that the relaxation with every place taken as reached still sets.</summary>
+    private HashSet<int> StrandedOf(PlanState state, List<CoverTarget> lost)
+    {
+        var reach = Model.Reach;
+        try
+        {
+            Model.Reach = Everywhere.Instance;
+            var free = new Relaxation(Model, Enumerable.Range(0, Model.Actions.Count)).Run(state);
+            return [.. lost.Where(t => free.Reached(Model.FlagFact(t.Handle, true))).Select(t => t.Handle)];
+        }
+        finally
+        {
+            Model.Reach = reach;
+        }
     }
 
     /// <summary>
@@ -419,10 +440,23 @@ public sealed partial class Playthrough
         Progress?.Invoke($"     target {FlagIs.Key(goal.Flag)} given up: {target.Why}");
     }
 
-    private void CoverDone(FlagGoal goal)
+    /// <summary>
+    /// A step towards a target played out. One whose own effects set it, played out with the target not seen set, failed all the same: it's
+    /// banned where it was played and counted against the target, so the run doesn't walk into a tripwire that sets nothing again and
+    /// again. Otherwise the target's failures start again.
+    /// </summary>
+    private void CoverDone(FlagGoal goal, RunStep step, PlanState state)
     {
-        if (_targets.TryGetValue(Model.Flags.Handle(goal.Flag), out var target))
-            target.Failures = 0;
+        if (!_targets.TryGetValue(Model.Flags.Handle(goal.Flag), out var target))
+            return;
+        var meant = Model.Adds(step.Action.Index).Contains(Model.FlagFact(target.Handle, true));
+        if (meant && Host.Ledger?.Seen(target.Handle) == false && !Game.Flags.Get(target.Handle))
+        {
+            Ban(step.Action, state);
+            CoverFailed(goal, step with { Summary = $"{step.Summary}, but the flag wasn't set" });
+            return;
+        }
+        target.Failures = 0;
     }
 
     /// <summary>

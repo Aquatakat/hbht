@@ -84,6 +84,17 @@ public sealed class CoverWorker(CoverQueue queue, QuestModel model, WorldGraph g
         {
             if (branch.Save is null)
                 continue;
+            // A branch that lost what it was for on its own first step, as its parent did, would only branch the same way again: the step
+            // the run takes first from there loses them whatever it's after, as a story trigger on every way out does.
+            if (job.Parent is not null && branch.Step == 1 && branch.Targets.All(t => job.Targets.Contains(t.ToString())))
+            {
+                foreach (var t in cover.Targets.Where(t => branch.Targets.Contains(t.Flag)))
+                {
+                    t.State = TargetState.GivenUp;
+                    t.Why = $"lost again on the branch's first step ({branch.Action}), as its parent lost it at step {job.Step}: no first step from there keeps it";
+                }
+                continue;
+            }
             made.Add(new CoverJob($"{job.Id}.{++n}", job.Id, Queue.Relative(branch.Save), [.. branch.Targets.Select(t => t.ToString())],
                 job.Depth + 1, branch.Step, branch.Action, branch.Predicted ? "the loss check said it would lose them" : "lost after the step"));
         }

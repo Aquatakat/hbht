@@ -230,7 +230,8 @@ internal static partial class CoverReport
     {
         var head = Regex.Replace(why, @"aidyn:\S+", "<id>").Split(':')[0];
         head = Regex.Replace(head, @"\(.*?\)", "(…)");
-        return Regex.Replace(head, @"\d+", "n");
+        head = Regex.Replace(Regex.Replace(head, @"\d+", "n"), @"n( n)+", "n …");
+        return head.Length > 120 ? head[..120] + "…" : head;
     }
 
     private static string Label(PluginSet plugins, string flag) =>

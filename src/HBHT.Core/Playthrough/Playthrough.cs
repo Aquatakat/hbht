@@ -261,7 +261,7 @@ public sealed partial class Playthrough
                 if (step.Done)
                 {
                     if (goal is FlagGoal done && Goal is CoverGoal)
-                        CoverDone(done);
+                        CoverDone(done, step, state);
                     failures[goal] = 0;
                     _rest[goal] = steps.Skip(1).ToList();
                     VisitTrainer();
