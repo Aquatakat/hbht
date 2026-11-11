@@ -109,7 +109,7 @@ public sealed class BattleComposer
             for (var i = _live; i < _actions.Actions.Count; i++)
             {
                 var a = _actions.Actions[i];
-                if (a.Start > _drawn || a.TickAt(_drawn) < Math.Min(a.TailEnd ?? last, last))
+                if (a.Start > _drawn || Behind(a, last))
                     return false;
             }
             foreach (var (_, track) in _tracks)
@@ -143,9 +143,23 @@ public sealed class BattleComposer
         for (var i = _live; i < _actions.Actions.Count; i++)
         {
             var a = _actions.Actions[i];
-            if (a.Start <= _drawn && a.TickAt(_drawn) <= (a.TailEnd ?? _actions.Last))
+            if (a.Start <= _drawn && Draws(a))
                 yield return a;
         }
+    }
+
+    /// <summary>Whether an action started is still drawing: its last timeline not past its end, or what it began still living.</summary>
+    private bool Draws(DrawnAction a) => a.EndOffset is { } o ? _drawn <= a.Start!.Value + o : a.Base(_drawn) <= _actions.Last;
+
+    /// <summary>Whether a timeline of an action started is drawn before <paramref name="cap"/> and its own end.</summary>
+    private bool Behind(DrawnAction a, int cap)
+    {
+        foreach (var p in a.Timelines)
+        {
+            if (a.TickAt(_drawn, p) < Math.Min(a.EndOf(p) ?? cap, cap))
+                return true;
+        }
+        return false;
     }
 
     /// <summary>
@@ -195,7 +209,8 @@ public sealed class BattleComposer
     public int Forwarded { get; private set; }
 
     /// <summary>Whether an episode has been drawn to its end: its action is past its last tick.</summary>
-    private bool Played(Episode e) => e.Action.Start is { } s && s <= _drawn && e.Action.TickAt(_drawn) > e.To;
+    private bool Played(Episode e) =>
+        e.Action.Start is { } s && s <= _drawn && e.Action.Decided(e.Part) && e.Action.TickAt(_drawn, e.Part) > e.To;
 
     /// <summary>
     /// What the player's turn touches is drawn where it is (Start Early): each action still drawing one of these bodies, before the
@@ -252,12 +267,12 @@ public sealed class BattleComposer
             var end = t;
             while (end < Math.Min(a.Last, _actions.Last) && _actions[end + 1].Walking)
                 end++;
-            Forward(a, end);
+            Forward(a, a.First + a.Offset(end, DrawnAction.OwnPart));
         }
     }
 
-    /// <summary>Fast-forwards an action past its end: its timeline and its bodies' to the last tick it plays.</summary>
-    private void Finish(DrawnAction a) => Forward(a, (a.TailEnd ?? _actions.Last) + 1);
+    /// <summary>Fast-forwards an action past its end: its timelines and its bodies' to the last tick each plays.</summary>
+    private void Finish(DrawnAction a) => Forward(a, a.First + (a.EndOffset ?? a.Offset(_actions.Last, 0)) + 1);
 
     /// <summary>
     /// Puts an action's timeline at <paramref name="to"/> now, and each body it has reached there at that tick (or its episode's end),
@@ -269,31 +284,36 @@ public sealed class BattleComposer
     {
         if (a.Start is null)
             return;
-        // The tick its timeline has now: before its first while it's yet to start.
-        if (a.TickAt(_drawn) >= to)
+        // Its base tick now (<paramref name="to"/>'s kind): before its first while it's yet to start.
+        if (a.Base(_drawn) >= to)
             return;
         _search = null;
         foreach (var e in a.Episodes)
         {
             // It reaches this episode's first tick so many drawn ticks from now.
-            var lead = Math.Max(0, e.From - to);
+            var lead = Math.Max(0, a.First + a.Offset(e.From, e.Part) - to);
             foreach (var earlier in _actions.EpisodesOf(e.Body))
             {
                 if (earlier.Action.Index >= a.Index)
                     break;
-                Forward(earlier.Action, earlier.To + 1 - lead);
+                var ea = earlier.Action;
+                Forward(ea, ea.First + ea.Offset(earlier.To, earlier.Part) + 1 - lead);
             }
         }
         a.Start = _drawn - (to - a.First);
         Forwarded++;
         if (to < a.First)
             return;
-        Advance(a, Math.Min(to, _actions.Last), _skipped);
+        Decide(a);
+        Advance(a, _skipped);
         foreach (var e in a.Episodes)
         {
-            if (e.From > to || !_tracks.TryGetValue(e.Body, out var track))
+            if (!a.Decided(e.Part) || !_tracks.TryGetValue(e.Body, out var track))
                 continue;
-            var t = Math.Min(Math.Min(to, e.To), _actions.Last);
+            var at = a.At(to, e.Part);
+            if (e.From > at)
+                continue;
+            var t = Math.Min(Math.Min(at, e.To), _actions.Last);
             if (t > track.Cursor)
                 Go(e.Body, track, t, _skipped);
         }
@@ -339,7 +359,8 @@ public sealed class BattleComposer
             var a = _actions.Actions[i];
             a.Start = _drawn - (last - a.First);
             a.Played = last;
-            a.MomentsPlayed = a.Moments.Count;
+            foreach (var part in a.Parts)
+                part.MomentsPlayed = part.Moments.Count;
         }
         foreach (var (body, track) in _tracks)
         {
@@ -366,7 +387,9 @@ public sealed class BattleComposer
             var b = _actions.Actions[_unscheduled];
             if (Settled(b))
             {
-                // The search takes at most a share of a tick; one not done goes on next tick, from the starts not yet passed.
+                // Its parts' shifts first, all its ticks known. The search takes at most a share of a tick; one not done goes on next
+                // tick, from the starts not yet passed.
+                Decide(b);
                 if (Search(b, budget) is not { } start)
                     return;
                 b.Start = start;
@@ -451,9 +474,9 @@ public sealed class BattleComposer
                 waiting |= a.Beats.Count > 0;
                 continue;
             }
-            var at = a.TickAt(_drawn);
             foreach (var beat in a.Beats)
             {
+                var at = a.TickAt(_drawn, beat.Part);
                 // A result is held on the screen a moment once it strikes, ended or not (the outcome hold); once held, it has played.
                 if (at >= beat.From && at - beat.From < Pacing.OutcomeHold)
                 {
@@ -565,9 +588,9 @@ public sealed class BattleComposer
             var e = episodes[next];
             if (e.Action == live)
                 break;
-            if (e.Action.Start is { } s && s <= d)
+            if (e.Action.Start is { } s && s <= d && e.Action.Decided(e.Part))
             {
-                var at = e.Action.TickAt(d);
+                var at = e.Action.TickAt(d, e.Part);
                 if (at > e.To)
                 {
                     to = Math.Max(to, Math.Min(e.To, last));
@@ -658,9 +681,9 @@ public sealed class BattleComposer
                 {
                     if (a.Start is null)
                         continue;
-                    var was = a.TickAt(_drawn);
-                    Forward(a, Shown(beat) + 1);
-                    moved |= a.TickAt(_drawn) > was;
+                    var was = a.Base(_drawn);
+                    Forward(a, a.First + a.Offset(Shown(beat), beat.Part) + 1);
+                    moved |= a.Base(_drawn) > was;
                 }
             }
             var walkers = new List<Combatant>();
@@ -684,10 +707,10 @@ public sealed class BattleComposer
     {
         foreach (var a in DrawingNow())
         {
-            var at = a.TickAt(_drawn);
             foreach (var beat in a.Beats)
             {
-                if (at >= beat.From && at <= Shown(beat) && Framed(beat, at) is { } framed)
+                var at = a.TickAt(_drawn, beat.Part);
+                if (a.Decided(beat.Part) && at >= beat.From && at <= Shown(beat) && Framed(beat, at) is { } framed)
                     yield return framed;
             }
         }
@@ -701,10 +724,10 @@ public sealed class BattleComposer
     {
         foreach (var a in DrawingNow())
         {
-            var at = a.TickAt(_drawn);
             foreach (var e in a.Episodes)
             {
-                if (e.Body == body && e.From <= at && at <= e.To)
+                var at = a.TickAt(_drawn, e.Part);
+                if (e.Body == body && a.Decided(e.Part) && e.From <= at && at <= e.To)
                     return CentreAt(body, Math.Min(e.To, _actions.Last));
             }
         }
@@ -725,7 +748,9 @@ public sealed class BattleComposer
                 continue;
             foreach (var beat in a.Beats)
             {
-                var strike = a.DrawnAt(beat.From);
+                if (!a.Decided(beat.Part))
+                    continue;
+                var strike = a.DrawnAt(beat.From, beat.Part);
                 if (strike > _drawn && strike <= _drawn + horizon && Framed(beat, beat.From) is { } framed)
                     yield return (framed, strike - _drawn);
             }
@@ -748,8 +773,13 @@ public sealed class BattleComposer
         for (var i = _live; i < _unscheduled; i++)
         {
             var a = _actions.Actions[i];
-            if (a.Start > _drawn || a.TickAt(_drawn) <= Math.Min(a.TailEnd ?? int.MaxValue, b.First - 1))
+            if (a.Start > _drawn)
                 return true;
+            foreach (var p in a.Timelines)
+            {
+                if (a.TickAt(_drawn, p) <= Math.Min(a.EndOf(p) ?? int.MaxValue, b.First - 1))
+                    return true;
+            }
         }
         return false;
     }
@@ -799,8 +829,8 @@ public sealed class BattleComposer
                         break;
                     if (earlier.Action == b || earlier.Action.Start is not { } s)
                         continue;
-                    var end = s + (earlier.To - earlier.Action.First);
-                    start = Math.Max(start, end + 1 - (e.From - b.First));
+                    var end = s + earlier.Action.Offset(earlier.To, earlier.Part);
+                    start = Math.Max(start, end + 1 - b.Offset(e.From, e.Part));
                 }
             }
             var window = Window(b);
@@ -821,7 +851,7 @@ public sealed class BattleComposer
                 var a = _actions.Actions[i];
                 foreach (var beat in a.Beats)
                 {
-                    var (from, to) = (a.DrawnAt(beat.From), a.DrawnAt(Shown(beat)));
+                    var (from, to) = (a.DrawnAt(beat.From, beat.Part), a.DrawnAt(Shown(beat), beat.Part));
                     if (to >= start || from + Pacing.OutcomeHold > start)
                         beats.Add((beat, from, to));
                 }
@@ -915,7 +945,7 @@ public sealed class BattleComposer
         var hold = Pacing.OutcomeHold;
         foreach (var mine in b.Beats)
         {
-            var (from, to) = (start + (mine.From - b.First), start + (Shown(mine) - b.First));
+            var (from, to) = (start + b.Offset(mine.From, mine.Part), start + b.Offset(Shown(mine), mine.Part));
             foreach (var (theirs, theirFrom, theirTo) in search.Beats)
             {
                 // Each result is held on the screen a moment before another action's strikes (the outcome hold), either way round.
@@ -927,8 +957,8 @@ public sealed class BattleComposer
                 var playing = new List<FramedBeat>();
                 foreach (var m in b.Beats)
                 {
-                    var mf = start + (m.From - b.First);
-                    if (mf <= d && d <= start + (Shown(m) - b.First) && Framed(m, m.From + (d - mf)) is { } f)
+                    var mf = start + b.Offset(m.From, m.Part);
+                    if (mf <= d && d <= start + b.Offset(Shown(m), m.Part) && Framed(m, m.From + (d - mf)) is { } f)
                         playing.Add(f);
                 }
                 foreach (var (o, of, ot) in search.Beats)
@@ -1024,9 +1054,9 @@ public sealed class BattleComposer
         for (var i = _live; i < b.Index; i++)
         {
             var a = _actions.Actions[i];
-            end = Math.Max(end, a.DrawnAt(a.TailEnd ?? _actions.Last));
+            end = Math.Max(end, a.Start!.Value + (a.EndOffset ?? a.Offset(_actions.Last, 0)));
             foreach (var beat in a.Beats)
-                end = Math.Max(end, a.DrawnAt(beat.End(_actions.Last)));
+                end = Math.Max(end, a.DrawnAt(beat.End(_actions.Last), beat.Part));
         }
         return end;
     }
@@ -1043,8 +1073,8 @@ public sealed class BattleComposer
         for (var i = _live; i < b.Index; i++)
         {
             var a = _actions.Actions[i];
-            var t = a.First + (d - a.Start!.Value);
-            if (t < a.First || t > _actions.Last || t < _actions.Kept)
+            var t = a.Base(d);
+            if (t < a.First || t < _actions.Kept)
                 continue;
             AddThings(a, t, list);
         }
@@ -1059,42 +1089,52 @@ public sealed class BattleComposer
     {
         var list = new List<Placed>();
         var t = b.First + k;
-        if (t > _actions.Last || t < _actions.Kept)
+        if (t < _actions.Kept)
             return list;
+        var last = _actions.Last;
         foreach (var e in b.Episodes)
         {
-            var at = t >= e.From && t <= e.To ? t : t > e.To && LastBefore(b, e.Body, t) == e ? Math.Min(e.To + 1, _actions.Last) : -1;
-            if (at >= 0 && Centre(e.Body, at) is { } centre)
+            // Each timeline has its own tick k drawn ticks in (a later part's ahead of the first's).
+            var (from, to) = (b.Offset(e.From, e.Part), b.Offset(e.To, e.Part));
+            var at = from <= k && k <= to ? b.At(t, e.Part) : to < k && LastBefore(b, e, k) ? Math.Min(e.To + 1, last) : -1;
+            if (at >= 0 && at <= last && Centre(e.Body, at) is { } centre)
                 list.Add(new Placed(e.Body, new Shape(centre, centre, e.Body.Body.Sphere.Radius), at, true));
         }
         AddThings(b, t, list);
         return list;
 
-        static Episode? LastBefore(DrawnAction b, Combatant body, int t)
+        // Whether an episode drawn before k is the body's last in b drawn by then, and it's in none of b's at k.
+        static bool LastBefore(DrawnAction b, Episode episode, int k)
         {
-            Episode? last = null;
+            Episode? latest = null;
+            var latestTo = int.MinValue;
             foreach (var e in b.Episodes)
             {
-                if (e.Body != body)
+                if (e.Body != episode.Body)
                     continue;
-                if (e.From <= t && t <= e.To)
-                    return null;
-                if (e.To < t && (last is null || e.To > last.To))
-                    last = e;
+                var (from, to) = (b.Offset(e.From, e.Part), b.Offset(e.To, e.Part));
+                if (from <= k && k <= to)
+                    return false;
+                if (to < k && to > latestTo)
+                    (latest, latestTo) = (e, to);
             }
-            return last;
+            return latest == episode;
         }
     }
 
-    /// <summary>An action's missiles and spells' actors living on tick <paramref name="t"/>, its timeline's.</summary>
+    /// <summary>An action's missiles and spells' actors living at base tick <paramref name="t"/>, each at its part's tick then.</summary>
     private void AddThings(DrawnAction a, int t, List<Placed> list)
     {
         foreach (var (thing, ended) in a.Things)
         {
-            if (thing is not (MissileFlight or SpellFxVisual) || ended < t)
+            if (thing is not (MissileFlight or SpellFxVisual))
                 continue;
-            if (ShapeOf(thing, t) is { } shape)
-                list.Add(new Placed(thing, shape, t, false));
+            var part = a.PartOf(thing);
+            var at = a.At(t, part);
+            if (!a.Decided(part) || ended < at || at > _actions.Last || at < _actions.Kept)
+                continue;
+            if (ShapeOf(thing, at) is { } shape)
+                list.Add(new Placed(thing, shape, at, false));
         }
     }
 
@@ -1117,14 +1157,14 @@ public sealed class BattleComposer
             int s;
             if (a == b)
                 s = start;
-            else if (a.Start is { } scheduled)
+            else if (a.Start is { } scheduled && a.Decided(e.Part))
                 s = scheduled;
             else
                 continue;
-            var from = s + (e.From - a.First);
-            var to = s + (e.To - a.First);
+            var from = s + a.Offset(e.From, e.Part);
+            var to = s + a.Offset(e.To, e.Part);
             if (d >= from && d <= to)
-                return At(body, e.From + (d - from), a == b);
+                return At(body, a.At(a.First + (d - s), e.Part), a == b);
             if (to < d && to > restEnd)
                 (rest, restMine, restEnd) = (Math.Min(e.To + 1, _actions.Last), a == b, to);
         }
@@ -1281,7 +1321,8 @@ public sealed class BattleComposer
             var a = _actions.Actions[i];
             if (a.Start is not { } s || s > _drawn)
                 continue;
-            Advance(a, Math.Min(a.TickAt(_drawn), last), played);
+            Decide(a);
+            Advance(a, played);
         }
         foreach (var (body, track) in _tracks)
             Move(body, track, newestTick, live, played);
@@ -1289,7 +1330,7 @@ public sealed class BattleComposer
 
         // Once the newest action reaches the present, everything is put there; but the player's turn draws on the present while the
         // earlier actions draw on behind it.
-        if (newest is not null && newest != live && newest.TickAt(_drawn) >= last && _unscheduled == _actions.Actions.Count)
+        if (newest is not null && newest != live && newest.Base(_drawn) >= last && _unscheduled == _actions.Actions.Count)
             Snap(last, played);
         var frame = Composed(played);
         Retire();
@@ -1304,11 +1345,10 @@ public sealed class BattleComposer
     /// </summary>
     private void Bring(DrawnAction live)
     {
-        var at = Math.Min(live.TickAt(_drawn), _actions.Last);
         var touched = new List<Combatant>();
         foreach (var e in live.Episodes)
         {
-            if (e.From <= at && !Free(e.Body))
+            if (live.Decided(e.Part) && e.From <= Math.Min(live.TickAt(_drawn, e.Part), _actions.Last) && !Free(e.Body))
                 touched.Add(e.Body);
         }
         foreach (var body in touched)
@@ -1377,14 +1417,55 @@ public sealed class BattleComposer
         return started ?? _actions.Actions[Math.Max(0, _unscheduled - 1)];
     }
 
-    /// <summary>Plays an action's timeline to <paramref name="tick"/>.</summary>
-    private static void Advance(DrawnAction a, int tick, List<Moment> played)
+    /// <summary>Plays each of an action's parts decided to the tick it has now, no further than the battle's present.</summary>
+    private void Advance(DrawnAction a, List<Moment> played)
     {
-        if (tick <= a.Played)
+        var last = _actions.Last;
+        a.Played = Math.Max(a.Played, Math.Min(a.Base(_drawn), last));
+        foreach (var part in a.Parts)
+        {
+            if (part.Shift is null)
+                continue;
+            var tick = Math.Min(a.TickAt(_drawn, part.Index), last);
+            while (part.MomentsPlayed < part.Moments.Count && part.Moments[part.MomentsPlayed].Tick <= tick)
+                played.Add(part.Moments[part.MomentsPlayed++]);
+        }
+    }
+
+    /// <summary>
+    /// Decides the shifts of an action's later parts (a spell cast at several targets), each once, in order: so far ahead of the first
+    /// part that its result strikes on the drawn tick the first's does, no further than its distance from the action's first tick; for
+    /// an action drawing, no further than lets its first tick be drawn now or later. A part whose strike isn't recorded yet waits, while
+    /// its first tick is still to come, then takes the part before's shift, as one with no strike does.
+    /// </summary>
+    private void Decide(DrawnAction a)
+    {
+        if (a.Parts.Count < 2)
             return;
-        a.Played = tick;
-        while (a.MomentsPlayed < a.Moments.Count && a.Moments[a.MomentsPlayed].Tick <= tick)
-            played.Add(a.Moments[a.MomentsPlayed++]);
+        var first = a.Parts[0];
+        for (var k = 1; k < a.Parts.Count; k++)
+        {
+            var part = a.Parts[k];
+            if (part.Shift is not null)
+                continue;
+            var most = part.First - a.First;
+            int? want = part.Strike is { } strike && first.Strike is { } struck
+                ? strike - struck
+                : k + 1 < a.Parts.Count || a.Closed ? a.Parts[k - 1].Shift : null;
+            if (a.Start is { } s && s <= _drawn)
+            {
+                // Its first tick drawn now at the soonest.
+                var latest = s + (part.First - a.First) - _drawn;
+                if (want is null && latest > 0)
+                    return;
+                most = Math.Min(most, latest);
+            }
+            else if (want is null)
+            {
+                return;
+            }
+            part.Shift = Math.Max(0, Math.Min(want ?? 0, most));
+        }
     }
 
     /// <summary>
@@ -1400,9 +1481,9 @@ public sealed class BattleComposer
         while (track.Episode < episodes.Count)
         {
             var e = episodes[track.Episode];
-            if (e.Action.Start is { } s && s <= _drawn)
+            if (e.Action.Start is { } s && s <= _drawn && e.Action.Decided(e.Part))
             {
-                var at = e.Action.TickAt(_drawn);
+                var at = e.Action.TickAt(_drawn, e.Part);
                 if (at > e.To)
                 {
                     // Its episode has played: it rests where that left it.
@@ -1454,10 +1535,11 @@ public sealed class BattleComposer
             var a = _actions.Actions[i];
             if (a.Start is not { } s)
                 continue;
-            var at = s <= _drawn ? a.TickAt(_drawn) : a.First - 1;
+            var at = s <= _drawn ? a.Base(_drawn) : a.First - 1;
             if (at < tick)
                 a.Start = _drawn - (tick - a.First);
-            Advance(a, Math.Min(tick, _actions.Last), played);
+            Decide(a);
+            Advance(a, played);
         }
         foreach (var (body, track) in _tracks)
         {
@@ -1475,8 +1557,9 @@ public sealed class BattleComposer
         while (_live < _unscheduled - 1)
         {
             var a = _actions.Actions[_live];
-            if (a.Start > _drawn || a.TailEnd is not { } end || a.TickAt(_drawn) <= end || a.MomentsPlayed < a.Moments.Count
-                || a.Beats.Any(beat => a.TickAt(_drawn) <= beat.End(_actions.Last)))
+            if (a.Start > _drawn || a.EndOffset is not { } end || _drawn <= a.Start + end
+                || a.Parts.Any(p => p.MomentsPlayed < p.Moments.Count)
+                || a.Beats.Any(beat => a.TickAt(_drawn, beat.Part) <= beat.End(_actions.Last)))
                 break;
             _live++;
         }
@@ -1490,7 +1573,7 @@ public sealed class BattleComposer
         for (var i = _live; i < _actions.Actions.Count; i++)
         {
             var a = _actions.Actions[i];
-            slowest = Math.Min(slowest, a.Start is { } s && s <= _drawn ? Math.Max(a.First, Math.Min(a.TickAt(_drawn), _actions.Last)) : a.First);
+            slowest = Math.Min(slowest, a.Start is { } s && s <= _drawn ? Math.Max(a.First, Math.Min(a.Base(_drawn), _actions.Last)) : a.First);
         }
         foreach (var track in _tracks.Values)
         {
@@ -1500,7 +1583,7 @@ public sealed class BattleComposer
         return Math.Max(slowest, _actions.Kept);
     }
 
-    private int Clamp(DrawnAction a) => Math.Clamp(a.TickAt(_drawn), Math.Max(a.First, _actions.Kept), _actions.Last);
+    private int Clamp(DrawnAction a, int part) => Math.Clamp(a.TickAt(_drawn, part), Math.Max(a.First, _actions.Kept), _actions.Last);
 
     /// <summary>The tick of an action's own the drawing has now: its timeline's, no further than its last.</summary>
     private int Own(DrawnAction a) => Math.Clamp(a.TickAt(_drawn), Math.Max(a.First, _actions.Kept), a.Closed ? a.Last : _actions.Last);
@@ -1584,18 +1667,25 @@ public sealed class BattleComposer
             var a = _actions.Actions[i];
             if (a.Start is not { } s || s > _drawn)
                 continue;
-            var frame = _actions[Clamp(a)];
-            if (frame.Missile is { } m && _actions.BirthOf(m.Flight) == a)
-                missiles.Add(m);
-            foreach (var v in frame.Visuals)
+            // Each from its part's tick.
+            foreach (var part in a.Parts)
             {
-                if (v.Visual.IsActor && _actions.BirthOf(v.Visual) == a)
-                    visuals.Add(v);
-            }
-            foreach (var n in frame.Numbers)
-            {
-                if (_actions.BirthOf(n.Number) == a)
-                    numbers.Add(n);
+                if (part.Shift is null)
+                    continue;
+                var p = part.Index;
+                var frame = _actions[Clamp(a, p)];
+                if (frame.Missile is { } m && _actions.BirthOf(m.Flight) == a && a.PartOf(m.Flight) == p)
+                    missiles.Add(m);
+                foreach (var v in frame.Visuals)
+                {
+                    if (v.Visual.IsActor && _actions.BirthOf(v.Visual) == a && a.PartOf(v.Visual) == p)
+                        visuals.Add(v);
+                }
+                foreach (var n in frame.Numbers)
+                {
+                    if (_actions.BirthOf(n.Number) == a && a.PartOf(n.Number) == p)
+                        numbers.Add(n);
+                }
             }
         }
         foreach (var (_, (body, frame)) in where)

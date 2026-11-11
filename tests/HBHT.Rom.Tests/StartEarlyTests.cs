@@ -491,7 +491,7 @@ public sealed class StartEarlyTests(Na10Import fixture)
                 if (t != f.Tick)
                     Apart++;
                 // No body is in two actions' episodes at once.
-                var holding = now.Count(a => a.Episodes.Any(e => e.Body == c && e.From <= a.TickAt(d) && a.TickAt(d) <= e.To));
+                var holding = now.Count(a => a.Episodes.Any(e => e.Body == c && a.Decided(e.Part) && e.From <= a.TickAt(d, e.Part) && a.TickAt(d, e.Part) <= e.To));
                 Assert.True(holding <= 1, $"{c} is in {holding} actions' episodes at drawn tick {d}: " + string.Join("; ", now.Where(a =>
                     a.Episodes.Any(e => e.Body == c)).Select(a => $"{a} start {a.Start} at {a.TickAt(d)} tail {a.TailEnd} episodes " +
                     string.Join(",", a.Episodes.Where(e => e.Body == c).Select(e => $"{e.From}-{e.To}")))));
@@ -574,10 +574,10 @@ public sealed class StartEarlyTests(Na10Import fixture)
                         // A beat is shown till its end, or with an outcome hold, till the hold's.
                         var hold = composer.Pacing.OutcomeHold;
                         var shown = hold > 0 ? Math.Min(beat.End(last), beat.From + hold - 1) : beat.End(last);
-                        if (a.DrawnAt(shown) < d)
+                        if (a.DrawnAt(shown, beat.Part) < d)
                             continue;
-                        Assert.True(a.DrawnAt(beat.From) <= d, $"the player's turn opened at drawn tick {d} before {beat} struck");
-                        var at = Math.Clamp(a.TickAt(d), beat.From, shown);
+                        Assert.True(a.DrawnAt(beat.From, beat.Part) <= d, $"the player's turn opened at drawn tick {d} before {beat} struck");
+                        var at = Math.Clamp(a.TickAt(d, beat.Part), beat.From, shown);
                         playing.Add(new FramedBeat(beat, at, _places[at][beat.Subject], null));
                     }
                 }
@@ -593,7 +593,7 @@ public sealed class StartEarlyTests(Na10Import fixture)
             {
                 var c = f.Current!;
                 var held = drawing.Actions.Actions.Where(a => a.Index < drawing.Actions.Actions.Count - 1 && a.Episodes.Any(e =>
-                    e.Body == c && (a.Start is not { } s || s > d || a.TickAt(d) <= e.To))).ToList();
+                    e.Body == c && (a.Start is not { } s || s > d || a.TickAt(d, e.Part) <= e.To))).ToList();
                 Assert.True(held.Count == 0, $"the player's turn opened at drawn tick {d} while {c} was still drawn in {string.Join(", ", held)}");
                 if (!drawing.CaughtUp)
                     OpenedEarly++;
@@ -606,6 +606,41 @@ public sealed class StartEarlyTests(Na10Import fixture)
 
         /// <summary>Beats that struck, and those off the shot drawn or hidden in it as they struck.</summary>
         public int Struck { get; private set; }
+
+        /// <summary>The drawn tick each beat struck on.</summary>
+        public Dictionary<Beat, int> StruckAt { get; } = [];
+
+        /// <summary>
+        /// The spells cast at several targets, and those whose targets' hits didn't strike on one drawn tick though their parts were
+        /// shifted to (a part's shift is cut short only where it would start before its action, or on a drawn tick already drawn).
+        /// </summary>
+        public (int Casts, int Parts, int Together, List<string> Apart) Volleys()
+        {
+            var (casts, parts, together) = (0, 0, 0);
+            var apart = new List<string>();
+            foreach (var a in drawing.Actions.Actions)
+            {
+                if (a.Parts.Count < 2)
+                    continue;
+                casts++;
+                parts += a.Parts.Count;
+                var first = a.Parts[0];
+                var strikes = new List<(ActionPart Part, int At)>();
+                foreach (var part in a.Parts)
+                {
+                    var beat = a.Beats.FirstOrDefault(b => b.Part == part.Index && b.Subject == part.Target);
+                    var aligned = part.Strike is { } s && first.Strike is { } f && part.Shift == s - f;
+                    if (beat is not null && aligned && StruckAt.TryGetValue(beat, out var at))
+                        strikes.Add((part, at));
+                }
+                if (strikes.Count < 2)
+                    continue;
+                together++;
+                if (strikes.Select(x => x.At).Distinct().Count() > 1)
+                    apart.Add($"{a}: " + string.Join(", ", strikes.Select(x => $"{x.Part} struck at {x.At}")));
+            }
+            return (casts, parts, together, apart);
+        }
 
         public List<string> OffShot { get; } = [];
 
@@ -677,6 +712,7 @@ public sealed class StartEarlyTests(Na10Import fixture)
                 if (p.Tick != p.Beat.From)
                     continue;
                 Struck++;
+                StruckAt.TryAdd(p.Beat, d);
                 var subject = BeatShots.Subject(p);
                 if (!ShotFraming.Holds(shot, subject with { Radius = 0 }, lens))
                     OffShot.Add($"{p.Beat} struck off the shot at drawn tick {d} ({director.Camera.Kind}; leading {director.Lead}, live {composer.Live}, walking {director.Camera.Walking})");
@@ -828,6 +864,10 @@ public sealed class StartEarlyTests(Na10Import fixture)
             TestContext.Current.TestOutputHelper?.WriteLine($"  walkers off the screen {n}: {k}");
         foreach (var line in w.QuickCuts.Take(15).Concat(w.OutcomeCut.Take(15)).Concat(w.OutcomeLost.Take(10)).Concat(w.MoverOff.Take(15)))
             TestContext.Current.TestOutputHelper?.WriteLine("  " + line);
+        // A spell cast at several targets strikes them all on one drawn tick, each on the screen as it strikes (the beats' check above).
+        var (casts, parts, together, apart) = w.Volleys();
+        TestContext.Current.TestOutputHelper?.WriteLine($"Spells at several targets: {casts}, in {parts} parts; {together} with two or more hits drawn, {apart.Count} of them apart");
+        Assert.True(apart.Count == 0, string.Join("\n", apart.Take(10)));
         Assert.True(w.OffShot.Count == 0, string.Join("\n", w.OffShot.Take(10)));
         Assert.True(w.HiddenAtStrike.Count == 0, string.Join("\n", w.HiddenAtStrike.Take(10)));
         Assert.True(w.OverlapOffShot.Count == 0, string.Join("\n", w.OverlapOffShot.Take(10)));

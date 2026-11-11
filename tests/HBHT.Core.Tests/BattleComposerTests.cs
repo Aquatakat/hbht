@@ -263,6 +263,72 @@ public sealed class BattleComposerTests
         Assert.Equal(beat.From + new StartEarlyPacing().OutcomeHold, OpenedAt(composer));
     }
 
+    // ---------------------------------------------------------------------------------------------------------------------------
+    // A spell at several targets, its hits at once
+
+    [Fact]
+    public void ASpellCastAtSeveralTargetsInTurnStrikesThemAllOnOneDrawnTick()
+    {
+        // D's turn, then A casts at B, C and D in turn as 1.0 does: each cast 40 ticks before its hit, 60 after it before the next.
+        var script = new Script(_d, _a, _b, _c);
+        script.Place(_a, Vector3.Zero).Place(_b, new(-3, 0, 5)).Place(_c, new(0, 0, 6)).Place(_d, new(3, 0, 5));
+        script.Stand(_d, 10);
+        script.Stand(_a, 20);
+        var casts = new List<(Combatant Target, CombatCue Cast, CombatCue Hit)>();
+        var handle = 0;
+        foreach (var target in new[] { _b, _c, _d })
+        {
+            var visual = new SpellFxVisual(handle++, SpellFxRole.Caster, HBHT.Plugins.RecordId.Hex(HBHT.Plugins.RecordTypes.Actor, 1), _a, 0) { Other = target };
+            var (cast, hit) = (new CombatantAnimated(_a, Battle.CastRequest), new CombatantAnimated(target, Battle.HitRequest));
+            script.Cue(new SpellVisualStarted(visual));
+            script.Cue(cast);
+            script.Stand(_a, 40);
+            script.Cue(new SpellVisualEnded(visual));
+            script.Cue(hit);
+            script.Stand(_a, 60);
+            casts.Add((target, cast, hit));
+        }
+        script.Stand(_b, 10);
+
+        var composer = Recorded(script);
+        var recorded = script.Frames.Skip(1).SelectMany(f => f.Cues).ToList();
+        var played = new Dictionary<CombatCue, int>(ReferenceEqualityComparer.Instance);
+        var ticks = new Dictionary<Combatant, int>();
+        for (var i = 0; i < 2000 && !composer.CaughtUp; i++)
+        {
+            var frame = composer.Next();
+            foreach (var cue in frame.Cues)
+            {
+                Assert.False(played.ContainsKey(cue), $"{cue} played twice");
+                played[cue] = composer.Drawn;
+            }
+            // No body is drawn from an earlier tick than before.
+            foreach (var b in frame.Bodies)
+            {
+                var t = composer.DrawnTickOf(b.Combatant)!.Value;
+                Assert.True(t >= ticks.GetValueOrDefault(b.Combatant), $"{b.Combatant} went back to {t} at drawn tick {composer.Drawn}");
+                ticks[b.Combatant] = t;
+            }
+        }
+        Assert.True(composer.CaughtUp);
+        Assert.Equal(recorded.Count, played.Count);
+
+        // A's turn is cut into a part a target, each drawn ahead of the first by its hit's distance from the first's.
+        var action = composer.Actions.Actions[1];
+        Assert.Equal(3, action.Parts.Count);
+        Assert.Equal([_b, _c, _d], action.Parts.Select(p => p.Target));
+        Assert.Equal([0, 100, 200], action.Parts.Select(p => p.Shift!.Value));
+        // Every target's hit strikes on one drawn tick, each cast its 40 ticks before it, and the battle is drawn 200 ticks sooner.
+        var strike = played[casts[0].Hit];
+        foreach (var (target, cast, hit) in casts)
+        {
+            Assert.Equal(strike, played[hit]);
+            Assert.Equal(strike - 40, played[cast]);
+            Assert.Single(action.Beats, b => b.Subject == target);
+        }
+        Assert.True(composer.Drawn <= script.Frames.Count - 1 - 200, $"drawn in {composer.Drawn} ticks");
+    }
+
     [Fact]
     public void ThePlayersStickWaitsTillNoBodyWalkingInTheDrawingIsInItsReach()
     {

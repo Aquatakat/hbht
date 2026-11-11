@@ -25,6 +25,10 @@ After your Nov 10 play (F3 now rings walkers teal and says how long an outcome h
 10. Stopping with no enemy ahead, does the view rest well where it stopped?
 11. If Dougal's walk stalls again, note who stands nearest him (F3's line has every body's place). A subagent found no way for Start Early to hold a live turn's stick; the likeliest cause is his body pushing against another, or a wall the director's still camera keeps him walking into.
 
+After your Nov 10 question about Fireball:
+
+12. Does Fireball (or any spell at several targets, an enemy's or yours) now land on all its targets at once, in one shot holding them all, its casts' sounds and visuals together? Does the caster turning to its last target once the hits have played look right, or would you rather it stayed facing the first ([combat](systems/combat.md#pacing-beats-and-the-players-wait))?
+
 ### Combat Turns: Start Early's pacing (piece A)
 
 Under Combat Turns: Start Early, in a battle with several enemies (the rats at F09, bandits, the Chaos casters), how the beats, the turn's wait and the held stick feel ([combat](systems/combat.md#pacing-beats-and-the-players-wait)):

@@ -49,7 +49,7 @@ public sealed class BattleActions
     private readonly Dictionary<Combatant, List<Episode>> _episodes = [];
     private readonly Dictionary<Combatant, List<Moment>> _bodyItems = [];
     private readonly Dictionary<object, DrawnAction> _births = [];
-    private readonly Dictionary<Audio.SoundHandle, (DrawnAction? Action, Combatant? Body)> _soundTimelines = [];
+    private readonly Dictionary<Audio.SoundHandle, Timeline> _soundTimelines = [];
     private readonly Dictionary<ActorRecord, HashSet<int>> _idle = [];
     private readonly HashSet<Combatant> _known = [];
     private readonly Dictionary<Combatant, Reaction> _reacting = [];
@@ -121,6 +121,8 @@ public sealed class BattleActions
             action = new DrawnAction(_actions.Count, frame.Current, t);
             _actions.Add(action);
         }
+
+        Split(frame, action, t);
 
         // What the frame's cues say, and whom.
         var cued = new HashSet<Combatant>();
@@ -196,21 +198,63 @@ public sealed class BattleActions
 
         // The one-offs, each on its timeline.
         foreach (var cue in frame.Cues)
-            Place(t, cue, action, Timeline(cue, action));
+            Place(t, cue, Rehome(TimelineOf(cue, action), cue, action));
         foreach (var call in frame.Sounds)
-            Place(t, call, action, SoundTimeline(call, action));
+            Place(t, call, SoundTimeline(call, action));
         foreach (var start in frame.Emitters)
         {
             var owner = start.Owner switch
             {
-                Combatant c => (null, c),
-                SpellFxVisual { IsActor: true } v => (_births.GetValueOrDefault(v) ?? action, null),
-                SpellFxVisual v => ((DrawnAction?)null, (Combatant?)v.Owner),
-                _ => (action, null),
+                Combatant c => Timeline.Of(c),
+                SpellFxVisual { IsActor: true } v => Born(v) ?? Timeline.Of(action),
+                SpellFxVisual v => Timeline.Of(v.Owner),
+                _ => Timeline.Of(action),
             };
-            Place(t, start, action, owner);
+            Place(t, start, Rehome(owner, start, action));
         }
         action.Recorded(t);
+    }
+
+    /// <summary>
+    /// A cast at a new target, in a turn that has cast at another: a part of its own (Start Early draws a spell's targets' hits at once).
+    /// 1.0 casts a spell at each of its targets in turn (<c>Combatant.CastCurrentSpell</c>, <c>0x80065C08</c>), each cast starting its
+    /// visuals on the tick it's cast, so a part begins on the tick a visual of the turn's combatant's cast names another target.
+    /// </summary>
+    private static void Split(BattleFrame frame, DrawnAction action, int t)
+    {
+        if (action.Current is not { } caster)
+            return;
+        foreach (var cue in frame.Cues)
+        {
+            if (cue is not SpellVisualStarted { Visual: var v } || CastTarget(v, caster) is not { } target)
+                continue;
+            var part = action.Recording;
+            if (part.Target is null)
+                part.Target = target;
+            else if (part.Target != target)
+                action.NewPart(t, target);
+        }
+    }
+
+    /// <summary>Whom a visual of <paramref name="caster"/>'s cast is cast at: the other body of its actor at the caster or at the target.</summary>
+    private static Combatant? CastTarget(SpellFxVisual v, Combatant caster) => v.Role switch
+    {
+        SpellFxRole.Caster or SpellFxRole.Refused when v.Owner == caster => v.Other,
+        SpellFxRole.Target or SpellFxRole.Resisted when v.Other == caster => v.Owner,
+        _ => null,
+    };
+
+    /// <summary>
+    /// What's on the caster's own timeline in a later part of a spell cast at several targets (its request, its cast's sound, its actor's
+    /// emitters) plays on that part's instead, with its cast, since the caster is drawn from the first part and then the last
+    /// (<see cref="DrawnAction.At"/>). Its joining, going and death stay with its body.
+    /// </summary>
+    private static Timeline Rehome(Timeline timeline, object payload, DrawnAction action)
+    {
+        if (timeline.Body is { } body && body == action.Current && action.Recording.Index > 0
+            && payload is not (CombatantJoined or CombatantGone or CombatantDied))
+            return new Timeline(action, action.Recording.Index, null);
+        return timeline;
     }
 
     /// <summary>
@@ -283,7 +327,7 @@ public sealed class BattleActions
                 r.Beat.To = Math.Max(r.Beat.From, t - 1);
                 _reacting.Remove(body);
             }
-            var beat = new Beat(action, body, kind, t);
+            var beat = new Beat(action, body, kind, t, action.Recording.Index);
             action.AddBeat(beat);
             _reacting[body] = new Reaction(beat, Find(before.Bodies, body)?.ActorState);
         }
@@ -387,14 +431,19 @@ public sealed class BattleActions
         return _idle[actor] = idle;
     }
 
-    /// <summary>A body is involved on tick <paramref name="t"/>: its last episode carries on, or one begins in <paramref name="action"/>.</summary>
+    /// <summary>
+    /// A body is involved on tick <paramref name="t"/>: its last episode carries on, or one begins in <paramref name="action"/>, in the
+    /// part being recorded; the action's own combatant's is on the action's own timeline (<see cref="DrawnAction.OwnPart"/>). A cue
+    /// in a later part begins an episode of that part.
+    /// </summary>
     private void Involve(Combatant c, int t, DrawnAction action, bool cue)
     {
         Know(c);
         var list = _episodes[c];
+        var part = c == action.Current ? DrawnAction.OwnPart : action.Recording.Index;
         if (list.Count > 0 && list[^1] is var last && last.To >= t - Gap - 1)
         {
-            if (last.Action == action)
+            if (last.Action == action && (last.Part == part || !cue))
             {
                 last.To = t;
                 return;
@@ -406,7 +455,7 @@ public sealed class BattleActions
                 return;
             }
         }
-        var episode = new Episode(c, action, t);
+        var episode = new Episode(c, action, t, part);
         list.Add(episode);
         action.Add(episode);
     }
@@ -422,38 +471,41 @@ public sealed class BattleActions
     }
 
     /// <summary>The timeline a cue plays on.</summary>
-    private (DrawnAction? Action, Combatant? Body) Timeline(CombatCue cue, DrawnAction action) => cue switch
+    private Timeline TimelineOf(CombatCue cue, DrawnAction action) => cue switch
     {
-        CombatantJoined j => (null, j.Combatant),
-        CombatantAnimated a => (null, a.Combatant),
-        CombatantDied d => (null, d.Combatant),
-        CombatantGone g => (null, g.Combatant),
-        NumberShown or NumberGone or MissileLaunched or MissileLanded => (Born(cue) ?? action, null),
-        SpellVisualStarted { Visual: { IsActor: false } v } => (null, v.Owner),
-        SpellVisualEnded { Visual: { IsActor: false } v } => (null, v.Owner),
-        SpellVisualStarted or SpellVisualEnded => (Born(cue) ?? action, null),
-        _ => (action, null),
+        CombatantJoined j => Timeline.Of(j.Combatant),
+        CombatantAnimated a => Timeline.Of(a.Combatant),
+        CombatantDied d => Timeline.Of(d.Combatant),
+        CombatantGone g => Timeline.Of(g.Combatant),
+        NumberShown or NumberGone or MissileLaunched or MissileLanded => Born(Thing(cue)) ?? Timeline.Of(action),
+        SpellVisualStarted { Visual: { IsActor: false } v } => Timeline.Of(v.Owner),
+        SpellVisualEnded { Visual: { IsActor: false } v } => Timeline.Of(v.Owner),
+        SpellVisualStarted or SpellVisualEnded => Born(Thing(cue)) ?? Timeline.Of(action),
+        _ => Timeline.Of(action),
     };
 
-    private DrawnAction? Born(CombatCue cue) => cue switch
+    private static object? Thing(CombatCue cue) => cue switch
     {
-        NumberShown n => _births.GetValueOrDefault(n.Number),
-        NumberGone n => _births.GetValueOrDefault(n.Number),
-        MissileLaunched m => _births.GetValueOrDefault(m.Flight),
-        MissileLanded m => _births.GetValueOrDefault(m.Flight),
-        SpellVisualStarted v => _births.GetValueOrDefault(v.Visual),
-        SpellVisualEnded v => _births.GetValueOrDefault(v.Visual),
+        NumberShown n => n.Number,
+        NumberGone n => n.Number,
+        MissileLaunched m => m.Flight,
+        MissileLanded m => m.Flight,
+        SpellVisualStarted v => v.Visual,
+        SpellVisualEnded v => v.Visual,
         _ => null,
     };
 
+    /// <summary>The timeline of the action and part a number, missile or spell's actor began in.</summary>
+    private Timeline? Born(object? thing) =>
+        thing is not null && _births.GetValueOrDefault(thing) is { } a ? new Timeline(a, a.PartOf(thing), null) : null;
+
     /// <summary>
     /// The timeline a sound call plays on: its body's, if a body's keys made it; otherwise its sound's start's, so it never stops before
-    /// it starts.
+    /// it starts. A sound the caster starts in a later part of a spell cast at several targets plays on that part's
+    /// (<see cref="Rehome"/>), and what follows it there while that action is recorded; what follows it later, on the caster's.
     /// </summary>
-    private (DrawnAction? Action, Combatant? Body) SoundTimeline(SoundCall call, DrawnAction action)
+    private Timeline SoundTimeline(SoundCall call, DrawnAction action)
     {
-        if (call.Owner is { } owner && _known.Contains(owner))
-            return (null, owner);
         var handle = call switch
         {
             SoundCall.Start s => s.Handle,
@@ -462,14 +514,27 @@ public sealed class BattleActions
             SoundCall.Stop s => s.Handle,
             _ => default,
         };
+        if (call.Owner is { } owner && _known.Contains(owner))
+        {
+            if (handle.IsNone)
+                return Rehome(Timeline.Of(owner), call, action);
+            if (call is SoundCall.Start)
+            {
+                var start = Rehome(Timeline.Of(owner), call, action);
+                if (start.Body is null)
+                    _soundTimelines[handle] = start;
+                return start;
+            }
+            return _soundTimelines.TryGetValue(handle, out var moved) && moved.Action == action ? moved : Timeline.Of(owner);
+        }
         if (handle.IsNone)
-            return (action, null);
+            return Timeline.Of(action);
         if (call is SoundCall.Start)
-            return _soundTimelines[handle] = (action, null);
-        return _soundTimelines.TryGetValue(handle, out var timeline) ? timeline : (action, null);
+            return _soundTimelines[handle] = Timeline.Of(action);
+        return _soundTimelines.TryGetValue(handle, out var timeline) ? timeline : Timeline.Of(action);
     }
 
-    private void Place(int t, object payload, DrawnAction frameAction, (DrawnAction? Action, Combatant? Body) timeline)
+    private void Place(int t, object payload, Timeline timeline)
     {
         var item = new Moment(_seq++, t, payload);
         if (timeline.Body is { } body)
@@ -479,8 +544,19 @@ public sealed class BattleActions
         }
         else
         {
-            (timeline.Action ?? frameAction).Moments.Add(item);
+            timeline.Action!.Parts[timeline.Part].Moments.Add(item);
         }
+    }
+
+    /// <summary>
+    /// A timeline a one-off plays on: a body's, or a part of an action's (the part an action's own one-offs were recorded in, or the
+    /// one the thing they're about was born in).
+    /// </summary>
+    private readonly record struct Timeline(DrawnAction? Action, int Part, Combatant? Body)
+    {
+        public static Timeline Of(Combatant body) => new(null, 0, body);
+
+        public static Timeline Of(DrawnAction action) => new(action, action.Recording.Index, null);
     }
 }
 
@@ -488,11 +564,30 @@ public sealed class BattleActions
 /// One turn's frames as an action (Start Early): its combatant, its ticks, the bodies it involves (<see cref="Episodes"/>), the
 /// numbers, missiles and spells' actors it began, and where the drawing has it: when it starts drawing and how far it has played.
 /// </summary>
+/// <remarks>
+/// <para>
+/// <b>Parts.</b> A turn that casts a spell at several targets, one after another as 1.0 does, is cut into <see cref="Parts"/>, one a
+/// target, each from the tick its cast at that target begins (the first from the turn's start). Each part's episodes, beats, one-offs
+/// and the numbers and spells' actors it began are drawn <see cref="ActionPart.Shift"/> ticks ahead of the first's, so every target's
+/// hit strikes on the drawn tick the first's does. Its combatant is drawn on the action's own timeline (<see cref="OwnPart"/>): the
+/// first part's ticks till the first part ends, then the last part's.
+/// </para>
+/// <para>
+/// A part's ticks are a tick a drawn tick, from the action's start, its shift added (<see cref="TickAt(int, int)"/>); the action's
+/// <b>base</b> tick (<see cref="Base"/>) is the first part's, and the earliest any of its timelines is drawn at. An action of one part
+/// draws every timeline at the base tick, as it always has.
+/// </para>
+/// </remarks>
 public sealed class DrawnAction
 {
+    /// <summary>The action's own timeline, its combatant's: the first part's ticks, then, once those run out, the last part's.</summary>
+    public const int OwnPart = -1;
+
     private readonly List<Episode> _episodes = [];
     private readonly List<Beat> _beats = [];
     private readonly Dictionary<object, int?> _things = [];
+    private readonly Dictionary<object, int> _thingParts = [];
+    private readonly List<ActionPart> _parts = [];
 
     internal DrawnAction(int index, Combatant? current, int first)
     {
@@ -501,6 +596,7 @@ public sealed class DrawnAction
         First = first;
         Last = first;
         Played = first - 1;
+        _parts.Add(new ActionPart(0, first) { Shift = 0 });
     }
 
     /// <summary>Its place among the battle's actions.</summary>
@@ -530,6 +626,15 @@ public sealed class DrawnAction
     /// <summary>The numbers, missiles and spells' actors it began, each with the tick it ended on, or null while it lives.</summary>
     public IReadOnlyDictionary<object, int?> Things => _things;
 
+    /// <summary>Its parts: one, or one a target for a spell cast at several (<see cref="ActionPart"/>).</summary>
+    public IReadOnlyList<ActionPart> Parts => _parts;
+
+    /// <summary>The part being recorded: the last.</summary>
+    internal ActionPart Recording => _parts[^1];
+
+    /// <summary>The part a number, missile or spell's actor it began was begun in.</summary>
+    public int PartOf(object thing) => _thingParts.GetValueOrDefault(thing);
+
     /// <summary>The drawn tick it starts drawing on, once it's scheduled.</summary>
     public int? Start { get; internal set; }
 
@@ -542,43 +647,115 @@ public sealed class DrawnAction
     /// </summary>
     public bool Opened { get; internal set; }
 
-    /// <summary>The last of its timeline's ticks played: its frames, then its tail.</summary>
+    /// <summary>The last base tick its timelines have played to.</summary>
     public int Played { get; internal set; }
 
     /// <summary>Whether its timeline has played to its end, or was caught up.</summary>
     public bool Done { get; internal set; }
 
+    /// <summary>Whether a part's shift is decided, so it can be drawn; the action's own timeline always is.</summary>
+    public bool Decided(int part) => part < 0 || _parts[part].Shift is not null;
+
+    /// <summary>How far ahead of the first part a part is drawn: its shift, or none while undecided.</summary>
+    public int ShiftOf(int part) => part < 0 ? 0 : _parts[part].Shift ?? 0;
+
     /// <summary>
-    /// The last tick its timeline plays: its last tick, its episodes' and the end of what it began; null while what it began lives on.
+    /// The tick of timeline <paramref name="part"/> at base tick <paramref name="baseTick"/>: a part's, its shift added; the own
+    /// timeline's, the first part's till the second begins, then the last part's.
     /// </summary>
-    public int? TailEnd
+    public int At(int baseTick, int part)
+    {
+        if (part >= 0)
+            return baseTick + ShiftOf(part);
+        return _parts.Count < 2 || baseTick < _parts[1].First ? baseTick : baseTick + ShiftOf(_parts.Count - 1);
+    }
+
+    /// <summary>
+    /// How many drawn ticks after its start timeline <paramref name="part"/> draws tick <paramref name="tick"/> (the own timeline's skipped
+    /// ticks, as it goes from the first part to the last, all on the drawn tick it goes).
+    /// </summary>
+    public int Offset(int tick, int part)
+    {
+        if (part >= 0)
+            return tick - First - ShiftOf(part);
+        if (_parts.Count < 2 || tick < _parts[1].First)
+            return tick - First;
+        return Math.Max(_parts[1].First, tick - ShiftOf(_parts.Count - 1)) - First;
+    }
+
+    /// <summary>The first part's tick on drawn tick <paramref name="drawn"/>, once it's scheduled: the earliest any timeline of it is drawn at.</summary>
+    public int Base(int drawn) => First + (drawn - Start!.Value);
+
+    /// <summary>The tick its own timeline has on drawn tick <paramref name="drawn"/>, once it has started.</summary>
+    public int TickAt(int drawn) => At(Base(drawn), OwnPart);
+
+    /// <summary>The tick timeline <paramref name="part"/> has on drawn tick <paramref name="drawn"/>, once it has started.</summary>
+    public int TickAt(int drawn, int part) => At(Base(drawn), part);
+
+    /// <summary>The drawn tick its own timeline draws tick <paramref name="tick"/> on, once it's scheduled.</summary>
+    public int DrawnAt(int tick) => DrawnAt(tick, OwnPart);
+
+    /// <summary>The drawn tick timeline <paramref name="part"/> draws tick <paramref name="tick"/> on, once it's scheduled.</summary>
+    public int DrawnAt(int tick, int part) => Start!.Value + Offset(tick, part);
+
+    /// <summary>Its timelines: its own, then each part's.</summary>
+    public IEnumerable<int> Timelines
     {
         get
         {
-            var end = Last;
-            foreach (var e in _episodes)
+            yield return OwnPart;
+            for (var p = 0; p < _parts.Count; p++)
+                yield return p;
+        }
+    }
+
+    /// <summary>
+    /// The last tick timeline <paramref name="part"/> plays: a part's last tick (the tick before the next part's first, or the action's
+    /// last), its episodes' and the end of what it began; the own timeline's, the action's last and its combatant's episodes'. Null
+    /// while what it began lives on.
+    /// </summary>
+    public int? EndOf(int part)
+    {
+        var end = part < 0 || part + 1 >= _parts.Count ? Last : _parts[part + 1].First - 1;
+        foreach (var e in _episodes)
+        {
+            if (e.Part == part)
                 end = Math.Max(end, e.To);
-            foreach (var (_, ended) in _things)
+        }
+        if (part < 0)
+            return end;
+        foreach (var (thing, ended) in _things)
+        {
+            if (_thingParts.GetValueOrDefault(thing) != part)
+                continue;
+            if (ended is not { } at)
+                return null;
+            end = Math.Max(end, at);
+        }
+        return end;
+    }
+
+    /// <summary>How many drawn ticks after its start its last timeline plays its last tick; null while what it began lives on.</summary>
+    public int? EndOffset
+    {
+        get
+        {
+            var end = int.MinValue;
+            foreach (var p in Timelines)
             {
-                if (ended is not { } at)
+                if (EndOf(p) is not { } e)
                     return null;
-                end = Math.Max(end, at);
+                end = Math.Max(end, Offset(e, p));
             }
             return end;
         }
     }
 
-    /// <summary>The tick its timeline has on drawn tick <paramref name="drawn"/>, once it has started.</summary>
-    public int TickAt(int drawn) => First + (drawn - Start!.Value);
-
-    /// <summary>The drawn tick it draws tick <paramref name="tick"/> on, once it's scheduled.</summary>
-    public int DrawnAt(int tick) => Start!.Value + (tick - First);
-
-    /// <summary>What plays on its timeline, in order.</summary>
-    internal List<Moment> Moments { get; } = [];
-
-    /// <summary>How many of <see cref="Moments"/> have played.</summary>
-    internal int MomentsPlayed { get; set; }
+    /// <summary>
+    /// The own timeline's tick as its last timeline plays its last tick: past it, it has played to its end. For an action of one part,
+    /// its last tick, its episodes' and the end of what it began; null while what it began lives on.
+    /// </summary>
+    public int? TailEnd => EndOffset is { } o ? At(First + o, OwnPart) : null;
 
     internal void Close(int last)
     {
@@ -594,17 +771,64 @@ public sealed class DrawnAction
 
     internal void Add(Episode e) => _episodes.Add(e);
 
-    internal void AddBeat(Beat b) => _beats.Add(b);
+    internal void AddBeat(Beat b)
+    {
+        _beats.Add(b);
+        // A part's strike: its first result on its target.
+        var part = _parts[b.Part];
+        if (part.Strike is null && (part.Target is null || part.Target == b.Subject))
+            part.Strike = b.From;
+    }
 
-    internal void Begin(object thing) => _things[thing] = null;
+    internal void Begin(object thing)
+    {
+        _things[thing] = null;
+        _thingParts[thing] = Recording.Index;
+    }
 
     internal void End(object thing, int tick) => _things[thing] = tick;
 
-    public override string ToString() => $"action {Index} ({Current?.ToString() ?? "intro"}) {First}–{(Closed ? Last : "…")}";
+    internal void NewPart(int first, Combatant target) => _parts.Add(new ActionPart(_parts.Count, first) { Target = target });
+
+    public override string ToString() =>
+        $"action {Index} ({Current?.ToString() ?? "intro"}) {First}–{(Closed ? Last : "…")}{(_parts.Count > 1 ? $" in {_parts.Count} parts" : "")}";
+}
+
+/// <summary>
+/// A part of an action (Start Early): the whole of it, or, for a spell cast at several targets one after another, the cast at one, from
+/// the tick it's cast on (<see cref="DrawnAction"/>).
+/// </summary>
+public sealed class ActionPart(int index, int first)
+{
+    /// <summary>Its place among its action's parts.</summary>
+    public int Index { get; } = index;
+
+    /// <summary>Its first tick.</summary>
+    public int First { get; } = first;
+
+    /// <summary>Whom its cast is at, or none for an action that casts nothing.</summary>
+    public Combatant? Target { get; internal set; }
+
+    /// <summary>The tick its first result on its target strikes, once recorded.</summary>
+    public int? Strike { get; internal set; }
+
+    /// <summary>
+    /// How many ticks ahead of the first part it's drawn, once decided (<see cref="BattleComposer"/>): its strike's distance from the
+    /// first part's, so the two strike on one drawn tick, no more than its distance from the action's first tick.
+    /// </summary>
+    public int? Shift { get; internal set; }
+
+    /// <summary>What plays on its timeline, in order.</summary>
+    internal List<Moment> Moments { get; } = [];
+
+    /// <summary>How many of <see cref="Moments"/> have played.</summary>
+    internal int MomentsPlayed { get; set; }
+
+    public override string ToString() => $"part {Index} from {First}{(Target is { } t ? $" at {t}" : "")}, shift {Shift?.ToString() ?? "?"}";
 }
 
 /// <summary>A body's run of involved ticks in one action (<see cref="BattleActions"/>), which may carry on past the action's end.</summary>
-public sealed class Episode(Combatant body, DrawnAction action, int from)
+public sealed class Episode(Combatant body, DrawnAction action, int from, int part = DrawnAction.OwnPart)
 {
     public Combatant Body { get; } = body;
 
@@ -616,7 +840,10 @@ public sealed class Episode(Combatant body, DrawnAction action, int from)
     /// <summary>Its last tick so far.</summary>
     public int To { get; internal set; } = from;
 
-    public override string ToString() => $"{Body} in {Action.Index}: {From}–{To}";
+    /// <summary>The timeline it's drawn on: its action's part, or its own timeline for its combatant's (<see cref="DrawnAction.OwnPart"/>).</summary>
+    public int Part { get; } = part;
+
+    public override string ToString() => $"{Body} in {Action.Index}{(Part > 0 ? $"/{Part}" : "")}: {From}–{To}";
 }
 
 /// <summary>What a beat's result was: one result can be several, as a hit that kills is damage and a defeat.</summary>
@@ -642,7 +869,7 @@ public enum BeatKind
 /// at once only where one shot can hold them all (<see cref="IBeatFraming"/>), and a turn the player plays opens once the beats
 /// before it have played.
 /// </summary>
-public sealed class Beat(DrawnAction action, Combatant subject, BeatKind kind, int from)
+public sealed class Beat(DrawnAction action, Combatant subject, BeatKind kind, int from, int part = 0)
 {
     /// <summary>The action it struck in, whose timeline it plays on.</summary>
     public DrawnAction Action { get; } = action;
@@ -661,10 +888,13 @@ public sealed class Beat(DrawnAction action, Combatant subject, BeatKind kind, i
     /// <summary>Its last tick, once its reaction is over; null while it plays on in the recording.</summary>
     public int? To { get; internal set; }
 
+    /// <summary>The part of its action it struck in, whose timeline it plays on (<see cref="DrawnAction.Parts"/>).</summary>
+    public int Part { get; } = part;
+
     /// <summary>Its last tick, or <paramref name="last"/>, the recording's, while it plays on.</summary>
     public int End(int last) => To ?? Math.Max(From, last);
 
-    public override string ToString() => $"{Kind} on {Subject} in {Action.Index}: {From}–{(To is { } to ? to.ToString() : "…")}";
+    public override string ToString() => $"{Kind} on {Subject} in {Action.Index}{(Part > 0 ? $"/{Part}" : "")}: {From}–{(To is { } to ? to.ToString() : "…")}";
 }
 
 /// <summary>Something a frame plays once (a cue, a sound call or an emitter start), with its tick and its place in the recording's order.</summary>

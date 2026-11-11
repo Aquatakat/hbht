@@ -248,6 +248,13 @@ public sealed class EnhancedCamera
     /// </summary>
     public bool Holding { get; set; }
 
+    /// <summary>
+    /// Set by Start Early's director for an action drawn with its targets' hits at once (a spell cast at several, in parts,
+    /// <see cref="DrawnAction.Parts"/>): its targets. The hit's shot (<see cref="Volley"/>) holds them all rather than one close, and a next
+    /// target among them is no new volley. Empty otherwise.
+    /// </summary>
+    public List<Combatant> Together { get; } = [];
+
     /// <summary>Whom the player heads for in their turn, its representative target.</summary>
     public Combatant? Target => _cone.Target as Combatant;
 
@@ -1478,6 +1485,12 @@ public sealed class EnhancedCamera
             _volley = null;
             return null;
         }
+        // A spell whose targets' hits are drawn at once (Start Early): the hit already holds them all, so its next target is no new one.
+        if (_volley is { Hit: true } struck && struck.Who == current && struck.At != target && Together.Contains(target) && Together.Contains(struck.At))
+        {
+            Kind = "the hit, at the targets";
+            return struck.Shot;
+        }
         if (target == current)
         {
             // A spell that takes others lands on its caster too: that's shown close as well, cut to straight away, as it has no loosing.
@@ -1556,6 +1569,15 @@ public sealed class EnhancedCamera
         var there = _scene.Centre(at);
         NewSubjects();
         _subjects.Add(_scene.Sphere(at));
+        // A spell whose targets' hits are drawn at once (Start Early): all of them, from the side this one would be seen from.
+        if (Together.Contains(at))
+        {
+            foreach (var c in Together)
+            {
+                if (c != at && !_scene.Freed(c))
+                    _subjects.Add(_scene.Sphere(c));
+            }
+        }
         if (who == at)
         {
             var from = _vantage is { } toward ? MathF.Atan2(toward.X - there.X, toward.Y - there.Z) : _from;

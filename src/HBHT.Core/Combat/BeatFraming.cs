@@ -8,8 +8,8 @@ namespace HBHT.Core.Combat;
 /// with the shots it can take; until then <see cref="SpreadFraming"/> stands in.
 /// </summary>
 /// <remarks>
-/// The composer asks only about beats of different actions: an action's own beats (a Fireball's targets) play as the recording has
-/// them. It asks on the drawn tick a beat would join others already playing, with each subject where it would be drawn then, so an
+/// The composer asks only about beats of different actions: an action's own beats play as its parts have them (a Fireball's targets
+/// all at once, <see cref="DrawnAction.Parts"/>). It asks on the drawn tick a beat would join others already playing, with each subject where it would be drawn then, so an
 /// answer may not depend on what's drawn now; and while it searches for an action's start it asks for every delay it tries, so an
 /// answer should be quick, and the same for the same question.
 /// </remarks>

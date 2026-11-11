@@ -167,6 +167,16 @@ public sealed class BattleDirector
             }
         }
         Lead = lead;
+        // A spell cast at several targets, their hits drawn at once: its hit is one shot of them all, not each target close in its turn.
+        Camera.Together.Clear();
+        if (lead is { Parts.Count: > 1 })
+        {
+            foreach (var part in lead.Parts)
+            {
+                if (part.Target is { } target && !Camera.Together.Contains(target))
+                    Camera.Together.Add(target);
+            }
+        }
         var tick = lead is null ? frame.Tick : Math.Clamp(lead.TickAt(d), Math.Max(lead.First, actions.Kept), actions.Last);
         var facts = actions[tick].Facts ?? SceneFacts.None;
         _scene.Begin(_battle.World, CameraScene.FieldOf(_battle), _battle.Origin, facts);
