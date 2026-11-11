@@ -436,7 +436,25 @@ public sealed class BattleComposer
     /// episodes in them, every beat before it has played or can stay in shot with the turn (<see cref="BeatsBefore"/>), and no body
     /// still walking in the drawing could be touched once the turn takes the stick (<see cref="Walkers"/>).
     /// </summary>
-    private bool Opens(DrawnAction b) => Started(b) && Reached(b) && BeatsBefore(b, null) && Walkers(b, null);
+    private bool Opens(DrawnAction b) => Started(b) && Reached(b) && BeatsBefore(b, null) && Walkers(b, null) && Unburied(b, null);
+
+    /// <summary>
+    /// Whether no body the player's turn <paramref name="b"/> brings on as it opens (a reserve, joining as the round turns) would stand
+    /// on one still fading behind it. In 1.0 the dead one had faded before the reserve came; drawn together, the last word brought the
+    /// dead one on, and it went at once, without its fade. Those fading are added to <paramref name="holding"/>, if given.
+    /// </summary>
+    private bool Unburied(DrawnAction b, List<Combatant>? holding)
+    {
+        var clear = true;
+        foreach (var e in b.Episodes)
+        {
+            if (e.From > b.First || FadingUnder(e.Body, Math.Min(e.From, _actions.Last)) is not { } under)
+                continue;
+            clear = false;
+            holding?.Add(under);
+        }
+        return clear;
+    }
 
     /// <summary>Whether every action before <paramref name="b"/> has started drawing.</summary>
     private bool Started(DrawnAction b)
@@ -774,7 +792,7 @@ public sealed class BattleComposer
     /// <summary>
     /// A while the player's turn waits to open (Start Early): whatever holds it is fast-forwarded, each holder to the end of its part
     /// and only that: its combatant's earlier parts, every beat before it that's yet to play or can't share its shot, and each body
-    /// walking within its reach. Whether anything held it.
+    /// walking within its reach, and each body fading where one the turn brings on would stand. Whether anything held it.
     /// </summary>
     public bool SkipHold()
     {
@@ -809,8 +827,14 @@ public sealed class BattleComposer
                 foreach (var body in walkers)
                     moved |= Release(body);
             }
+            var fading = new List<Combatant>();
+            if (!Unburied(b, fading))
+            {
+                foreach (var body in fading)
+                    moved |= Release(body);
+            }
             any |= moved;
-            if (!moved || Started(b) && Reached(b) && BeatsBefore(b, null) && Walkers(b, null))
+            if (!moved || Opens(b))
                 break;
         }
         return any;
@@ -1658,6 +1682,31 @@ public sealed class BattleComposer
             to = Math.Max(to, free ? cap : Math.Min(track.Cursor + 1, cap));
         }
         Go(body, track, Math.Max(track.Cursor, to), played);
+    }
+
+    /// <summary>
+    /// The body fading behind that one drawn at tick <paramref name="tick"/> would come within reach of, nearer than either's tick
+    /// recorded them (<see cref="Resolve"/>'s test), if any.
+    /// </summary>
+    private Combatant? FadingUnder(Combatant body, int tick)
+    {
+        if (CentreAt(body, tick) is not { } at)
+            return null;
+        foreach (var (other, track) in _tracks)
+        {
+            if (other == body || track.Gone || track.Cursor >= tick || !FreedAt(other, track.Cursor) || CentreAt(other, track.Cursor) is not { } there)
+                continue;
+            var apart = Vector3.Distance(at, there);
+            if (apart >= body.Body.Sphere.Radius + other.Body.Sphere.Radius)
+                continue;
+            var then = Math.Min(Between(tick), Between(track.Cursor));
+            if (apart < then - Slack)
+                return other;
+
+            float Between(int t) =>
+                CentreAt(body, t) is { } a && CentreAt(other, t) is { } b ? Vector3.Distance(a, b) : float.PositiveInfinity;
+        }
+        return null;
     }
 
     /// <summary>Moves a body's timeline to <paramref name="tick"/>, playing what it passes, and notes a jump.</summary>

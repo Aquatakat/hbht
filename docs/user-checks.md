@@ -6,12 +6,9 @@ A check far into the story needn't be played to: Claude writes a save at the pla
 
 ## Open
 
-### Combat Turns: Start Early's deaths and log (Nov 11)
+### Combat Turns: Start Early's deaths (Nov 11)
 
-After your Nov 11 play ([combat](systems/combat.md#drawn-from-a-recording)):
-
-1. Cast Fireball or Dragon Flames at a pack of rats (F09) under Start Early, and again under Original. Does every rat it kills fall, lie still a second and then fade out? The battle's last enemy stays whole as the screen fades to black, as in 1.0.
-2. Does the log's box keep the portrait of whoever's turn it is once nothing else is playing, through Sholeh's potions too? If her portrait goes again, note what was still moving on the field.
+After your Nov 11 play ([combat](systems/combat.md#drawn-from-a-recording)): cast Fireball or Dragon Flames at a pack of rats (F09) under Start Early, and again under Original. Does every rat it kills fall, lie still a second and then fade out? The battle's last enemy stays whole as the screen fades to black, as in 1.0.
 
 ### Combat parity (2.9)
 

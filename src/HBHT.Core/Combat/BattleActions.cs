@@ -435,7 +435,8 @@ public sealed class BattleActions
 
     /// <summary>
     /// A body is involved on tick <paramref name="t"/>: its last episode carries on, or one begins in <paramref name="action"/>, in the
-    /// part being recorded; the action's own combatant's is on the action's own timeline (<see cref="DrawnAction.OwnPart"/>). A cue
+    /// part being recorded; the action's own combatant's is on the action's own timeline (<see cref="DrawnAction.OwnPart"/>), but in
+    /// the part casting at it, which it's a target of. A cue
     /// in a later part begins an episode of that part. A freed body's tick, its fade's, always carries on its last episode, whatever
     /// action or part is being recorded: begun in a later part, shifted ahead, its fade was drawn as already played and the body was
     /// gone a tick after it was freed (the user's Fireball at the rats, Nov 11).
@@ -449,7 +450,10 @@ public sealed class BattleActions
             list[^1].To = t;
             return;
         }
-        var part = c == action.Current ? DrawnAction.OwnPart : action.Recording.Index;
+        // The caster in the part that casts at it is that part's target: its hit, fall and fade are drawn with the part's. On the own
+        // timeline, which jumps from the first part to the last, a caster its own Fireball killed was drawn from its fall to its going
+        // on one drawn tick.
+        var part = c == action.Current && action.Recording.Target != c ? DrawnAction.OwnPart : action.Recording.Index;
         if (list.Count > 0 && list[^1] is var last && last.To >= t - Gap - 1)
         {
             if (last.Action == action && (last.Part == part || !cue))
