@@ -6,6 +6,13 @@ A check far into the story needn't be played to: Claude writes a save at the pla
 
 ## Open
 
+### Combat Turns: Start Early's deaths and log (Nov 11)
+
+After your Nov 11 play ([combat](systems/combat.md#drawn-from-a-recording)):
+
+1. Cast Fireball or Dragon Flames at a pack of rats (F09) under Start Early, and again under Original. Does every rat it kills fall, lie still a second and then fade out? The battle's last enemy stays whole as the screen fades to black, as in 1.0.
+2. Does the log's box keep the portrait of whoever's turn it is once nothing else is playing, through Sholeh's potions too? If her portrait goes again, note what was still moving on the field.
+
 ### Combat parity (2.9)
 
 Battles the user plays in 1.0 from written saves, logged with `tools/parity.ps1` and replayed into the port ([combat parity](systems/combat-parity.md)). Setups 1–14 are played, and none is waiting. If a hold (Web of Starlight, Wall of Bones, Frozen Doom) locks 1.0 up again, save a state in ares before closing it: the RAM at the lock settles its cause ([combat](systems/combat-actions.md#where-the-port-differs)).

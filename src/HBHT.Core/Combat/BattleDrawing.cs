@@ -253,7 +253,7 @@ public sealed class BattleDrawing
 
     /// <summary>
     /// The bodies the player's aim could pick now, while it's aimed (Start Early): an attack's or a spell's candidates, and every body
-    /// on the field for a throw's or an area's cursor, which moves freely; none outside an aim.
+    /// on the field but the freed for a throw's or an area's cursor, which moves freely; none outside an aim.
     /// </summary>
     public IEnumerable<Combatant> Pickable()
     {
@@ -274,9 +274,10 @@ public sealed class BattleDrawing
         }
         else if (battle.State is CombatState.TargetThrown or CombatState.PlaceArea)
         {
+            // A freed body, fading where it fell or fled, stands still: drawn behind, it's where it is, and its fade isn't held for.
             foreach (var c in battle.Combatants)
             {
-                if (c.OnField)
+                if (c.OnField && !c.Freed)
                     yield return c;
             }
         }

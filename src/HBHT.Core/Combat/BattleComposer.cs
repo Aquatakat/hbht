@@ -52,6 +52,10 @@ public sealed class BattleComposer
 
     /// <summary>Whose portrait the log's box shows with <see cref="_log"/>: the one the battle screen had on the tick the line was written.</summary>
     private RecordId? _logPortrait;
+
+    /// <summary>The tick <see cref="_log"/> was written on, and the line written latest of those played, with its portrait and tick.</summary>
+    private int _logTick;
+    private (int Seq, string Text, RecordId? Portrait, int Tick)? _newestLog;
     private DrawnAction? _cameraFrom;
     private int _cameraLeft;
     private int _leadTick;
@@ -91,6 +95,9 @@ public sealed class BattleComposer
     /// <summary>Takes the frame the battle just recorded.</summary>
     public void Record(BattleFrame frame)
     {
+        // The battle's first line is on its first frame, before the battle screen has a portrait for it: it takes its next tick's.
+        if (_logPortrait is null && frame.Gui.Log == _log)
+            _logPortrait = frame.Gui.LogPortrait;
         _actions.Add(frame);
         foreach (var body in _actions.Bodies)
         {
@@ -1274,7 +1281,7 @@ public sealed class BattleComposer
             var from = s + a.Offset(e.From, e.Part);
             var to = s + a.Offset(e.To, e.Part);
             if (d >= from && d <= to)
-                return At(body, a.At(a.First + (d - s), e.Part), a == b);
+                return At(body, Math.Max(a.At(a.First + (d - s), e.Part), _actions.Kept), a == b);
             if (to < d && to > restEnd)
                 (rest, restMine, restEnd) = (Math.Min(e.To + 1, _actions.Last), a == b, to);
         }
@@ -1337,6 +1344,19 @@ public sealed class BattleComposer
 
     /// <summary>Where a body's centre is at tick <paramref name="t"/>, or null if it isn't on the field or the tick isn't kept.</summary>
     private Vector3? CentreAt(Combatant c, int t) => t < _actions.Kept || t > _actions.Last ? null : Centre(c, t);
+
+    /// <summary>Whether a body is drawn freed, dead or fled and fading, on tick <paramref name="t"/>.</summary>
+    private bool FreedAt(Combatant c, int t)
+    {
+        if (t < _actions.Kept || t > _actions.Last)
+            return false;
+        foreach (var b in _actions[t].Bodies)
+        {
+            if (b.Combatant == c)
+                return (b.Standing & BodyState.Freed) != 0;
+        }
+        return false;
+    }
 
     private Vector3? Centre(Combatant c, int t)
     {
@@ -1630,7 +1650,11 @@ public sealed class BattleComposer
         }
         if (to < 0 || track.Episode >= episodes.Count || to < episodes[track.Episode].From)
         {
-            var free = live is not null && (track.Episode >= episodes.Count || episodes[track.Episode].Action == live);
+            // Free of every action but the player's turn, it's drawn where the turn is, but a body fading out plays its fade: the turn's
+            // own timeline jumps to a spell's last target as it goes to it, and took a target fading behind with it (the battle won on a
+            // cast at several rats, Nov 11).
+            var free = live is not null && (track.Episode >= episodes.Count || episodes[track.Episode].Action == live)
+                && !FreedAt(body, track.Cursor);
             to = Math.Max(to, free ? cap : Math.Min(track.Cursor + 1, cap));
         }
         Go(body, track, Math.Max(track.Cursor, to), played);
@@ -1743,7 +1767,12 @@ public sealed class BattleComposer
                     // The line with the portrait its own tick had beside it, whose turn it was written in: taken from the newest
                     // action's tick, a bandit's line drawn in the player's turn stood by the player's portrait (the user's, Nov 11).
                     if (cue is LogLine line)
-                        (_log, _logPortrait) = (line.Text, item.Tick >= _actions.Kept && item.Tick <= _actions.Last ? _actions[item.Tick].Gui.LogPortrait : _logPortrait);
+                    {
+                        var portrait = item.Tick >= _actions.Kept && item.Tick <= _actions.Last ? _actions[item.Tick].Gui.LogPortrait ?? _logPortrait : _logPortrait;
+                        (_log, _logPortrait, _logTick) = (line.Text, portrait, item.Tick);
+                        if (_newestLog is not { } newestLine || item.Seq > newestLine.Seq)
+                            _newestLog = (item.Seq, line.Text, portrait, item.Tick);
+                    }
                     break;
                 case SoundCall call:
                     (skipped ? skippedCalls : calls).Add(call);
@@ -1753,6 +1782,12 @@ public sealed class BattleComposer
                     break;
             }
         }
+
+        // An older line drawn after a newer one (an enemy's, from an action drawing on behind the player's turn opened early) stands
+        // while what wrote it draws; then the newest is back, with its portrait. It stood on through the player's turn, the box beside
+        // an enemy's portrait rather than Sholeh's (the user's, Nov 11).
+        if (_newestLog is { } latest && _logTick < latest.Tick && !DrawingNow().Any(a => a.First <= _logTick))
+            (_log, _logPortrait, _logTick) = (latest.Text, latest.Portrait, latest.Tick);
 
         var newest = Newest();
         var lead = _actions[newest is null ? _actions.Last : Own(newest)];

@@ -182,15 +182,17 @@ public sealed class BattleActions
         {
             var c = body.Combatant;
             var was = Find(before.Bodies, c);
-            var busy = cued.Contains(c) || Busy(body, was, frame);
+            // A freed body, dead or fled, is involved every tick of its fade, still or not, so its whole fade is drawn.
+            var freed = (body.Standing & BodyState.Freed) != 0;
+            var busy = cued.Contains(c) || freed || Busy(body, was, frame);
             if (busy)
-                Involve(c, t, action, cued.Contains(c));
+                Involve(c, t, action, cued.Contains(c), freed);
         }
         // A body gone this tick is no longer in the frame, but its going is its.
         foreach (var c in cued)
         {
             if (Find(frame.Bodies, c) is null)
-                Involve(c, t, action, cue: true);
+                Involve(c, t, action, cue: true, freed: Find(before.Bodies, c) is { } gone && (gone.Standing & BodyState.Freed) != 0);
         }
         if (action.Current is { } current)
             action.Own = _episodes[current][^1];
@@ -434,12 +436,19 @@ public sealed class BattleActions
     /// <summary>
     /// A body is involved on tick <paramref name="t"/>: its last episode carries on, or one begins in <paramref name="action"/>, in the
     /// part being recorded; the action's own combatant's is on the action's own timeline (<see cref="DrawnAction.OwnPart"/>). A cue
-    /// in a later part begins an episode of that part.
+    /// in a later part begins an episode of that part. A freed body's tick, its fade's, always carries on its last episode, whatever
+    /// action or part is being recorded: begun in a later part, shifted ahead, its fade was drawn as already played and the body was
+    /// gone a tick after it was freed (the user's Fireball at the rats, Nov 11).
     /// </summary>
-    private void Involve(Combatant c, int t, DrawnAction action, bool cue)
+    private void Involve(Combatant c, int t, DrawnAction action, bool cue, bool freed = false)
     {
         Know(c);
         var list = _episodes[c];
+        if (freed && list.Count > 0)
+        {
+            list[^1].To = t;
+            return;
+        }
         var part = c == action.Current ? DrawnAction.OwnPart : action.Recording.Index;
         if (list.Count > 0 && list[^1] is var last && last.To >= t - Gap - 1)
         {
