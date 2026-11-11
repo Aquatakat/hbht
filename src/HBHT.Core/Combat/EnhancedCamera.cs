@@ -242,6 +242,12 @@ public sealed class EnhancedCamera
     /// <summary>Whether the player's turn has opened and the character hasn't yet moved or turned: its opening shot is held.</summary>
     public bool Opening => _opened && _opening is not null;
 
+    /// <summary>
+    /// Set by Start Early's director while it holds a shot (the outcome hold, <see cref="BattleDirector"/>): what its own shots would cut
+    /// or pan to waits, moved to under the caps if the goal it's handed changes.
+    /// </summary>
+    public bool Holding { get; set; }
+
     /// <summary>Whom the player heads for in their turn, its representative target.</summary>
     public Combatant? Target => _cone.Target as Combatant;
 
@@ -308,6 +314,7 @@ public sealed class EnhancedCamera
     {
         // The first tick after looks at once.
         _sinceDecide = int.MaxValue / 2;
+        _rested = (null, Vector3.Zero);
         Released = false;
         _cone.Clear();
         _framing = null;
@@ -463,6 +470,10 @@ public sealed class EnhancedCamera
             : Walking ? new MotionCaps(caps.Aim * t.GlidePace, caps.Turn * t.GlidePace, caps.Zoom * t.GlidePace, caps.Settle * MathF.Sqrt(t.GlidePace),
                 caps.TurnSettle * MathF.Sqrt(t.GlidePace), caps.ZoomSettle * MathF.Sqrt(t.GlidePace))
             : caps;
+        // Start Early's director drawing back to hold what else is happening (a result, a walker): the view widens quicker than it
+        // closes in, so what it widens for isn't left at the frame's edge while it does.
+        if (Reframe is not null && !Released && _aiming is null && goal.Distance > _motion.Current.Distance * 1.05f)
+            _motion.Caps = _motion.Caps with { Zoom = _motion.Caps.Zoom * t.DrawBackPace, ZoomSettle = _motion.Caps.ZoomSettle * MathF.Sqrt(t.DrawBackPace) };
         _motion.GoalJump = t.GoalJump;
         // Only the player's own hand is followed at its speed; the director's shots are trailed, so a goal that stops isn't overshot.
         _motion.MostFollowed = Released ? (t.FollowSpeed, Rad(t.FollowTurn)) : (0, 0);
@@ -500,14 +511,16 @@ public sealed class EnhancedCamera
         // Never while the player walks the character: the stick's way would turn under them. Their turn begins with them in view, cut
         // to unless it's near.
         var mayCut = !Released && (!Walking || entering);
-        var cut = _cutNow || mayCut && (travel > t.CutDistance || turn > Rad(t.CutTurn) || tilt > Rad(t.CutPitch))
-            || entering && !Released && (lost || travel > t.EnterCutDistance || turn > Rad(t.EnterCutTurn));
+        var cut = !Holding && (_cutNow || mayCut && (travel > t.CutDistance || turn > Rad(t.CutTurn) || tilt > Rad(t.CutPitch))
+            || entering && !Released && (lost || travel > t.EnterCutDistance || turn > Rad(t.EnterCutTurn)));
+        if (Holding)
+            _cutNow = false;
         // Into an aim, about one, or back from one to the turn, the move is a pan, not a cut, so the player sees where they're aiming. A
         // pan carries on through its state, its end following the goal; a new state is judged afresh.
         var (aimingNow, wasAiming) = (_aiming is not null, aimed is not null);
         if (Released || _cutNow || _pan is { } p && p.State != _scene.State)
             _pan = null;
-        if (_pan is null && !Released && !_cutNow
+        if (_pan is null && !Released && !_cutNow && !Holding
             && (aimingNow && (wasAiming ? cut : travel > 1 || turn > Rad(10) || tilt > Rad(10)) || wasAiming && entering && cut))
             _pan = (_scene.State, now, 0, Math.Clamp((int)MathF.Round(t.PanTicks + travel * t.PanTicksPerUnit), t.PanTicks, Math.Max(t.PanTicks, t.PanMostTicks)));
         Quick |= _pan is not null;
@@ -1036,12 +1049,27 @@ public sealed class EnhancedCamera
     private Vector3 Leading(Combatant current)
     {
         if (_followOf != current)
+        {
+            _rested = (null, Vector3.Zero);
             return Vector3.Zero;
+        }
         var t = Tuning;
         var by = new Vector3(_follow.Speed.X, 0, _follow.Speed.Z) * t.LeadTime;
         var length = by.Length();
-        return length > t.AimLeadMost ? by * (t.AimLeadMost / length) : by;
+        by = length > t.AimLeadMost ? by * (t.AimLeadMost / length) : by;
+        // Slowing the same way, the lead rests where it got to rather than easing back onto them as they stop (the user's, Nov 10: the
+        // view wiggled back as Keelin stopped). Turned about or across, it follows the new way; it's on them as each turn begins.
+        if (_rested.Of != current)
+            _rested = (current, Vector3.Zero);
+        var rest = _rested.Lead;
+        if (by.LengthSquared() >= rest.LengthSquared()
+            || by.Length() > t.LeadRestTurned && Vector3.Dot(by, rest) < MathF.Cos(Rad(t.LeadRestAngle)) * by.Length() * rest.Length())
+            _rested = (current, by);
+        return _rested.Lead;
     }
+
+    /// <summary>The lead the aim rests at as a character slows (<see cref="Leading"/>), and whose it is.</summary>
+    private (Combatant? Of, Vector3 Lead) _rested;
 
     /// <summary>
     /// The aim's lead from the point that follows the character in their turn, glided after <paramref name="wanted"/> as a critically damped

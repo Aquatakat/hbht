@@ -20,7 +20,8 @@ public partial class CameraIntentView : Control
     private static readonly Color Held = new(1, 0.9f, 0.2f), Lesser = new(1, 0.55f, 0.1f), TargetRed = new(1, 0.25f, 0.25f),
         Shown = Colors.White, GoalCyan = new(0.3f, 0.95f, 1), VantageMagenta = new(1, 0.35f, 1), FollowGreen = new(0.4f, 1, 0.4f),
         Party = new(0.4f, 0.65f, 1), Enemy = new(1, 0.4f, 0.4f), Dead = new(0.5f, 0.5f, 0.5f), Frame = new(1, 1, 1, 0.5f),
-        RailOrange = new(1, 0.6f, 0.2f), Legend = new(1, 1, 1, 0.7f), BeatPink = new(1, 0.3f, 0.75f), ComingViolet = new(0.7f, 0.55f, 1);
+        RailOrange = new(1, 0.6f, 0.2f), Legend = new(1, 1, 1, 0.7f), BeatPink = new(1, 0.3f, 0.75f), ComingViolet = new(0.7f, 0.55f, 1),
+        WalkerTeal = new(0.25f, 0.9f, 0.75f);
 
     /// <summary>The map's size and margin, and the legend's text, as shares of the view's height.</summary>
     private const float MapShare = 0.32f, MarginShare = 0.012f, TextShare = 0.0135f;
@@ -120,6 +121,14 @@ public partial class CameraIntentView : Control
                 DrawDashedArc(at, radius, colour);
             var label = n <= 0 ? kind.ToString().ToLowerInvariant() : string.Create(CultureInfo.InvariantCulture, $"{kind.ToString().ToLowerInvariant()} in {n / 60f:F1}s");
             DrawString(font, at + new Vector2(radius + 3, -radius), label, HorizontalAlignment.Left, -1, (int)(12 * _px), colour);
+        }
+        // The director's walkers, held besides as they walk in the drawing.
+        foreach (var s in intent.Walkers)
+        {
+            if (Project(s.At) is not { } at)
+                continue;
+            var radius = Project(s.At + Right() * MathF.Max(s.Radius, 0.2f)) is { } edge ? MathF.Max(at.DistanceTo(edge), 4) + 2 : 10;
+            DrawDashedArc(at, radius, WalkerTeal);
         }
         if (intent.Rail.Count > 1)
         {
@@ -251,6 +260,12 @@ public partial class CameraIntentView : Control
             if (Inside(p))
                 DrawArc(p, MathF.Max(8, s.Radius * scale + 6), 0, Mathf.Tau, 16, n <= 0 ? BeatPink : ComingViolet, 2 * _px);
         }
+        foreach (var s in intent.Walkers)
+        {
+            var p = At3(s.At);
+            if (Inside(p))
+                DrawArc(p, MathF.Max(7, s.Radius * scale + 5), 0, Mathf.Tau, 16, WalkerTeal, _px);
+        }
         var target = Drawn(intent.Target);
         foreach (var s in intent.Subjects)
         {
@@ -297,7 +312,7 @@ public partial class CameraIntentView : Control
         string[] legend = intent.Director is null
             ? ["white shown, cyan its goal", "yellow held, orange if it can be, red the target", "magenta the vantage, green the follow point"]
             : ["white shown, cyan its goal", "yellow held, orange if it can be, red the target", "magenta the vantage, green the follow point",
-                "pink a beat playing, violet one to come"];
+                "pink a beat playing, violet one to come, teal a walker"];
         for (var i = 0; i < legend.Length; i++)
             DrawString(font, new Vector2(box.Position.X, box.End.Y + line * (i + lines)), legend[i], HorizontalAlignment.Left, mapSize, text - 2, Legend);
 

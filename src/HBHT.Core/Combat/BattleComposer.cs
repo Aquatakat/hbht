@@ -454,7 +454,14 @@ public sealed class BattleComposer
             var at = a.TickAt(_drawn);
             foreach (var beat in a.Beats)
             {
-                if (at > beat.End(last))
+                // A result is held on the screen a moment once it strikes, ended or not (the outcome hold); once held, it has played.
+                if (at >= beat.From && at - beat.From < Pacing.OutcomeHold)
+                {
+                    waiting = true;
+                    holding?.Add((a, beat));
+                    continue;
+                }
+                if (at > Shown(beat))
                     continue;
                 if (at < beat.From)
                 {
@@ -477,6 +484,13 @@ public sealed class BattleComposer
             holding?.Add((f.Beat.Action, f.Beat));
         return false;
     }
+
+    /// <summary>
+    /// The last tick of its action a beat must be shown on: its end, or with an outcome hold, the hold's last tick, after which the camera
+    /// may go on though its reaction plays on.
+    /// </summary>
+    private int Shown(Beat beat) =>
+        Pacing.OutcomeHold > 0 ? Math.Min(beat.End(_actions.Last), beat.From + Pacing.OutcomeHold - 1) : beat.End(_actions.Last);
 
     /// <summary>A beat as a shot would hold it at tick <paramref name="tick"/> of its action, or null if its body isn't drawn there.</summary>
     private FramedBeat? Framed(Beat beat, int tick)
@@ -645,7 +659,7 @@ public sealed class BattleComposer
                     if (a.Start is null)
                         continue;
                     var was = a.TickAt(_drawn);
-                    Forward(a, beat.End(_actions.Last) + 1);
+                    Forward(a, Shown(beat) + 1);
                     moved |= a.TickAt(_drawn) > was;
                 }
             }
@@ -664,7 +678,7 @@ public sealed class BattleComposer
 
     /// <summary>
     /// The beats playing on the drawn tick now, each as a shot would hold it, for the director (piece C): those of every action drawing
-    /// whose timeline is between a beat's strike and its end.
+    /// whose timeline is between a beat's strike and the end of its showing (its end, or its outcome hold's).
     /// </summary>
     public IEnumerable<FramedBeat> PlayingNow()
     {
@@ -673,10 +687,28 @@ public sealed class BattleComposer
             var at = a.TickAt(_drawn);
             foreach (var beat in a.Beats)
             {
-                if (at >= beat.From && at <= beat.End(_actions.Last) && Framed(beat, at) is { } framed)
+                if (at >= beat.From && at <= Shown(beat) && Framed(beat, at) is { } framed)
                     yield return framed;
             }
         }
+    }
+
+    /// <summary>
+    /// Where <paramref name="body"/> is drawn at the end of the episode it's drawn in now, as far as it's recorded (Start Early's director
+    /// holds where a walk ends from its start), or null if it's in none.
+    /// </summary>
+    public Vector3? EpisodeEnd(Combatant body)
+    {
+        foreach (var a in DrawingNow())
+        {
+            var at = a.TickAt(_drawn);
+            foreach (var e in a.Episodes)
+            {
+                if (e.Body == body && e.From <= at && at <= e.To)
+                    return CentreAt(body, Math.Min(e.To, _actions.Last));
+            }
+        }
+        return null;
     }
 
     /// <summary>
@@ -789,9 +821,9 @@ public sealed class BattleComposer
                 var a = _actions.Actions[i];
                 foreach (var beat in a.Beats)
                 {
-                    var to = a.DrawnAt(beat.End(_actions.Last));
-                    if (to >= start)
-                        beats.Add((beat, a.DrawnAt(beat.From), to));
+                    var (from, to) = (a.DrawnAt(beat.From), a.DrawnAt(Shown(beat)));
+                    if (to >= start || from + Pacing.OutcomeHold > start)
+                        beats.Add((beat, from, to));
                 }
             }
             _search = new Searching(b, start, window, mine, Pairs(theirs, mine), beats);
@@ -880,11 +912,15 @@ public sealed class BattleComposer
         if (b.Beats.Count == 0 || search.Beats.Count == 0)
             return true;
         var last = _actions.Last;
+        var hold = Pacing.OutcomeHold;
         foreach (var mine in b.Beats)
         {
-            var (from, to) = (start + (mine.From - b.First), start + (mine.End(last) - b.First));
+            var (from, to) = (start + (mine.From - b.First), start + (Shown(mine) - b.First));
             foreach (var (theirs, theirFrom, theirTo) in search.Beats)
             {
+                // Each result is held on the screen a moment before another action's strikes (the outcome hold), either way round.
+                if (Math.Abs(from - theirFrom) < hold)
+                    return false;
                 if (theirTo < from || theirFrom > to)
                     continue;
                 var d = Math.Max(from, theirFrom);
@@ -892,7 +928,7 @@ public sealed class BattleComposer
                 foreach (var m in b.Beats)
                 {
                     var mf = start + (m.From - b.First);
-                    if (mf <= d && d <= start + (m.End(last) - b.First) && Framed(m, m.From + (d - mf)) is { } f)
+                    if (mf <= d && d <= start + (Shown(m) - b.First) && Framed(m, m.From + (d - mf)) is { } f)
                         playing.Add(f);
                 }
                 foreach (var (o, of, ot) in search.Beats)

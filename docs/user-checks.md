@@ -17,6 +17,14 @@ Under Combat Turns: Start Early the camera is now always Camera: Enhanced, filmi
 5. Does the stick go the way you see, all through your turn? Does R still take the camera, and aiming give it back?
 6. Are the bodies' sounds panned and levelled for the camera you see?
 
+After your Nov 10 play (F3 now rings walkers teal and says how long an outcome hold has left):
+
+7. Is each result held long enough after it lands before the camera moves on, and is a second between two enemies' results right (`OutcomeHold`, 60 ticks)?
+8. Do the two-shots-every-tick flicker, Dougal's swing's wobble and the wild spin still happen anywhere?
+9. Do enemies walking while you play, or while another's result shows, stay in view, and do you see where their walks end? Does the view draw back too quickly for them (`DrawBackPace`)?
+10. Stopping with no enemy ahead, does the view rest well where it stopped?
+11. If Dougal's walk stalls again, note who stands nearest him (F3's line has every body's place). A subagent found no way for Start Early to hold a live turn's stick; the likeliest cause is his body pushing against another, or a wall the director's still camera keeps him walking into.
+
 ### Combat Turns: Start Early's pacing (piece A)
 
 Under Combat Turns: Start Early, in a battle with several enemies (the rats at F09, bandits, the Chaos casters), how the beats, the turn's wait and the held stick feel ([combat](systems/combat.md#pacing-beats-and-the-players-wait)):

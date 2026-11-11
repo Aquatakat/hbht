@@ -470,6 +470,15 @@ public sealed record CameraTuning
     public float LeadTime { get; init; } = 0.6f;
 
     /// <summary>
+    /// How far, degrees, the way a slowing character goes may turn from the lead the aim rests at before it follows the new way: slowing
+    /// the same way, the lead rests where it got to, so the view doesn't ease back as they stop.
+    /// </summary>
+    public float LeadRestAngle { get; init; } = 45;
+
+    /// <summary>The least lead, units, a turn about or across takes the aim's lead from where it rests: below it, a stop's last drift.</summary>
+    public float LeadRestTurned { get; init; } = 0.3f;
+
+    /// <summary>
     /// How slowly the aim's lead from the character changes in their turn, seconds: it follows where it's wanted (toward the pack over the
     /// shoulder, the way they go with no enemy ahead) as a critically damped spring this long, so it neither jumps nor swings.
     /// </summary>
@@ -560,6 +569,33 @@ public sealed record CameraTuning
 
     /// <summary>The radius a turn's combatant is held by when the composer asks whether its turn can open on a beat.</summary>
     public float TurnRadius { get; init; } = 0.6f;
+
+    /// <summary>The ticks after a body walking in the drawing stops that it's still held on the screen, so where its walk ended is seen.</summary>
+    public int WalkerAfter { get; init; } = 30;
+
+    /// <summary>What a body walking in the drawing, outside the action led with, counts for in a shot: shown where it fits.</summary>
+    public float WalkerWeight { get; init; } = 0.5f;
+
+    /// <summary>How far across the ground a body drawn moves in a drawn tick to count as walking: more than the crowd's nudges.</summary>
+    public float WalkerStep { get; init; } = 0.02f;
+
+    /// <summary>
+    /// How many times its zoom's caps the director's shot draws back by, to hold what else is happening (a result, a walker): the view widens
+    /// quicker than it closes in.
+    /// </summary>
+    public float DrawBackPace { get; init; } = 3;
+
+    /// <summary>How far a body walks from where it set off before it's held on the screen: a step about isn't a walk.</summary>
+    public float WalkerLeast { get; init; } = 0.5f;
+
+    /// <summary>The farthest a walker's walk's end is from it for the end to be held besides it from the start.</summary>
+    public float WalkerEndReach { get; init; } = 40;
+
+    /// <summary>How far ahead, seconds, a walker is held besides where it is, its end too far: the camera trails a goal that moves.</summary>
+    public float WalkerLead { get; init; } = 0.75f;
+
+    /// <summary>How long, seconds, a walker's speed is evened over, its stride being uneven.</summary>
+    public float WalkerSmoothing { get; init; } = 0.15f;
 
     public MotionCaps Caps => new(AimAcceleration, TurnAcceleration, ZoomAcceleration, Settle, TurnSettle, ZoomSettle);
 

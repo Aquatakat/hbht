@@ -21,8 +21,17 @@ namespace HBHT.Core.Combat;
 /// <b>Beats first.</b> Every beat playing (damage, a miss, a defeat, an effect added), and every beat to come that the camera would take
 /// about as long as is left to reach, is held besides (<see cref="EnhancedCamera.Reframe"/>): the enhanced camera's shot drawn back the
 /// same way round to hold them too, else the shot holding them all nearest its way round (<see cref="BeatShots.Find"/>). So the camera
-/// starts toward a hit early, under its acceleration's caps, and arrives as it lands. Should a beat about to strike still be off the shot
-/// shown (<see cref="CameraTuning.BeatCutAhead"/>), it cuts to one holding it; never while the player walks.
+/// starts toward a hit early, under its acceleration's caps, and arrives as it lands. A beat to come, once planned toward, stays planned
+/// toward till it strikes, and a move toward one that would be a cut waits for the beat's own cut. Should a beat about to strike still be
+/// off the shot shown (<see cref="CameraTuning.BeatCutAhead"/>), it cuts to one holding it; never while the player walks.
+/// </para>
+/// <para>
+/// <b>The outcome hold.</b> A result that strikes on the screen is held there for <see cref="StartEarlyPacing.OutcomeHold"/>: the shot it
+/// struck in is kept, and the camera's own cuts wait, before it goes on to the next turn.
+/// </para>
+/// <para>
+/// <b>Walkers.</b> A body walking in the drawing outside the action led with is held besides where it can be, drawn back to, till
+/// <see cref="CameraTuning.WalkerAfter"/> after it stops, so the player sees where it went.
 /// </para>
 /// <para>
 /// <b>The shot question.</b> Whether one shot can hold beats that play at once is <see cref="Framing"/>'s to answer, which the composer
@@ -42,10 +51,30 @@ public sealed class BattleDirector
     /// <summary>The beats held this tick: playing (<c>In</c> 0 or less, ticks since it struck) or to come (ticks till it strikes).</summary>
     private readonly List<(FramedBeat Beat, int In)> _beats = [];
 
-    private readonly List<ShotSubject> _extra = [], _sources = [], _all = [], _strikes = [], _playing = [], _must = [];
+    private readonly List<ShotSubject> _extra = [], _walkers = [], _sources = [], _all = [], _strikes = [], _playing = [], _must = [];
+
+    /// <summary>The beats to come planned toward, each held till it strikes, so whether it's held doesn't turn on where the camera is.</summary>
+    private readonly HashSet<Beat> _planned = [], _stillComing = [];
+
+    /// <summary>The beats seen to strike.</summary>
+    private readonly HashSet<Beat> _struck = [];
+
+    /// <summary>Each body's walk in the drawing: where it set off from, where it's drawn, and the drawn tick it last moved on.</summary>
+    private readonly Dictionary<Combatant, (Vector3 From, Vector3 At, int Last, Vector3 Speed)> _walks = [];
 
     /// <summary>A shot cut to to hold the beats, kept while they play and it holds every beat held (<see cref="Reframe"/>).</summary>
     private Shot? _pin;
+
+    /// <summary>A shot of its own taken to hold the beats, kept while it still holds them, so it doesn't swap with the goal it replaced.</summary>
+    private Shot? _own;
+
+    /// <summary>The outcome hold: the shot a result struck in, kept till the drawn tick given.</summary>
+    private (Shot Shot, int Until)? _hold;
+
+    /// <summary>The shot shown, kept the moment before a result it sees strikes.</summary>
+    private Shot? _brace;
+
+    private int _drawn;
 
     /// <param name="battle">The battle drawn: its arena, which the shots look across.</param>
     public BattleDirector(Battle battle)
@@ -83,8 +112,22 @@ public sealed class BattleDirector
 
     public int Regrouped { get; private set; }
 
+    /// <summary>How many outcome holds it began, and how many drawn ticks it held.</summary>
+    public int Holds { get; private set; }
+
+    public int Held { get; private set; }
+
+    /// <summary>Drawn ticks a walker's walk's end was held besides it.</summary>
+    public int EndsHeld { get; private set; }
+
     /// <summary>The beats held this tick: playing (<c>In</c> 0 or less) or to come (ticks till it strikes).</summary>
     public IReadOnlyList<(FramedBeat Beat, int In)> Beats => _beats;
+
+    /// <summary>What it made of the enhanced camera's goal this tick, in a word, for tests and F3.</summary>
+    public string Framed { get; private set; } = "";
+
+    /// <summary>The bodies walking in the drawing held besides this tick.</summary>
+    public IReadOnlyList<ShotSubject> Walkers => _walkers;
 
     /// <summary>F3's line.</summary>
     public string Status
@@ -93,9 +136,10 @@ public sealed class BattleDirector
         {
             var playing = _beats.Count(b => b.In <= 0);
             var lead = Lead is { } a ? $"action {a.Index}{(a.Current is { } c ? $" ({c.Sheet.Name})" : "")}" : "nothing";
+            var hold = _hold is { } h && h.Until >= _drawn ? $", holding the outcome {(h.Until - _drawn) / 60f:F1} s more" : "";
             return Camera.Status.Replace("camera: enhanced", "camera: Start Early's director", StringComparison.Ordinal) + "\n" +
                 string.Create(CultureInfo.InvariantCulture,
-                    $"director: leading {lead}; beats {playing} playing, {_beats.Count - playing} coming; drawn back {Widened}, regrouped {Regrouped}, beat cuts {BeatCuts}");
+                    $"director: leading {lead}; beats {playing} playing, {_beats.Count - playing} coming; walkers {_walkers.Count}{hold}; framed: {Framed}; drawn back {Widened}, regrouped {Regrouped}, beat cuts {BeatCuts}, holds {Holds}");
         }
     }
 
@@ -106,7 +150,7 @@ public sealed class BattleDirector
     {
         var t = Tuning;
         var actions = composer.Actions;
-        var d = composer.Drawn;
+        var d = _drawn = composer.Drawn;
         // The turn the player plays while it's open; else the oldest action still drawing its own ticks, whose results come first; else
         // the newest drawing its tail.
         var lead = composer.Live;
@@ -129,16 +173,28 @@ public sealed class BattleDirector
         foreach (var b in frame.Bodies)
             _scene.Add(new SceneBody(b.Combatant, b.Centre, b.Combatant.Body.ScaledRadius, b.Heading, b.Standing));
 
-        // The beats playing, and those to come that the camera would take about as long as is left to reach.
+        // The beats playing, and those to come that the camera would take about as long as is left to reach: once planned toward, held
+        // till they strike, so that coming nearer doesn't let them go and send it back.
         _beats.Clear();
+        var struckNow = new List<FramedBeat>();
         foreach (var f in composer.PlayingNow())
+        {
             _beats.Add((f, f.Beat.From - f.Tick));
+            if (_struck.Add(f.Beat))
+                struckNow.Add(f);
+        }
         var aim = Camera.Motion?.Current.Aim;
+        _stillComing.Clear();
         foreach (var (f, n) in composer.Coming(t.PlanMost))
         {
-            if (n <= Ahead(f, aim))
+            _stillComing.Add(f.Beat);
+            if (_planned.Contains(f.Beat) || n <= Ahead(f, aim))
+            {
+                _planned.Add(f.Beat);
                 _beats.Add((f, n));
+            }
         }
+        _planned.IntersectWith(_stillComing);
         _extra.Clear();
         _sources.Clear();
         foreach (var (f, _) in _beats)
@@ -147,14 +203,10 @@ public sealed class BattleDirector
             if (f.Source is { } source && f.Beat.Source is { } who)
                 _sources.Add(new ShotSubject(source, who.Body.ScaledRadius, t.SourceWeight));
         }
+        if (_extra.Count == 0)
+            _own = null;
+        FindWalkers(composer, frame, lead, composer.Live, d);
 
-        if (Camera.Intent.Moved is { } moved)
-            Camera.Intent.Moved = moved with { Ago = moved.Ago + 1 };
-        Camera.Step(_scene, facts.Original, null);
-
-        // A beat about to strike off the shot shown or hidden in it, or one playing off it: cut to a shot holding it, and every beat
-        // playing if it can, and keep that till they've played (the pin). Never while the player walks: as their turn opens, before they
-        // move, it may.
         _strikes.Clear();
         _playing.Clear();
         foreach (var (f, n) in _beats)
@@ -164,6 +216,38 @@ public sealed class BattleDirector
             else if (n < 0)
                 _playing.Add(BeatShots.Subject(f));
         }
+
+        if (_hold is { } h && h.Until < d)
+            _hold = null;
+        // The outcome hold: a result that strikes on the screen, seen, keeps the shot it strikes in a moment, from this tick, so nothing
+        // the camera would do this tick takes it away. Not in a turn the player has the stick in, which the composer opens only once the
+        // results before it have been held.
+        if (struckNow.Count > 0 && composer.Live is null && Camera.Motion is { } shown && Camera.Finder is { } sight)
+        {
+            if (struckNow.All(f => _shots.Sees(shown.Current, [BeatShots.Subject(f)], sight.Sight)))
+            {
+                // Where it's headed, if that holds them as well; else where it is.
+                var keep = struckNow.All(f => _shots.Sees(Camera.Goal, [BeatShots.Subject(f)], sight.Sight)) ? Camera.Goal : shown.Current;
+                _hold = (keep, Math.Max(d + composer.Pacing.OutcomeHold, _hold?.Until ?? 0));
+                Holds++;
+                Camera.Intent.Moved = ("holding the outcome", -1);
+            }
+        }
+        // A result about to strike that the shot shown already sees: it's kept still till it strikes, so nothing takes it off the screen
+        // in the moment before (the hold then follows).
+        _brace = _hold is null && _strikes.Count > 0 && Camera.Motion is { } braced && Camera.Finder is { } braceSight
+            && _shots.Sees(braced.Current, _strikes, braceSight.Sight) ? braced.Current : null;
+        Camera.Holding = _hold is not null || _brace is not null;
+        if (_hold is not null)
+            Held++;
+
+        if (Camera.Intent.Moved is { } moved)
+            Camera.Intent.Moved = moved with { Ago = moved.Ago + 1 };
+        Camera.Step(_scene, facts.Original, null);
+
+        // A beat about to strike off the shot shown or hidden in it, or one playing off it: cut to a shot holding it, and every beat
+        // playing if it can, and keep that till they've played (the pin). Never while the player walks: as their turn opens, before they
+        // move, it may.
         if (_strikes.Count == 0 && _playing.Count == 0)
             _pin = null;
         var mayCut = !Camera.Released && (!Camera.Walking || Camera.Opening);
@@ -181,12 +265,68 @@ public sealed class BattleDirector
                 Camera.CutTo(shot);
                 BeatCuts++;
                 _pin = shot;
+                // Cut to as it strikes, the result is held in the shot cut to.
+                _hold = struckNow.Count > 0 && composer.Live is null ? (shot, d + composer.Pacing.OutcomeHold) : null;
+                Holds += _hold is null ? 0 : 1;
                 Camera.Intent.Moved = (_strikes.Count > 0 ? "cut to a beat about to strike" : "cut to hold the beats playing", 0);
             }
         }
+
         FillIntent();
-        var shown = Camera.Camera;
-        return new DrawnCamera(shown.Position, shown.Aim, shown.LookXZ);
+        var drawn = Camera.Camera;
+        return new DrawnCamera(drawn.Position, drawn.Aim, drawn.LookXZ);
+    }
+
+    /// <summary>
+    /// The bodies walking in the drawing, outside the action led with and the turn the player plays: each held from when it has walked
+    /// <see cref="CameraTuning.WalkerLeast"/> from where it set off till <see cref="CameraTuning.WalkerAfter"/> after it stops.
+    /// </summary>
+    private void FindWalkers(BattleComposer composer, BattleFrame frame, DrawnAction? lead, DrawnAction? live, int d)
+    {
+        var t = Tuning;
+        _walkers.Clear();
+        foreach (var b in frame.Bodies)
+        {
+            var c = b.Combatant;
+            if (b.Alpha == 0 || (b.Standing & BodyState.Freed) != 0 && (b.Standing & BodyState.Dead) != 0)
+            {
+                _walks.Remove(c);
+                continue;
+            }
+            if (!_walks.TryGetValue(c, out var w))
+            {
+                _walks[c] = (b.Centre, b.Centre, int.MinValue / 2, Vector3.Zero);
+                continue;
+            }
+            var step = b.Centre - w.At;
+            step.Y = 0;
+            if (step.Length() > t.WalkerStep)
+            {
+                if (d - w.Last > t.WalkerAfter)
+                    (w.From, w.Speed) = (w.At, Vector3.Zero);
+                w.Last = d;
+            }
+            // Its speed across the ground, units a drawn tick, evened over its stride (the original's movement moves a body every other tick).
+            w.Speed += (step - w.Speed) * MathF.Min(1, 1 / MathF.Max(t.WalkerSmoothing * 60, 1));
+            w.At = b.Centre;
+            _walks[c] = w;
+            if (d - w.Last <= t.WalkerAfter && Across(w.At - w.From) >= t.WalkerLeast && c != lead?.Current && c != live?.Current)
+            {
+                // Where it is, and where its walk ends, the recording having it, so the camera draws back once rather than chasing it; with
+                // that too far, where it will be a moment on, as the camera trails a goal that moves.
+                var radius = c.Body.ScaledRadius;
+                _walkers.Add(new ShotSubject(b.Centre, radius, t.WalkerWeight));
+                if (composer.EpisodeEnd(c) is { } end && Across(end - b.Centre) is > 0.5f and var way && way <= t.WalkerEndReach)
+                {
+                    _walkers.Add(new ShotSubject(end, radius, t.WalkerWeight));
+                    EndsHeld++;
+                }
+                else if (d - w.Last <= 2)
+                    _walkers.Add(new ShotSubject(b.Centre + w.Speed * (t.WalkerLead * 60), radius, t.WalkerWeight));
+            }
+        }
+
+        static float Across(Vector3 v) => new Vector2(v.X, v.Z).Length();
     }
 
     /// <summary>
@@ -203,65 +343,161 @@ public sealed class BattleDirector
     }
 
     /// <summary>
-    /// The enhanced camera's goal, holding the beats besides (<see cref="EnhancedCamera.Reframe"/>): as it is if it holds them; else drawn
-    /// back the same way round, aimed where it was, then at the middle of them all; else the shot holding them all nearest its way round,
-    /// then the beats with whose turn it is.
+    /// The enhanced camera's goal, holding the beats and the walkers besides (<see cref="EnhancedCamera.Reframe"/>): in an outcome hold, the
+    /// shot held; else as it is if it holds them; else drawn back the same way round, aimed where it was, then at the middle of them all;
+    /// else the shot holding them all nearest its way round, then the beats with whose turn it is. The walkers are let go before the beats
+    /// are. With only beats to come and none about to strike, a goal so far off the shot shown that moving to it would be a cut isn't
+    /// taken: the beat's own cut comes as it nears.
     /// </summary>
     private Shot Reframe(Shot goal, IReadOnlyList<ShotSubject> held)
     {
-        if (_extra.Count == 0 || Camera.Finder is not { } finder)
+        // The outcome hold: the shot the result struck in, drawn back where that holds the walkers too.
+        Framed = "goal";
+        if (_brace is { } brace)
+        {
+            Framed = "brace";
+            return brace;
+        }
+        if (_hold is { } hold)
+        {
+            Framed = "hold";
+            return _walkers.Count == 0 || Camera.Finder is null ? hold.Shot : WithWalkers(hold.Shot, _playing);
+        }
+        if (_extra.Count == 0 && _walkers.Count == 0 || Camera.Finder is not { } finder)
             return goal;
-        var t = Tuning;
-        var lens = t.Lens;
-        if (Sees(goal, _extra))
-            return goal;
-        // A shot cut to for the beats, kept while it holds them: so they play out in one steady shot.
+        // A shot cut to for the beats, kept while it holds them: so they play out in one steady shot. And a shot of its own, likewise.
         if (_pin is { } pin)
         {
             if (Sees(pin, _extra))
-                return pin;
+            {
+                Framed = "pin";
+                return Kept(pin);
+            }
             _pin = null;
         }
-        _all.Clear();
-        _all.AddRange(held);
-        _all.AddRange(_extra);
-        // The same way round, drawn back: aimed where it was (the character, the reticle), then at the middle of them all.
-        var back = goal with { Distance = MathF.Max(goal.Distance, ShotFraming.DistanceToHold(_all, goal.Aim, goal.Yaw, goal.Pitch, lens)) };
-        if (back.Distance <= t.BeatDistance && _shots.Sees(back, _all, finder.Sight))
+        if (_own is { } own)
         {
+            if (_extra.Count > 0 && Sees(own, _extra))
+            {
+                Framed = "own kept";
+                return Kept(own);
+            }
+            _own = null;
+        }
+        var found = Hold(goal, held, _walkers.Count > 0) ?? (_walkers.Count > 0 && _extra.Count > 0 ? Hold(goal, held, false) : null);
+        if (found is { } shot)
+            return shot;
+        return _extra.Count > 0 ? Own(goal, held, finder) : goal;
+
+        Shot Kept(Shot shot) => _walkers.Count == 0 ? shot : WithWalkers(shot, _extra);
+    }
+
+    /// <summary>
+    /// <paramref name="shot"/> drawn back the same way round, aimed where it is, to hold the walkers besides <paramref name="must"/>, if
+    /// that's near enough and sees them all; else as it is.
+    /// </summary>
+    private Shot WithWalkers(Shot shot, List<ShotSubject> must)
+    {
+        if (Sees(shot, _walkers))
+            return shot;
+        _all.Clear();
+        _all.AddRange(must);
+        _all.AddRange(_walkers);
+        var back = shot with { Distance = MathF.Max(shot.Distance, ShotFraming.DistanceToHold(_all, shot.Aim, shot.Yaw, shot.Pitch, Tuning.Lens)) };
+        return back.Distance <= Tuning.BeatDistance && _shots.Sees(back, _all, Camera.Finder!.Sight) ? back : shot;
+    }
+
+    /// <summary>
+    /// The goal holding what it must (the beats, and the walkers if <paramref name="walkers"/>): as it is; drawn back the same way round,
+    /// aimed where it was; or aimed at the middle of them all. Null if none of those does.
+    /// </summary>
+    private Shot? Hold(Shot goal, IReadOnlyList<ShotSubject> held, bool walkers)
+    {
+        var t = Tuning;
+        var finder = Camera.Finder!;
+        _all.Clear();
+        _all.AddRange(_extra);
+        if (walkers)
+            _all.AddRange(_walkers);
+        if (_all.Count == 0)
+            return goal;
+        if (Sees(goal, _all))
+        {
+            Framed = walkers ? "goal holds all" : "goal holds the beats";
+            return goal;
+        }
+        var must = _all.Count;
+        _all.AddRange(held);
+        var back = goal with { Distance = MathF.Max(goal.Distance, ShotFraming.DistanceToHold(_all, goal.Aim, goal.Yaw, goal.Pitch, t.Lens)) };
+        if (back.Distance <= t.BeatDistance && _shots.Sees(back, _all, finder.Sight) && Reachable(back))
+        {
+            Framed = walkers ? "back, all" : "back, beats";
             Widened++;
-            Moved("drawn back to hold the beats");
+            Moved(walkers ? "drawn back to hold the beats and walkers" : "drawn back to hold the beats");
             return back;
         }
         var middle = finder.Framed(_all, goal.Yaw, goal.Pitch, t.BeatDistance);
-        if (_shots.Sees(middle, _all, finder.Sight))
+        if (_shots.Sees(middle, _all, finder.Sight) && Reachable(middle))
         {
+            Framed = walkers ? "middle, all" : "middle, beats";
             Widened++;
-            Moved("drawn back to hold the beats");
+            Moved(walkers ? "drawn back to hold the beats and walkers" : "drawn back to hold the beats");
             return middle;
         }
+        _all.RemoveRange(must, _all.Count - must);
+        Framed = back.Distance > t.BeatDistance ? $"too far ({back.Distance:F0})" : !_shots.Sees(back, _all, finder.Sight) ? "hidden" : "unreachable";
+        return null;
+    }
+
+    /// <summary>A shot of its own holding the beats, nearest the goal's way round, kept while it holds them (<see cref="_own"/>).</summary>
+    private Shot Own(Shot goal, IReadOnlyList<ShotSubject> held, ShotFinder finder)
+    {
+        _all.Clear();
+        _all.AddRange(held);
+        _all.AddRange(_extra);
         _must.Clear();
         _must.AddRange(_extra);
         if (held.Count > 0)
             _must.Add(held[0]);
         if ((_shots.Find(_all, goal.Yaw, _sources, sight: finder.Sight) ?? _shots.Find(_must, goal.Yaw, _sources, sight: finder.Sight)
-                ?? _shots.Find(_extra, goal.Yaw, _sources, sight: finder.Sight) ?? _shots.Find(_extra, goal.Yaw, _sources)) is { } group)
+                ?? _shots.Find(_extra, goal.Yaw, _sources, sight: finder.Sight) ?? _shots.Find(_extra, goal.Yaw, _sources)) is { } group
+            && Reachable(group))
         {
             Regrouped++;
+            Framed = "own";
+            _own = group;
             Moved("a shot of its own to hold the beats");
             return group;
         }
-        return middle;
+        return goal;
+    }
 
-        bool Sees(Shot shot, List<ShotSubject> subjects)
-        {
-            foreach (var s in subjects)
-            {
-                if (!ShotFraming.Holds(shot, s with { Radius = 0 }, lens) || finder.Sight.Hidden(shot.Eye, s))
-                    return false;
-            }
+    /// <summary>
+    /// Whether the camera may go to <paramref name="shot"/> for the beats held: always if one strikes within
+    /// <see cref="CameraTuning.BeatCutAhead"/> or plays; with only beats to come, if moving there from the shot shown wouldn't be a cut.
+    /// </summary>
+    private bool Reachable(Shot shot)
+    {
+        if (_strikes.Count > 0 || _playing.Count > 0 || Camera.Motion is not { } m)
             return true;
+        var t = Tuning;
+        var now = m.Current;
+        var turn = MathF.Max(now.Pitch, shot.Pitch) < ShotFinder.Rad(75) ? MathF.Abs(Shot.Wrap(shot.Yaw - now.Yaw)) : 0;
+        return Vector3.Distance(shot.Aim, now.Aim) <= t.CutDistance && turn <= ShotFinder.Rad(t.CutTurn)
+            && MathF.Abs(shot.Pitch - now.Pitch) <= ShotFinder.Rad(t.CutPitch);
+    }
+
+    /// <summary>Whether a shot holds every one of <paramref name="subjects"/> on the screen and sees it past the arena and the bodies.</summary>
+    private bool Sees(Shot shot, List<ShotSubject> subjects)
+    {
+        var lens = Tuning.Lens;
+        var finder = Camera.Finder!;
+        foreach (var s in subjects)
+        {
+            if (!ShotFraming.Holds(shot, s with { Radius = 0 }, lens) || finder.Sight.Hidden(shot.Eye, s))
+                return false;
         }
+        return true;
     }
 
     /// <summary>Whether a shot holds every one of <paramref name="subjects"/> on the screen.</summary>
@@ -283,13 +519,17 @@ public sealed class BattleDirector
             Camera.Intent.Moved = (why, 0);
     }
 
-    /// <summary>F3's drawing of what it held: the beats, and whom it leads with.</summary>
+    /// <summary>F3's drawing of what it held: the beats, the walkers, and whom it leads with.</summary>
     private void FillIntent()
     {
         var intent = Camera.Intent;
         intent.Beats.Clear();
         foreach (var (f, n) in _beats)
             intent.Beats.Add((BeatShots.Subject(f), f.Beat.Kind, n));
+        intent.Walkers.Clear();
+        intent.Walkers.AddRange(_walkers);
         intent.Director = Lead is { } a ? $"leading action {a.Index}{(a.Current is { } c ? $", {c.Sheet.Name}'s" : "")}" : "leading nothing";
+        if (_hold is { } h)
+            intent.Director += string.Create(CultureInfo.InvariantCulture, $"; holding the outcome {(h.Until - _drawn) / 60f:F1} s");
     }
 }

@@ -170,7 +170,7 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
             }
             ticks++;
             var g = e.Goal;
-            // The aim leads them no further than AimLeadMost (WithNoEnemyAheadTheAimLeadsByHowFastTheyGo).
+            // The aim leads them no further than AimLeadMost (WithNoEnemyAheadTheAimLeadsByHowFastTheyGoAndRestsWhereItGotToAsTheyStop).
             if (Flat(g.Aim - at) <= t.AimLeadMost + 0.01f)
                 led++;
             if (last is { } l && l.Who == me)
@@ -207,14 +207,16 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
     }
 
     [Fact]
-    public void WithNoEnemyAheadTheAimLeadsByHowFastTheyGo()
+    public void WithNoEnemyAheadTheAimLeadsByHowFastTheyGoAndRestsWhereItGotToAsTheyStop()
     {
-        // Rheda runs away from the enemies in her turns, then stands three seconds. With no enemy ahead, the aim leads her
-        // by where she'll be LeadTime from now, the way she goes, once she's run one way a second; and a second after she stops, it's on
-        // her, so one standing is framed in the middle, not off toward where she might go.
+        // Rheda runs away from the enemies in her turns, then stands three seconds. With no enemy ahead, the aim leads her by where she'll
+        // be LeadTime from now, the way she goes, once she's run one way a second; and as she stops it rests where it got to rather than
+        // easing back onto her (the user's, Nov 10: the view wiggled back as Keelin stopped), mostly still ahead of her.
         var t = CameraTuning.Default;
-        var (running, ahead, standing, centred, steady, still) = (0, 0, 0, 0, 0, 0);
+        var (running, ahead, standing, rested, leftAhead) = (0, 0, 0, 0, 0);
         var heading = Vector3.Zero;
+        Vector3? was = null;
+        var (steady, still) = (0, 0);
         Combatant? who = null;
         Play(host => Plain(Set, 1, host), CameraStyle.Enhanced, "Rheda=stick:0:-1:200/wait:180/skip;*=accept/accept", run =>
         {
@@ -223,12 +225,12 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
             if (battle.State != CombatState.Turn || battle.Current is not { Controlled: false } me || !e.Walking
                 || !e.Kind.StartsWith("no enemy ahead", StringComparison.Ordinal) || e.FollowAt is not { } at || e.FollowSpeed is not { } speed)
             {
-                (steady, still, who) = (0, 0, null);
+                (steady, still, who, was) = (0, 0, null, null);
                 return;
             }
+            var off = e.Goal.Aim - at;
             if (who != me)
                 (steady, still, who) = (0, 0, me);
-            var off = e.Goal.Aim - at;
             var way = Flat(speed) > 1 ? Vector3.Normalize(speed with { Y = 0 }) : Vector3.Zero;
             if (way == Vector3.Zero || Vector3.Dot(way, heading) < MathF.Cos(ShotFinder.Rad(15)))
                 (steady, heading) = (0, way);
@@ -245,16 +247,20 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
             if (still > 60)
             {
                 standing++;
-                if (Flat(off) < 0.15f)
-                    centred++;
+                if (was is { } before && Flat(e.Goal.Aim - before) < 0.01f)
+                    rested++;
+                if (Flat(off) > 1)
+                    leftAhead++;
             }
+            was = e.Goal.Aim;
         });
         TestContext.Current.TestOutputHelper?.WriteLine($"{running} ticks running one way a second, the aim ahead of them by their lead on {ahead}; " +
-            $"{standing} ticks standing a second, the aim on them on {centred}");
+            $"{standing} ticks standing a second, the aim still on {rested}, more than 1 ahead of them on {leftAhead}");
         Assert.True(running > 100, $"{running} running");
         Assert.True(ahead >= running * 0.95, $"ahead on {ahead} of {running}");
         Assert.True(standing > 100, $"{standing} standing");
-        Assert.Equal(standing, centred);
+        Assert.True(rested >= standing * 0.99, $"still on {rested} of {standing}");
+        Assert.True(leftAhead > standing / 2, $"left ahead on {leftAhead} of {standing}");
     }
 
     [Fact]

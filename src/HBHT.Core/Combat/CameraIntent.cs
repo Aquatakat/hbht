@@ -60,6 +60,9 @@ public sealed class CameraIntent
     /// </summary>
     public List<(ShotSubject Subject, BeatKind Kind, int In)> Beats { get; } = [];
 
+    /// <summary>Start Early's director: the bodies walking in the drawing it held besides, where they're drawn.</summary>
+    public List<ShotSubject> Walkers { get; } = [];
+
     /// <summary>Start Early's director: what it leads with, in words; null under Camera: Enhanced.</summary>
     public string? Director { get; set; }
 

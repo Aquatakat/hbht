@@ -237,6 +237,32 @@ public sealed class BattleComposerTests
         Assert.Equal(beat.From, OpenedAt(composer));
     }
 
+    // ---------------------------------------------------------------------------------------------------------------------------
+    // The outcome hold (the user's, Nov 10)
+
+    [Fact]
+    public void TwoActionsResultsStrikeAnOutcomeHoldApartThoughOneShotHoldsBoth()
+    {
+        // The beats one shot holds, which overlapped from the first drawn tick: C's now strikes a second after B's.
+        var hold = new StartEarlyPacing().OutcomeHold;
+        var drawn = Draw(Beating(new(-12, 0, 5), new(12, 0, 5)), new SpreadFraming(100), new StartEarlyPacing());
+        var (b, d) = (drawn.Actions.Actions[0].Beats.Single(), drawn.Actions.Actions[1].Beats.Single());
+        var bStrikes = drawn.Starts[0] + (b.From - drawn.Actions.Actions[0].First);
+        var dStrikes = drawn.Starts[1] + (d.From - drawn.Actions.Actions[1].First);
+        Assert.Equal(bStrikes + hold, dStrikes);
+        // Its 60 ticks' walk began as B was hit, overlapping B's beat as before.
+        Assert.True(drawn.Starts[1] <= bStrikes, $"C's walk starts at {drawn.Starts[1]}");
+    }
+
+    [Fact]
+    public void APlayersTurnOpensOnlyOnceTheResultBeforeItHasBeenHeld()
+    {
+        // A standing near B, whose shot holds both: the turn opens a second after B is hit, not as it's hit.
+        var composer = Recorded(Hitting(new(8, 0, 0)), new StartEarlyPacing());
+        var beat = composer.Actions.Actions[0].Beats.Single();
+        Assert.Equal(beat.From + new StartEarlyPacing().OutcomeHold, OpenedAt(composer));
+    }
+
     [Fact]
     public void ThePlayersStickWaitsTillNoBodyWalkingInTheDrawingIsInItsReach()
     {
@@ -392,9 +418,15 @@ public sealed class BattleComposerTests
         Assert.False(composer.Walking);
     }
 
-    private static BattleComposer Recorded(Script script)
+    /// <summary>
+    /// The pacing the tests of the other rules draw with: no outcome hold, so a beat's timing is its own. The hold has tests of its own,
+    /// with the pacing as it is.
+    /// </summary>
+    private static readonly StartEarlyPacing NoHold = new() { OutcomeHold = 0 };
+
+    private static BattleComposer Recorded(Script script, StartEarlyPacing? pacing = null)
     {
-        var composer = new BattleComposer(script.Frames[0], () => true);
+        var composer = new BattleComposer(script.Frames[0], () => true, pacing ?? NoHold);
         foreach (var f in script.Frames.Skip(1))
             composer.Record(f);
         return composer;
@@ -418,9 +450,9 @@ public sealed class BattleComposerTests
     private sealed record Drawing(Dictionary<int, int> Starts, List<Dictionary<Combatant, Vector3>> Places, int Ticks, BattleActions Actions);
 
     /// <summary>Records the script whole, the battle waiting on the player, and draws it till it has caught up.</summary>
-    private static Drawing Draw(Script script, IBeatFraming? framing = null)
+    private static Drawing Draw(Script script, IBeatFraming? framing = null, StartEarlyPacing? pacing = null)
     {
-        var composer = new BattleComposer(script.Frames[0], () => true);
+        var composer = new BattleComposer(script.Frames[0], () => true, pacing ?? NoHold);
         if (framing is not null)
             composer.Framing = framing;
         foreach (var f in script.Frames.Skip(1))

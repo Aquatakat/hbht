@@ -7,6 +7,7 @@ using HBHT.Core.Combat;
 using HBHT.Core.Trek;
 using HBHT.Core.Ui;
 using HBHT.Plugins;
+using HBHT.Plugins.Records;
 using static HBHT.Rom.Tests.CombatCheckpoints;
 
 namespace HBHT.Rom.Tests;
@@ -41,6 +42,17 @@ public sealed class StartEarlyTests(Na10Import fixture)
         Assert.True(early.Watch!.Handed > 0, "the director's camera was never handed to the battle");
         Assert.Equal(BattleOutcome.Won, original.Battle.Outcome);
         Assert.True(original.Battle.NextReserve >= original.Battle.Enemies.Count, "every reserve joined");
+    }
+
+    [Fact]
+    public void TheBanditsWithTheirBossAndReservesAreDrawnTheSameEitherWay()
+    {
+        // The user's fight of Nov 10: Human Bandits and their Boss in C03, four on the field and four reserves, the party attacking.
+        PartyEnemy Bandit() => new(RecordId.Hex(RecordTypes.Entity, 0x021B), 1, 1);
+        var boss = new PartyEnemy(RecordId.Hex(RecordTypes.Entity, 0x021C), 1, 1);
+        var (original, early) = Both(host => Plain(Set, 1, host, [Bandit(), Bandit(), Bandit(), boss, Bandit(), Bandit(), Bandit(), Bandit()]), Attacking);
+        Same(original, early);
+        Directed(early);
     }
 
     [Fact]
@@ -559,10 +571,13 @@ public sealed class StartEarlyTests(Na10Import fixture)
                         continue;
                     foreach (var beat in a.Beats)
                     {
-                        if (a.DrawnAt(beat.End(last)) < d)
+                        // A beat is shown till its end, or with an outcome hold, till the hold's.
+                        var hold = composer.Pacing.OutcomeHold;
+                        var shown = hold > 0 ? Math.Min(beat.End(last), beat.From + hold - 1) : beat.End(last);
+                        if (a.DrawnAt(shown) < d)
                             continue;
                         Assert.True(a.DrawnAt(beat.From) <= d, $"the player's turn opened at drawn tick {d} before {beat} struck");
-                        var at = Math.Clamp(a.TickAt(d), beat.From, beat.End(last));
+                        var at = Math.Clamp(a.TickAt(d), beat.From, shown);
                         playing.Add(new FramedBeat(beat, at, _places[at][beat.Subject], null));
                     }
                 }
@@ -609,7 +624,44 @@ public sealed class StartEarlyTests(Na10Import fixture)
         public float ZoomMost { get; private set; }
 
         private (System.Numerics.Vector3 Aim, float Yaw, float Pitch, float Distance)? _speeds;
-        private int _cuts;
+        private int _cuts, _lastCut = -1000;
+        private Shot? _beforeCut, _shown;
+        private DrawnAction? _cutLead;
+        private string _cutWhy = "";
+        private bool _lastWasBack;
+
+        /// <summary>Cuts back that were themselves cut back to: two shots alternating, the user's flicker.</summary>
+        public List<string> Flickers { get; } = [];
+
+        private static bool Near(Shot a, Shot b) =>
+            System.Numerics.Vector3.Distance(a.Eye, b.Eye) < 2 && System.Numerics.Vector3.Distance(a.Aim, b.Aim) < 2;
+        private readonly List<(FramedBeat Beat, int At)> _outcomes = [];
+        private readonly Dictionary<Combatant, System.Numerics.Vector3> _lastDrawn = [];
+
+        /// <summary>How soon after a cut another counts as a flicker.</summary>
+        public const int QuickCut = 30;
+
+        /// <summary>Cuts back to about the shot the last cut left, within <see cref="QuickCut"/> of it.</summary>
+        public List<string> QuickCuts { get; } = [];
+
+        /// <summary>Results cut away from, or let off the screen, within the outcome hold of striking on it.</summary>
+        public List<string> OutcomeCut { get; } = [];
+
+        public List<string> OutcomeLost { get; } = [];
+
+        /// <summary>Drawn ticks a body walked on, and those it was off the screen.</summary>
+        public int Moving { get; private set; }
+
+        public List<string> MoverOff { get; } = [];
+
+        public Dictionary<string, int> MoverOffBy { get; } = [];
+
+        /// <summary>How long a walker is held before the camera should have it on the screen, and the ticks one held that long wasn't.</summary>
+        public const int WalkerSettle = 60;
+
+        public int WalkerLost { get; private set; }
+
+        private readonly Dictionary<Combatant, int> _heldFor = [];
 
         /// <summary>What the director drew on a drawn tick (Start Early).</summary>
         private void Direct(BattleFrame f, BattleComposer composer, int d)
@@ -643,9 +695,68 @@ public sealed class StartEarlyTests(Na10Import fixture)
                     }
                 }
             }
-            // Between cuts, and but for the player's hand and an aim, which raise its caps, the acceleration stays within them.
+            // A cut soon after another flickers (the user's Nov 10 play: two shots alternating every tick).
             var cut = director.Camera.Cuts != _cuts;
             _cuts = director.Camera.Cuts;
+            // A flicker: a cut back to about the shot the last cut left, soon after it (the user's Nov 10 play, two shots every tick).
+            if (cut)
+            {
+                var back = d - _lastCut < QuickCut && _beforeCut is { } left && Near(shot, left) && director.Lead == _cutLead;
+                if (back && _lastWasBack)
+                    Flickers.Add($"cut back again at drawn tick {d}, {d - _lastCut} after the last ({director.Camera.Kind}; leading {director.Lead})");
+                _lastWasBack = back;
+                if (back)
+                    QuickCuts.Add($"cut back at drawn tick {d}, {d - _lastCut} after the last ({director.Camera.Kind}; {director.Camera.Intent.Moved?.Why}; leading {director.Lead}, live {composer.Live}; the cut before: {_cutWhy})");
+                _lastCut = d;
+                _cutWhy = $"{director.Camera.Kind}, {director.Framed}, beat cuts {director.BeatCuts}, state {f.State}";
+                _beforeCut = _shown;
+                _cutLead = director.Lead;
+            }
+            _shown = shot;
+            // A result struck on the screen is held there a moment (the outcome hold): no cut, and its body kept on the screen.
+            foreach (var p in playing)
+            {
+                if (p.Tick == p.Beat.From && ShotFraming.Holds(shot, BeatShots.Subject(p) with { Radius = 0 }, lens))
+                    _outcomes.Add((p, d));
+            }
+            _outcomes.RemoveAll(o => d - o.At >= drawing.Composer.Pacing.OutcomeHold);
+            foreach (var (o, at) in _outcomes)
+            {
+                if (d == at)
+                    continue;
+                // Cut away from: to a shot that doesn't hold it. A cut to one holding it and a result struck since (one action's second
+                // hit) keeps it in view.
+                var stillThere = playing.Where(x => x.Beat == o.Beat).Select(x => (FramedBeat?)x).FirstOrDefault();
+                if (cut && (stillThere is not { } kept || !ShotFraming.Holds(shot, BeatShots.Subject(kept) with { Radius = 0 }, lens)))
+                    OutcomeCut.Add($"{o.Beat} struck at drawn tick {at} and was cut away from {d - at} later ({director.Camera.Kind}; {director.Camera.Intent.Moved?.Why}; leading {director.Lead}, live {composer.Live})");
+                else if (!cut && stillThere is { } still && !ShotFraming.Holds(shot, BeatShots.Subject(still) with { Radius = 0 }, lens))
+                    OutcomeLost.Add($"{o.Beat} struck at drawn tick {at} and left the screen {d - at} later ({director.Camera.Kind}; leading {director.Lead}, live {composer.Live})");
+            }
+            if (cut)
+                _outcomes.RemoveAll(o => o.At != d && !playing.Any(x => x.Beat == o.Beat.Beat && ShotFraming.Holds(shot, BeatShots.Subject(x) with { Radius = 0 }, lens)));
+            // A body walking in the drawing is kept on the screen, so the player sees where it goes.
+            foreach (var b in f.Bodies)
+            {
+                var heldNow = director.Walkers.Any(w => w.At == b.Centre);
+                _heldFor[b.Combatant] = heldNow ? _heldFor.GetValueOrDefault(b.Combatant) + 1 : 0;
+                if (_lastDrawn.TryGetValue(b.Combatant, out var was) && System.Numerics.Vector3.Distance(was, b.Centre) > 0.02f && b.Alpha > 0
+                    && b.Combatant != director.Lead?.Current && b.Combatant != composer.Live?.Current)
+                {
+                    Moving++;
+                    if (_heldFor[b.Combatant] > WalkerSettle && !ShotFraming.Holds(shot, new ShotSubject(b.Centre, b.Combatant.Body.ScaledRadius) with { Radius = 0 }, lens))
+                    {
+                        WalkerLost++;
+                    }
+                    if (!ShotFraming.Holds(shot, new ShotSubject(b.Centre, b.Combatant.Body.ScaledRadius) with { Radius = 0 }, lens))
+                    {
+                        var key = $"{(director.Walkers.Any(w => w.At == b.Centre) ? "held" : "not held")}, {System.Text.RegularExpressions.Regex.Replace(director.Camera.Kind, "[0-9]+", "n")}, {director.Framed}, {(composer.Live is null ? "" : "live")}";
+                        MoverOffBy[key] = MoverOffBy.GetValueOrDefault(key) + 1;
+                    }
+                    if (!ShotFraming.Holds(shot, new ShotSubject(b.Centre, b.Combatant.Body.ScaledRadius) with { Radius = 0 }, lens))
+                        MoverOff.Add($"{b.Combatant} walked off the screen at drawn tick {d}, {(director.Walkers.Any(w => w.At == b.Centre) ? "held" : "not held")} ({director.Camera.Kind}; {director.Camera.Intent.Moved?.Why}; leading {director.Lead}, live {composer.Live})");
+                }
+                _lastDrawn[b.Combatant] = b.Centre;
+            }
             var (y, pitch, z) = m.Speeds;
             if (cut || director.Camera.Quick)
             {
@@ -710,10 +821,20 @@ public sealed class StartEarlyTests(Na10Import fixture)
             $"with beats of different actions at once, {w.OverlapOffShot.Count} not all on the screen; most acceleration of its cap: aim " +
             $"{w.AimMost:F2}, turn {w.TurnMost:F2}, zoom {w.ZoomMost:F2}; cuts {director.Camera.Cuts}, {director.BeatCuts} to keep a beat; " +
             $"drawn back {director.Widened}, regrouped {director.Regrouped}; the shot question asked {director.Framing.Asked} times, " +
-            $"looked into {director.Framing.Looked}; the battle read the camera drawn on {w.Handed} ticks"));
+            $"looked into {director.Framing.Looked}; the battle read the camera drawn on {w.Handed} ticks; {w.QuickCuts.Count} cuts within " +
+            $"{Watch.QuickCut} ticks of the last; results cut away from in their hold {w.OutcomeCut.Count}, off the screen {w.OutcomeLost.Count}; " +
+            $"bodies walked on {w.Moving} ticks, off the screen on {w.MoverOff.Count}, {w.WalkerLost} of them held a second already; walk ends held {director.EndsHeld}, holds {director.Holds} over {director.Held} ticks"));
+        foreach (var (k, n) in w.MoverOffBy.OrderByDescending(x => x.Value).Take(12))
+            TestContext.Current.TestOutputHelper?.WriteLine($"  walkers off the screen {n}: {k}");
+        foreach (var line in w.QuickCuts.Take(15).Concat(w.OutcomeCut.Take(15)).Concat(w.OutcomeLost.Take(10)).Concat(w.MoverOff.Take(15)))
+            TestContext.Current.TestOutputHelper?.WriteLine("  " + line);
         Assert.True(w.OffShot.Count == 0, string.Join("\n", w.OffShot.Take(10)));
         Assert.True(w.HiddenAtStrike.Count == 0, string.Join("\n", w.HiddenAtStrike.Take(10)));
         Assert.True(w.OverlapOffShot.Count == 0, string.Join("\n", w.OverlapOffShot.Take(10)));
+        // No two shots alternate (the user's flicker, Nov 10), and no result is cut away from, or let off the screen, in its outcome hold.
+        Assert.True(w.Flickers.Count == 0, string.Join("\n", w.Flickers.Take(10)));
+        Assert.True(w.OutcomeCut.Count == 0, string.Join("\n", w.OutcomeCut.Take(10)));
+        Assert.True(w.OutcomeLost.Count == 0, string.Join("\n", w.OutcomeLost.Take(10)));
         Assert.True(w.AimMost <= 1.001f, $"aim {w.AimMost}");
         Assert.True(w.TurnMost <= 1.001f, $"turn {w.TurnMost}");
         Assert.True(w.ZoomMost <= 1.001f, $"zoom {w.ZoomMost}");

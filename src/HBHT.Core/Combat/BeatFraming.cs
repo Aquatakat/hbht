@@ -74,6 +74,13 @@ public sealed record StartEarlyPacing
     /// <summary>The most ticks a beat lasts, however long its reaction: three seconds.</summary>
     public int BeatMost { get; init; } = 180;
 
+    /// <summary>
+    /// The outcome hold (the user's, Nov 10): the drawn ticks a result is held on the screen once it strikes, a second. Two actions' results
+    /// strike at least this far apart, a player's turn opens no sooner after the last result before it, and the director keeps the shot
+    /// that showed it strike.
+    /// </summary>
+    public int OutcomeHold { get; init; } = 60;
+
     /// <summary>How many ticks a beat waits for its body's actor to leave its idle loop before it counts as having no reaction.</summary>
     public int ReactionWait { get; init; } = 12;
 
