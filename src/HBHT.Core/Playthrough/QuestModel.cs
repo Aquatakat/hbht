@@ -29,6 +29,7 @@ public sealed class QuestModel
     private readonly HashSet<RecordId> _neverThere = [];
     private int[][] _pre = [];
     private int[][] _adds = [];
+    private RecordId[][] _places = [];
 
     private QuestModel(PluginSet plugins, FlagModel flags, IPlaceReach reach)
     {
@@ -517,9 +518,9 @@ public sealed class QuestModel
         if (placed.Facts[action] is { } known)
             return known.Length == 1 && known[0] < 0 ? null : known;
         int[]? facts = NoFacts;
-        foreach (var reaches in _actions[action].Presence.OfType<Reaches>())
+        foreach (var place in _places[action])
         {
-            if (Reach.Gates(reaches.Place) is not { } gates)
+            if (Reach.Gates(place) is not { } gates)
             {
                 facts = null;
                 break;
@@ -547,8 +548,10 @@ public sealed class QuestModel
     {
         _pre = new int[_actions.Count][];
         _adds = new int[_actions.Count][];
+        _places = new RecordId[_actions.Count][];
         foreach (var action in _actions)
         {
+            _places[action.Index] = [.. action.Presence.OfType<Reaches>().Select(r => r.Place)];
             _pre[action.Index] = [.. action.Presence.Concat(action.Requires).Select(Fact).OfType<int>().Distinct()];
             _adds[action.Index] = [.. AddsOf(action).Distinct()];
         }

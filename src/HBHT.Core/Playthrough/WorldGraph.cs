@@ -309,6 +309,26 @@ public sealed partial class WorldGraph
     }
 
     private readonly ConcurrentDictionary<RecordId, IReadOnlyList<(int Cell, float Distance)>> _stands = [];
+    private readonly ConcurrentDictionary<RecordId, Standing?> _standing = [];
+
+    /// <summary>Where a map object is used from: its map set, and the cells to stand in (<see cref="StandNear"/>), found when first asked.</summary>
+    internal sealed class Standing(WorldGraph graph, RecordId mapObject, RecordId mapSet, Vector3 target, float range)
+    {
+        private IReadOnlyList<(int Cell, float Distance)>? _cells;
+
+        public RecordId MapSet { get; } = mapSet;
+
+        public IReadOnlyList<(int Cell, float Distance)> Cells => _cells ??= graph.StandFor(mapObject, MapSet, target, range);
+    }
+
+    /// <summary>
+    /// A map object's <see cref="Standing"/>, kept: null if no chunk has it or the player doesn't use it by walking up to it. The floods
+    /// ask it of every place in every round.
+    /// </summary>
+    internal Standing? StandingOf(RecordId mapObject) => _standing.GetOrAdd(mapObject, id =>
+        _plugins.TryGet<ChunkRecord>(ChunkRecord.ChunkOf(id)) is { } chunk && chunk.Object(ChunkRecord.IndexOf(id)) is { } o && UseRange(o) is { } range
+            ? new Standing(this, id, chunk.MapSet, _plugins.Get<MapSetRecord>(chunk.MapSet).Origin(chunk) + o.Position, range)
+            : null);
     private readonly ConcurrentDictionary<RecordId, Lazy<Dictionary<(int Row, int Column), int[]>>> _chunkCells = [];
 
     /// <summary>

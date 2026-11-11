@@ -85,10 +85,15 @@ public sealed class WorldReach : IPlaceReach
         // A round whose ways all cost what the last round's did floods as it did: the last round's flood serves. Its gates are judged
         // alike too, since a gate the last round took as closed it takes as closed, so it gets to no place an earlier round didn't.
         var tolls = Graph.Tolls(way => Toll(way, canOpen));
-        var flood = _rounds.Count > 0 && tolls.AsSpan().SequenceEqual(_rounds[^1].Tolls) ? FloodOf(_rounds[^1]) : Graph.Flood(From, tolls);
+        var same = _rounds.Count > 0 && tolls.AsSpan().SequenceEqual(_rounds[^1].Tolls) ? FloodOf(_rounds[^1]) : null;
+        // The earlier rounds' floods are given up before this round's is made, which reuses their arrays.
         foreach (var round in _rounds)
+        {
+            if (round.Flood is { } old && old != same)
+                old.Release();
             round.Flood = null;
-        _rounds.Add(new Round(tolls, canOpen, flood));
+        }
+        _rounds.Add(new Round(tolls, canOpen, same ?? Graph.Flood(From, tolls)));
         // A place an earlier round got to keeps that round's way; those none got to are looked for in the rounds after.
         foreach (var (place, known) in _known)
         {

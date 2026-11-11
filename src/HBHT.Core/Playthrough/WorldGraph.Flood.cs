@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using HBHT.Plugins;
 using HBHT.Plugins.Records;
 
@@ -113,22 +114,49 @@ public sealed class GateFlood
 
     internal List<FloodSet> Sets { get; } = [];
 
-    internal sealed class FloodSet(int index, WalkGraph graph)
+    internal sealed class FloodSet
     {
-        public int Index { get; } = index;
-        public WalkGraph Graph { get; } = graph;
-        public int[] Cost { get; } = Filled(graph.Count, int.MaxValue);
-        public int[] Chain { get; } = Filled(graph.Count, -1);
+        public FloodSet(int index, WalkGraph graph)
+        {
+            Index = index;
+            Graph = graph;
+            (Cost, Chain) = Spare.TryGetValue(graph, out var spare) && spare.TryPop(out var arrays) ? arrays : (new int[graph.Count], new int[graph.Count]);
+            Array.Fill(Cost, int.MaxValue);
+            Array.Fill(Chain, -1);
+        }
+
+        public int Index { get; }
+        public WalkGraph Graph { get; }
+        public int[] Cost { get; }
+        public int[] Chain { get; }
 
         /// <summary>The map set's portals by cell, once the flood first asks.</summary>
         internal WorldGraph.PortalCellIndex? Portals { get; set; }
+    }
 
-        private static int[] Filled(int count, int value)
+    /// <summary>
+    /// The arrays of floods given up (<see cref="Release"/>), by walk graph, for the next flood on the same thread: a reach floods some
+    /// twenty times a step, and the Overworld's arrays are 8 MB a flood, which the collector would otherwise sweep from the large
+    /// object heap by full collections.
+    /// </summary>
+    [ThreadStatic] private static ConditionalWeakTable<WalkGraph, Stack<(int[] Cost, int[] Chain)>>? _spare;
+
+    private static ConditionalWeakTable<WalkGraph, Stack<(int[] Cost, int[] Chain)>> Spare => _spare ??= new();
+
+    /// <summary>The most floods' arrays kept spare for each walk graph.</summary>
+    private const int MostSpare = 2;
+
+    /// <summary>Gives the flood's arrays up for the next flood on this thread to reuse: it mustn't be read again.</summary>
+    internal void Release()
+    {
+        foreach (var set in Sets)
         {
-            var a = new int[count];
-            Array.Fill(a, value);
-            return a;
+            var spare = Spare.GetOrCreateValue(set.Graph);
+            if (spare.Count < MostSpare)
+                spare.Push((set.Cost, set.Chain));
         }
+        Sets.Clear();
+        _byId.Clear();
     }
 
     internal FloodSet Set(RecordId mapSet)
@@ -155,12 +183,10 @@ public sealed class GateFlood
     /// </summary>
     public IReadOnlyList<IGatedWay>? To(RecordId mapObject)
     {
-        var plugins = _graph.Plugins;
-        if (plugins.TryGet<ChunkRecord>(ChunkRecord.ChunkOf(mapObject)) is not { } chunk || chunk.Object(ChunkRecord.IndexOf(mapObject)) is not { } o
-            || WorldGraph.UseRange(o) is not { } range || !_byId.TryGetValue(chunk.MapSet, out var set))
+        if (_graph.StandingOf(mapObject) is not { } standing || !_byId.TryGetValue(standing.MapSet, out var set))
             return null;
         var best = -1;
-        foreach (var (cell, _) in _graph.StandCells(mapObject, chunk, o, range))
+        foreach (var (cell, _) in standing.Cells)
         {
             if (set.Cost[cell] != int.MaxValue && (best < 0 || set.Cost[cell] < set.Cost[best]))
                 best = cell;
