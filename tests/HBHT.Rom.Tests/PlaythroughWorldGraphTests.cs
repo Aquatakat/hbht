@@ -107,6 +107,29 @@ public sealed class PlaythroughWorldGraphTests(Na10Import fixture)
     }
 
     [Fact]
+    public void ATeleportersArrivalIsTheCellThePlayerIsSetDownIn()
+    {
+        // The bridge's door back into Gwernia castle's courtyard arrives on a floor at a whole height (y 4). Snapped from under the
+        // floor, it was the twin cell a unit down, a pocket by the wall that no step leaves, and the castle's way out was walled off
+        // from the library, the lab and the stairwell between them (4/K07, where 0x035F's backdrop plays).
+        var state = GameState.NewGame(Plugins);
+        var bridgeDoor = Graph.Portals.Single(p => p.Id == Object("4/M05/0"));
+        var arrival = Graph.ArrivalOf(bridgeDoor);
+        Assert.NotNull(arrival);
+        Assert.Equal(new Reach.Cell(915, 703, 4), Graph.Walk(bridgeDoor.ToSet).Cell(arrival.Value));
+
+        var stairwell = new Place(RecordId.Decimal(RecordTypes.MapSet, 4), new Vector3(1105.69f, 0.007f, 711.46f));
+        Assert.True(Graph.CanReach(Object("4/I07/4"), state, stairwell));
+
+        // Every arrival is a cell some step leaves.
+        foreach (var portal in Graph.Portals)
+        {
+            if (Graph.ArrivalOf(portal) is { } cell)
+                Assert.True(Graph.Walk(portal.ToSet).Steps(cell).Length > 0, $"{portal.Id} arrives in a cell no step leaves");
+        }
+    }
+
+    [Fact]
     public void AnObjectsOwnGatesAreReportedWithoutSearching()
     {
         var state = GameState.NewGame(Plugins);

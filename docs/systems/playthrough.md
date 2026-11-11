@@ -98,7 +98,7 @@ A tangible script object or tripwire goes off as the player walks past it. The p
 
 **Walk graphs.** Each map set has one, made from `Reach`'s exploration at the original's movement and pace (`Reach.Options.Edges`). A node is a 1×1×1 cell his feet passed over on the ground. An edge is a step he made from one cell to the next in a run, so it goes one way and is something the real `PlayerMotion` did: a ledge dropped off has a way down and none up unless some run climbed it. Each cell keeps the mean place of his feet in it (`Reach.Feet`), which is what a pilot steers for, since steering at cells' middles runs into walls' corners. A graph is made when its map set is first asked for and cached under the data folder's `cache/playthrough`, keyed by a fingerprint of the graph's format, the explorer's options and the plugins. The base plugin's file times are left out of it, so importing the same ROM again keeps the cache. From a cold cache, all 17 map sets take about 86 s (the Overworld's 1,007,448 cells are 8 MB of the 9.5 MB, before its toggles' ground). A warm read takes milliseconds.
 
-**Teleporters** join the map sets. There are 894 outside the Battle arenas, and 96 carry a gate that stops the way: a visibility or enabled flag, or a lock its flag opens. A tangible teleporter's lock, trap and secret are skipped, as `MapObjectUse.Touch` skips them. Traps, and secret doors needing no skill, never block, but they are reported. 42 teleporters have no reached ground within their radius, and one (`0/C09/14`) has no arrival ground, so they aren't edges. The gates are data (`RouteGate`), read against the `GameState` when a route is asked for, so one graph serves every moment of the game.
+**Teleporters** join the map sets. There are 894 outside the Battle arenas, and 96 carry a gate that stops the way: a visibility or enabled flag, or a lock its flag opens. A tangible teleporter's lock, trap and secret are skipped, as `MapObjectUse.Touch` skips them. Traps, and secret doors needing no skill, never block, but they are reported. 42 teleporters have no reached ground within their radius, and one (`0/C09/14`) has no arrival ground, so they aren't edges. A teleporter puts the player in the cell his feet are in once he's set down at its arrival, as trek's teleport sets him down (`Reach.SetDownAt`), each map set's made once (`WorldGraph.SetDowns`). The arrival point snapped alone can pick the twin of a cell a unit below a floor at a whole height, where runs ended against a wall and none set off: so the bridge's door back into Gwernia castle's courtyard (4/M05/0) once arrived in a pocket of five cells, and the library, the lab and their stairwell (4/K07) had no way out but the Erromon portal behind 2136. The gates are data (`RouteGate`), read against the `GameState` when a route is asked for, so one graph serves every moment of the game.
 
 **Routes.** `Route(state, from, mapObject)` runs A* across the graphs and the teleporters, to the nearest ground within the object's use range by trek's rule:
 
@@ -432,9 +432,11 @@ A goal is a flag to set (`flag:<n>`), someone joining (`member`), or `ending`: t
 
 ```
 hbht playthrough cover init --root <dir> [--save <save>] [--targets all|<file>] [--job-minutes <n>] [--most-failures <n>]
-hbht playthrough cover work --root <dir> [--most-minutes <n>] [--most-jobs <n>]
+hbht playthrough cover work --root <dir> [--most-minutes <n>] [--most-jobs <n>] [--threads <n>]
 hbht playthrough cover status --root <dir> [--all]
 ```
+
+**Workers.** `work --threads <n>` plays up to n jobs at once on threads of one process, sharing one quest model and world graph ([runs side by side](#the-run)); about 20 suits a 32-thread machine. A worker that finds nothing pending waits while another is still playing, since that job may make branches, and they all stop once none is. A job that throws is left claimed and the others go on; it's played again when a later `work` finds its process gone.
 
 **The targets.** By default, every flag, plain or derived, that the relaxation over every action from the start sets and isn't set at the start (`FactLayer` above 0): from a new game on NA 1.0, 2,230 (1,882 plain, 348 derived). A file names others, by number or record ID.
 
@@ -476,20 +478,19 @@ hbht playthrough cover status --root <dir> [--all]
 - The root job played 60 steps in 411 s and covered 164: the chests about I08, the Goblin Ambush and Oriana's hut, Erromon's way, then Gwernia's castle, filling the party on the way.
 - Of its 411 s, the looks took 3 s, 261 loss checks 1.2 s, 2,050 plans 8 s and 236 routes 2 s; the rest is the pilot, the battles (53, 21 lost first) and the rounds of floods before each step.
 - A branch costs about 12 s before its first step (the save loaded and the first rounds of floods). Four of the eight lost their one target again on their first step, to a story trigger on every way out (Edur's 0x0391, 0x0396 at I08/20, 0x039A at I08/27, Gwernia's 0x0377): those aren't branched again. Branch 0.4, from the castle's scene, covered 8 of its 11.
-- Step 49 lost 2,014 targets by the places alone, at Gwernia castle (below): the root swept what it could inside, gave up the 36 it had no plan to, and the branch from before the step carried on.
 - Given up, by reason: 36 no plan where the run stood, 4 lost again on a branch's first step, 1 after three failed steps (0x036F at 4/O09/6, whose way takes choice 19 over a hundred times).
 
 **Left:**
 
 - Stage 1, the trunk: a story run with a save before every step, and each target given to the save where it's last reachable or nearest the player while it is, as the jobs' starts. Until then the root job sweeps from a new game, and the story moves on only when nothing near is left.
 - Waiting for the hour: derived targets over the calendar wait and are given up.
-- A branch's targets lost by the places alone may be the world graph's, not the game's: from Gwernia castle after 0x035F at 4/K07/2 the walk graph's only way out is the teleporter 4/Q03/4, gated by 2136, so 6,674 actions read as walled and 2,014 targets were lost at once. Whether the walk graph lacks the way back or the scene moved the player beyond it is still to be found.
+- A loss by the places alone may be the world graph's, not the game's, as the castle's was ([teleporters](#the-world-graph)): look at the cells where the step left the player before taking it as the game's.
 - Branches aren't capped by depth or count, and a branch whose targets are covered elsewhere is still claimed, to finish at once.
 - The ledger puts what a trainer or a shop visit sets down to the step before it.
 
 ## Where it stands
 
-From a new game the run reaches the ending: the Coronation of Alaron plays and the ending's credits roll. It plays 84 steps, 4,122,658 ticks (about 1,145 game minutes), in about 130 s of wall time (the run is deterministic: the same plugins play the same run).
+From a new game the run reaches the ending: the Coronation of Alaron plays and the ending's credits roll. It plays 84 steps, 4,125,677 ticks (about 1,146 game minutes), in about 120 s of wall time (the run is deterministic: the same plugins play the same run).
 
 - It fills the party in 6 steps (Abrecan, Brenna, Rheda), and reaches Erromon (step 7), the goblin camp, Jundar (16) and the herb (22), Port Saiid and the Lighthouse (27), Terminor (36), EhudUnder (38), Ugarit (48), the Barrows (51), the Shadow's merge (80), Roog's cave and Rooughah's naming (82), and the last scenes at Gwernia castle (84).
 - It fights 273 battles: 55 lost first and 31 won with a member dead, each played again and won outright; 4 stalemates; no deaths in battle stand; Niesen's death in EhudUnder is the story's. It camps 59 times, trains once, shops at 4 shopkeepers (5 bought) and puts on better gear 49 times.

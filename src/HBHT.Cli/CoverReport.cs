@@ -19,10 +19,12 @@ internal static partial class CoverReport
                                                every flag the static pass can set that isn't set at the start (or the
                                                file's flags, numbers or record IDs, one or more a line); each job may take
                                                <n> minutes (120), and <n> failed steps towards a target give it up (3)
-          hbht playthrough cover work --root <dir> [--most-minutes <n>] [--most-jobs <n>]
+          hbht playthrough cover work --root <dir> [--most-minutes <n>] [--most-jobs <n>] [--threads <n>]
                                                claims pending jobs one after another and plays them, until none is left,
                                                the minutes run out (a job cut short is carried on by another), or <n> jobs
-                                               are done; several processes may work one root at once
+                                               are done; <n> workers on threads share one model and world
+                                               graph (1; about 20 suits a 32-thread machine), and several
+                                               processes may work one root at once
           hbht playthrough cover status --root <dir> [--all]
                                                the targets covered, live and given up, the jobs by status, the branches,
                                                and the uncovered targets with their last reason (--all lists every one)
@@ -131,33 +133,75 @@ internal static partial class CoverReport
         var recovered = queue.Recover();
         if (recovered > 0)
             Console.WriteLine($"{recovered} job(s) whose process had died are pending again");
-        QuestModel? model = null;
-        WorldGraph? graph = null;
-        var jobs = 0;
-        while (jobs < mostJobs)
+        var threads = (int)Number(options, "--threads", 1);
+        if (!queue.All().Any(j => j.Status == JobStatus.Pending))
         {
-            var left = most is { } m ? m - clock.Elapsed : (TimeSpan?)null;
-            if (left is { } l && l <= TimeSpan.Zero)
-                break;
-            if (queue.Claim() is not { } job)
-            {
-                Console.WriteLine("No pending job is left.");
-                break;
-            }
-            if (model is null)
-            {
-                var built = Stopwatch.StartNew();
-                model = QuestModel.Build(plugins);
-                graph = new WorldGraph(plugins);
-                Console.WriteLine($"{model.Actions.Count} actions over {model.Ways.Count} scripts, in {built.Elapsed.TotalSeconds:F1} s");
-                left = most is { } m2 ? m2 - clock.Elapsed : null;
-            }
-            var worker = new CoverWorker(queue, model, graph!) { Progress = Console.WriteLine };
-            var result = worker.Work(job, left);
-            jobs++;
-            Console.WriteLine($"job {job.Id}: {result.Outcome}; {result.Steps} steps, {result.WallSeconds:0} s; " +
-                $"{result.Targets.Count(t => t.State == TargetState.Covered)} of its {result.Targets.Count} targets covered, {result.Made.Count} job(s) made");
+            Console.WriteLine("No pending job is left.");
+            return 0;
         }
+        // One model and one world graph, shared by every worker (QuestModel.ForRun gives each run its own reach).
+        var built = Stopwatch.StartNew();
+        var model = QuestModel.Build(plugins);
+        var graph = new WorldGraph(plugins);
+        Console.WriteLine($"{model.Actions.Count} actions over {model.Ways.Count} scripts, in {built.Elapsed.TotalSeconds:F1} s; {threads} worker(s)");
+
+        var gate = new object();
+        var jobs = 0;
+        var busy = 0;
+        void Worker()
+        {
+            while (true)
+            {
+                CoverJob? job;
+                TimeSpan? left;
+                lock (gate)
+                {
+                    while (true)
+                    {
+                        left = most is { } m ? m - clock.Elapsed : null;
+                        if (jobs >= mostJobs || left is { } l && l <= TimeSpan.Zero)
+                            return;
+                        job = queue.Claim();
+                        if (job is not null)
+                        {
+                            jobs++;
+                            busy++;
+                            break;
+                        }
+                        // Nothing pending: done once no worker is playing a job that could make more, else wait for one to finish.
+                        if (busy == 0)
+                        {
+                            Monitor.PulseAll(gate);
+                            return;
+                        }
+                        Monitor.Wait(gate, TimeSpan.FromSeconds(30));
+                    }
+                }
+                try
+                {
+                    var worker = new CoverWorker(queue, model, graph) { Progress = Console.WriteLine };
+                    var result = worker.Work(job, left);
+                    Console.WriteLine($"job {job.Id}: {result.Outcome}; {result.Steps} steps, {result.WallSeconds:0} s; " +
+                        $"{result.Targets.Count(t => t.State == TargetState.Covered)} of its {result.Targets.Count} targets covered, {result.Made.Count} job(s) made");
+                }
+                catch (Exception e)
+                {
+                    // The claim stays, so the job goes back to pending when this process is gone; the other workers go on.
+                    Console.Error.WriteLine($"job {job.Id} failed: {e}");
+                }
+                finally
+                {
+                    lock (gate)
+                    {
+                        busy--;
+                        Monitor.PulseAll(gate);
+                    }
+                }
+            }
+        }
+        var workers = Enumerable.Range(0, threads).Select(_ => new Thread(Worker, 64 * 1024 * 1024)).ToList();
+        workers.ForEach(t => t.Start());
+        workers.ForEach(t => t.Join());
         Console.WriteLine($"{jobs} job(s) worked in {clock.Elapsed.TotalMinutes:0.0} minutes");
         return 0;
     }

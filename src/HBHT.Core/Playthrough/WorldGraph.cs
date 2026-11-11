@@ -7,6 +7,7 @@ using System.Text;
 using HBHT.Core.Combat;
 using HBHT.Core.MapObjects;
 using HBHT.Core.Movement;
+using HBHT.Core.Physics;
 using HBHT.Plugins;
 using HBHT.Plugins.Records;
 
@@ -86,7 +87,7 @@ public sealed partial class WorldGraph
     private readonly Lazy<Dictionary<RecordId, int>> _toggleIndex;
     private readonly Lazy<string> _fingerprint;
     private readonly ConcurrentDictionary<RecordId, Lazy<PortalCellIndex>> _portalCells = [];
-    private readonly ConcurrentDictionary<int, Lazy<int?>> _arrivals = [];
+    private readonly ConcurrentDictionary<RecordId, Lazy<Dictionary<int, int?>>> _setDowns = [];
     private readonly Lock _closureLock = new();
     private readonly Dictionary<string, Dictionary<RecordId, bool[]>> _closures = [];
 
@@ -407,8 +408,35 @@ public sealed partial class WorldGraph
     }
 
     /// <summary>The cell a portal puts the player in, or null if he never walked near its arrival.</summary>
-    private int? ArrivalCell(int portal) =>
-        _arrivals.GetOrAdd(portal, p => new Lazy<int?>(() => Walk(Portals[p].ToSet).Snap(Portals[p].Arrives - SphereUp, 4))).Value;
+    private int? ArrivalCell(int portal) => SetDowns(Portals[portal].ToSet)[portal];
+
+    /// <summary>
+    /// Where each portal into a map set puts the player: the cell his feet are in once he's set down at its arrival, as trek's teleport
+    /// sets him down (<see cref="Reach.SetDownAt"/>), and as the explorer's starts were. Snapping the arrival point alone can pick a twin
+    /// cell a unit below a floor at a whole height, which some runs ended in and none set off from: the bridge's door back into Gwernia
+    /// castle's courtyard (4/M05/0) put him in such a pocket, walling off the castle's way out. Made once a map set, under its own lock.
+    /// </summary>
+    private Dictionary<int, int?> SetDowns(RecordId set) =>
+        _setDowns.GetOrAdd(set, s => new Lazy<Dictionary<int, int?>>(() =>
+        {
+            var world = new CollisionWorld();
+            var chunks = new Chunks.ChunkStreamer(_plugins, GameState.NewGame(_plugins), world, _plugins.Get<MapSetRecord>(s));
+            var walk = Walk(s);
+            var cells = new Dictionary<int, int?>();
+            for (var p = 0; p < Portals.Count; p++)
+            {
+                if (Portals[p].ToSet != s)
+                    continue;
+                var at = Portals[p].Arrives;
+                chunks.Update(at);
+                var (ground, grounded) = Reach.SetDownAt(world, at, at.Y - PlayerMotion.Radius);
+                var feet = ground - SphereUp;
+                cells[p] = grounded && walk.Find(Reach.Cell.Of(feet)) is { } cell && walk.Steps(cell).Length > 0
+                    ? cell
+                    : walk.SnapStart(grounded ? feet : at, 4);
+            }
+            return cells;
+        })).Value;
 
     /// <summary>The cell a portal's arrival is on the graph of its destination, or null if he never walked near it, for tools.</summary>
     public int? ArrivalOf(Portal portal) => ArrivalCell(IndexOf(portal));
