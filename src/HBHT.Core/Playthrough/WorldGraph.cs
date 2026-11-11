@@ -84,7 +84,7 @@ public sealed partial class WorldGraph
     private readonly Lazy<IReadOnlyList<Toggle>> _toggles;
     private readonly Lazy<Dictionary<RecordId, int>> _toggleIndex;
     private readonly Lazy<string> _fingerprint;
-    private readonly ConcurrentDictionary<RecordId, Lazy<Dictionary<int, int[]>>> _portalCells = [];
+    private readonly ConcurrentDictionary<RecordId, Lazy<PortalCellIndex>> _portalCells = [];
     private readonly ConcurrentDictionary<int, Lazy<int?>> _arrivals = [];
     private readonly Lock _closureLock = new();
     private readonly Dictionary<string, Dictionary<RecordId, bool[]>> _closures = [];
@@ -307,8 +307,17 @@ public sealed partial class WorldGraph
         return inside.Count > 0 ? inside : [.. all.OrderBy(c => c.Distance).Take(1)];
     }
 
-    private Dictionary<int, int[]> PortalCells(RecordId mapSet) =>
-        _portalCells.GetOrAdd(mapSet, id => new Lazy<Dictionary<int, int[]>>(() =>
+    private readonly ConcurrentDictionary<RecordId, IReadOnlyList<(int Cell, float Distance)>> _stands = [];
+
+    /// <summary>
+    /// <see cref="StandNear"/> for a map object, kept: the floods ask it of every place in every round, and the graph and the object
+    /// never change, while a search of the columns about a teleporter's radius in the Overworld is thousands of lookups.
+    /// </summary>
+    private IReadOnlyList<(int Cell, float Distance)> StandFor(RecordId mapObject, RecordId mapSet, Vector3 target, float range) =>
+        _stands.GetOrAdd(mapObject, _ => StandNear(Walk(mapSet), target, range));
+
+    internal PortalCellIndex PortalCells(RecordId mapSet) =>
+        _portalCells.GetOrAdd(mapSet, id => new Lazy<PortalCellIndex>(() =>
         {
             var graph = Walk(id);
             var cells = new Dictionary<int, List<int>>();
@@ -323,8 +332,35 @@ public sealed partial class WorldGraph
                     list.Add(p);
                 }
             }
-            return cells.ToDictionary(c => c.Key, c => c.Value.ToArray());
+            return new PortalCellIndex(graph.Count, cells.ToDictionary(c => c.Key, c => c.Value.ToArray()));
         })).Value;
+
+    /// <summary>
+    /// The portals each cell of a map set's walk graph can take, by cell: few cells have any, and the floods and searches ask of every
+    /// cell they come to, so a bit a cell answers first.
+    /// </summary>
+    internal sealed class PortalCellIndex
+    {
+        private readonly ulong[] _has;
+
+        public PortalCellIndex(int cells, Dictionary<int, int[]> portals)
+        {
+            Portals = portals;
+            _has = new ulong[(cells + 63) / 64];
+            foreach (var cell in portals.Keys)
+                _has[cell >> 6] |= 1UL << cell;
+        }
+
+        public Dictionary<int, int[]> Portals { get; }
+
+        public bool TryGetValue(int cell, out int[] portals)
+        {
+            if ((_has[cell >> 6] & (1UL << cell)) != 0)
+                return Portals.TryGetValue(cell, out portals!);
+            portals = [];
+            return false;
+        }
+    }
 
     /// <summary>The cell a portal puts the player in, or null if he never walked near its arrival.</summary>
     private int? ArrivalCell(int portal) =>
@@ -335,7 +371,7 @@ public sealed partial class WorldGraph
 
     /// <summary>How many cells of its map set a portal can be taken from.</summary>
     public int StandingCells(Portal portal) =>
-        PortalCells(portal.FromSet).Count(c => c.Value.Contains(IndexOf(portal)));
+        PortalCells(portal.FromSet).Portals.Count(c => c.Value.Contains(IndexOf(portal)));
 
     private int IndexOf(Portal portal)
     {
@@ -404,8 +440,7 @@ public sealed partial class WorldGraph
         if (shut.Count > 0)
             return Refuse(RefusalKind.ObjectGated, $"{mapObject} is gated: {string.Join("; ", shut)}.", shut);
 
-        var goal = Walk(chunk.MapSet);
-        var stand = StandNear(goal, target, range);
+        var stand = StandFor(mapObject, chunk.MapSet, target, range);
         if (stand.Count == 0)
             return Refuse(RefusalKind.NoStandingPlace, $"No ground the player reached within {range:0.##} of {mapObject}.");
         var goalCells = stand.ToDictionary(s => s.Cell, s => s.Distance);
@@ -631,9 +666,12 @@ public sealed partial class WorldGraph
         var visited = Closure(state, from, pick);
         if (visited is null || !visited.TryGetValue(chunk.MapSet, out var seen))
             return false;
-        var set = _plugins.Get<MapSetRecord>(chunk.MapSet);
-        return StandNear(Walk(chunk.MapSet), set.Origin(chunk) + o.Position, range).Any(s => seen[s.Cell]);
+        return StandCells(mapObject, chunk, o, range).Any(s => seen[s.Cell]);
     }
+
+    /// <summary>The cells to stand in to use a map object of a chunk, within its use range (<see cref="StandNear"/>), kept.</summary>
+    internal IReadOnlyList<(int Cell, float Distance)> StandCells(RecordId mapObject, ChunkRecord chunk, MapObject o, float range) =>
+        StandFor(mapObject, chunk.MapSet, _plugins.Get<MapSetRecord>(chunk.MapSet).Origin(chunk) + o.Position, range);
 
     /// <summary>Every cell the player can reach from a place with the gates as they are, by map set; kept for the next ask under the same gates.</summary>
     private Dictionary<RecordId, bool[]>? Closure(GameState state, Place from, bool pick)

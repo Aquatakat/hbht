@@ -27,6 +27,7 @@ public sealed class WalkGraph
     private readonly int[] _start;   // CSR: _start[i].._start[i + 1] index _to
     private readonly int[] _to;
     private readonly Dictionary<int, (int To, int Toggle)[]> _gated;
+    private readonly ulong[] _hasGated;   // a bit a cell: whether it's in _gated, which the floods ask of every cell
     private Dictionary<long, int>? _index;
     private Dictionary<long, int[]>? _columns;
 
@@ -38,6 +39,9 @@ public sealed class WalkGraph
         Toggles = toggles;
         GatedCount = gated.Length;
         _gated = gated.GroupBy(g => g.From).ToDictionary(g => g.Key, g => g.Select(e => (e.To, e.Toggle)).ToArray());
+        _hasGated = new ulong[(x.Length + 63) / 64];
+        foreach (var from in _gated.Keys)
+            _hasGated[from >> 6] |= 1UL << from;
     }
 
     public RecordId MapSet { get; }
@@ -56,7 +60,8 @@ public sealed class WalkGraph
     /// gate among them), each with the index of its toggle's tripwire in <see cref="Toggles"/>. Ground only they lead to is joined
     /// by plain <see cref="Steps"/>.
     /// </summary>
-    public ReadOnlySpan<(int To, int Toggle)> GatedSteps(int i) => _gated.TryGetValue(i, out var steps) ? steps : default;
+    public ReadOnlySpan<(int To, int Toggle)> GatedSteps(int i) =>
+        (_hasGated[i >> 6] & (1UL << i)) != 0 && _gated.TryGetValue(i, out var steps) ? steps : default;
 
     /// <summary>Every cell with a gated step from it.</summary>
     public IEnumerable<int> GatedFrom => _gated.Keys;

@@ -39,6 +39,7 @@ public sealed class WorldReach : IPlaceReach
     private readonly GameState _game;
     private readonly Dictionary<RecordId, (IReadOnlyList<Literal>? Literals, IReadOnlyList<RouteGate> Gates, bool Picks)> _known = [];
     private readonly List<(GateFlood Flood, Func<Literal, bool>? CanOpen)> _rounds = [];
+    private int?[]? _tolls;
     private GateFlood? _anyWay;
 
     /// <param name="graph">The world graph.</param>
@@ -65,8 +66,18 @@ public sealed class WorldReach : IPlaceReach
 
     private void Add(Func<Literal, bool>? canOpen)
     {
-        _rounds.Add((Graph.Flood(From, way => Toll(way, canOpen)), canOpen));
-        _known.Clear();
+        // A round whose ways all cost what the last round's did floods as it did: the last round's flood serves. Its gates are judged
+        // alike too, since a gate the last round took as closed it takes as closed, so it gets to no place an earlier round didn't.
+        var tolls = Graph.Tolls(way => Toll(way, canOpen));
+        var flood = _tolls is { } last && _rounds.Count > 0 && tolls.AsSpan().SequenceEqual(last) ? _rounds[^1].Flood : Graph.Flood(From, tolls);
+        _tolls = tolls;
+        _rounds.Add((flood, canOpen));
+        // A place an earlier round got to keeps that round's way; only those none got to may be got to now.
+        foreach (var (place, known) in _known)
+        {
+            if (known.Literals is null)
+                _known.Remove(place);
+        }
     }
 
     /// <summary>The most rounds <see cref="Layered"/> takes.</summary>

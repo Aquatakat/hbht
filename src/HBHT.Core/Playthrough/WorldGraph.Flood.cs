@@ -12,14 +12,23 @@ public sealed partial class WorldGraph
     /// or null where it can never be taken. A toggle already on the way to a cell costs nothing again, so the gated steps across one
     /// wall count once. A search over costs by bucket, so one flood answers every place.
     /// </summary>
-    public GateFlood Flood(Place from, Func<IGatedWay, int?> toll)
+    public GateFlood Flood(Place from, Func<IGatedWay, int?> toll) => Flood(from, Tolls(toll));
+
+    /// <summary>What each way costs a flood (<see cref="Flood(Place, Func{IGatedWay, int?})"/>), by its index: the portals', then the toggles'.</summary>
+    internal int?[] Tolls(Func<IGatedWay, int?> toll)
+    {
+        var tolls = new int?[Portals.Count + Toggles.Count];
+        for (var w = 0; w < tolls.Length; w++)
+            tolls[w] = toll(Way(w));
+        return tolls;
+    }
+
+    /// <summary>The flood with each way's toll given by its index (<see cref="Tolls"/>).</summary>
+    internal GateFlood Flood(Place from, int?[] tolls)
     {
         var flood = new GateFlood(this);
         if (_plugins.TryGet<MapSetRecord>(from.MapSet) is null || Walk(from.MapSet).SnapStart(from.Feet, 6) is not { } startCell)
             return flood;
-        var tolls = new int?[Portals.Count + Toggles.Count];
-        for (var w = 0; w < tolls.Length; w++)
-            tolls[w] = toll(Way(w));
 
         var buckets = new List<Stack<long>>();
         void Push(int cost, int set, int cell)
@@ -67,7 +76,7 @@ public sealed partial class WorldGraph
                     else
                         Push(nd, s, to);
                 }
-                if (!PortalCells(here.Graph.MapSet).TryGetValue(cell, out var portals))
+                if (!(here.Portals ??= PortalCells(here.Graph.MapSet)).TryGetValue(cell, out var portals))
                     continue;
                 foreach (var p in portals)
                 {
@@ -112,6 +121,9 @@ public sealed class GateFlood
         public int[] Cost { get; } = Filled(graph.Count, int.MaxValue);
         public int[] Chain { get; } = Filled(graph.Count, -1);
 
+        /// <summary>The map set's portals by cell, once the flood first asks.</summary>
+        internal WorldGraph.PortalCellIndex? Portals { get; set; }
+
         private static int[] Filled(int count, int value)
         {
             var a = new int[count];
@@ -148,9 +160,8 @@ public sealed class GateFlood
         if (plugins.TryGet<ChunkRecord>(ChunkRecord.ChunkOf(mapObject)) is not { } chunk || chunk.Object(ChunkRecord.IndexOf(mapObject)) is not { } o
             || WorldGraph.UseRange(o) is not { } range || !_byId.TryGetValue(chunk.MapSet, out var set))
             return null;
-        var target = plugins.Get<MapSetRecord>(chunk.MapSet).Origin(chunk) + o.Position;
         var best = -1;
-        foreach (var (cell, _) in WorldGraph.StandNear(set.Graph, target, range))
+        foreach (var (cell, _) in _graph.StandCells(mapObject, chunk, o, range))
         {
             if (set.Cost[cell] != int.MaxValue && (best < 0 || set.Cost[cell] < set.Cost[best]))
                 best = cell;
