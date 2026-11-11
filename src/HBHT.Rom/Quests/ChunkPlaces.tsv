@@ -1,0 +1,338 @@
+# The place each chunk a flag name cites is in, as it follows a verb: the chunk, a tab, its place.
+# The flag names in FlagNames.tsv were made with them; docs/systems/flags.md#labels says how.
+Overworld A04	in the goblin stronghold
+Overworld A05	in the goblin stronghold
+Overworld A06	approaching the goblin stronghold
+Overworld A15	at the lighthouse near Port Saiid
+Overworld A22	on Cradawgh's Isle
+Overworld B04	in the goblin stronghold
+Overworld B05	in the goblin stronghold
+Overworld B06	approaching the goblin stronghold
+Overworld B07	approaching the goblin stronghold
+Overworld B09	in Erromon
+Overworld B14	outside Port Saiid
+Overworld B15	outside Port Saiid
+Overworld C07	north of Erromon
+Overworld C08	in Erromon
+Overworld C09	in Erromon
+Overworld C14	north of Port Saiid
+Overworld C15	in Port Saiid
+Overworld D08	between Oisin forest and Erromon
+Overworld D09	between Oisin forest and Erromon
+Overworld D13	in the canyon near Port Saiid
+Overworld D14	near the Port Saiid bridge
+Overworld D15	between Port Saiid and Talewok
+Overworld D22	at the top of Chaos Isle
+Overworld D23	approaching the top of Chaos Isle
+Overworld E08	approaching Erromon
+Overworld E09	between Oisin forest and Erromon
+Overworld E13	in the canyon near Port Saiid
+Overworld E14	between Port Saiid and Talewok
+Overworld E15	on the beach east of Port Saiid
+Overworld E23	at the center of Chaos Isle
+Overworld F08	between Oisin forest and Erromon
+Overworld F09	between Oisin forest and Erromon
+Overworld F13	in Talewok's southern farms
+Overworld F14	at the entrance to the Port Saiid canyon
+Overworld F15	on the beach between Port Saiid and Talewok
+Overworld F23	on the east end of Chaos Isle
+Overworld G08	between Oisin forest and Erromon
+Overworld G09	between Talewok and Erromon
+Overworld G10	between Talewok and Erromon
+Overworld G12	in the Dryad grove
+Overworld G13	in the farms south of Talewok
+Overworld G14	south of Talewok
+Overworld G15	on the beach between Port Saiid and Talewok
+Overworld G19	on the cliffside behind Terminor
+Overworld H08	in Oisin forest
+Overworld H09	south of Oisin forest
+Overworld H10	between the forest and Talewok
+Overworld H11	between the forest and Talewok
+Overworld H12	in Overworld H12
+Overworld H13	in Talewok
+Overworld H14	in the farms south of Talewok
+Overworld H15	on the shore south of Talewok
+Overworld H19	on the cliffside south of Terminor
+Overworld I08	in Oisin forest
+Overworld I09	south of Oisin forest
+Overworld I10	between the forest and Talewok
+Overworld I11	at the farms north of Talewok
+Overworld I12	north of Talewok
+Overworld I13	in Talewok
+Overworld I14	south of Talewok
+Overworld I15	between Talewok and Terminor
+Overworld I18	in the ruins of Pome
+Overworld I19	outside Terminor
+Overworld J08	in Yorwood
+Overworld J09	south of Oisin forest
+Overworld J15	between Talewok and Darkling Bog
+Overworld J16	between Talewok and Terminor
+Overworld J17	between Talewok and Terminor
+Overworld J18	east of the ruins of Pome
+Overworld J19	outside Terminor
+Overworld K08	between Oisin forest and Gwernia
+Overworld K09	between Oisin forest and Gwernia
+Overworld K15	northwest of Darkling Bog
+Overworld K16	west of Darkling Bog
+Overworld K17	west of Darkling Bog
+Overworld K18	east of Terminor
+Overworld K19	east of Terminor
+Overworld L07	west of Gwernia
+Overworld L08	around the farms near Gwernia
+Overworld L16	in Darkling Bog
+Overworld L17	in Darkling Bog
+Overworld L19	between Terminor and the desert
+Overworld L20	between Terminor and the desert
+Overworld M06	outside Gwernia Castle
+Overworld M07	in Gwernia
+Overworld M08	south of Gwernia
+Overworld M16	in Darkling Bog
+Overworld M17	in Darkling Bog
+Overworld M20	between Terminor and the desert
+Overworld M21	between Terminor and the desert
+Overworld M22	between Terminor and the desert
+Overworld N16	in Darkling Bog
+Overworld N17	in Darkling Bog
+Overworld N21	between Terminor and the desert
+Overworld N22	between Terminor and the desert
+Overworld N23	in the rocky area
+Overworld N24	in the rocky area
+Overworld N25	east of the Barrows
+Overworld N26	southeast of the Barrows
+Overworld N27	in the desert
+Overworld N28	in the desert near the Jundar Gate
+Overworld O16	in Darkling Bog
+Overworld O17	in Darkling Bog
+Overworld O22	in the rocky area
+Overworld O23	in the rocky area
+Overworld O24	approaching the Jundar Gate
+Overworld O25	at the Barrows
+Overworld O26	in the desert
+Overworld O27	in the desert
+Overworld O28	in the desert
+Overworld P16	in Darkling Bog
+Overworld P17	near Shamsuk's Tower
+Overworld P18	in Darkling Bog
+Overworld P19	in Darkling Bog
+Overworld P21	in the rocky area
+Overworld P22	in the rocky area
+Overworld P23	in the rocky area
+Overworld P24	approaching the Jundar Gate
+Overworld P25	in the desert near the Jundar Gate
+Overworld P26	in the desert
+Overworld P27	in the desert
+Overworld Q16	in Darkling Bog near Elisheva's Tomb
+Overworld Q17	in Darkling Bog
+Overworld Q18	in Darkling Bog
+Overworld Q19	on the eastern beach
+Overworld Q20	on the eastern beach
+Overworld Q21	on the eastern beach
+Overworld Q25	in the desert
+Overworld Q26	in the desert
+Overworld Q27	in the desert
+Overworld R16	in Darkling Bog
+Overworld R17	on the eastern beach
+Overworld R18	on the eastern beach
+Overworld R19	on the eastern beach
+Overworld R20	on the eastern beach
+Overworld R21	on the eastern beach
+Overworld R25	in the desert
+Overworld R26	in the desert
+Overworld R27	approaching Ugarit
+Overworld R28	in the desert
+Overworld S16	on the eastern beach
+Overworld S26	in the desert
+Overworld S27	outside Ugarit's gate
+Overworld T26	at Ugarit's tower
+Overworld T27	at Ugarit's tower
+Barrows A01	in the hall of graves in the Barrows
+Barrows A02	in the hall of graves in the Barrows
+Barrows A03	at the hall of graves in the Barrows
+Barrows B01	in the hall of graves in the Barrows
+Barrows B02	in the hall of graves in the Barrows
+Barrows D01	at the dragon offering shrines in the Barrows
+Barrows D02	at the dragon offering shrines in the Barrows
+Barrows E01	at the dragon offering shrines in the Barrows
+Barrows G01	in the caves under the Barrows
+Barrows G02	in the caves under the Barrows
+Barrows G03	in the caves under the Barrows
+Barrows H01	in the caves under the Barrows
+Barrows H03	in the caves under the Barrows
+ChaosIsle A03	in the Chaos temple L2
+ChaosIsle A05	in the Chaos temple L3
+ChaosIsle A07	in the Chaos temple L4
+ChaosIsle A09	in the Chaos temple L5
+ChaosIsle C01	in the Chaos temple's final room
+EhudUnder A03	in the bedroom in Shamsuk's Tower
+EhudUnder A05	in Shamsuk's Tower
+EhudUnder C01	in Shamsuk's Tower
+EhudUnder C03	in Shamsuk's Tower
+EhudUnder C05	in Shamsuk's Tower
+EhudUnder C07	in Shamsuk's Tower
+EhudUnder C09	at the top of Shamsuk's Tower
+EhudUnder C11	in Shamsuk's Tower
+EhudUnder C13	in Shamsuk's Tower
+EhudUnder C15	in Shamsuk's Tower
+EhudUnder C17	in Shamsuk's Tower
+EhudUnder C19	in Shamsuk's Tower
+EhudUnder E03	in Shamsuk's Tower
+EhudUnder E05	in Shamsuk's Tower
+EhudUnder E07	in Shamsuk's Tower
+EhudUnder E11	in Shamsuk's Tower
+EhudUnder E13	in Shamsuk's Tower
+EhudUnder E15	in Shamsuk's Tower
+EhudUnder E17	in Shamsuk's Tower
+EhudUnder E19	in Shamsuk's Tower
+EhudUnder G01	in Shamsuk's Tower
+EhudUnder G03	in Shamsuk's Tower
+EhudUnder G07	in Shamsuk's Tower
+EhudUnder G09	in Shamsuk's Tower
+EhudUnder G11	in Shamsuk's Tower
+EhudUnder G13	in the Firelord's chamber under Shamsuk's Tower
+EhudUnder G15	in Shamsuk's Tower
+EhudUnder G17	in the teleporter room under Shamsuk's Tower
+EhudUnder I01	in Shamsuk's Tower
+EhudUnder I03	in Shamsuk's Tower
+EhudUnder I05	in Shamsuk's Tower
+EhudUnder I07	in Shamsuk's Tower
+EhudUnder I09	in Shamsuk's Tower
+EhudUnder K01	in Shamsuk's Tower
+EhudUnder K03	in Shamsuk's Tower
+EhudUnder K05	in Shamsuk's Tower
+EhudUnder M01	in Shamsuk's Tower
+EhudUnder M05	in Shamsuk's Tower
+EhudUnder O03	in Shamsuk's Tower
+EhudUnder O05	in Shamsuk's Tower
+EhudUnder O07	in Shamsuk's Tower
+EhudUnder Q07	in Shamsuk's Tower
+EhudUnder Q09	in Shamsuk's Tower
+Erromon A01	in Gotzone's house
+Erromon A05	in the upper floor of Txomin's palace
+Erromon A07	in Gechina's house
+Erromon A11	in the Erromon caves
+Erromon A12	in the Erromon caves
+Erromon A13	in the Erromon caves
+Erromon A14	in the Erromon caves
+Erromon B14	in the Erromon caves
+Erromon C07	in Edur's house
+Erromon C12	at the teleporter in the Erromon caves
+Erromon C15	in the Erromon caves
+Erromon K09	in Txomin's palace
+GoblinCamp A01	in a goblin camp hut
+GoblinCamp A03	in a goblin camp tent
+GoblinCamp A07	in the goblin caves
+GoblinCamp A09	in a goblin camp hut
+GoblinCamp C01	in Kitarak's house
+GoblinCamp C03	in a goblin camp tent
+GoblinCamp C05	in a goblin camp tent
+GoblinCamp C07	in a goblin camp house
+GoblinCamp C09	in a goblin camp tent
+GoblinCamp E01	in a goblin camp tent
+GoblinCamp E03	in a goblin camp hut
+GoblinCamp E05	in a goblin camp tent
+GoblinCamp E07	in a goblin camp tent
+GoblinCamp E09	in a goblin camp tent
+GoblinCamp G01	in a goblin camp tent
+GoblinCamp G03	in a goblin camp tent
+GoblinCamp G05	in a goblin camp tent
+GoblinCamp G07	in the goblin caves
+GoblinCamp G09	in the goblin caves
+GwerniaCastle A01	on the Gwernia Castle ramparts
+GwerniaCastle A07	in a Gwernia Castle sitting room
+GwerniaCastle C01	in the Gwernia Castle servants' room
+GwerniaCastle C03	in the Gwernia Castle kitchen
+GwerniaCastle E01	in the Gwernia Castle dining hall
+GwerniaCastle E03	in Gwernia Castle's weapon storage
+GwerniaCastle E05	in the Gwernia Castle waiting room
+GwerniaCastle E07	in Trahern's room
+GwerniaCastle E09	in the Gwernia Castle supply room
+GwerniaCastle G01	in the Gwernia Castle meeting room
+GwerniaCastle G07	in Sheridan's room
+GwerniaCastle G09	in the Gwernia Castle guest room
+GwerniaCastle I01	in the Gwernia Castle throne room
+GwerniaCastle I03	in the Gwernia Castle smithy
+GwerniaCastle I05	in the Gwernia Castle barracks
+GwerniaCastle I07	in the Gwernia Castle courtyard
+GwerniaCastle I09	in Phelan's bedroom
+GwerniaCastle K01	in the Gwernia Castle antechamber
+GwerniaCastle K05	in the Wizard's Keep storeroom
+GwerniaCastle K07	in the Wizard's Keep laboratory stairwell
+GwerniaCastle K09	in the Wizard's Keep storeroom
+GwerniaCastle M01	in the Wizard's Keep quarters
+GwerniaCastle M03	in the Wizard's Keep quarters
+GwerniaCastle M05	on the bridge to the Wizard's Keep from Gwernia Castle
+GwerniaCastle M07	in the Wizard's Keep kitchen
+GwerniaCastle M09	in the Wizard's Keep mess hall
+GwerniaCastle O01	in Bowden's room
+GwerniaCastle O05	in the Wizard's Keep observatory
+GwerniaCastle O07	in Godric's laboratory
+GwerniaCastle O09	in the Wizard's Keep library
+GwerniaCastle Q01	in the Gwernia Castle training room
+GwerniaCastle Q03	at the teleporter under the Wizard's Keep
+GwerniaInteriors A05	in the Gwernia stables
+GwerniaInteriors A07	in Cedric's inn in Gwernia
+GwerniaInteriors A09	in Cedric's cellar in Gwernia
+GwerniaInteriors C03	in a house in Gwernia
+GwerniaInteriors E01	in the cave adjoining Cedric's cellar
+JundarInteriors C05	in the inn in Talewok
+JundarInteriors K01	in Ardra's room
+JundarInteriors M01	in the portal room in the Wizard's School
+Lighthouse A01	in the lighthouse cellar
+Lighthouse A03	in the lighthouse
+Lighthouse A07	in the cave under the lighthouse
+MiscInteriors A01	in the Namer's house in Yorwood
+MiscInteriors A03	in a house in Yorwood
+MiscInteriors A05	in the cave on Cradawgh's Isle
+MiscInteriors A09	in a cave west of Talewok
+MiscInteriors C03	on the stage of Alaron's death scenes
+MiscInteriors C05	at the campfire stage
+MiscInteriors E01	on Amann's ship
+MiscInteriors E03	in Oriana's hut
+MiscInteriors E05	in a Jundar tomb
+MiscInteriors E07	in Meriona's farmhouse
+MiscInteriors G05	in the hellhound cave
+MiscInteriors G07	in the harpy's cave along the coast near Terminor
+MiscInteriors G09	in the hobgoblin cave northwest of Terminor
+MiscInteriors I01	in the Chaos cave northeast of Terminor
+MiscInteriors I03	in the troll cave along the beach northeast of Terminor
+MiscInteriors I07	in the Izaka
+MiscInteriors K01	in the sinkhole cave on the road to Talewok
+MiscInteriors K03	in the cave between Erromon and Rooughah's cave
+MiscInteriors K05	in Elisheva's Tomb
+PortSaiid A01	in Amann's boathouse
+PortSaiid A03	in a house in Port Saiid
+PortSaiid A07	in the Port Saiid inn
+PortSaiid A09	in the thieves' den in Port Saiid
+PortSaiid C01	in a house in Port Saiid
+PortSaiid C07	in Batrin's shop in Port Saiid
+PortSaiid E01	in the cave under Port Saiid
+PortSaiid E09	in a house in Port Saiid
+PortSaiid G03	in a house in Port Saiid
+PortSaiid G07	in a house in Port Saiid
+PortSaiid I01	in a house in Port Saiid
+RoogCave B01	in Rooughah's cave
+RoogCave C01	in Rooughah's cave
+RoogCave D01	in Rooughah's cave
+Terminor C05	in Tamberlain's inn
+Terminor E03	in the Terminor library
+Terminor G01	in Terminor
+Terminor G03	in Terminor
+Terminor G05	in Terminor
+Ugarit E09	in the inn in Ugarit
+Ugarit G09	in the Home of Celestial Power in Ugarit
+Ugarit I03	in the guardhouse in Ugarit
+Ugarit I07	in the Ugarit library
+Ugarit I09	on the third floor of the Ugarit library
+Ugarit K01	on the second floor of the Ugarit library
+Ugarit K03	on the first floor of the Ugarit library
+Ugarit M05	in Ugarit
+Ugarit M06	in Ugarit
+Ugarit O01	in the caves below Ugarit
+Ugarit O03	in the Ugarit palace
+Ugarit2 A01	in Maxxen
+Ugarit2 A03	in Maxxen
+Ugarit2 A05	in Maxxen
+Ugarit2 A07	in Maxxen
+Ugarit2 A09	in Maxxen
+Ugarit2 C01	in Maxxen
+Ugarit2 C03	in Maxxen

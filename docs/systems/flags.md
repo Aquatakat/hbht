@@ -16,11 +16,11 @@ The importer writes three record types:
 The ROM names no flags: a `GameStateFunnel` entry is a kind, a starting value and a formula, and the debug build's strings name none either. Every label is ours, and the importer writes them (`FlagLabels`):
 
 - **From the content tables in the code segment**, with a name the ROM gives: the party's members, the key items, the bosses, the cinematics' titles and the world map's regions; and from `EngineFlags`, the flags engine code names.
-- **The rest from `FlagNames.tsv`** (`HBHT.Rom.Quests`, embedded), by number, written by hand. A flag no table names and nothing uses ([below](#which-flags-are-used)) has none. The import fails if the file names a flag a table names. The flag table is the same in 1.0, 1.1 and the debug build, so one file serves each.
-  - **The map objects' flags** were named from the object that writes them: "Opened the chest in Overworld O27", "Defeated the Chaos Scout in Overworld I12", "Talked to Cadme in Overworld E08 or I08", "Found the secret door in EhudUnder C11 (object 3)". Objects of one kind in one chunk add their index. A container sets its opened and Used flags as one act, so where they differ the two share a name.
-  - **The others** were drafted from the scripts that set and read them and the chunks around them.
+- **The rest from `FlagNames.tsv`** (`HBHT.Rom.Quests`, embedded), by number, written by hand. A flag no table names that's unused or nothing sets ([below](#which-flags-are-used)) has none. The import fails if the file names a flag a table names. The flag table is the same in 1.0, 1.1 and the debug build, so one file serves each.
+  - **The map objects' flags** were named from the object that writes them and the place of its chunk: "Opened the chest in the desert", "Talked to Cadme approaching Erromon or in Oisin forest", "Found the secret door in Shamsuk's Tower C11 (object 3)". The places are in `ChunkPlaces.tsv` beside it, each chunk's as it follows a verb ("in Gwernia", "outside Terminor", "in the Gwernia Castle throne room"), drafted from each chunk's doors, people, signs and talk and then corrected by the user; the map set's name is no guide (JundarInteriors is Talewok's). Where two flags' names would match, the chunk's cell is added to a place several chunks share ("in the desert P26"), and where they still would, the objects' indexes. A container sets its opened and Used flags as one act, so where they differ the two share a name.
+  - **The others** were drafted from the scripts that set and read them and the chunks around them, then restyled after the user's own edits to the drafts.
 
-`QuestIndexRealDataTests.EveryUsedFlagHasALabelOfItsOwn` holds the file to that: every used flag has a label, no unused one has one but the tables', and two flags share one only where the same records write both, or two derived flags have one formula.
+`QuestIndexRealDataTests.EveryUsedFlagHasALabelOfItsOwn` holds the file to that: every flag that's used and can change has a label, no other has one but the tables', and two flags share one only where the same records write both, or two derived flags have one formula.
 
 A label is the simplest phrase that tells a flag apart from every other:
 
@@ -28,13 +28,15 @@ A label is the simplest phrase that tells a flag apart from every other:
 - **For what sets it.** A flag nothing in the data sets is named for what its readers see ("The lighthouse is lit"), and a derived flag for what its formula says, where that means something ("At least two of Abrecan, Godric and Rheda are in the party").
 - **Never "Set when…", "Set by…" or "…while set".** They say how the flag is used, not what it means.
 - **Nothing the tools work out from the data**: the journal entry a flag lists, that nothing writes it, what reads it. So "Defeated Shamsuk", whose flag lists entry 57; "Received journal entry *n*" only where the entry is all a flag means. A label that says what the data says goes wrong when a mod changes the data.
-- **Where only the place tells two flags apart,** the entity's ID and the chunk: "Defeated Giant Bat 0x1234 in Overworld A22".
+- **Places as a player calls them**, never a chunk's name, and none where the thing is unique: "Took Kendall's Hat", "Read the Yorwood remembrance sign". Where only the place tells two flags apart and the place is shared, its cell; then the object's index.
+- **Plain verbs**: "Entered" a room, building or town, "Approached" something, "Returned to" a place, "Crossed" a bridge, "Reached" the top or end of something; "Talked to". People by name alone: "Met Edur and Yuli".
+- **Nothing a player can't see**: no markers, coordinates or "book" after a book's title. The game's own names over descriptions (the Chaos camp, the Namer, Shamsuk's Tower), and proper names without "the" ("in Oisin forest").
 - **A run of flags holding a number** is its name and the bit: "Day of the season, bit 0 of 6". The party's best stats keep theirs though nothing writes them ([below](#what-the-engine-writes)).
-- **A flag nothing uses has no label.** Flags 0 and 1 are "Always clear" and "Always set".
+- **A flag nothing uses, or nothing sets, has no label.** Naming a flag only read promises an event the game never brings about. Flags 0 and 1 are "Always clear" and "Always set".
 
 ### Which flags are used
 
-A flag is used if anything writes it, it lists a journal entry, or something reads it other than a derived flag that's unused itself. Of the 5,556, 2,486 are: 2,156 plain and 330 derived. Most of the rest are plain flags nothing in the data or the engine names, and derived flags nothing reads.
+A flag is used if anything writes it or something reads it other than a derived flag that's unused itself, and it can change if something writes it or it's derived from a flag that can. Of the 5,556, 2,437 are both: 2,110 plain and 327 derived. Most of the rest are plain flags nothing in the data or the engine names, and derived flags nothing reads. 49 are read but can't change: 46 plain flags nothing sets, among them the eleven journal entries that never show, the dryads' and the A05 goblins' leaving and Pandara's reward, and three derived flags over the party's best stats' never-written bits.
 
 ## The network
 

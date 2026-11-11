@@ -61,10 +61,11 @@ public sealed class QuestIndexRealDataTests(Na10Import fixture)
     }
 
     /// <summary>
-    /// Every flag something uses has a label, and no flag nothing uses has one but those the engine's tables name
-    /// (docs/systems/flags.md#labels). A flag is used if anything writes it, it lists a journal entry, or something reads
-    /// it other than a derived flag that's unused itself. Two flags share a label only where the same objects or scripts
-    /// write both, as a container's opened and Used flags, or two derived flags have one formula.
+    /// Every flag that's used and can change has a label, and no other flag has one but those the engine's tables name
+    /// (docs/systems/flags.md#labels). A flag is used if anything writes it or something reads it other than a derived flag
+    /// that's unused itself; it can change if something writes it, or it's derived from a flag that can. A flag only read is
+    /// a promise nothing keeps, so it goes unnamed. Two flags share a label only where the same objects or scripts write
+    /// both, as a container's opened and Used flags, or two derived flags have one formula.
     /// </summary>
     [Fact]
     public void EveryUsedFlagHasALabelOfItsOwn()
@@ -77,11 +78,21 @@ public sealed class QuestIndexRealDataTests(Na10Import fixture)
             foreach (var f in flags.Values.Where(f => !used.Contains(f.Id)))
             {
                 var uses = Data.Index.UsesOf(f.Id);
-                if (f.Journal is not null || (f.Formula is null && uses.Any(u => u.Access != FlagAccess.Read))
+                if ((f.Formula is null && uses.Any(u => u.Access != FlagAccess.Read))
                     || uses.Any(u => u.Access == FlagAccess.Read && (u.Role != FlagRole.DerivedInput || used.Contains(u.By))))
                     changed = used.Add(f.Id) || changed;
             }
         }
+        var live = new Dictionary<RecordId, bool>();
+        bool Live(RecordId f)
+        {
+            if (live.TryGetValue(f, out var known)) return known;
+            live[f] = false;
+            return live[f] = flags[f].Formula is { } formula
+                ? formula.Inputs.Any(Live)
+                : Data.Index.UsesOf(f).Any(u => u.Access != FlagAccess.Read);
+        }
+        used.RemoveWhere(f => !Live(f));
         Assert.Empty(used.Where(f => flags[f].Label is null && Number(f) > 1).Select(Number));
         var tabled = FlagLabels.Read(TestRoms.Get(RomVersionId.Na10), GameDb.Read(TestRoms.Get(RomVersionId.Na10))).Keys
             .Except(FlagLabels.Written.Keys).Select(k => (int)k).ToHashSet();
@@ -115,7 +126,7 @@ public sealed class QuestIndexRealDataTests(Na10Import fixture)
         }
         foreach (var secret in new[] { 955, 956, 957, 958, 960, 961, 962, 963 })
         {
-            Assert.StartsWith("Found the secret door in EhudUnder", flags[secret].Label);
+            Assert.StartsWith("Found the secret door in Shamsuk's Tower", flags[secret].Label);
             Assert.Equal([FlagRole.SecretFound], Data.Index.UsesOf(Flag(secret)).Where(u => u.Access != FlagAccess.Read).Select(u => u.Role));
         }
     }
