@@ -312,9 +312,11 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     {
         var models = _models = new Models(plugins) { BodyRolls = game.Random.Animation };
         // The particles actors' emitters and the weather's rain and snow start in, drawn after everything else. The pool
-        // hands out the original's 384 unless the rain is denser, and has room for the densest.
-        _particles = new ParticlesView(plugins, new ParticleHead(capacity: WeatherParticles.PoolCapacity,
-            emitterCapacity: ParticleHead.MaxEmitters * Core.Combat.BattleDrawing.CastsAtOnce));
+        // hands out the original's 384 unless the rain is denser, and has room for the densest, and for a battle drawn
+        // under Start Early on top of it.
+        var room = Core.Combat.BattleDrawing.ParticleRoom;
+        _particles = new ParticlesView(plugins, new ParticleHead(capacity: WeatherParticles.PoolCapacity + room.Particles,
+            emitterCapacity: ParticleHead.MaxEmitters + room.Emitters));
         models.Particles = _particles;
         AddChild(_particles);
         // The texture engine code gives bodies' shadows (BORG1_PlayerShadow).

@@ -87,11 +87,13 @@ public sealed class BattleDrawing
     public BattleActions Actions => _composer.Actions;
 
     /// <summary>
-    /// How many of the original's particle pools the views' head hands out while a battle is drawn under Start Early
-    /// (<see cref="Particles.ParticleHead.AtOnce"/>): a spell's casts at up to this many targets are drawn at once with every
-    /// emitter the original gives one. Past it, the last targets' visuals go short, as all but the first two's did.
+    /// What the views' particle head hands out beyond the original's 16 emitters and 384 particles while a battle is drawn under Start
+    /// Early (<see cref="Particles.ParticleHead.Room"/>), where a spell's casts at several targets are drawn at once with every emitter
+    /// the original gives each. Twice what the worst the user set out needs: eight Fire Elementals idling, each a fire of its own, while
+    /// two casts of Dispel Naming land on eight targets together, 58 emitters and 1,660 particles at most (the user's, Nov 11;
+    /// SpellVisualTests holds it).
     /// </summary>
-    public const int CastsAtOnce = 4;
+    public static readonly Particles.ParticleRoom ParticleRoom = new(116, 3320);
 
     /// <summary>How its turns are drawn (<see cref="Battle.Turns"/>).</summary>
     public CombatTurns Turns

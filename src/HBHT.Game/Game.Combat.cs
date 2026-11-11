@@ -151,7 +151,7 @@ public partial class Game
         _missileView?.Sync(frame.Missiles);
         _aimView?.Sync(frame, Battle!);
         // Start Early draws a spell's casts at its targets at once: room in the particles' pools for them all.
-        _particles?.Head.AtOnce = Drawing is { Turns: Core.Combat.CombatTurns.StartEarly } ? Core.Combat.BattleDrawing.CastsAtOnce : 1;
+        _particles?.Head.Room = Drawing is { Turns: Core.Combat.CombatTurns.StartEarly } ? Core.Combat.BattleDrawing.ParticleRoom : default;
         _spellFxView?.Sync(frame, frame.Fade, _camera!.Current.GlobalPosition);
         _ringView?.Sync(frame);
         _camera!.Sync();
@@ -264,7 +264,7 @@ public partial class Game
         _spellFxView?.Clear();
         _spellFxView?.QueueFree();
         _spellFxView = null;
-        _particles?.Head.AtOnce = 1;
+        _particles?.Head.Room = default;
         _arenaView?.QueueFree();
         _arenaView = null;
         _battleScreen!.Visible = false;

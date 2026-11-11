@@ -1,3 +1,4 @@
+using HBHT.Core.Actors;
 using HBHT.Core.Combat;
 using HBHT.Core.Particles;
 using HBHT.Core.Rng;
@@ -193,16 +194,16 @@ public sealed class SpellVisualTests(Na10Import fixture)
     {
         // Start Early draws a spell's casts at its targets at once. Dragon Flames' flame is 8 emitters, so two fill the original's
         // 16 and a third and fourth start none (the user's, Nov 11: four bandits burned and two showed it). The pool the runtime
-        // draws from has room for BattleDrawing.CastsAtOnce times the original's, handed out while a battle is drawn under Start Early.
+        // draws from has room for more on top of the original's (BattleDrawing.ParticleRoom), handed out while a battle is drawn under Start Early.
         var set = fixture.Data.Set;
         var actor = set.Get<ActorRecord>(set.All<SpellRecord>(RecordTypes.Spell).Single(s => s.Name == "Dragon Flames").Presentation!.Target!.Value);
-        var emitters = set.Get<EmittersRecord>(RecordId.Hex(RecordTypes.Emitters, Convert.ToInt32(actor.Scene.Key, 16)));
+        var emitters = EmittersOf(set, actor);
         Assert.Equal(8, emitters.Emitters.Count(e => e.Request == Requests.Id(5) && e.Flags.HasFlag(ParticleEmitterFlags.ActorRequest)));
 
-        int Flames(int atOnce)
+        int Flames(ParticleRoom room)
         {
-            var head = new ParticleHead(new Lcg(), capacity: WeatherParticles.PoolCapacity,
-                emitterCapacity: ParticleHead.MaxEmitters * BattleDrawing.CastsAtOnce) { AtOnce = atOnce };
+            var head = RuntimeHead();
+            head.Room = room;
             var lit = 0;
             for (var target = 0; target < 4; target++)
             {
@@ -214,9 +215,78 @@ public sealed class SpellVisualTests(Na10Import fixture)
             return lit;
         }
 
-        Assert.Equal(2, Flames(1));
-        Assert.Equal(4, Flames(BattleDrawing.CastsAtOnce));
+        Assert.Equal(2, Flames(default));
+        Assert.Equal(4, Flames(BattleDrawing.ParticleRoom));
     }
+
+    [Fact]
+    public void StartEarlysRoomIsTwiceWhatEightFireElementalsAndDispelNamingAtEightTargetsAtOnceNeed()
+    {
+        // The worst the user set out (Nov 11): eight Fire Elementals on the field, idling, each starting its fire on every loop as the
+        // original's actors do; then two casts of Dispel Naming, which shows only at its target, land on eight targets together. The
+        // pool, with all the room anyone could want, counts what it holds at most, and Start Early's room is twice that.
+        var set = fixture.Data.Set;
+        var elemental = set.Get<ActorRecord>(set.All<EntityRecord>(RecordTypes.Entity).First(e => e.Name == "Fire Elemental" && e.Body is not null).Body!.Actor);
+        var dispel = set.All<SpellRecord>(RecordTypes.Spell).Single(s => s.Name == "Dispel Naming").Presentation!;
+        Assert.Null(dispel.Caster);
+        Assert.Null(dispel.Aura);
+        var target = set.Get<ActorRecord>(dispel.Target!.Value);
+
+        var head = new ParticleHead(new Lcg(), maxParticles: 0x4000, capacity: 0x4000, emitterCapacity: 1000) { Room = new ParticleRoom(1000, 0) };
+        var walkers = Enumerable.Range(0, 8).Select(i =>
+        {
+            var motion = ActorMotion.For(set, elemental, new Lcg((uint)i + 1))!;
+            motion.Particles = new ActorParticles(head, EmittersOf(set, elemental), new Still());
+            return motion;
+        }).ToList();
+        // Staggered, and long enough that their fires have settled.
+        for (var t = 0; t < 3000; t++)
+        {
+            for (var i = 0; i < walkers.Count; i++)
+            {
+                if (t >= i * 37)
+                    walkers[i].Tick(0);
+            }
+            head.Step();
+        }
+        Assert.InRange(head.EmittersInUse, 1, 16);
+
+        // Each as SpellFx steps a visual: its emitters as it's made, its cast until its state has run its length, then nothing.
+        var visuals = Enumerable.Range(0, 8).Select(_ =>
+        {
+            var motion = ActorMotion.AsDrawn(set, target, new Lcg(0))!;
+            var particles = new ActorParticles(head, EmittersOf(set, target), new Still());
+            particles.Entered(motion.Request);
+            return (motion, particles);
+        }).ToList();
+        var (emittersAtMost, particlesAtMost) = (0, 0);
+        for (var t = 0; t < 1200; t++)
+        {
+            foreach (var w in walkers)
+                w.Tick(0);
+            foreach (var (motion, particles) in visuals)
+            {
+                if (motion.Frame < motion.StateLength)
+                {
+                    motion.Tick(Battle.CastRequest);
+                    if (motion.Entered)
+                        particles.Entered(Battle.CastRequest);
+                }
+            }
+            head.Step();
+            (emittersAtMost, particlesAtMost) = (Math.Max(emittersAtMost, head.EmittersInUse), Math.Max(particlesAtMost, head.ParticlesInUse));
+        }
+        Assert.Equal((58, 1660), (emittersAtMost, particlesAtMost));
+        Assert.Equal(new ParticleRoom(emittersAtMost * 2, particlesAtMost * 2), BattleDrawing.ParticleRoom);
+    }
+
+    /// <summary>The runtime's head, as <c>Game.BuildWorld</c> makes it: room for the densest rain and for Start Early's battles on top.</summary>
+    private static ParticleHead RuntimeHead() =>
+        new(new Lcg(), capacity: WeatherParticles.PoolCapacity + BattleDrawing.ParticleRoom.Particles,
+            emitterCapacity: ParticleHead.MaxEmitters + BattleDrawing.ParticleRoom.Emitters);
+
+    private static EmittersRecord EmittersOf(PluginSet set, ActorRecord actor) =>
+        set.Get<EmittersRecord>(RecordId.Hex(RecordTypes.Emitters, Convert.ToInt32(actor.Scene.Key, 16)));
 
     /// <summary>An anchor with every locator at the origin.</summary>
     private sealed class Still : IParticleAnchor

@@ -15,6 +15,9 @@ namespace HBHT.Core.Particles;
 public readonly record struct ParticleSprite(int Emitter, RecordId? Texture, Vector3 Position, Vector3 Previous, Vector2 Size, Rgba Color,
     Quaternion? Orientation = null);
 
+/// <summary>Emitters and particles a pool hands out beyond the original's (<see cref="ParticleHead.Room"/>).</summary>
+public readonly record struct ParticleRoom(int Emitters, int Particles);
+
 /// <summary>
 /// The engine's particles (<c>Particles.cpp</c>'s particle head, <c>Particles.Head</c> at <c>0x800d84b8</c>): a pool of 16
 /// emitters and 384 particles, which actors' emitters start in and code makes its own in (the weather's rain and snow),
@@ -38,7 +41,7 @@ public sealed class ParticleHead
     /// <summary>The particles the pool holds with the Expansion Pak (<c>InitZoneEngine</c>); without it 64 in trek, 96 in combat and 16 in a cut-scene.</summary>
     public const int DefaultMaxParticles = 0x180;
 
-    /// <summary>The emitters the original's pool holds, and this one hands out (<see cref="AtOnce"/> times over).</summary>
+    /// <summary>The emitters the original's pool holds, and this one hands out (and its <see cref="Room"/>).</summary>
     public const int MaxEmitters = 16;
 
     /// <summary>A square's side at scale 1, in scene units: vertices ±353.55 × 16, scaled by 0.001 and drawn at 16 to the unit (<c>0x800d5914</c>).</summary>
@@ -59,7 +62,7 @@ public sealed class ParticleHead
 
     /// <param name="maxParticles">How many particles it hands out: the original's 384 unless more are asked for.</param>
     /// <param name="capacity">How many it has room for, which <see cref="MaxParticles"/> can be raised to later: at least <paramref name="maxParticles"/>.</param>
-    /// <param name="emitterCapacity">How many emitters it has room for, which <see cref="AtOnce"/> can raise what it hands out to: at least the original's 16.</param>
+    /// <param name="emitterCapacity">How many emitters it has room for, which <see cref="Room"/> can raise what it hands out to: at least the original's 16.</param>
     public ParticleHead(IRandom? random = null, int maxParticles = DefaultMaxParticles, int capacity = 0, int emitterCapacity = MaxEmitters)
     {
         Random = random ?? new Lcg();
@@ -101,28 +104,29 @@ public sealed class ParticleHead
 
     private int _maxParticles;
 
-    /// <summary>How many emitters the pool has room for, which <see cref="AtOnce"/> can raise what it hands out to.</summary>
+    /// <summary>How many emitters the pool has room for, which <see cref="Room"/> can raise what it hands out to.</summary>
     public int EmitterCapacity { get; }
 
     /// <summary>
-    /// How many times over the pools hand out what they're set to, as far as they have room: 1, the original's 16 emitters and
-    /// <see cref="MaxParticles"/>; more for a drawing that shows at once what the original shows in turn. Under Combat Turns: Start
-    /// Early a spell cast at several targets lands on them all together, and each of Dragon Flames' four flames starts 8 emitters:
-    /// from the original's pool the first two took all 16, and the other two targets burned with nothing to show for it (the
-    /// user's, Nov 11). Lowered below what's in use, the pools hand out nothing new until enough have gone.
+    /// What the pools hand out beyond the original's 16 emitters and <see cref="MaxParticles"/>, as far as they have room: none, or
+    /// more for a drawing that shows at once what the original shows in turn. Under Combat Turns: Start Early a spell cast at several
+    /// targets lands on them all together, and each of Dragon Flames' four flames starts 8 emitters: from the original's pool the
+    /// first two took all 16, and the other two targets burned with nothing to show for it (the user's, Nov 11). It's on top of what
+    /// the weather is handed, so denser rain takes none of it. Lowered below what's in use, the pools hand out nothing new until
+    /// enough have gone.
     /// </summary>
-    public int AtOnce
+    public ParticleRoom Room
     {
-        get => _atOnce;
-        set => _atOnce = Math.Max(value, 1);
+        get => _room;
+        set => _room = new ParticleRoom(Math.Max(value.Emitters, 0), Math.Max(value.Particles, 0));
     }
 
-    private int _atOnce = 1;
+    private ParticleRoom _room;
 
-    /// <summary>How many emitters and particles the pools hand out now (<see cref="AtOnce"/>).</summary>
-    public int EmitterLimit => (int)Math.Min(EmitterCapacity, (long)MaxEmitters * _atOnce);
+    /// <summary>How many emitters and particles the pools hand out now: the original's and the <see cref="Room"/>.</summary>
+    public int EmitterLimit => Math.Min(EmitterCapacity, MaxEmitters + _room.Emitters);
 
-    public int ParticleLimit => (int)Math.Min(Capacity, (long)_maxParticles * _atOnce);
+    public int ParticleLimit => Math.Min(Capacity, _maxParticles + _room.Particles);
 
     /// <summary>How many particles the pool has room for, which <see cref="MaxParticles"/> can be raised to.</summary>
     public int Capacity { get; }

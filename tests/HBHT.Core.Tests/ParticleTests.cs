@@ -106,29 +106,32 @@ public class ParticleTests
     }
 
     [Fact]
-    public void APoolWithRoomHandsOutTheOriginalsPoolsAsManyTimesOverAsItsAsked()
+    public void APoolWithRoomHandsOutItsRoomOnTopOfTheOriginalsAndNeverPastWhatItHolds()
     {
         // Start Early draws a spell's casts at several targets at once, where the original's 16 emitters are for one at a time.
-        var head = new ParticleHead(new Lcg(), maxParticles: 8, capacity: 32, emitterCapacity: ParticleHead.MaxEmitters * 4);
+        var head = new ParticleHead(new Lcg(), maxParticles: 8, capacity: 40, emitterCapacity: ParticleHead.MaxEmitters + 20);
         Assert.Equal((ParticleHead.MaxEmitters, 8), (head.EmitterLimit, head.ParticleLimit));
         for (var i = 0; i < 6; i++)
             head.Start(Emitter(lifetime: 100, particleLifetime: 100, interval: 0), new Anchor(Vector3.Zero));
         // Each emitter's head and modifier: the seventh particle on is dropped at 8.
-        var before = head.ParticlesInUse;
-        Assert.True(before <= 8);
+        Assert.True(head.ParticlesInUse <= 8);
 
-        head.AtOnce = 4;
-        Assert.Equal((ParticleHead.MaxEmitters * 4, 32), (head.EmitterLimit, head.ParticleLimit));
-        var full = new ParticleHead(new Lcg(), capacity: ParticleHead.DefaultMaxParticles * 4, emitterCapacity: ParticleHead.MaxEmitters * 4) { AtOnce = 4 };
-        for (var i = 0; i < ParticleHead.MaxEmitters * 4; i++)
+        head.Room = new ParticleRoom(20, 24);
+        Assert.Equal((ParticleHead.MaxEmitters + 20, 32), (head.EmitterLimit, head.ParticleLimit));
+        // On top of what the weather's handed, as far as the pool holds.
+        head.MaxParticles = 16;
+        Assert.Equal(40, head.ParticleLimit);
+
+        var full = new ParticleHead(new Lcg(), emitterCapacity: ParticleHead.MaxEmitters + 20) { Room = new ParticleRoom(20, 0) };
+        for (var i = 0; i < ParticleHead.MaxEmitters + 20; i++)
             Assert.True(full.Start(Emitter(), new Anchor(Vector3.Zero)), $"emitter {i}");
         Assert.False(full.Start(Emitter(), new Anchor(Vector3.Zero)));
         // Asked for less again, it hands out nothing new until enough have gone; and never past its room.
-        full.AtOnce = 1;
+        full.Room = default;
         Assert.False(full.Start(Emitter(), new Anchor(Vector3.Zero)));
-        full.AtOnce = 100;
-        Assert.Equal(ParticleHead.MaxEmitters * 4, full.EmitterLimit);
-        Assert.Equal(ParticleHead.MaxEmitters, new ParticleHead(new Lcg()) { AtOnce = 4 }.EmitterLimit);
+        full.Room = new ParticleRoom(1000, 0);
+        Assert.Equal(ParticleHead.MaxEmitters + 20, full.EmitterLimit);
+        Assert.Equal(ParticleHead.MaxEmitters, new ParticleHead(new Lcg()) { Room = new ParticleRoom(20, 20) }.EmitterLimit);
     }
 
     [Fact]

@@ -79,7 +79,7 @@ public partial class ParticlesView : Node3D
     {
         _plugins = plugins;
         Head = head ?? new ParticleHead();
-        // A slot an emitter the head has room for: more than the original's 16 where it's made to hand out more (ParticleHead.AtOnce).
+        // A slot an emitter the head has room for: more than the original's 16 where it's made to hand out more (ParticleHead.Room).
         _slots = new MultiMeshInstance3D[Head.EmitterCapacity];
         _slotTextures = new RecordId?[Head.EmitterCapacity];
         Name = "Particles";
