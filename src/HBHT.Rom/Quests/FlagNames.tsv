@@ -14,13 +14,13 @@
 24	Read the goblin treatise in the Gwernia Castle library
 25	Read Bowden's letters in the Gwernia Castle library
 26	Read Becan's journal in the Gwernia stables
-28	Read the roll of battles in the Gwernia Castle throne room
+28	Read the Roll in the Gwernia Castle throne room
 29	Talked to Sheridan in a Gwernia Castle sitting room about Erromon
 32	Talked to Gabrion in the kitchen
 33	Entered Gwernia Castle's weapon storage
 34	Entered the Gwernia Castle observatory
 35	Entered Sheridan's room
-36	Abrecan showed Alaron the knightly roll
+36	Abrecan showed Alaron the Roll
 38	Abrecan told Alaron the King was waiting
 39	Talked to Godric in the lab about a potion
 40	Talked to Bowden about the poison cure
@@ -71,7 +71,7 @@
 121	Had a magic lesson with Rheda on the road
 122	Entered Erromon
 123	Talked to Zurene and Gotzone on arriving in Erromon
-128	Phelan sent Alaron off after he asked about the Queen
+128	Phelan dodged talking about the Queen
 129	Read Jorath's letter about failing to poison the Jundar well
 130	Met Gechina unexpectedly in Erromon
 131	Met Becan in his weapon shop
@@ -109,7 +109,7 @@
 202	Camped with Abrecan and Becan north of Talewok
 203	Answered the Shadow's first offer north of Talewok
 204	Entered Talewok
-205	Read the memorial to fallen knights
+205	Read the Roll in Talewok or Port Saiid
 206	Talked to Brenna at the Talewok inn
 211	Talked to Xibid in Talewok
 213	Met Herne, the Talewok innkeeper
@@ -138,7 +138,7 @@
 246	Talked to Arturo at the Port Saiid bridge
 249	Met the Shadow again on the road
 250	Entered Port Saiid
-252	Talked to the singing woman by the roll of knights
+252	Talked to the singing woman by the Roll of Knights
 253	Asked Balfin the way to the inn at Port Saiid's gate
 254	Approached Port Saiid's gate
 255	Talked to a commoner between Port Saiid and Talewok about the crew
@@ -1929,7 +1929,7 @@
 5031	Has left the strange island after sailing through both storms
 5032	Landed on the strange island after Amann said the ship was ready
 5033	Called for Kendall, not yet met Gotzone and Zurene or awoken in the hut
-5037	Abrecan showed the knightly roll and Phelan sent Alaron to Erromon
+5037	Abrecan showed the Roll and Phelan sent Alaron to Erromon
 5039	Not yet awoken in Oriana's hut or met Edur and Yuli
 5041	Oriana has denied being a witch
 5042	Had a vision of goblins after Oriana denied being a witch
@@ -2093,7 +2093,7 @@
 5284	Day
 5349	Defeated the bandit and wyverns on the beach east of Port Saiid, lighthouse not yet relit
 5352	Left the castle with news of Oriana, before Kitarak's defeat
-5354	Phelan sent Alaron to Erromon, Abrecan's knightly roll not yet shown
+5354	Phelan sent Alaron to Erromon, Abrecan has not shown the Roll
 5355	Phelan has not yet sent Alaron to Erromon
 5356	Questioned outside Gwernia, before Phelan sent Alaron to Erromon
 5357	Brenna has neither refused nor joined, after Phelan's errand
