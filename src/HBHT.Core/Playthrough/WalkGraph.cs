@@ -90,8 +90,9 @@ public sealed class WalkGraph
     /// <summary>The index of a cell, or null if the player never stood in it.</summary>
     public int? Find(Reach.Cell cell)
     {
-        _index ??= BuildIndex();
-        return _index.TryGetValue(Key(cell.X, cell.Z, cell.Y), out var i) ? i : null;
+        // Built once by whichever thread asks first; runs side by side share the graphs.
+        var index = _index ?? Interlocked.CompareExchange(ref _index, BuildIndex(), null) ?? _index!;
+        return index.TryGetValue(Key(cell.X, cell.Z, cell.Y), out var i) ? i : null;
     }
 
     private Dictionary<long, int> BuildIndex()
@@ -106,6 +107,11 @@ public sealed class WalkGraph
     {
         if (_columns is { } built)
             return built;
+        return Interlocked.CompareExchange(ref _columns, BuildColumns(), null) ?? _columns!;
+    }
+
+    private Dictionary<long, int[]> BuildColumns()
+    {
         var lists = new Dictionary<long, List<int>>();
         for (var i = 0; i < Count; i++)
         {
@@ -114,7 +120,7 @@ public sealed class WalkGraph
                 lists[key] = list = [];
             list.Add(i);
         }
-        return _columns = lists.ToDictionary(l => l.Key, l => l.Value.ToArray());
+        return lists.ToDictionary(l => l.Key, l => l.Value.ToArray());
     }
 
     /// <summary>The cells in the columns within <paramref name="across"/> cells of (<paramref name="x"/>, <paramref name="z"/>), in the world's units.</summary>

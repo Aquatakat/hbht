@@ -108,7 +108,6 @@ public sealed class GateFlood
     private readonly WorldGraph _graph;
     private readonly Dictionary<RecordId, FloodSet> _byId = [];
     private readonly List<(int Way, int Prev)> _chains = [];
-    private readonly Dictionary<RecordId, Dictionary<(int Row, int Column), int>> _chunkBest = [];
 
     internal GateFlood(WorldGraph graph) => _graph = graph;
 
@@ -175,21 +174,14 @@ public sealed class GateFlood
         var plugins = _graph.Plugins;
         if (plugins.TryGet<ChunkRecord>(chunkId) is not { } chunk || !_byId.TryGetValue(chunk.MapSet, out var set))
             return null;
-        if (!_chunkBest.TryGetValue(chunk.MapSet, out var best))
+        // The first of the cell's ground with the fewest: its cells are in order.
+        var best = -1;
+        foreach (var i in _graph.ChunkCells(chunk.MapSet, chunk.Row, chunk.Column))
         {
-            var size = plugins.Get<MapSetRecord>(chunk.MapSet).CellSize;
-            _chunkBest[chunk.MapSet] = best = [];
-            for (var i = 0; i < set.Graph.Count; i++)
-            {
-                if (set.Cost[i] == int.MaxValue)
-                    continue;
-                var c = set.Graph.Center(i);
-                var key = ((int)MathF.Floor(c.X / size), (int)MathF.Floor(c.Z / size));
-                if (!best.TryGetValue(key, out var known) || set.Cost[i] < set.Cost[known])
-                    best[key] = i;
-            }
+            if (set.Cost[i] != int.MaxValue && (best < 0 || set.Cost[i] < set.Cost[best]))
+                best = i;
         }
-        return best.TryGetValue((chunk.Row, chunk.Column), out var cell) ? Ways(set.Chain[cell]) : null;
+        return best >= 0 ? Ways(set.Chain[best]) : null;
     }
 
     /// <summary>The fewest closed gates on a way to a cell of a map set's walk graph, or null if no way reaches it.</summary>

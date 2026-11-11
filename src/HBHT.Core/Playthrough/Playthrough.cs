@@ -90,12 +90,13 @@ public sealed class Playthrough
     private long _startTicks;
 
     /// <param name="host">The game to play, a new game's or a save's.</param>
-    /// <param name="model">The quest model over the same plugins.</param>
-    /// <param name="graph">The world graph over the same plugins.</param>
+    /// <param name="model">The quest model over the same plugins; the run plays on a model of its own made from it (<see cref="QuestModel.ForRun"/>), so runs side by side may share one.</param>
+    /// <param name="graph">The world graph over the same plugins, which runs side by side may share.</param>
     /// <param name="goal">What the run is after.</param>
     public Playthrough(PlaythroughHost host, QuestModel model, WorldGraph graph, Goal goal, RunOptions? options = null)
     {
         Host = host;
+        model = model.ForRun();
         Model = model;
         Graph = graph;
         Goal = goal;

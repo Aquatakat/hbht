@@ -45,8 +45,23 @@ public sealed class QuestModel
 
     public FlagModel Flags { get; }
 
-    /// <summary>Who answers whether a place can be reached; <see cref="Everywhere"/> until the world graph does.</summary>
+    /// <summary>
+    /// Who answers whether a place can be reached; <see cref="Everywhere"/> until the world graph does. It's the one thing a run
+    /// changes, so runs side by side each take their own model (<see cref="ForRun"/>).
+    /// </summary>
     public IPlaceReach Reach { get; set; }
+
+    /// <summary>
+    /// The model for one run: the same actions, ways and facts, which nothing changes once it's built and which any number of runs share
+    /// on any threads, with a <see cref="Reach"/> of its own (<see cref="Everywhere"/>) and its own cache of what places need.
+    /// </summary>
+    public QuestModel ForRun()
+    {
+        var run = (QuestModel)MemberwiseClone();
+        run.Reach = Everywhere.Instance;
+        run._placed = null;
+        return run;
+    }
 
     /// <summary>Every action, by <see cref="PlayerAction.Index"/>.</summary>
     public IReadOnlyList<PlayerAction> Actions => _actions;

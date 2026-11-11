@@ -38,9 +38,23 @@ public sealed class WorldReach : IPlaceReach
 {
     private readonly GameState _game;
     private readonly Dictionary<RecordId, (IReadOnlyList<Literal>? Literals, IReadOnlyList<RouteGate> Gates, bool Picks)> _known = [];
-    private readonly List<(GateFlood Flood, Func<Literal, bool>? CanOpen)> _rounds = [];
-    private int?[]? _tolls;
+    // The places no round so far got to, with how many rounds have been looked through for them.
+    private readonly Dictionary<RecordId, int> _missed = [];
+    private readonly List<Round> _rounds = [];
     private GateFlood? _anyWay;
+    private readonly Dictionary<RecordId, bool> _anyWayReaches = [];
+
+    /// <summary>
+    /// A round: what each way cost its flood, which gates it could open, and the flood, kept only while it's the last round's. A flood of
+    /// the Overworld is some 8 MB and a reach takes about twenty rounds, while each round looks up every place the planner asks of as it
+    /// comes; one an earlier round is asked of again is flooded again, as it flooded before.
+    /// </summary>
+    private sealed class Round(int?[] tolls, Func<Literal, bool>? canOpen, GateFlood flood)
+    {
+        public int?[] Tolls { get; } = tolls;
+        public Func<Literal, bool>? CanOpen { get; } = canOpen;
+        public GateFlood? Flood { get; set; } = flood;
+    }
 
     /// <param name="graph">The world graph.</param>
     /// <param name="game">The real game, whose flags the gates are read against and whose party picks locks.</param>
@@ -59,7 +73,9 @@ public sealed class WorldReach : IPlaceReach
     public Place From { get; }
 
     /// <summary>The last round's flood.</summary>
-    public GateFlood Flood => _rounds[^1].Flood;
+    public GateFlood Flood => FloodOf(_rounds[^1]);
+
+    private GateFlood FloodOf(Round round) => round.Flood ??= Graph.Flood(From, round.Tolls);
 
     /// <summary>How many rounds of floods it took.</summary>
     public int Rounds => _rounds.Count;
@@ -69,10 +85,11 @@ public sealed class WorldReach : IPlaceReach
         // A round whose ways all cost what the last round's did floods as it did: the last round's flood serves. Its gates are judged
         // alike too, since a gate the last round took as closed it takes as closed, so it gets to no place an earlier round didn't.
         var tolls = Graph.Tolls(way => Toll(way, canOpen));
-        var flood = _tolls is { } last && _rounds.Count > 0 && tolls.AsSpan().SequenceEqual(last) ? _rounds[^1].Flood : Graph.Flood(From, tolls);
-        _tolls = tolls;
-        _rounds.Add((flood, canOpen));
-        // A place an earlier round got to keeps that round's way; only those none got to may be got to now.
+        var flood = _rounds.Count > 0 && tolls.AsSpan().SequenceEqual(_rounds[^1].Tolls) ? FloodOf(_rounds[^1]) : Graph.Flood(From, tolls);
+        foreach (var round in _rounds)
+            round.Flood = null;
+        _rounds.Add(new Round(tolls, canOpen, flood));
+        // A place an earlier round got to keeps that round's way; those none got to are looked for in the rounds after.
         foreach (var (place, known) in _known)
         {
             if (known.Literals is null)
@@ -175,8 +192,9 @@ public sealed class WorldReach : IPlaceReach
     {
         if (_known.TryGetValue(place, out var known))
             return known;
-        foreach (var (flood, canOpen) in _rounds)
+        for (var r = _missed.GetValueOrDefault(place); r < _rounds.Count; r++)
         {
+            var (flood, canOpen) = (FloodOf(_rounds[r]), _rounds[r].CanOpen);
             var ways = place.Type == RecordTypes.Chunk ? flood.ToChunk(place) : flood.To(place);
             if (ways is null)
                 continue;
@@ -195,8 +213,10 @@ public sealed class WorldReach : IPlaceReach
                 }
             }
             IReadOnlyList<Literal> literals = [.. gates.Select(Literal).OfType<Literal>().Distinct()];
+            _missed.Remove(place);
             return _known[place] = (literals, gates, picks);
         }
+        _missed[place] = _rounds.Count;
         return _known[place] = (null, [], false);
     }
 
@@ -217,8 +237,10 @@ public sealed class WorldReach : IPlaceReach
     {
         if (Look(place).Literals is not null)
             return false;
+        if (_anyWayReaches.TryGetValue(place, out var reaches))
+            return reaches;
         _anyWay ??= Graph.Flood(From, _ => 0);
-        return (place.Type == RecordTypes.Chunk ? _anyWay.ToChunk(place) : _anyWay.To(place)) is not null;
+        return _anyWayReaches[place] = (place.Type == RecordTypes.Chunk ? _anyWay.ToChunk(place) : _anyWay.To(place)) is not null;
     }
 
     /// <summary>The closed gates on the way to a place with the fewest, for reports; empty if it's open or can't be reached.</summary>

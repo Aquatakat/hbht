@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using HBHT.Core.Combat;
@@ -308,6 +309,28 @@ public sealed partial class WorldGraph
     }
 
     private readonly ConcurrentDictionary<RecordId, IReadOnlyList<(int Cell, float Distance)>> _stands = [];
+    private readonly ConcurrentDictionary<RecordId, Lazy<Dictionary<(int Row, int Column), int[]>>> _chunkCells = [];
+
+    /// <summary>
+    /// The cells of a map set's walk graph whose feet are in a chunk's cell, in order: what a flood looks through for the way into a
+    /// chunk (<see cref="GateFlood.ToChunk"/>), kept, since the Overworld's million cells would be sorted into chunks every round.
+    /// </summary>
+    internal int[] ChunkCells(RecordId mapSet, int row, int column) =>
+        _chunkCells.GetOrAdd(mapSet, id => new Lazy<Dictionary<(int Row, int Column), int[]>>(() =>
+        {
+            var graph = Walk(id);
+            var size = _plugins.Get<MapSetRecord>(id).CellSize;
+            var lists = new Dictionary<(int, int), List<int>>();
+            for (var i = 0; i < graph.Count; i++)
+            {
+                var c = graph.Center(i);
+                var key = ((int)MathF.Floor(c.X / size), (int)MathF.Floor(c.Z / size));
+                if (!lists.TryGetValue(key, out var list))
+                    lists[key] = list = [];
+                list.Add(i);
+            }
+            return lists.ToDictionary(l => l.Key, l => l.Value.ToArray());
+        })).Value.GetValueOrDefault((row, column)) ?? [];
 
     /// <summary>
     /// <see cref="StandNear"/> for a map object, kept: the floods ask it of every place in every round, and the graph and the object
@@ -489,23 +512,49 @@ public sealed partial class WorldGraph
         }
     }
 
+    /// <summary>The map set of an index <see cref="SetIndex"/> gave, under its lock: runs side by side search the one graph.</summary>
+    private RecordId SetAt(int index)
+    {
+        lock (_setList)
+            return _setList[index];
+    }
+
     private static long Pack(int set, int cell) => ((long)set << 32) | (uint)cell;
+
+    /// <summary>
+    /// A search's cost, parent and state for each cell of one walk graph, stamped with the search they're of, so a search needs no
+    /// clearing: a cell stamped with another search's number is one this search hasn't reached. Each thread keeps its own, so runs side
+    /// by side search the one graph; the Overworld's is some 20 MB a thread.
+    /// </summary>
+    private sealed class SearchCells(int cells)
+    {
+        /// <summary>The search that reached each cell: its number while the cell is open, negated once it's done.</summary>
+        public readonly int[] Stamp = new int[cells];
+        public readonly float[] Cost = new float[cells];
+        public readonly long[] From = new long[cells];
+        /// <summary>The way it was reached through, −1 on foot, or <see cref="NoParent"/> for the start.</summary>
+        public readonly int[] Way = new int[cells];
+        /// <summary>The search that leaves each cell out (<see cref="RouteOptions.Avoid"/>, <see cref="RouteOptions.KeepClear"/>).</summary>
+        public readonly int[] Avoided = new int[cells];
+        /// <summary>The last search that left any of the graph's cells out.</summary>
+        public int AvoidedIn;
+
+        public const int NoParent = int.MinValue;
+    }
+
+    [ThreadStatic] private static ConditionalWeakTable<WalkGraph, SearchCells>? _searchCells;
+    [ThreadStatic] private static int _searches;
+
+    private static (int Search, ConditionalWeakTable<WalkGraph, SearchCells> Cells) NextSearch()
+    {
+        if (_searchCells is null || _searches == int.MaxValue)
+            (_searchCells, _searches) = (new(), 0);
+        return (++_searches, _searchCells);
+    }
 
     private Found? Search(GameState state, RecordId startSet, int startCell, RecordId goalSet, Dictionary<int, float> goalCells, Vector3 target,
         float range, bool pick, RouteOptions? options, bool tolerate)
     {
-        // The ground within the avoided places' radius is left out, as where a pilot found itself stuck.
-        var avoided = new Dictionary<int, HashSet<int>>();
-        var zones = (options?.Avoid ?? []).Select(a => new RouteZone(a, options!.AvoidRadius)).Concat(options?.KeepClear ?? []);
-        foreach (var (avoid, radius) in zones)
-        {
-            var graph = Walk(avoid.MapSet);
-            var cells = avoided.GetValueOrDefault(SetIndex(avoid.MapSet)) ?? (avoided[SetIndex(avoid.MapSet)] = []);
-            foreach (var i in graph.Near(avoid.Feet.X, avoid.Feet.Z, radius))
-                if (Vector3.Distance(graph.Center(i), avoid.Feet) <= radius)
-                    cells.Add(i);
-        }
-
         var leading = SetsLeadingTo(goalSet);
         var open = new Dictionary<int, float>();
         float Toll(int way)
@@ -517,13 +566,36 @@ public sealed partial class WorldGraph
         }
 
         var graphs = new Dictionary<int, WalkGraph>();
-        WalkGraph GraphOf(int set) => graphs.TryGetValue(set, out var g) ? g : graphs[set] = Walk(_setList[set]);
+        WalkGraph GraphOf(int set) => graphs.TryGetValue(set, out var g) ? g : graphs[set] = Walk(SetAt(set));
+        var portalCells = new Dictionary<int, PortalCellIndex>();
+        PortalCellIndex PortalsOf(int set) => portalCells.TryGetValue(set, out var p) ? p : portalCells[set] = PortalCells(SetAt(set));
         var goalIndex = SetIndex(goalSet);
         var start = Pack(SetIndex(startSet), startCell);
-        var cost = new Dictionary<long, float> { [start] = 0 };
-        var parent = new Dictionary<long, (long From, int Portal)>();
+        var (search, pool) = NextSearch();
+        var scratch = new Dictionary<int, SearchCells>();
+        SearchCells CellsOf(int set)
+        {
+            if (scratch.TryGetValue(set, out var c))
+                return c;
+            var graph = GraphOf(set);
+            return scratch[set] = pool.GetValue(graph, g => new SearchCells(g.Count));
+        }
+
+        // The ground within the avoided places' radius is left out, as where a pilot found itself stuck.
+        var zones = (options?.Avoid ?? []).Select(a => new RouteZone(a, options!.AvoidRadius)).Concat(options?.KeepClear ?? []);
+        foreach (var (avoid, radius) in zones)
+        {
+            var graph = Walk(avoid.MapSet);
+            var cells = CellsOf(SetIndex(avoid.MapSet));
+            cells.AvoidedIn = search;
+            foreach (var i in graph.Near(avoid.Feet.X, avoid.Feet.Z, radius))
+                if (Vector3.Distance(graph.Center(i), avoid.Feet) <= radius)
+                    cells.Avoided[i] = search;
+        }
+
+        var first = CellsOf((int)(start >> 32));
+        (first.Stamp[startCell], first.Cost[startCell], first.Way[startCell]) = (search, 0, SearchCells.NoParent);
         var queue = new PriorityQueue<long, float>();
-        var done = new HashSet<long>();
         queue.Enqueue(start, 0);
 
         float Heuristic(int set, int cell) => set == goalIndex
@@ -531,51 +603,69 @@ public sealed partial class WorldGraph
 
         while (queue.TryDequeue(out var node, out _))
         {
-            if (!done.Add(node))
-                continue;
             var (set, cell) = ((int)(node >> 32), (int)(uint)node);
+            var cells = CellsOf(set);
+            if (cells.Stamp[cell] == -search)
+                continue;
+            cells.Stamp[cell] = -search;
             var graph = GraphOf(set);
             if (set == goalIndex && goalCells.ContainsKey(cell))
             {
                 var path = new List<(int, int, int)>();
                 for (var n = node; ; )
                 {
-                    var known = parent.TryGetValue(n, out var p);
-                    path.Add(((int)(n >> 32), (int)(uint)n, known ? p.Portal : -1));
+                    var (s, c) = ((int)(n >> 32), (int)(uint)n);
+                    var on = CellsOf(s);
+                    var known = on.Way[c] != SearchCells.NoParent;
+                    path.Add((s, c, known ? on.Way[c] : -1));
                     if (!known)
                         break;
-                    n = p.From;
+                    n = on.From[c];
                 }
                 path.Reverse();
-                return new Found(path, cost[node]);
+                return new Found(path, cells.Cost[cell]);
             }
 
             void Relax(long next, float step, int portal)
             {
-                var g = cost[node] + step;
-                if (!done.Contains(next) && (!cost.TryGetValue(next, out var known) || g < known))
+                var g = cells.Cost[cell] + step;
+                var (s, c) = ((int)(next >> 32), (int)(uint)next);
+                var there = CellsOf(s);
+                var stamp = there.Stamp[c];
+                if (stamp != -search && (stamp != search || g < there.Cost[c]))
                 {
-                    cost[next] = g;
-                    parent[next] = (node, portal);
-                    queue.Enqueue(next, g + Heuristic((int)(next >> 32), (int)(uint)next));
+                    (there.Stamp[c], there.Cost[c], there.From[c], there.Way[c]) = (search, g, node, portal);
+                    queue.Enqueue(next, g + Heuristic(s, c));
                 }
             }
 
-            avoided.TryGetValue(set, out var skip);
+            var skip = cells.AvoidedIn == search;
+            // The steps on foot, Relax's work done here, where it's most of a search's.
+            var here = cells.Cost[cell];
+            var toGoal = set == goalIndex;
             foreach (var to in graph.Steps(cell))
-                if (skip is null || !skip.Contains(to))
-                    Relax(Pack(set, to), graph.Length(cell, to), -1);
+            {
+                if (skip && cells.Avoided[to] == search)
+                    continue;
+                var g = here + graph.Length(cell, to);
+                var stamp = cells.Stamp[to];
+                if (stamp != -search && (stamp != search || g < cells.Cost[to]))
+                {
+                    (cells.Stamp[to], cells.Cost[to], cells.From[to], cells.Way[to]) = (search, g, node, -1);
+                    queue.Enqueue(Pack(set, to), g + (toGoal ? MathF.Max(0, Vector3.Distance(graph.Center(to) + SphereUp, target) - range) : 0));
+                }
+            }
             foreach (var (to, local) in graph.GatedSteps(cell))
             {
                 var way = Portals.Count + ToggleOf(graph, local);
                 var toll = Toll(way);
-                if (!float.IsPositiveInfinity(toll) && (skip is null || !skip.Contains(to)))
+                if (!float.IsPositiveInfinity(toll) && !(skip && cells.Avoided[to] == search))
                     Relax(Pack(set, to), graph.Length(cell, to) + toll, way);
             }
 
-            if (PortalCells(_setList[set]).TryGetValue(cell, out var here))
+            if (PortalsOf(set).TryGetValue(cell, out var portals))
             {
-                foreach (var p in here)
+                foreach (var p in portals)
                 {
                     var toll = Toll(p);
                     if (float.IsPositiveInfinity(toll) || !leading.Contains(Portals[p].ToSet) || ArrivalCell(p) is not { } arrival)
@@ -593,7 +683,7 @@ public sealed partial class WorldGraph
         var gates = new List<RouteGate>();
         var cells = new List<int>();
         var toggles = new List<RecordId>();
-        var current = _setList[found.Path[0].Set];
+        var current = SetAt(found.Path[0].Set);
         foreach (var (set, cell, way) in found.Path)
         {
             if (way >= Portals.Count)
@@ -614,7 +704,7 @@ public sealed partial class WorldGraph
                 gates.AddRange(p.Gates);
                 cells = [];
                 toggles = [];
-                current = _setList[set];
+                current = SetAt(set);
             }
             cells.Add(cell);
         }
