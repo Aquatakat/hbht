@@ -58,3 +58,25 @@ public sealed record EndingGoal : Goal
 {
     public override string Describe() => "the ending";
 }
+
+/// <summary>
+/// Every one of a set of flags seen set (docs/systems/playthrough.md's flag coverage): reached once each target has been seen set, in
+/// this run or by another job (<see cref="CoveredElsewhere"/>), or can no longer be set from where the run stands. The run sweeps the
+/// targets nearest first, preferring steps that lose none of them, and records a branch where a step does (<see cref="Coverage"/>).
+/// </summary>
+/// <param name="Targets">The flags to see set.</param>
+public sealed record CoverGoal(IReadOnlyList<RecordId> Targets) : Goal
+{
+    /// <summary>Steps towards one target that may fail before it's given up.</summary>
+    public int MostFailures { get; init; } = 3;
+
+    /// <summary>The planner's plans to one target that may find nothing, at different steps, before it's given up.</summary>
+    public int MostNoPlans { get; init; } = 2;
+
+    /// <summary>The flags other jobs have seen set, asked at the start and every <see cref="RefreshSteps"/> steps; none if null.</summary>
+    public Func<IReadOnlySet<RecordId>>? CoveredElsewhere { get; init; }
+
+    public int RefreshSteps { get; init; } = 10;
+
+    public override string Describe() => $"cover {Targets.Count} flags";
+}

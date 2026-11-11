@@ -402,6 +402,67 @@ A goal is a flag to set (`flag:<n>`), someone joining (`member`), or `ending`: t
 
 **The summary** gives the steps, the game's ticks and the wall time, the party's levels at each milestone, battles fought with the `LostFirst` and `Stalemate` counts, deaths, trainer visits, entries by kind, and the goal reached or why not. `--report <path>` writes `<path>.txt` and `<path>.json`.
 
+## Flag coverage
+
+`hbht playthrough cover` sets every flag the static pass can set, over a tree of saves, so that a flag no play sets is a finding rather than a guess. It's the run with a goal of many flags (`CoverGoal`), and a queue of jobs on disk that several processes work at once. The code is `Playthrough.Cover.cs`, `Coverage.cs`, `CoverQueue.cs` and `CoverWorker.cs`, the CLI's `CoverReport`, and the ledger in the core ([flags](flags.md#the-ledger)). The roadmap's [playthrough bot](../roadmap.md#the-playthrough-bot) table has its stages; this is stage 0, the machinery.
+
+```
+hbht playthrough cover init --root <dir> [--save <save>] [--targets all|<file>] [--job-minutes <n>] [--most-failures <n>]
+hbht playthrough cover work --root <dir> [--most-minutes <n>] [--most-jobs <n>]
+hbht playthrough cover status --root <dir> [--all]
+```
+
+**The targets.** By default, every flag, plain or derived, that the relaxation over every action from the start sets and isn't set at the start (`FactLayer` above 0): from a new game on NA 1.0, 2,230 (1,882 plain, 348 derived). A file names others, by number or record ID.
+
+**The tree.** `init` writes the root (`cover.json`) and one pending job, `0`, from a new game or a copy of the save. A job is played as a run whose goal is its targets less those any job has seen. Where a step loses targets not yet covered, the job records a **branch**: a job from the save before that step, over the targets it lost, named after its parent (`0.3`, `0.3.1`). A job the worker's own time cuts short with targets still live is **carried on** from a save of where it stopped (`0+1`). A job's own cap (`--job-minutes`, 120) gives its live targets up instead.
+
+**The ledger** is every flag any job has seen set, with the job, the step, the tick and the save from before the step: the union of the jobs' results, read on demand (`CoverQueue.Ledger`), so no two processes write one file. A run attaches a `FlagLedger` to its host as it starts, and after each step puts the flags first seen down to that step, trainers and shops after it included. A target already set as the run begins (a new game's start sets a few before anything can watch) is covered at step 0.
+
+**The root folder:**
+
+| Path | What |
+| --- | --- |
+| `cover.json` | The targets, the root's save, the caps |
+| `jobs/pending`, `jobs/claimed`, `jobs/done` | A file a job; a claimed one is named `<id>@<machine>@<pid>@<process start>.json` |
+| `jobs/locks` | A job's lock while it's claimed |
+| `results/<id>.json` | The flags the job saw first, each target's end and why, the jobs it made, where its seconds went |
+| `saves/<id>/` | The job's saves: the run's milestones, the save before each step that saw a flag first or lost one, `carried-on.sav` |
+| `reports/<id>.txt`, `.json` | The job's run report |
+
+**Claims.** A claim makes the job's lock new (`FileMode.CreateNew`, which one maker wins), then moves the job into `claimed` under the claimer's name. Every claim first returns to pending the claims whose process is gone: on this machine, a process of that ID with that start time isn't running (another machine's are taken to be alive). Files are read sharing delete, since `File.Move` copies where a rename meets a reader's handle, which once left a job in two places. A finished job writes its result, adds the jobs it made, and moves to `done`; a process that dies before that leaves the job claimed, to be played again, its result and branches written over.
+
+**Each step** of a cover run:
+
+1. **The look.** A relaxation over every action from the real state, with the places' reach the run makes before every step ([places in plans](#the-run)), says which targets are still live. A covered target is one the ledger or another job saw. A derived target whose fact holds in the plan's state without the game setting it, as one over the calendar can, waits; the run doesn't wait for the hour, and they're given up at the end. A target live before the last step and not now is lost (below). Banned actions are in the relaxation: a ban is the bot's.
+2. Getting past a story trigger comes first, as in any run.
+3. **The nearest step that sets a target and loses none.** Every action that can be done now, sets a live target for certain and whose code gates the party meets, is sorted by its distance from the player as the crow flies in his map set (another map set's is 10,000 on). In that order the loss check weighs up to 60, until four lose nothing; of those, the shortest world graph route is played.
+4. **Someone joins**, when no step nearby is safe and the party has a slot, if the member plan's first step loses nothing. The member goal doesn't come first, as it does in a story run: from a new game it played the whole Goblin Ambush and filled the party before the chest beside the start. Once the run must go further anyway, a fuller party fares better on the way.
+5. **A plan to a target**, the live ones by their layer in the look's relaxation and then the distance of their first setter: up to three plans found, or twelve tried. The first plan whose first step loses nothing is played. A plan whose first step's code gate isn't met (a lock the party can't pick) is left until the run has moved on; a target with no plan twice, at different steps, is given up with the planner's why.
+6. With nothing safe, the step that loses fewest, of the direct steps and the plans' first steps.
+7. With nothing at all, the targets planned to are struck for that step, and once every live target is struck where the run stands, they're all given up.
+
+**The loss check** (`LossCheck.Lost`): the step's action applied to the plan's state, and the relaxation run again; the live targets it no longer sets, less those the step sets itself, are lost. A place-free relaxation takes about 15 ms from a new game, and a loss check 3 to 4 ms; a look with the places' reach about 10 ms, once the run's rounds of floods (seconds) have made it. Either way it's the relaxation's say, which can't see an order of steps fail, only a fact never come true: from a new game with the dryads' wood entered (218), telling the male dryad "Ardra sent me" (0x03F9 by choice 45, setting 226) loses their fight's flag 3663, and a chest by the start loses nothing. Offending them (choice 10, setting 229) loses nothing it can see, since their scene at G12/5 makes peace once the Gorgon's task is done.
+
+**The check after.** Each look compares the live targets with those before the step just played, so a step that lost more than predicted, as a story trigger on the way does, is caught as well: the lost targets go to a branch from the save before the step. A loss the place-free relaxation doesn't confirm is noted as **by the places alone**: where the step left the player walls them off. A lost target that comes back is live again (its branch is still played, and skips it if it's been covered). A step with no save before it (the player hadn't the controls) branches nowhere, and its targets say so. A branch that loses the same targets on its own first step isn't branched again: whatever its first step is after, it loses them, as walking anywhere from the start plays Edur's scene.
+
+**Failures.** A target is given up after `--most-failures` steps towards it fail (3). A step that should have set its target by its own effects and played out without the ledger seeing it counts as failed, and is banned where it was played: walking into the tripwire 4/E03/0 plays out without setting 33, and would otherwise be played again and again.
+
+**How it fares.** One `work` process for 10 minutes from a new game over all 2,230 targets, in a Release build: 7 jobs, 84 steps (8.3 a minute), 196 targets covered (19 a minute), 8 branches recorded, 41 targets given up.
+
+- The root job played 60 steps in 411 s and covered 164: the chests about I08, the Goblin Ambush and Oriana's hut, Erromon's way, then Gwernia's castle, filling the party on the way.
+- Of its 411 s, the looks took 3 s, 261 loss checks 1.2 s, 2,050 plans 8 s and 236 routes 2 s; the rest is the pilot, the battles (53, 21 lost first) and the rounds of floods before each step.
+- A branch costs about 12 s before its first step (the save loaded and the first rounds of floods). Four of the eight lost their one target again on their first step, to a story trigger on every way out (Edur's 0x0391, 0x0396 at I08/20, 0x039A at I08/27, Gwernia's 0x0377): those aren't branched again. Branch 0.4, from the castle's scene, covered 8 of its 11.
+- Step 49 lost 2,014 targets by the places alone, at Gwernia castle (below): the root swept what it could inside, gave up the 36 it had no plan to, and the branch from before the step carried on.
+- Given up, by reason: 36 no plan where the run stood, 4 lost again on a branch's first step, 1 after three failed steps (0x036F at 4/O09/6, whose way takes choice 19 over a hundred times).
+
+**Left:**
+
+- Stage 1, the trunk: a story run with a save before every step, and each target given to the save where it's last reachable or nearest the player while it is, as the jobs' starts. Until then the root job sweeps from a new game, and the story moves on only when nothing near is left.
+- Waiting for the hour: derived targets over the calendar wait and are given up.
+- A branch's targets lost by the places alone may be the world graph's, not the game's: from Gwernia castle after 0x035F at 4/K07/2 the walk graph's only way out is the teleporter 4/Q03/4, gated by 2136, so 6,674 actions read as walled and 2,014 targets were lost at once. Whether the walk graph lacks the way back or the scene moved the player beyond it is still to be found.
+- Branches aren't capped by depth or count, and a branch whose targets are covered elsewhere is still claimed, to finish at once.
+- The ledger puts what a trainer or a shop visit sets down to the step before it.
+
 ## Where it stands
 
 From a new game the run reaches the ending: the Coronation of Alaron plays and the ending's credits roll. It plays 84 steps, 4,122,658 ticks (about 1,145 game minutes), in about 600 s of wall time (the run is deterministic: the same plugins play the same run).

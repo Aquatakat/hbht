@@ -26,7 +26,7 @@ internal static class PlaythroughReport
                                                plays from a new game (or the save) to the goal, a line a step, saving
                                                at each milestone in <dir> (the data folder's saves/playthrough), and
                                                writes the report as text and JSON (<path>.txt and <path>.json)
-        """;
+        """ + CoverReport.Usage;
 
     public static int Run(PluginSet plugins, string[] args)
     {
@@ -37,6 +37,7 @@ internal static class PlaythroughReport
                 ["reachable", .. var rest] => Reachable(plugins, rest),
                 ["plan", .. var rest] => Plan(plugins, rest),
                 ["run", .. var rest] => RunTo(plugins, rest),
+                ["cover", .. var rest] => CoverReport.Run(plugins, rest),
                 _ => throw new ArgumentException(Usage),
             };
         }
