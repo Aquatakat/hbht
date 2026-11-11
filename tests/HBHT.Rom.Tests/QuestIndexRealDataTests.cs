@@ -61,11 +61,32 @@ public sealed class QuestIndexRealDataTests(Na10Import fixture)
     }
 
     /// <summary>
+    /// The flags something writes that play never sets, from the playthrough's static pass from a new game
+    /// (docs/systems/playthrough.md), less where its model falls short: camping, the cheats, backdrops and traps going off,
+    /// which the story checkpoints show set.
+    /// </summary>
+    private static readonly HashSet<int> NeverSetInPlay =
+    [
+        // Set only by scripts nothing starts: the door rhyme, Shamsuk's letters, joining and parting scenes.
+        7, 248, 309, 377, 439, 440, 441, 442, 515, 531, 561, 576, 577, 604, 607, 608, 3020, 3021, 3022, 3023, 3139, 3140, 3162,
+        // Set only by scripts or objects that need a flag that's never set or never true (5353, 5130, the stats' unwritten
+        // bits, 52, 64, 402, 1536, 3677, 4297), or itself.
+        79, 418, 443, 444, 445, 1272, 1337, 1344, 1345, 1347, 1348, 1506, 1524, 1537, 3052, 3149, 3678, 4280,
+        // Set only by objects gated off on flag 0.
+        1362, 1368, 1370, 1412,
+        // Only ever cleared: containers' Used flags.
+        2284, 3226, 3231, 3233, 3315, 3396, 3458, 3525, 3588,
+        // Derived, and never true.
+        5005, 5130, 5256, 5257, 5259, 5260, 5353,
+    ];
+
+    /// <summary>
     /// Every flag that's used and can change has a label, and no other flag has one but those the engine's tables name
     /// (docs/systems/flags.md#labels). A flag is used if anything writes it or something reads it other than a derived flag
-    /// that's unused itself; it can change if something writes it, or it's derived from a flag that can. A flag only read is
-    /// a promise nothing keeps, so it goes unnamed. Two flags share a label only where the same objects or scripts write
-    /// both, as a container's opened and Used flags, or two derived flags have one formula.
+    /// that's unused itself; it can change if something writes it, or it's derived from a flag that can, and play can set it
+    /// (<see cref="NeverSetInPlay"/>). A name for a flag play never sets is a promise nothing keeps, so it goes unnamed. Two
+    /// flags share a label only where the same objects or scripts write both, as a container's opened and Used flags, or two
+    /// derived flags have one formula.
     /// </summary>
     [Fact]
     public void EveryUsedFlagHasALabelOfItsOwn()
@@ -92,7 +113,7 @@ public sealed class QuestIndexRealDataTests(Na10Import fixture)
                 ? formula.Inputs.Any(Live)
                 : Data.Index.UsesOf(f).Any(u => u.Access != FlagAccess.Read);
         }
-        used.RemoveWhere(f => !Live(f));
+        used.RemoveWhere(f => !Live(f) || NeverSetInPlay.Contains(Number(f)));
         Assert.Empty(used.Where(f => flags[f].Label is null && Number(f) > 1).Select(Number));
         var tabled = FlagLabels.Read(TestRoms.Get(RomVersionId.Na10), GameDb.Read(TestRoms.Get(RomVersionId.Na10))).Keys
             .Except(FlagLabels.Written.Keys).Select(k => (int)k).ToHashSet();

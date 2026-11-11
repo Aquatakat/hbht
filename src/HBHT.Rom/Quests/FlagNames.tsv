@@ -2,7 +2,6 @@
 # FlagLabels applies them, and docs/systems/flags.md#labels has the rules a name follows.
 2	Entered Gwernia Castle
 5	Called for Kendall in Oisin forest
-7	Read the Yorwood memorial stone
 9	Saw a spirit in Oisin forest
 10	Took Kendall's Hat
 11	Ambushed by goblins in Oisin forest
@@ -51,7 +50,6 @@
 72	Talked to Abrecan about the quest
 73	Godric agreed to join
 75	Brenna refused to join
-79	Talked to Phelan before leaving Gwernia
 81	Talked to Bowden about True Names
 82	Said goodbye to Sheridan in the Gwernia Castle barracks
 83	Said goodbye to Gabrion in the kitchen
@@ -138,7 +136,6 @@
 244	Agreed to remove Arturo from the bridge for Batrin
 245	Saw Keelin talk her way past Arturo
 246	Talked to Arturo at the Port Saiid bridge
-248	Agreed to meet Keelin at the inn
 249	Met the Shadow again on the road
 250	Entered Port Saiid
 252	Talked to the singing woman by the roll of knights
@@ -178,7 +175,6 @@
 303	Amann sent Alaron to explore the strange island
 305	Reached the top of Chaos Isle
 308	Sailed through the second storm
-309	Set out to find Cradawgh on his isle
 316	Walked to a spot inland on Cradawgh's Isle
 319	Fought the Chaos minions at Cradawgh's pyre
 320	Heard Cradawgh's dying words
@@ -227,7 +223,6 @@
 371	Read the Book of Songs in the Terminor library
 372	Talked to Tamberlain at the Staggering Ogre
 373	Niesen joined the party in Terminor
-377	Turned Godric away because the party was full
 379	Met Baird at Terminor's inn
 381	Met Donovan at Terminor's inn
 383	Talked to Niesen after he woke in the bog
@@ -256,7 +251,6 @@
 415	Rheda and Godric talked of Akkra root in the bog
 416	Abrecan and Becan talked of the bog's tests for knights
 417	Niesen looked for Shamsuk's Tower with Alaron
-418	Brenna talked of the bog's stories
 419	Arturo talked of the fog in the bog
 420	Watched Amann's ship leave Port Saiid
 421	Keelin asked to turn back from the bog
@@ -276,13 +270,6 @@
 436	Read Elisheva's writing 7 in Elisheva's Tomb
 437	Read Elisheva's writing 8 in Elisheva's Tomb
 438	Approached Shamsuk's Tower
-439	Read Cradawgh's letter to Shamsuk
-440	Read Ardra's letter to Shamsuk
-441	Read Yeraza's letter to Shamsuk
-442	Read an unsigned letter to Shamsuk
-443	Read the Jester's letter to Shamsuk
-444	Read the Emperor's letter to Shamsuk
-445	Read Fyrsil's letter to Shamsuk
 446	Opened the crate at the top of Shamsuk's Tower
 447	Niesen feared he would die in Shamsuk's Tower
 449	Met Farris in Shamsuk's Tower
@@ -334,7 +321,6 @@
 508	Read "The Exploits of Zaratas" on the second floor of the Ugarit library
 509	Read "Betrayal in the Darkling Hills" on the second floor of the Ugarit library
 510	Entered the Ugarit library
-515	Talked to a female Jundar in Ugarit
 516	Entered the palace in Ugarit
 517	Talked to the Jundar guard at the base of the palace in Ugarit
 518	Met Zaratas
@@ -346,7 +332,6 @@
 527	Baird looked over the Barrows entrance
 528	Becan talked at the campfire at the Barrows
 529	Reached the Barrows
-531	Baird said the party needs Lodin's sword
 532	Began the fight with Lugash
 538	Talked to a frightened Jundar in the desert
 539	The party discussed the frightened Jundar's story in the desert
@@ -367,7 +352,6 @@
 558	Brenna and Keelin talked about frightened locals approaching Ugarit
 559	Returned to Ugarit's gate with the Horn of Kynon
 560	Talked to Zaratas after the Barrow
-561	Played an unfinished dialog of Alaron's
 562	Overheard a Chaos Major's report south of Gwernia
 563	Took the Shadow's hand to merge
 564	Farris scolded his zombies with the Staff
@@ -378,8 +362,6 @@
 572	Sholeh asked if Alaron is ready to face Rooughah
 573	Dougal told Alaron about his skills in Terminor
 575	Dougal talked with Alaron at the campfire between Talewok and Terminor
-576	Talked to Trahern, who stayed in town
-577	Asked Trahern to join the party
 578	Returned to Erromon after merging with the Shadow
 579	Talked to Yeraza about breaking the seal
 580	Threatened the Mirari at Rooughah's cave
@@ -400,10 +382,7 @@
 600	Brenna congratulated King Alaron
 602	Arturo declined to be made a knight
 603	Rheda talked about the old ways of magic
-604	Godric talked about his frame in Gwernia Castle
 606	Keelin parted ways with Alaron after the quest
-607	Baird left to write his epic after the quest
-608	Donovan took his title and left after the quest
 609	Sholeh returned to Ugarit after the quest
 612	A Mirari guard turned Alaron away from Erromon
 630	Played the "end of Alaron" death scene
@@ -582,7 +561,6 @@
 1269	Defeated the Giant Rat between Oisin forest and Gwernia K08
 1270	Defeated the Bear between Oisin forest and Gwernia
 1271	Defeated the Chaos Warrior between Oisin forest and Gwernia
-1272	Defeated the Goblin Scout in Yorwood
 1273	Defeated the Goblin in Yorwood (object 10)
 1274	Defeated the Wolf in Yorwood
 1275	Defeated the Giant Rat in Yorwood
@@ -638,15 +616,10 @@
 1334	Defeated the Boar between Oisin forest and Gwernia
 1335	Defeated the Giant Bat south of Oisin forest
 1336	Defeated the Giant Rat south of Oisin forest
-1337	Defeated the Bear south of Oisin forest J09
 1338	Defeated the Ogre south of Oisin forest J09
 1339	Talked to Gotzone or Zurene in Oisin forest
 1340	Defeated the Giant Bat in Oisin forest I08 (object 17)
 1341	Defeated the Giant Rat in Oisin forest I08 (object 18)
-1344	Defeated the Goblin Scout in Oisin forest
-1345	Defeated the Giant Rat in Oisin forest I08 (object 25)
-1347	Defeated the Wolf in Oisin forest I08 (object 21)
-1348	Defeated the Wolf in Oisin forest I08 (object 22)
 1349	Talked to Edur in Oisin forest
 1350	Defeated the Bear south of Oisin forest I09
 1351	Defeated the Minotaur south of Oisin forest
@@ -660,14 +633,11 @@
 1359	Defeated the Goblin in a goblin camp hut E03
 1360	Defeated the Goblin in a goblin camp tent E01
 1361	Defeated the Hobgoblin in a goblin camp tent C09
-1362	Defeated the Goblin Scout in a goblin camp tent C05
 1363	Defeated the Minotaur or the Human Bandit south of Oisin forest
 1365	Defeated the Boar south of Oisin forest H09
 1366	Defeated the Human Bandit south of Oisin forest
 1367	Defeated the Ogre south of Oisin forest H09
-1368	Defeated the Goblin Scout in a goblin camp tent G01
 1369	Defeated the Goblin in a goblin camp tent G03
-1370	Defeated the Hobgoblin in a goblin camp tent G05
 1371	Defeated the Goblin in the goblin stronghold B04
 1374	Talked to Edur in Edur's house
 1375	Talked to Gechina in Erromon or in Gechina's house
@@ -702,7 +672,6 @@
 1409	Defeated the Gryphon in the rocky area
 1410	Defeated the Human Bandit in the canyon near Port Saiid E13 (object 0)
 1411	Defeated the Cyclops in the canyon near Port Saiid
-1412	Defeated the Dracovern in Shamsuk's Tower
 1413	Defeated the Wyvern in Shamsuk's Tower
 1414	Defeated the Gryphon in Shamsuk's Tower
 1415	Defeated the Manticore in Shamsuk's Tower
@@ -779,7 +748,6 @@
 1503	Defeated the Wyvern on the east end of Chaos Isle
 1504	Defeated the Chaos Warrior on the east end of Chaos Isle (object 12)
 1505	Talked to Phelan in the Gwernia Castle throne room (object 9)
-1506	Talked to Phelan in the Gwernia Castle throne room (object 7)
 1507	Talked to Abrecan in the Gwernia Castle throne room (object 5)
 1508	Talked to Abrecan in the Gwernia Castle throne room (object 8)
 1509	Talked to Phelan in the Gwernia Castle throne room (object 6)
@@ -794,7 +762,6 @@
 1521	Talked to Gabrion in the Gwernia Castle kitchen (object 4)
 1522	Talked to Gabrion in the Gwernia Castle kitchen (object 5)
 1523	Talked to Sheridan in the Gwernia Castle barracks
-1524	Talked to Phelan in Phelan's bedroom
 1525	Talked to Abrecan in the Gwernia Castle meeting room (object 6)
 1526	Talked to Abrecan in the Gwernia Castle meeting room (object 7)
 1527	Talked to Sheridan in a Gwernia Castle sitting room
@@ -805,7 +772,6 @@
 1533	Defeated the Cyclops south of Talewok
 1534	Defeated the Bandit Boss south of Talewok
 1535	Defeated the Troll south of Talewok
-1537	Defeated the Lizard Man Sgt in Elisheva's Tomb
 1538	Defeated the Zombie in Elisheva's Tomb
 1540	Defeated the Cyclops east of the ruins of Pome
 1541	Defeated the Ogre between Talewok and Erromon
@@ -1336,7 +1302,6 @@
 2281	Opened the sack in Shamsuk's Tower
 2282	Opened the sack in Shamsuk's Tower
 2283	The sack in Shamsuk's Tower exploded
-2284	Opened the chest in Shamsuk's Tower K01
 2285	Opened the chest in Shamsuk's Tower K01
 2286	The chest in Shamsuk's Tower K01 exploded
 2287	Opened the chest in Shamsuk's Tower K03
@@ -1361,10 +1326,6 @@
 3013	Read the Training Room sign in Gwernia Castle
 3014	Read the Kitchen sign in Gwernia Castle
 3019	A town guard told Alaron to return to the castle
-3020	Read the door rhyme's opening verse
-3021	Read the door rhyme's verse about fingers and a lucky seven
-3022	Read the door rhyme's verse about twin towers and a full house
-3023	Read the door rhyme's closing verse about Shamsuk's Tower
 3024	Defeated the Plague Zombie on the eastern beach
 3025	Defeated the Chaos Scout on the eastern beach
 3034	Defeated the Minotaur north of Erromon
@@ -1377,7 +1338,6 @@
 3049	Defeated the Chaos Mauler in Darkling Bog
 3050	Defeated the Darkenbat in Darkling Bog R16
 3051	Defeated the Gorgon in Darkling Bog R16
-3052	Defeated the Firelord in the Firelord's chamber under Shamsuk's Tower
 3054	Defeated the Plague Zombie in Shamsuk's Tower O07
 3056	Defeated the Chaos Sorceror in the Wizard's Keep quarters
 3057	Defeated the Chaos Spellweaver in the Wizard's Keep quarters
@@ -1452,8 +1412,6 @@
 3132	Talked to Bowden in Bowden's room (object 2)
 3133	Talked to Bowden in Bowden's room (object 3)
 3134	Talked to a Gwernia commoner about the village
-3139	Told Becan to wait at the Terminor inn
-3140	Sent Abrecan home to Gwernia with word for Phelan
 3141	Met Keelin again in Tamberlain's inn
 3142	Met Arturo again in Tamberlain's inn
 3143	Talked to Tamberlain at the Terminor inn after Shamsuk
@@ -1461,7 +1419,6 @@
 3145	Talked to a woman in Terminor
 3147	Talked to Tamberlain in Tamberlain's inn or in Terminor
 3148	Talked to Tamberlain in Tamberlain's inn (object 20)
-3149	Tamberlain left Terminor's gate
 3150	Talked to Tamberlain in Tamberlain's inn (object 21)
 3151	Talked to Farris outside Terminor
 3152	Talked to the Female Commoner in Terminor G05
@@ -1469,7 +1426,6 @@
 3154	Talked to the Female Commoner in Terminor G01
 3155	Talked to the horse or a woman in Terminor
 3156	Talked to the Male Commoner in Terminor
-3162	Becan rejoined the party in Terminor
 3166	Talked to Keelin in Tamberlain's inn
 3167	Talked to Dougal in Tamberlain's inn
 3174	Talked to Jundar Guard in Ugarit
@@ -1507,14 +1463,11 @@
 3223	Opened the chest in Shamsuk's Tower O05
 3224	The chest in Shamsuk's Tower O05 exploded
 3225	Took the Wall of Bones in Shamsuk's Tower
-3226	Took the A in Shamsuk's Tower
 3227	Opened the chest in Darkling Bog Q18 (object 40)
 3228	The chest in Darkling Bog Q18 exploded
 3229	Opened the chest in Darkling Bog Q18 (object 38)
 3230	Trahern's sword was taken from the chest
-3231	Opened the crate in the Gwernia stables
 3232	Opened the crate in the Gwernia stables
-3233	Opened the barrel in a house in Gwernia
 3234	Opened the barrel in a house in Gwernia
 3235	Opened the chest in Gotzone's house
 3236	Opened the chest in Gotzone's house
@@ -1580,7 +1533,6 @@
 3312	The crate in the Wizard's Keep storeroom K09 exploded (object 8)
 3313	Opened the sack in the Wizard's Keep storeroom
 3314	Opened the sack in the Wizard's Keep storeroom
-3315	Opened the chest in Godric's laboratory
 3316	Opened the chest in Godric's laboratory
 3317	Opened the chest in the Gwernia Castle barracks (object 24)
 3318	Opened the chest in the Gwernia Castle barracks (object 24)
@@ -1640,7 +1592,6 @@
 3391	Took the Spear in the goblin caves
 3392	Took the loot in the cave adjoining Cedric's cellar
 3395	Reached the cave clearing at the lighthouse near Port Saiid
-3396	Took the Lightning in a house in Port Saiid
 3397	Took the Lightning in a house in Port Saiid
 3398	Opened the chest in Overworld H12 (object 60)
 3399	Opened the chest in Overworld H12 (object 60)
@@ -1665,7 +1616,6 @@
 3455	Took the Sleep Gas Flask in the desert
 3456	Took the Sleep Gas Flask in the desert
 3457	Gathered the gems between Terminor and the desert N21
-3458	Opened the chest in the rocky area P21
 3459	Opened the chest in the rocky area P21
 3460	Arturo let Alaron cross the bridge
 3461	Arturo stopped blocking the bridge
@@ -1731,7 +1681,6 @@
 3522	Opened the chest west of Darkling Bog K16 (object 23)
 3523	Defeated the Ogre outside Port Saiid B14 (object 3)
 3524	Defeated the Ogre in the canyon near Port Saiid D13 (object 1)
-3525	Opened the sack in the canyon near Port Saiid
 3526	Opened the sack in the canyon near Port Saiid
 3527	Defeated the Troll west of Darkling Bog K16 (object 3)
 3528	Defeated the Chaos Stormer west of Darkling Bog
@@ -1791,7 +1740,6 @@
 3585	Defeated the Gorgon on the eastern beach R19
 3586	Defeated the Wraith in Darkling Bog
 3587	Defeated the Bandit Boss on the cliffside behind Terminor
-3588	Opened the chest on the cliffside behind Terminor
 3589	Opened the chest on the cliffside behind Terminor
 3590	Gathered the gems on the cliffside south of Terminor
 3591	Defeated the Dracovern on the cliffside south of Terminor
@@ -1856,7 +1804,6 @@
 3671	Stepped on the west plate in the Chaos temple L4
 3674	Took the Hockey Stick in Gwernia Castle's weapon storage
 3676	Took the Lightreaver in Oriana's hut
-3678	Took Ehud's Staff in Cedric's cellar in Gwernia
 3681	Finished the lighthouse lamp's animation
 3682	Started the lighthouse lamp's animation
 3683	Defeated the Goblin Sergeant in the goblin stronghold A05 (object 10)
@@ -1951,7 +1898,6 @@
 4277	Gave the fifth dragon its offering
 4278	Gave the sixth dragon its offering
 4279	Gave the last dragon its offering
-4280	The lighthouse lamp room is set up to be lit
 4281	Returned to Port Saiid on Amann's ship
 4282	Amann refused to sail without protection
 4285	Sat by the fire at the campfire stage
@@ -1966,7 +1912,6 @@
 4294	Entered the passage in the Barrows between B02 and B03
 4296	Talked to a magic professor
 5003	Met Becan in his shop, and he hasn't joined the party
-5005	It is day and the goblins hold their camp in the goblin stronghold
 5006	It is day and the goblins don't hold their camp in the goblin stronghold
 5011	Camp dialogue is due near the goblin stronghold after Kitarak
 5013	Abrecan and Becan are in the party, not yet camped together north of Talewok
@@ -2044,7 +1989,6 @@
 5127	Heard Cradawgh's dying words, not yet told Tamberlain of Pome
 5128	Rheda and Godric are in the party at the bog, no Akkra root talk yet
 5129	Becan and Abrecan are in the party at the bog, no talk of its tests yet
-5130	Brenna is both dead and in the party after talking of the bog's stories
 5131	Amann's ship has left the dock, not yet watched leaving
 5132	Keelin is in the party at the bog, not asked to turn back, tower unreached
 5133	Niesen is in the party at the bog, not yet panicked, tower unreached
@@ -2142,10 +2086,6 @@
 5252	Sholeh is held in the desert, not yet saved or defeated
 5253	Solved the Jundar Gate's riddle, not yet talked to the Shadow before the merge
 5255	The Troll west of Darkling Bog is out at night and undefeated
-5256	The Goblin Sergeant in the goblin stronghold is gone while goblins hold the camp by day
-5257	The Goblin in the goblin stronghold (object 8) is gone while goblins hold the camp by day
-5259	The Goblin Poisoner in the goblin stronghold is gone, by day with the camp unheld
-5260	The Goblin in the goblin stronghold (object 12) is gone, by day with the camp unheld
 5262	The Goblin Scout in a goblin camp tent stands, before Alaron leaves the stronghold
 5263	The Spirit Wolf north of Erromon is undefeated after Alaron left the goblin stronghold
 5265	Day, and the goblin stronghold not yet approached
@@ -2153,7 +2093,6 @@
 5284	Day
 5349	Defeated the bandit and wyverns on the beach east of Port Saiid, lighthouse not yet relit
 5352	Left the castle with news of Oriana, before Kitarak's defeat
-5353	Set out from Gwernia with Phelan's errand and the party gathered
 5354	Phelan sent Alaron to Erromon, Abrecan's knightly roll not yet shown
 5355	Phelan has not yet sent Alaron to Erromon
 5356	Questioned outside Gwernia, before Phelan sent Alaron to Erromon
