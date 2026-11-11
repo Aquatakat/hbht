@@ -1,5 +1,6 @@
 using System.Numerics;
 using HBHT.Core.Ui;
+using HBHT.Plugins;
 
 namespace HBHT.Core.Combat;
 
@@ -48,6 +49,9 @@ public sealed class BattleComposer
     private int _unscheduled = 1;
     private int _live;
     private string _log;
+
+    /// <summary>Whose portrait the log's box shows with <see cref="_log"/>: the one the battle screen had on the tick the line was written.</summary>
+    private RecordId? _logPortrait;
     private DrawnAction? _cameraFrom;
     private int _cameraLeft;
     private int _leadTick;
@@ -59,7 +63,7 @@ public sealed class BattleComposer
     {
         _actions = new BattleActions(first, pacing);
         _actions.Actions[0].Start = 0;
-        _log = first.Gui.Log;
+        (_log, _logPortrait) = (first.Gui.Log, first.Gui.LogPortrait);
         _waits = waits;
         Frame = first;
         foreach (var body in _actions.Bodies)
@@ -348,7 +352,7 @@ public sealed class BattleComposer
     {
         _drawn++;
         Frame = drawn;
-        _log = drawn.Gui.Log;
+        (_log, _logPortrait) = (drawn.Gui.Log, drawn.Gui.LogPortrait);
         _search = null;
         var last = _actions.Last;
         for (var i = _unscheduled; i < _actions.Actions.Count; i++)
@@ -1541,9 +1545,15 @@ public sealed class BattleComposer
     /// <summary>
     /// Decides the shifts of an action's later parts (a spell cast at several targets), each once, in order: so far ahead of the first
     /// part that its result strikes on the drawn tick the first's does, no further than its distance from the action's first tick; for
-    /// an action drawing, no further than lets its first tick be drawn now or later. A part whose strike isn't recorded yet waits, while
-    /// its first tick is still to come, then takes the part before's shift, as one with no strike does.
+    /// an action drawing, no further than lets its first tick be drawn now or later, nor than lets each body it involves finish its
+    /// episodes in earlier actions first. A part whose strike isn't recorded yet waits, while its first tick is still to come, then
+    /// takes the part before's shift, as one with no strike does.
     /// </summary>
+    /// <remarks>
+    /// An action not yet started has that last from its search (<see cref="Search"/>), which places it whole. One drawing already, the
+    /// turn the player plays, has its later parts decided as they're recorded: the player's Dragon Flames at four bandits, cast in a
+    /// turn opened while one of them still drew its own action, drew that bandit's hit over its walk (a body in two actions' episodes).
+    /// </remarks>
     private void Decide(DrawnAction a)
     {
         if (a.Parts.Count < 2)
@@ -1565,6 +1575,18 @@ public sealed class BattleComposer
                 if (want is null && latest > 0)
                     return;
                 most = Math.Min(most, latest);
+                foreach (var e in a.Episodes)
+                {
+                    if (e.Part != k)
+                        continue;
+                    foreach (var earlier in _actions.EpisodesOf(e.Body))
+                    {
+                        if (earlier == e)
+                            break;
+                        if (earlier.Action != a && earlier.Action.Start is { } begun)
+                            most = Math.Min(most, s + (e.From - a.First) - (begun + earlier.Action.Offset(earlier.To, earlier.Part) + 1));
+                    }
+                }
             }
             else if (want is null)
             {
@@ -1718,8 +1740,10 @@ public sealed class BattleComposer
             {
                 case CombatCue cue:
                     cues.Add(cue);
+                    // The line with the portrait its own tick had beside it, whose turn it was written in: taken from the newest
+                    // action's tick, a bandit's line drawn in the player's turn stood by the player's portrait (the user's, Nov 11).
                     if (cue is LogLine line)
-                        _log = line.Text;
+                        (_log, _logPortrait) = (line.Text, item.Tick >= _actions.Kept && item.Tick <= _actions.Last ? _actions[item.Tick].Gui.LogPortrait : _logPortrait);
                     break;
                 case SoundCall call:
                     (skipped ? skippedCalls : calls).Add(call);
@@ -1744,7 +1768,7 @@ public sealed class BattleComposer
         // Each body from the tick its timeline has.
         var bodies = new List<DrawnBody>();
         var jumped = new HashSet<Combatant>();
-        var where = new Dictionary<int, (DrawnBody Body, BattleFrame Frame)>();
+        var where = new Dictionary<Combatant, (DrawnBody Body, BattleFrame Frame)>();
         foreach (var (body, track) in _tracks)
         {
             if (track.Gone || track.Cursor < _actions.Kept)
@@ -1755,7 +1779,7 @@ public sealed class BattleComposer
                 if (drawn.Combatant != body)
                     continue;
                 bodies.Add(drawn);
-                where[body.Slot] = (drawn, frame);
+                where[body] = (drawn, frame);
                 if (track.Jumped)
                     jumped.Add(body);
                 break;
@@ -1849,27 +1873,46 @@ public sealed class BattleComposer
     }
 
     /// <summary>
-    /// The battle screen: the newest action's, with each slot's frame, portrait and HP bar from the tick its body is drawn at, the radar's
-    /// dots where the bodies are drawn, and the log's last line drawn.
+    /// The battle screen (Start Early). Its frames, portraits and HP bars are those of one tick, the oldest any action drawing is at
+    /// (<see cref="Oldest"/>), so they're laid out as one moment had them; over that, each combatant in play then has the skull, the
+    /// frame's colour and the HP bar of the tick its own body is drawn from, and one drawn past its leaving its slot (dead, and
+    /// its slot since taken) is under its skull with no bar. The frames an aim colours take the newest action's colours, the
+    /// player's own aim's. The radar is the newest action's, its dots where the bodies are drawn, and the log's last line drawn stands
+    /// with the portrait of its own tick.
     /// </summary>
-    private CombatGuiFrame Gui(BattleFrame lead, Dictionary<int, (DrawnBody Body, BattleFrame Frame)> where)
+    /// <remarks>
+    /// It was the newest action's screen, with each slot's frame, portrait and bar swapped for those of the tick the slot's body was
+    /// drawn from, places and all. The newest action is the furthest on, so its screen had deaths and reserves' joinings not drawn
+    /// yet; a slot is one combatant's and then, once it's dead, the reserve's who takes it, and the two were told apart only by slot;
+    /// and a portrait swapped in came with the place it had on its own tick, mid-slide or in a reserve's small frame. So a frame
+    /// stood empty with its bar, reserves' portraits came and went, and they flickered through the enemies' turns (the user's, Nov 11).
+    /// </remarks>
+    private CombatGuiFrame Gui(BattleFrame lead, Dictionary<Combatant, (DrawnBody Body, BattleFrame Frame)> where)
     {
-        var g = lead.Gui;
+        var from = Oldest(lead);
+        var g = from.Gui;
+        // Who has a slot's portrait on the screen laid out, and the tick their own body is drawn from if it's another: null where
+        // the slot is theirs on both; the frame, where they've left it there.
+        (Combatant? Who, BattleFrame? Own, bool Left) Of(int slot)
+        {
+            if (Occupant(from, slot) is not { } who || !where.TryGetValue(who, out var at) || at.Frame == from)
+                return (null, null, false);
+            return (who, at.Frame, Occupant(at.Frame, slot) != who || at.Frame.Gui.Portraits.All(q => q.Slot != slot));
+        }
+
         var frames = new List<(HudSprite, bool)>(g.Frames.Count);
         for (var i = 0; i < g.Frames.Count; i++)
         {
             var mine = g.Frames[i];
-            if (i < g.FrameSlots.Count && g.FrameSlots[i] is { } slot && where.TryGetValue(slot, out var at) && at.Frame != lead)
+            if (i < g.FrameSlots.Count && g.FrameSlots[i] is { } slot)
             {
-                var other = at.Frame.Gui;
-                for (var j = 0; j < other.FrameSlots.Count; j++)
-                {
-                    if (other.FrameSlots[j] == slot)
-                    {
-                        mine = other.Frames[j];
-                        break;
-                    }
-                }
+                var (who, own, left) = Of(slot);
+                if (own is not null && !left && Sprite(own.Gui, slot) is { } theirs)
+                    mine = (mine.Sprite with { Color = theirs.Sprite.Color }, mine.Party);
+                // An aim's colours are the newest action's: the turn the player plays.
+                if (lead != from && Occupant(lead, slot) == (who ?? Occupant(from, slot)) && Sprite(lead.Gui, slot) is { } aimed
+                    && aimed.Sprite.Color != CombatGui.FrameColor && aimed.Sprite.Color != CombatGui.FledColor)
+                    mine = (mine.Sprite with { Color = aimed.Sprite.Color }, mine.Party);
             }
             frames.Add(mine);
         }
@@ -1877,14 +1920,20 @@ public sealed class BattleComposer
         foreach (var p in g.Portraits)
         {
             var mine = p;
-            if (p.Slot is { } slot && where.TryGetValue(slot, out var at) && at.Frame != lead)
+            if (p.Slot is { } slot)
             {
-                foreach (var q in at.Frame.Gui.Portraits)
+                var (_, own, left) = Of(slot);
+                if (own is not null && left)
+                    mine = p with { Skull = true, SkullAlpha = 255 };
+                else if (own is not null)
                 {
-                    if (q.Slot == slot && q.Entity == p.Entity)
+                    foreach (var q in own.Gui.Portraits)
                     {
-                        mine = q;
-                        break;
+                        if (q.Slot == slot)
+                        {
+                            mine = p with { Skull = q.Skull, SkullAlpha = q.SkullAlpha };
+                            break;
+                        }
                     }
                 }
             }
@@ -1894,29 +1943,81 @@ public sealed class BattleComposer
         var barSlots = new List<int>(g.HpSlots.Count);
         for (var i = 0; i < g.HpBars.Count; i++)
         {
+            var slot = i < g.HpSlots.Count ? g.HpSlots[i] : -1;
             var mine = g.HpBars[i];
-            if (i < g.HpSlots.Count && where.TryGetValue(g.HpSlots[i], out var at) && at.Frame != lead)
+            var (_, own, left) = Of(slot);
+            if (own is not null)
             {
-                var other = at.Frame.Gui;
-                // The same fill of the slot's pair: the black, then the colour.
-                var nth = i > 0 && g.HpSlots[i - 1] == g.HpSlots[i] ? 1 : 0;
-                for (var j = 0; j < other.HpSlots.Count; j++)
-                {
-                    if (other.HpSlots[j] == g.HpSlots[i] && j + nth < other.HpBars.Count)
-                    {
-                        mine = other.HpBars[j + nth];
-                        break;
-                    }
-                }
+                // The same fill of the slot's pair there, the black and then the colour; none where it has none (it's dead there).
+                var nth = i > 0 && g.HpSlots[i - 1] == slot ? 1 : 0;
+                var at = left ? -1 : IndexOf(own.Gui.HpSlots, slot);
+                if (at < 0 || at + nth >= own.Gui.HpBars.Count)
+                    continue;
+                mine = own.Gui.HpBars[at + nth];
             }
             bars.Add(mine);
-            barSlots.Add(i < g.HpSlots.Count ? g.HpSlots[i] : -1);
+            barSlots.Add(slot);
         }
-        var radar = g.Radar is { } entries
-            ? CombatRadar.Dots(entries, 0, 0, e => where.TryGetValue(e.Slot, out var at) ? at.Body.Centre : e.Centre,
-                where.TryGetValue(entries.Owner, out var owner) ? owner.Body.Centre : null)
-            : g.RadarDots;
-        return g with { Log = _log, RadarDots = radar, Frames = frames, Portraits = portraits, HpBars = bars, FrameSlots = g.FrameSlots, HpSlots = barSlots };
+        var radar = lead.Gui.Radar is { } entries
+            ? CombatRadar.Dots(entries, 0, 0, e => Occupant(lead, e.Slot) is { } who && where.TryGetValue(who, out var at) ? at.Body.Centre : e.Centre,
+                Occupant(lead, entries.Owner) is { } owner && where.TryGetValue(owner, out var centre) ? centre.Body.Centre : null)
+            : lead.Gui.RadarDots;
+        return g with
+        {
+            Log = _log, LogPortrait = _logPortrait, RadarDots = radar, RadarRing = lead.Gui.RadarRing, Radar = lead.Gui.Radar, Frames = frames,
+            Portraits = portraits, HpBars = bars, FrameSlots = g.FrameSlots, HpSlots = barSlots,
+        };
+
+        static (HudSprite Sprite, bool Party)? Sprite(CombatGuiFrame gui, int slot)
+        {
+            for (var j = 0; j < gui.FrameSlots.Count && j < gui.Frames.Count; j++)
+            {
+                if (gui.FrameSlots[j] == slot)
+                    return gui.Frames[j];
+            }
+            return null;
+        }
+
+        static int IndexOf(IReadOnlyList<int> slots, int slot)
+        {
+            for (var j = 0; j < slots.Count; j++)
+            {
+                if (slots[j] == slot)
+                    return j;
+            }
+            return -1;
+        }
+    }
+
+    /// <summary>
+    /// The frame of the oldest tick any action drawing is at, no later than <paramref name="lead"/>'s: what the battle screen is laid
+    /// out by (<see cref="Gui"/>), so it shows nothing the drawing hasn't come to.
+    /// </summary>
+    private BattleFrame Oldest(BattleFrame lead)
+    {
+        var tick = lead.Tick;
+        for (var i = _live; i < _unscheduled; i++)
+        {
+            var a = _actions.Actions[i];
+            if (a.Start is { } s && s <= _drawn && Draws(a))
+                tick = Math.Min(tick, Math.Clamp(a.Base(_drawn), Math.Max(a.First, _actions.Kept), _actions.Last));
+        }
+        return tick == lead.Tick || tick < _actions.Kept ? lead : _actions[tick];
+    }
+
+    /// <summary>Who has a slot on a recorded tick: the body on the field with it, one still standing before one freed.</summary>
+    private static Combatant? Occupant(BattleFrame frame, int slot)
+    {
+        Combatant? found = null;
+        foreach (var b in frame.Bodies)
+        {
+            if (b.Combatant.Slot != slot)
+                continue;
+            if ((b.Standing & BodyState.Freed) == 0)
+                return b.Combatant;
+            found ??= b.Combatant;
+        }
+        return found;
     }
 
     /// <summary>A body's timeline: the tick it's drawn at, the episode it's in or waits for, and what of its one-offs has played.</summary>

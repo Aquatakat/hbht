@@ -65,6 +65,49 @@ public sealed partial class StartEarlyTests(Na10Import fixture)
     }
 
     [Fact]
+    public void ThePlayersSpellAtSeveralTargetsIsDrawnWithEveryCastAndThroughNoOne()
+    {
+        // The user's fight with Alaron taught Dragon Flames, cast at every bandit he can each turn (their Nov 11 play). A turn the player
+        // plays has its later casts decided as they're recorded, while its first already draws; the watch holds the drawing to no body
+        // in two actions' episodes at once, which a cast drawn ahead over its target's own action, still drawing, broke. And every
+        // cast's flame is drawn: one visual a target, each started once with its emitters, all showing together.
+        var plan = BattlePlan.Parse("Alaron=spell:Dragon Flames/accept/accept/accept/accept/accept/accept;*=skip");
+        var flames = Set.All<SpellRecord>(RecordTypes.Spell).Single(s => s.Name == "Dragon Flames");
+        PartyEnemy Bandit() => new(RecordId.Hex(RecordTypes.Entity, 0x021B), 1, 1);
+        var boss = new PartyEnemy(RecordId.Hex(RecordTypes.Entity, 0x021C), 1, 1);
+        var (most, started, lit) = (0, new HashSet<SpellFxVisual>(), new HashSet<SpellFxVisual>());
+        var early = Play(host =>
+        {
+            var built = Plain(Set, 1, host, [Bandit(), Bandit(), Bandit(), boss, Bandit(), Bandit(), Bandit(), Bandit()]);
+            built.Battle.Combatants.First(c => c.Sheet.Name.StartsWith("Alaron", StringComparison.Ordinal)).Sheet.LearnSpell(flames, 10);
+            return built;
+        }, CombatTurns.StartEarly, run => run.Input = plan.Tick(run.Drawing) is { } input ? () => input : null, begun: run => run.Each = r =>
+        {
+            var f = r.Drawing.Frame;
+            foreach (var cue in f.Cues.OfType<SpellVisualStarted>())
+            {
+                if (cue.Visual.Id == flames.Presentation!.Target)
+                    Assert.True(started.Add(cue.Visual), "a flame started twice");
+            }
+            foreach (var e in f.Emitters)
+            {
+                if (e.Owner is SpellFxVisual v && started.Contains(v) && e.Request == 5)
+                {
+                    lit.Add(v);
+                    Assert.Contains(f.Visuals, drawn => drawn.Visual == v);
+                }
+            }
+            most = Math.Max(most, f.Visuals.Count(v => v.Visual.Id == flames.Presentation!.Target));
+        });
+        var (casts, parts, _, apart) = early.Watch!.Volleys();
+        TestContext.Current.TestOutputHelper?.WriteLine($"{casts} casts at several targets in {parts} parts; {started.Count} flames started, {lit.Count} lit, {most} at once");
+        Assert.True(casts > 0 && parts >= 2 * casts, $"{casts} casts in {parts} parts");
+        Assert.True(started.Count >= parts && lit.SetEquals(started), $"{started.Count} flames started for {parts} parts, {lit.Count} lit");
+        Assert.True(most >= 3, $"{most} flames drawn at once");
+        Assert.True(apart.Count == 0, string.Join("\n", apart.Take(10)));
+    }
+
+    [Fact]
     public void TheSkeletonArchersBattleIsDrawnTheSameEitherWay() => Logged("20261031-230020-setup8/battle-01", Skipping);
 
     [Fact]
@@ -227,6 +270,9 @@ public sealed partial class StartEarlyTests(Na10Import fixture)
         /// <summary>What the script does while the battle doesn't take its presses (A in an AI's walk).</summary>
         public Action<Run>? Meanwhile { get; set; }
 
+        /// <summary>Called after each tick of the drawing, with the frame it drew.</summary>
+        public Action<Run>? Each { get; set; }
+
         /// <summary>The player's turn the script last acted in, and whether its attack was refused there.</summary>
         public (Combatant? Turn, bool Refused) Acting { get; set; }
     }
@@ -290,6 +336,7 @@ public sealed partial class StartEarlyTests(Na10Import fixture)
             run.MostAhead = Math.Max(run.MostAhead, drawing.Ahead);
             run.Drawn++;
             watch?.Drew(drawing.Frame);
+            run.Each?.Invoke(run);
             if (stopAtWalk && drawing.Walking && drawing.Ahead > 30)
                 return run;
             if (step is BattleStep.Paused)
@@ -454,16 +501,81 @@ public sealed partial class StartEarlyTests(Na10Import fixture)
             }
             _places[f.Tick] = f.Bodies.ToDictionary(b => b.Combatant, b => b.Centre);
             foreach (var cue in f.Cues)
+            {
                 _recorded[cue] = _recorded.GetValueOrDefault(cue) + 1;
+                if (cue is LogLine)
+                    _linePortraits[cue] = f.Gui.LogPortrait;
+            }
+            // What the battle's own screen never does, the drawn one mustn't either.
+            Screen(f, _screenRecorded, "recorded");
             foreach (var call in f.Sounds)
                 _recorded[call] = _recorded.GetValueOrDefault(call) + 1;
             foreach (var e in f.Emitters)
                 _emittersRecorded[(e.Owner, e.Request)] = _emittersRecorded.GetValueOrDefault((e.Owner, e.Request)) + 1;
         }
 
+        /// <summary>
+        /// What's wrong with battle screens (the user's Nov 11 play: portraits gone, a frame empty with its bar, portraits flickering,
+        /// a line beside another's portrait): of the recorded ones, which never should be; of the drawn ones.
+        /// </summary>
+        public List<string> ScreenRecorded => _screenRecorded.Wrong;
+
+        public List<string> ScreenDrawn => _screenDrawn.Wrong;
+
+        private readonly ScreenWatch _screenRecorded = new(), _screenDrawn = new();
+        private readonly Dictionary<object, RecordId?> _linePortraits = new(ReferenceEqualityComparer.Instance);
+
+        private sealed class ScreenWatch
+        {
+            public List<string> Wrong { get; } = [];
+
+            /// <summary>The last few layouts shown, each with the tick it was last shown on: a layout come back to soon is a flicker.</summary>
+            public List<(string Layout, int At)> Layouts { get; } = [];
+        }
+
+        /// <summary>
+        /// A battle screen is one moment's: every HP bar on a slot with a portrait, every frame that
+        /// holds a slot's portrait having that portrait, and its layout (who has a portrait, where, in play or not) never going back
+        /// within a second to one it left.
+        /// </summary>
+        private static void Screen(BattleFrame f, ScreenWatch w, string kind, int? at = null)
+        {
+            var g = f.Gui;
+            var tick = at ?? f.Tick;
+            foreach (var slot in g.HpSlots.Distinct())
+            {
+                if (!g.Portraits.Any(p => p.Slot == slot))
+                    w.Wrong.Add($"{kind} tick {tick}: an HP bar for slot {slot}, which has no portrait");
+            }
+            foreach (var slot in g.FrameSlots)
+            {
+                if (slot is { } held && !g.Portraits.Any(p => p.Slot == held))
+                    w.Wrong.Add($"{kind} tick {tick}: a frame for slot {held}, which has no portrait");
+            }
+            // Where each portrait rests, not where it is as it slides.
+            var layout = string.Join(" ", g.Portraits.Select(p => $"{(p.Party ? "P" : "E")}{p.Slot?.ToString() ?? "-"}:{p.Width}")) + " | " + string.Join(",", g.FrameSlots);
+            if (w.Layouts.Count == 0 || w.Layouts[^1].Layout != layout)
+            {
+                var before = w.Layouts.FindIndex(l => l.Layout == layout);
+                if (before >= 0 && w.Layouts.Count - before <= 8 && w.Layouts.Skip(before + 1).All(l => tick - l.At < 60) && w.Wrong.Count < 50)
+                    w.Wrong.Add($"{kind} tick {tick}: the portraits went back to a layout left {w.Layouts.Count - before - 1} layouts ago: {layout}");
+                w.Layouts.Add((layout, tick));
+                if (w.Layouts.Count > 16)
+                    w.Layouts.RemoveAt(0);
+            }
+            w.Layouts[^1] = (layout, tick);
+        }
+
+        private int _screens;
+
         public void Drew(BattleFrame f)
         {
             _drawnCamera = f.Camera;
+            // The screen drawn, by the drawn tick; and the log's line beside the portrait its own tick had.
+            Screen(f, _screenDrawn, "drawn", _screens++);
+            if (f.Cues.LastOrDefault(c => c is LogLine) is LogLine line && _linePortraits.TryGetValue(line, out var portrait)
+                && (f.Gui.Log != line.Text || f.Gui.LogPortrait != portrait))
+                _screenDrawn.Wrong.Add($"drawn tick {_screens}: '{f.Gui.Log}' beside {f.Gui.LogPortrait}, where '{line.Text}' was written beside {portrait}");
             foreach (var cue in f.Cues)
                 _drawn[cue] = _drawn.GetValueOrDefault(cue) + 1;
             foreach (var call in f.Sounds)
@@ -929,6 +1041,10 @@ public sealed partial class StartEarlyTests(Na10Import fixture)
         var (casts, parts, together, apart) = w.Volleys();
         TestContext.Current.TestOutputHelper?.WriteLine($"Spells at several targets: {casts}, in {parts} parts; {together} with two or more hits drawn, {apart.Count} of them apart");
         Assert.True(apart.Count == 0, string.Join("\n", apart.Take(10)));
+        // The battle screen drawn is one moment's, as every recorded one is, and its log's line stands beside its own portrait.
+        TestContext.Current.TestOutputHelper?.WriteLine($"Battle screens wrong: {w.ScreenRecorded.Count} recorded, {w.ScreenDrawn.Count} drawn");
+        Assert.True(w.ScreenRecorded.Count == 0, string.Join("\n", w.ScreenRecorded.Take(10)));
+        Assert.True(w.ScreenDrawn.Count == 0, string.Join("\n", w.ScreenDrawn.Take(10)));
         // Its caster faces the middle of them as they strike, where they're within an arc of it; all round it, it stays as it stood.
         TestContext.Current.TestOutputHelper?.WriteLine($"Their casters faced the middle of them {w.CastsFacedCount.Middle} times, stayed for targets all round {w.CastsFacedCount.Round}");
         Assert.True(w.CastsFaced.Wrong.Count == 0, string.Join("\n", w.CastsFaced.Wrong.Take(10)));

@@ -1,3 +1,6 @@
+using HBHT.Core.Combat;
+using HBHT.Core.Particles;
+using HBHT.Core.Rng;
 using HBHT.Plugins;
 using HBHT.Plugins.Records;
 using HBHT.Rom.Borg;
@@ -183,5 +186,47 @@ public sealed class SpellVisualTests(Na10Import fixture)
             var emitters = set.Get<EmittersRecord>(RecordId.Hex(RecordTypes.Emitters, Convert.ToInt32(actor.Scene.Key, 16))).Emitters;
             Assert.Contains(emitters, e => e.Request == Requests.Id(5) && e.Flags.HasFlag(ParticleEmitterFlags.ActorRequest));
         });
+    }
+
+    [Fact]
+    public void FourOfDragonFlamesFlamesAtOnceNeedMoreEmittersThanTheOriginalsPoolHolds()
+    {
+        // Start Early draws a spell's casts at its targets at once. Dragon Flames' flame is 8 emitters, so two fill the original's
+        // 16 and a third and fourth start none (the user's, Nov 11: four bandits burned and two showed it). The pool the runtime
+        // draws from has room for BattleDrawing.CastsAtOnce times the original's, handed out while a battle is drawn under Start Early.
+        var set = fixture.Data.Set;
+        var actor = set.Get<ActorRecord>(set.All<SpellRecord>(RecordTypes.Spell).Single(s => s.Name == "Dragon Flames").Presentation!.Target!.Value);
+        var emitters = set.Get<EmittersRecord>(RecordId.Hex(RecordTypes.Emitters, Convert.ToInt32(actor.Scene.Key, 16)));
+        Assert.Equal(8, emitters.Emitters.Count(e => e.Request == Requests.Id(5) && e.Flags.HasFlag(ParticleEmitterFlags.ActorRequest)));
+
+        int Flames(int atOnce)
+        {
+            var head = new ParticleHead(new Lcg(), capacity: WeatherParticles.PoolCapacity,
+                emitterCapacity: ParticleHead.MaxEmitters * BattleDrawing.CastsAtOnce) { AtOnce = atOnce };
+            var lit = 0;
+            for (var target = 0; target < 4; target++)
+            {
+                var flame = new ActorParticles(head, emitters, new Still());
+                var before = head.EmittersInUse;
+                flame.Entered(5);
+                lit += head.EmittersInUse - before == 8 ? 1 : 0;
+            }
+            return lit;
+        }
+
+        Assert.Equal(2, Flames(1));
+        Assert.Equal(4, Flames(BattleDrawing.CastsAtOnce));
+    }
+
+    /// <summary>An anchor with every locator at the origin.</summary>
+    private sealed class Still : IParticleAnchor
+    {
+        public bool Alive => true;
+
+        public bool TryLocator(ParticleLocator locator, out System.Numerics.Matrix4x4 world)
+        {
+            world = System.Numerics.Matrix4x4.Identity;
+            return true;
+        }
     }
 }

@@ -86,6 +86,13 @@ public sealed class BattleDrawing
     /// <summary>The recording cut into actions, with where the drawing has each.</summary>
     public BattleActions Actions => _composer.Actions;
 
+    /// <summary>
+    /// How many of the original's particle pools the views' head hands out while a battle is drawn under Start Early
+    /// (<see cref="Particles.ParticleHead.AtOnce"/>): a spell's casts at up to this many targets are drawn at once with every
+    /// emitter the original gives one. Past it, the last targets' visuals go short, as all but the first two's did.
+    /// </summary>
+    public const int CastsAtOnce = 4;
+
     /// <summary>How its turns are drawn (<see cref="Battle.Turns"/>).</summary>
     public CombatTurns Turns
     {

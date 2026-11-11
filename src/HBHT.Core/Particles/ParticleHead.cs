@@ -38,7 +38,7 @@ public sealed class ParticleHead
     /// <summary>The particles the pool holds with the Expansion Pak (<c>InitZoneEngine</c>); without it 64 in trek, 96 in combat and 16 in a cut-scene.</summary>
     public const int DefaultMaxParticles = 0x180;
 
-    /// <summary>The emitters the pool holds.</summary>
+    /// <summary>The emitters the original's pool holds, and this one hands out (<see cref="AtOnce"/> times over).</summary>
     public const int MaxEmitters = 16;
 
     /// <summary>A square's side at scale 1, in scene units: vertices ±353.55 × 16, scaled by 0.001 and drawn at 16 to the unit (<c>0x800d5914</c>).</summary>
@@ -51,17 +51,21 @@ public sealed class ParticleHead
 
     private readonly Particle[] _particles;
     private readonly short[] _freeParticles;
-    private readonly Emitter[] _emitters = new Emitter[MaxEmitters];
-    private readonly short[] _freeEmitters = new short[MaxEmitters];
+    private readonly Emitter[] _emitters;
+    private readonly short[] _freeEmitters;
     private readonly List<ParticleSprite> _sprites = [];
     private int _usedParticles, _usedEmitters;
     private readonly FrameGate _gate = new(Cadence.FrameTicks);
 
     /// <param name="maxParticles">How many particles it hands out: the original's 384 unless more are asked for.</param>
     /// <param name="capacity">How many it has room for, which <see cref="MaxParticles"/> can be raised to later: at least <paramref name="maxParticles"/>.</param>
-    public ParticleHead(IRandom? random = null, int maxParticles = DefaultMaxParticles, int capacity = 0)
+    /// <param name="emitterCapacity">How many emitters it has room for, which <see cref="AtOnce"/> can raise what it hands out to: at least the original's 16.</param>
+    public ParticleHead(IRandom? random = null, int maxParticles = DefaultMaxParticles, int capacity = 0, int emitterCapacity = MaxEmitters)
     {
         Random = random ?? new Lcg();
+        EmitterCapacity = Math.Max(emitterCapacity, MaxEmitters);
+        _emitters = new Emitter[EmitterCapacity];
+        _freeEmitters = new short[EmitterCapacity];
         Capacity = Math.Max(capacity, maxParticles);
         if (Capacity >= short.MaxValue)
             throw new ArgumentOutOfRangeException(nameof(capacity), "A particle's id is a short.");
@@ -73,7 +77,7 @@ public sealed class ParticleHead
             _freeParticles[i] = (short)i;
             _particles[i] = new Particle((short)i);
         }
-        for (var i = 0; i < MaxEmitters; i++)
+        for (var i = 0; i < EmitterCapacity; i++)
         {
             _freeEmitters[i] = (short)i;
             _emitters[i] = new Emitter(i);
@@ -96,6 +100,29 @@ public sealed class ParticleHead
     }
 
     private int _maxParticles;
+
+    /// <summary>How many emitters the pool has room for, which <see cref="AtOnce"/> can raise what it hands out to.</summary>
+    public int EmitterCapacity { get; }
+
+    /// <summary>
+    /// How many times over the pools hand out what they're set to, as far as they have room: 1, the original's 16 emitters and
+    /// <see cref="MaxParticles"/>; more for a drawing that shows at once what the original shows in turn. Under Combat Turns: Start
+    /// Early a spell cast at several targets lands on them all together, and each of Dragon Flames' four flames starts 8 emitters:
+    /// from the original's pool the first two took all 16, and the other two targets burned with nothing to show for it (the
+    /// user's, Nov 11). Lowered below what's in use, the pools hand out nothing new until enough have gone.
+    /// </summary>
+    public int AtOnce
+    {
+        get => _atOnce;
+        set => _atOnce = Math.Max(value, 1);
+    }
+
+    private int _atOnce = 1;
+
+    /// <summary>How many emitters and particles the pools hand out now (<see cref="AtOnce"/>).</summary>
+    public int EmitterLimit => (int)Math.Min(EmitterCapacity, (long)MaxEmitters * _atOnce);
+
+    public int ParticleLimit => (int)Math.Min(Capacity, (long)_maxParticles * _atOnce);
 
     /// <summary>How many particles the pool has room for, which <see cref="MaxParticles"/> can be raised to.</summary>
     public int Capacity { get; }
@@ -153,7 +180,7 @@ public sealed class ParticleHead
     public Emitter? AllocEmitter(int life, RecordId? texture, int interval, EmitterCallback? update = null, EmitterCallback? spawn = null,
         ParticleCallback? step = null)
     {
-        if (_usedEmitters >= MaxEmitters)
+        if (_usedEmitters >= EmitterLimit)
             return null;
         var head = AllocSlot(life);
         if (head == Sentinel)
@@ -478,7 +505,7 @@ public sealed class ParticleHead
     /// <summary>A particle from the pool (<c>ParticleHead.AllocSlot</c>, <c>0x800a895c</c>), or the sentinel when it's full.</summary>
     private short AllocSlot(int life)
     {
-        var id = _usedParticles >= MaxParticles ? Sentinel : _freeParticles[_usedParticles++];
+        var id = _usedParticles >= ParticleLimit ? Sentinel : _freeParticles[_usedParticles++];
         ref var p = ref _particles[id];
         p.Reset();
         p.Flags = ParticleFlags.FreeAtDeath | ParticleFlags.Visible | ParticleFlags.New;

@@ -345,7 +345,7 @@ public partial class Game
             $"  {Clock(_sky!.Sky.Clock.TimeOfDay)}  sky {_sky.Sky.Placement.ToString().ToLowerInvariant()} (F6)" +
             $"  UI {_menu!.Screen.Lines} lines (F7)  wanderers {Trek.Wanderers.All.Count}\n" +
             $"music {_audio!.MusicPlaying?.Key ?? "none"}  sounds {Trek.Zone.Sounds.Playing} of the map's, {_audio.SoundsPlaying} one-shots" +
-            $"  particles {_particles!.Head.ParticlesInUse} of {_particles.Head.MaxParticles}{Precipitation()}";
+            $"  particles {_particles!.Head.ParticlesInUse} of {_particles.Head.ParticleLimit}, emitters {_particles.Head.EmittersInUse} of {_particles.Head.EmitterLimit}{Precipitation()}";
     }
 
     /// <summary>For the overlay: a point in the battle's arena chunk's coordinates.</summary>

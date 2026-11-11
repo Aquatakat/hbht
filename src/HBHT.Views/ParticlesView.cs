@@ -72,18 +72,22 @@ public partial class ParticlesView : Node3D
 
     private readonly PluginSet _plugins;
     private readonly Dictionary<RecordId, Texture2D?> _textures = [];
-    private readonly MultiMeshInstance3D[] _slots = new MultiMeshInstance3D[ParticleHead.MaxEmitters];
-    private readonly RecordId?[] _slotTextures = new RecordId?[ParticleHead.MaxEmitters];
+    private readonly MultiMeshInstance3D[] _slots;
+    private readonly RecordId?[] _slotTextures;
 
     public ParticlesView(PluginSet plugins, ParticleHead? head = null)
     {
         _plugins = plugins;
         Head = head ?? new ParticleHead();
+        // A slot an emitter the head has room for: more than the original's 16 where it's made to hand out more (ParticleHead.AtOnce).
+        _slots = new MultiMeshInstance3D[Head.EmitterCapacity];
+        _slotTextures = new RecordId?[Head.EmitterCapacity];
         Name = "Particles";
         var quad = new QuadMesh { Size = Vector2.One };
         for (var i = 0; i < _slots.Length; i++)
         {
-            var material = new ShaderMaterial { Shader = Shader, RenderPriority = Priority + i };
+            // In the emitters' order, as far as Godot's priorities go (127): past that, slots only a crowded head uses, by depth.
+            var material = new ShaderMaterial { Shader = Shader, RenderPriority = Math.Min(Priority + i, (int)Material.RenderPriorityMax) };
             material.SetShaderParameter("on_screen", N64Material.OnScreenFramebuffer);
             _slots[i] = new MultiMeshInstance3D
             {

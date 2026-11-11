@@ -37,6 +37,12 @@ After your Nov 11 recording ([cameras](systems/cameras.md#start-earlys-director)
 16. Is the notch of a zoom gone from a wait on a throw?
 17. Bandits walking in your turn: does the view widen once for them and stay, without the wobble? Does it stay wide too long after they stop?
 
+After your second Nov 11 play (the battle screen and Dragon Flames):
+
+18. Dragon Flames at four: does every target now burn? F3's last line has the emitters in use, of 64 under Start Early. Do the four hits land near enough together in your own cast (they're a few ticks apart; an enemy's are on one tick)?
+19. Do the enemies' portraits now stay put through a Fireball and the enemies' turns: none gone, none empty with its bar, no flicker? A reserve keeps its small frame until the oldest thing still playing is done: is that lag noticeable?
+20. Does the log's portrait now go with its line?
+
 ### Combat Turns: Start Early's pacing (piece A)
 
 Under Combat Turns: Start Early, in a battle with several enemies (the rats at F09, bandits, the Chaos casters), how the beats, the turn's wait and the held stick feel ([combat](systems/combat.md#pacing-beats-and-the-players-wait)):
