@@ -3,6 +3,9 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <AssemblyName>hbht</AssemblyName>
+    <!-- Playthrough runs on threads of one process (playthrough run's copies) allocate hard: the workstation collector's one heap stopped
+         every run for each collection, and runs side by side took twice as long as processes. A heap per core collects in parallel. -->
+    <ServerGarbageCollection>true</ServerGarbageCollection>
   </PropertyGroup>
 
   <ItemGroup>

@@ -29,6 +29,7 @@ public sealed class QuestModel
     private readonly HashSet<RecordId> _neverThere = [];
     private int[][] _pre = [];
     private int[][] _adds = [];
+    private RecordId[][] _places = [];
 
     private QuestModel(PluginSet plugins, FlagModel flags, IPlaceReach reach)
     {
@@ -45,8 +46,23 @@ public sealed class QuestModel
 
     public FlagModel Flags { get; }
 
-    /// <summary>Who answers whether a place can be reached; <see cref="Everywhere"/> until the world graph does.</summary>
+    /// <summary>
+    /// Who answers whether a place can be reached; <see cref="Everywhere"/> until the world graph does. It's the one thing a run
+    /// changes, so runs side by side each take their own model (<see cref="ForRun"/>).
+    /// </summary>
     public IPlaceReach Reach { get; set; }
+
+    /// <summary>
+    /// The model for one run: the same actions, ways and facts, which nothing changes once it's built and which any number of runs share
+    /// on any threads, with a <see cref="Reach"/> of its own (<see cref="Everywhere"/>) and its own cache of what places need.
+    /// </summary>
+    public QuestModel ForRun()
+    {
+        var run = (QuestModel)MemberwiseClone();
+        run.Reach = Everywhere.Instance;
+        run._placed = null;
+        return run;
+    }
 
     /// <summary>Every action, by <see cref="PlayerAction.Index"/>.</summary>
     public IReadOnlyList<PlayerAction> Actions => _actions;
@@ -502,9 +518,9 @@ public sealed class QuestModel
         if (placed.Facts[action] is { } known)
             return known.Length == 1 && known[0] < 0 ? null : known;
         int[]? facts = NoFacts;
-        foreach (var reaches in _actions[action].Presence.OfType<Reaches>())
+        foreach (var place in _places[action])
         {
-            if (Reach.Gates(reaches.Place) is not { } gates)
+            if (Reach.Gates(place) is not { } gates)
             {
                 facts = null;
                 break;
@@ -532,8 +548,10 @@ public sealed class QuestModel
     {
         _pre = new int[_actions.Count][];
         _adds = new int[_actions.Count][];
+        _places = new RecordId[_actions.Count][];
         foreach (var action in _actions)
         {
+            _places[action.Index] = [.. action.Presence.OfType<Reaches>().Select(r => r.Place)];
             _pre[action.Index] = [.. action.Presence.Concat(action.Requires).Select(Fact).OfType<int>().Distinct()];
             _adds[action.Index] = [.. AddsOf(action).Distinct()];
         }

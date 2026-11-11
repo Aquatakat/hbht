@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using HBHT.Plugins;
 using HBHT.Plugins.Records;
 
@@ -12,14 +13,23 @@ public sealed partial class WorldGraph
     /// or null where it can never be taken. A toggle already on the way to a cell costs nothing again, so the gated steps across one
     /// wall count once. A search over costs by bucket, so one flood answers every place.
     /// </summary>
-    public GateFlood Flood(Place from, Func<IGatedWay, int?> toll)
+    public GateFlood Flood(Place from, Func<IGatedWay, int?> toll) => Flood(from, Tolls(toll));
+
+    /// <summary>What each way costs a flood (<see cref="Flood(Place, Func{IGatedWay, int?})"/>), by its index: the portals', then the toggles'.</summary>
+    internal int?[] Tolls(Func<IGatedWay, int?> toll)
+    {
+        var tolls = new int?[Portals.Count + Toggles.Count];
+        for (var w = 0; w < tolls.Length; w++)
+            tolls[w] = toll(Way(w));
+        return tolls;
+    }
+
+    /// <summary>The flood with each way's toll given by its index (<see cref="Tolls"/>).</summary>
+    internal GateFlood Flood(Place from, int?[] tolls)
     {
         var flood = new GateFlood(this);
         if (_plugins.TryGet<MapSetRecord>(from.MapSet) is null || Walk(from.MapSet).SnapStart(from.Feet, 6) is not { } startCell)
             return flood;
-        var tolls = new int?[Portals.Count + Toggles.Count];
-        for (var w = 0; w < tolls.Length; w++)
-            tolls[w] = toll(Way(w));
 
         var buckets = new List<Stack<long>>();
         void Push(int cost, int set, int cell)
@@ -67,7 +77,7 @@ public sealed partial class WorldGraph
                     else
                         Push(nd, s, to);
                 }
-                if (!PortalCells(here.Graph.MapSet).TryGetValue(cell, out var portals))
+                if (!(here.Portals ??= PortalCells(here.Graph.MapSet)).TryGetValue(cell, out var portals))
                     continue;
                 foreach (var p in portals)
                 {
@@ -99,25 +109,54 @@ public sealed class GateFlood
     private readonly WorldGraph _graph;
     private readonly Dictionary<RecordId, FloodSet> _byId = [];
     private readonly List<(int Way, int Prev)> _chains = [];
-    private readonly Dictionary<RecordId, Dictionary<(int Row, int Column), int>> _chunkBest = [];
 
     internal GateFlood(WorldGraph graph) => _graph = graph;
 
     internal List<FloodSet> Sets { get; } = [];
 
-    internal sealed class FloodSet(int index, WalkGraph graph)
+    internal sealed class FloodSet
     {
-        public int Index { get; } = index;
-        public WalkGraph Graph { get; } = graph;
-        public int[] Cost { get; } = Filled(graph.Count, int.MaxValue);
-        public int[] Chain { get; } = Filled(graph.Count, -1);
-
-        private static int[] Filled(int count, int value)
+        public FloodSet(int index, WalkGraph graph)
         {
-            var a = new int[count];
-            Array.Fill(a, value);
-            return a;
+            Index = index;
+            Graph = graph;
+            (Cost, Chain) = Spare.TryGetValue(graph, out var spare) && spare.TryPop(out var arrays) ? arrays : (new int[graph.Count], new int[graph.Count]);
+            Array.Fill(Cost, int.MaxValue);
+            Array.Fill(Chain, -1);
         }
+
+        public int Index { get; }
+        public WalkGraph Graph { get; }
+        public int[] Cost { get; }
+        public int[] Chain { get; }
+
+        /// <summary>The map set's portals by cell, once the flood first asks.</summary>
+        internal WorldGraph.PortalCellIndex? Portals { get; set; }
+    }
+
+    /// <summary>
+    /// The arrays of floods given up (<see cref="Release"/>), by walk graph, for the next flood on the same thread: a reach floods some
+    /// twenty times a step, and the Overworld's arrays are 8 MB a flood, which the collector would otherwise sweep from the large
+    /// object heap by full collections.
+    /// </summary>
+    [ThreadStatic] private static ConditionalWeakTable<WalkGraph, Stack<(int[] Cost, int[] Chain)>>? _spare;
+
+    private static ConditionalWeakTable<WalkGraph, Stack<(int[] Cost, int[] Chain)>> Spare => _spare ??= new();
+
+    /// <summary>The most floods' arrays kept spare for each walk graph.</summary>
+    private const int MostSpare = 2;
+
+    /// <summary>Gives the flood's arrays up for the next flood on this thread to reuse: it mustn't be read again.</summary>
+    internal void Release()
+    {
+        foreach (var set in Sets)
+        {
+            var spare = Spare.GetOrCreateValue(set.Graph);
+            if (spare.Count < MostSpare)
+                spare.Push((set.Cost, set.Chain));
+        }
+        Sets.Clear();
+        _byId.Clear();
     }
 
     internal FloodSet Set(RecordId mapSet)
@@ -144,13 +183,10 @@ public sealed class GateFlood
     /// </summary>
     public IReadOnlyList<IGatedWay>? To(RecordId mapObject)
     {
-        var plugins = _graph.Plugins;
-        if (plugins.TryGet<ChunkRecord>(ChunkRecord.ChunkOf(mapObject)) is not { } chunk || chunk.Object(ChunkRecord.IndexOf(mapObject)) is not { } o
-            || WorldGraph.UseRange(o) is not { } range || !_byId.TryGetValue(chunk.MapSet, out var set))
+        if (_graph.StandingOf(mapObject) is not { } standing || !_byId.TryGetValue(standing.MapSet, out var set))
             return null;
-        var target = plugins.Get<MapSetRecord>(chunk.MapSet).Origin(chunk) + o.Position;
         var best = -1;
-        foreach (var (cell, _) in WorldGraph.StandNear(set.Graph, target, range))
+        foreach (var (cell, _) in standing.Cells)
         {
             if (set.Cost[cell] != int.MaxValue && (best < 0 || set.Cost[cell] < set.Cost[best]))
                 best = cell;
@@ -164,21 +200,14 @@ public sealed class GateFlood
         var plugins = _graph.Plugins;
         if (plugins.TryGet<ChunkRecord>(chunkId) is not { } chunk || !_byId.TryGetValue(chunk.MapSet, out var set))
             return null;
-        if (!_chunkBest.TryGetValue(chunk.MapSet, out var best))
+        // The first of the cell's ground with the fewest: its cells are in order.
+        var best = -1;
+        foreach (var i in _graph.ChunkCells(chunk.MapSet, chunk.Row, chunk.Column))
         {
-            var size = plugins.Get<MapSetRecord>(chunk.MapSet).CellSize;
-            _chunkBest[chunk.MapSet] = best = [];
-            for (var i = 0; i < set.Graph.Count; i++)
-            {
-                if (set.Cost[i] == int.MaxValue)
-                    continue;
-                var c = set.Graph.Center(i);
-                var key = ((int)MathF.Floor(c.X / size), (int)MathF.Floor(c.Z / size));
-                if (!best.TryGetValue(key, out var known) || set.Cost[i] < set.Cost[known])
-                    best[key] = i;
-            }
+            if (set.Cost[i] != int.MaxValue && (best < 0 || set.Cost[i] < set.Cost[best]))
+                best = i;
         }
-        return best.TryGetValue((chunk.Row, chunk.Column), out var cell) ? Ways(set.Chain[cell]) : null;
+        return best >= 0 ? Ways(set.Chain[best]) : null;
     }
 
     /// <summary>The fewest closed gates on a way to a cell of a map set's walk graph, or null if no way reaches it.</summary>

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime;
 using HBHT.Core;
 using HBHT.Core.Playthrough;
 using HBHT.Plugins;
@@ -178,6 +179,7 @@ internal static class PlaythroughReport
         string? save = null, saves = null, report = null;
         Goal? goal = null;
         var options = RunOptions.Default;
+        var copies = 0;
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -198,6 +200,10 @@ internal static class PlaythroughReport
                     options = options with { MostTicks = ticks };
                     i++;
                     break;
+                case "--copies" when i + 1 < args.Length && int.TryParse(args[i + 1], NumberStyles.None, CultureInfo.InvariantCulture, out var n) && n > 0:
+                    copies = n;
+                    i++;
+                    break;
                 case "--most-minutes" when i + 1 < args.Length && double.TryParse(args[i + 1], NumberStyles.Float, CultureInfo.InvariantCulture, out var minutes):
                     options = options with { MostWall = TimeSpan.FromMinutes(minutes) };
                     i++;
@@ -213,6 +219,8 @@ internal static class PlaythroughReport
         var model = QuestModel.Build(plugins);
         var graph = new WorldGraph(plugins);
         Console.WriteLine($"{model.Actions.Count} actions over {model.Ways.Count} scripts, in {clock.Elapsed.TotalSeconds:F1} s; walk graphs in {graph.Fingerprint[..8]}'s cache");
+        if (copies > 0)
+            return Copies(plugins, model, graph, goal, options, save, report, copies);
         var host = save is null ? PlaythroughHost.NewGame(plugins) : PlaythroughHost.From(GameState.Load(plugins, SaveFile.Read(save, plugins)));
         var run = new Playthrough(host, model, graph, goal, options) { Progress = Console.WriteLine };
         Console.WriteLine($"Goal: {goal}, from {(save is null ? "a new game" : Path.GetFileName(save))}; saves in {run.SavesFolder}");
@@ -225,6 +233,36 @@ internal static class PlaythroughReport
             Console.WriteLine($"Report: {Path.ChangeExtension(Path.GetFullPath(report), ".txt")} and .json");
         }
         return result.Summary?.Reached == true ? 0 : 2;
+    }
+
+    /// <summary>
+    /// <c>--copies n</c>, left out of the usage: n of the same run on threads of one process, sharing the plugins, the quest model and
+    /// the world graph, each with its own game, saves (<c>copy-i</c> in the saves folder) and report (<c>path-i</c>), for measuring how
+    /// runs side by side fare. It prints each copy's line, the wall time, and the process's peak memory and collections.
+    /// </summary>
+    private static int Copies(PluginSet plugins, QuestModel model, WorldGraph graph, Goal goal, RunOptions options, string? save, string? report, int copies)
+    {
+        var folder = options.Saves ?? Path.Combine(DataPaths.Saves, "playthrough");
+        var results = new RunReport?[copies];
+        var clock = Stopwatch.StartNew();
+        var threads = Enumerable.Range(0, copies).Select(i => new Thread(() =>
+        {
+            var host = save is null ? PlaythroughHost.NewGame(plugins) : PlaythroughHost.From(GameState.Load(plugins, SaveFile.Read(save, plugins)));
+            var run = new Playthrough(host, model, graph, goal, options with { Saves = Path.Combine(folder, $"copy-{i}") });
+            var result = results[i] = run.Run();
+            if (report is not null)
+                result.Write($"{report}-{i}");
+            Console.WriteLine($"copy {i}: {run} ({(result.Summary?.Reached == true ? "reached" : result.Summary?.Why)})");
+        }, 16 << 20) { Name = $"copy {i}" }).ToList();
+        threads.ForEach(t => t.Start());
+        threads.ForEach(t => t.Join());
+        var heap = GC.GetGCMemoryInfo(GCKind.Any);
+        using var me = Process.GetCurrentProcess();
+        Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"{copies} copies in {clock.Elapsed.TotalSeconds:0.0} s; peak working set {me.PeakWorkingSet64 / (1 << 20)} MB; " +
+            $"{(GCSettings.IsServerGC ? "server" : "workstation")} collector, {GC.CollectionCount(0)}/{GC.CollectionCount(1)}/{GC.CollectionCount(2)} collections, " +
+            $"{GC.GetTotalPauseDuration().TotalSeconds:0.0} s paused, heap {heap.HeapSizeBytes / (1 << 20)} MB"));
+        return results.All(r => r?.Summary?.Reached == true) ? 0 : 2;
     }
 
     private static string Name(PluginSet plugins, RecordId entity) => plugins.TryGet<EntityRecord>(entity)?.Name ?? entity.ToString();
