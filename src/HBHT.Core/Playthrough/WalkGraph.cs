@@ -161,12 +161,32 @@ public sealed class WalkGraph
     }
 
     /// <summary>
-    /// The cell to start a way from at a place: the nearest, as <see cref="Snap"/> finds it, that some step leads on from. A run only
-    /// set off again from one rest in each start cell (<see cref="Reach.Options.StartCell"/>), so where one came to rest beside it is a
-    /// cell steps lead into and none out of, and a way from it goes nowhere.
+    /// The cell to start a way from at a place. A run only set off again from one rest in each start cell
+    /// (<see cref="Reach.Options.StartCell"/>), so where one came to rest beside it is a cell steps lead into and few or none out of.
+    /// Ground at a whole height also splits into twin cells a unit apart, as the sphere's bob floors its feet to one or the other, and the
+    /// lower twins by a wall are such sinks: Gwernia castle's observatory door (4/O05) has one of two cells that lead only into each other.
+    /// So: the cell the feet are in, if a way from it goes on (<see cref="Ahead"/> reaches its cap); else, of the cells within 1.5 (as
+    /// <see cref="Snap"/> measures), the one most cells lie ahead of, the nearest first; else the nearest within <paramref name="within"/>
+    /// that some step leads on from; else <see cref="Snap"/>'s.
     /// </summary>
     public int? SnapStart(Vector3 feet, float within = 4)
     {
+        if (Find(Reach.Cell.Of(feet)) is { } own && Ahead(own) >= AheadCap)
+            return own;
+        int? most = null;
+        var (mostAhead, mostDistance) = (0, float.MaxValue);
+        foreach (var i in Near(feet.X, feet.Z, 1.5f))
+        {
+            var c = Center(i);
+            var d = new Vector3(c.X - feet.X, (c.Y - feet.Y) * 2, c.Z - feet.Z).Length();
+            if (d > 1.5f)
+                continue;
+            var ahead = Ahead(i);
+            if (ahead > mostAhead || ahead == mostAhead && ahead > 0 && d < mostDistance)
+                (most, mostAhead, mostDistance) = (i, ahead, d);
+        }
+        if (most is not null)
+            return most;
         int? best = null;
         var bestDistance = float.MaxValue;
         foreach (var i in Near(feet.X, feet.Z, within))
@@ -179,6 +199,28 @@ public sealed class WalkGraph
                 (best, bestDistance) = (i, d);
         }
         return best ?? Snap(feet, within);
+    }
+
+    /// <summary>The most cells <see cref="Ahead"/> counts.</summary>
+    public const int AheadCap = 64;
+
+    /// <summary>How many cells a way from a cell can get to, by its steps and gated steps, counted up to <see cref="AheadCap"/>.</summary>
+    public int Ahead(int cell)
+    {
+        var seen = new HashSet<int> { cell };
+        var queue = new Queue<int>();
+        queue.Enqueue(cell);
+        while (queue.Count > 0 && seen.Count < AheadCap)
+        {
+            var at = queue.Dequeue();
+            foreach (var to in Steps(at))
+                if (seen.Add(to))
+                    queue.Enqueue(to);
+            foreach (var (to, _) in GatedSteps(at))
+                if (seen.Add(to))
+                    queue.Enqueue(to);
+        }
+        return Math.Min(seen.Count - 1, AheadCap);
     }
 
     /// <summary>What the pilot follows from one cell to another: how far apart their middles are.</summary>

@@ -23,6 +23,9 @@ public sealed partial class Playthrough
     /// <summary>The live targets before the step being played, and whether the loss check said it would lose some.</summary>
     private (int Step, string Action, HashSet<int> Live, bool Predicted)? _pending;
 
+    /// <summary>The step the cover goal last chose, and its number: what stranded the run if nothing has a plan after it.</summary>
+    private (int Step, string Action)? _lastChosen;
+
     /// <summary>What the cover goal came to: null unless the run's goal is one.</summary>
     public Coverage? Coverage => _cover;
 
@@ -57,6 +60,11 @@ public sealed partial class Playthrough
             _cover.Seen.Add(new CoverSeen(target.Flag, 0, Host.Clock.Ticks, null));
         }
         _elsewhere = goal.CoveredElsewhere?.Invoke() ?? new HashSet<RecordId>();
+        if (goal.Avoid.Count > 0)
+        {
+            var avoid = goal.Avoid.ToHashSet();
+            _bannedForGood.UnionWith(Model.Actions.Where(a => avoid.Contains(a.Describe())).Select(a => a.Index));
+        }
     }
 
     /// <summary>The flags first seen since the last look, put down to the step just played (or, before the first, to none).</summary>
@@ -308,15 +316,30 @@ public sealed partial class Playthrough
             Progress?.Invoke($"     no step loses nothing; the one that loses fewest ({least.Lost}) is taken: {least.Steps[0].Describe()}");
             return Pending(least.Goal, least.Steps, least.Plan, live, true);
         }
-        // Every target planned to found nothing where the run stands: those not planned to again since are given up.
+        // Every target planned to found nothing where the run stands.
         if (order.Count == 0)
         {
-            foreach (var h in live)
+            // The relaxation still sets them, so it's where the last step left the player (a part of the world graph with no way on):
+            // they go to a branch from the save before that step, which avoids it. Only where there's no such step, or no save before it,
+            // are they given up.
+            var save = _lastChosen is { } last && last.Step == _step && _step > 0 ? SaveBefore() : null;
+            var targets = live.Select(h => _targets[h]).ToList();
+            if (save is not null)
             {
-                var target = _targets[h];
-                target.State = TargetState.GivenUp;
-                target.Why ??= "no plan from where the run stood";
+                _cover!.Branches.Add(new CoverBranch(_step, _lastChosen!.Value.Action, save, [.. targets.Select(t => t.Flag)], false, Stranded: true));
+                Progress?.Invoke($"     stranded after step {_step} ({_lastChosen.Value.Action}): no plan to any of {targets.Count} live target(s); " +
+                    "a branch from the save before it avoids it");
             }
+            foreach (var target in targets)
+            {
+                target.State = save is null ? TargetState.GivenUp : TargetState.Lost;
+                target.Why = save is null
+                    ? target.Why ?? "no plan from where the run stood"
+                    : $"stranded after step {_step} ({_lastChosen!.Value.Action}): no plan to any target from there; a branch from the save before it avoids it";
+            }
+            // Nothing is left for this run where it stands: it ends, and the branch goes on.
+            if (save is not null)
+                _coverDone = true;
         }
         return (Goal, [], null);
     }
@@ -324,6 +347,7 @@ public sealed partial class Playthrough
     private (Goal Goal, List<PlayerAction> Steps, Plan? Plan) Pending(Goal goal, List<PlayerAction> steps, Plan? plan, HashSet<int> live, bool predicted)
     {
         _pending = (_step + 1, steps[0].Describe(), live, predicted);
+        _lastChosen = (_step + 1, steps[0].Describe());
         return (goal, steps, plan);
     }
 

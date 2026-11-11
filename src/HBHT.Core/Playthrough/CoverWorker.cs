@@ -68,6 +68,7 @@ public sealed class CoverWorker(CoverQueue queue, QuestModel model, WorldGraph g
         {
             MostFailures = root.MostFailures,
             CoveredElsewhere = () => Queue.Ledger().Keys.Select(RecordId.Parse).ToHashSet(),
+            Avoid = job.Avoid ?? [],
         };
         var options = Options with { Saves = Queue.SavesOf(job.Id), MostWall = wall };
         var run = new Playthrough(host, model, graph, goal, options) { Progress = Progress };
@@ -86,7 +87,7 @@ public sealed class CoverWorker(CoverQueue queue, QuestModel model, WorldGraph g
                 continue;
             // A branch that lost what it was for on its own first step, as its parent did, would only branch the same way again: the step
             // the run takes first from there loses them whatever it's after, as a story trigger on every way out does.
-            if (job.Parent is not null && branch.Step == 1 && branch.Targets.All(t => job.Targets.Contains(t.ToString())))
+            if (!branch.Stranded && job.Parent is not null && branch.Step == 1 && branch.Targets.All(t => job.Targets.Contains(t.ToString())))
             {
                 foreach (var t in cover.Targets.Where(t => branch.Targets.Contains(t.Flag)))
                 {
@@ -95,8 +96,22 @@ public sealed class CoverWorker(CoverQueue queue, QuestModel model, WorldGraph g
                 }
                 continue;
             }
+            // A stranded branch avoids the step that stranded it, and what its parent avoided. Stranded again on the first step of a job
+            // that already avoids its parents' strandings, its targets are given up: no first step from there leaves the player anywhere.
+            if (branch.Stranded && branch.Step == 1 && job.Avoid is { Count: > 0 })
+            {
+                foreach (var t in cover.Targets.Where(t => branch.Targets.Contains(t.Flag)))
+                {
+                    t.State = TargetState.GivenUp;
+                    t.Why = $"stranded again on the first step ({branch.Action}) of a job that avoids the steps that stranded its parents";
+                }
+                continue;
+            }
+            IReadOnlyList<string>? avoid = branch.Stranded ? [.. job.Avoid ?? [], branch.Action] : job.Avoid;
             made.Add(new CoverJob($"{job.Id}.{++n}", job.Id, Queue.Relative(branch.Save), [.. branch.Targets.Select(t => t.ToString())],
-                job.Depth + 1, branch.Step, branch.Action, branch.Predicted ? "the loss check said it would lose them" : "lost after the step"));
+                job.Depth + 1, branch.Step, branch.Action,
+                branch.Stranded ? "stranded after the step" : branch.Predicted ? "the loss check said it would lose them" : "lost after the step",
+                avoid));
         }
         // Stopped by the worker's own time with targets still live: carried on from here.
         var live = cover.Targets.Where(t => t.State == TargetState.Live).ToList();
@@ -106,7 +121,7 @@ public sealed class CoverWorker(CoverQueue queue, QuestModel model, WorldGraph g
             if (run.SaveNow(path))
             {
                 made.Add(new CoverJob(NextCarry(job.Id), job.Id, Queue.Relative(path), [.. live.Select(t => t.Flag.ToString())], job.Depth,
-                    Why: "carried on: the worker's time ran out"));
+                    Why: "carried on: the worker's time ran out", Avoid: job.Avoid));
                 foreach (var t in live)
                     t.Why = "carried on in another job";
             }

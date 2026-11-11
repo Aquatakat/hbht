@@ -78,5 +78,11 @@ public sealed record CoverGoal(IReadOnlyList<RecordId> Targets) : Goal
 
     public int RefreshSteps { get; init; } = 10;
 
+    /// <summary>
+    /// Steps the run never takes, by their description (<see cref="PlayerAction.Describe"/>): the steps that stranded the jobs it carries
+    /// on from, so it goes another way.
+    /// </summary>
+    public IReadOnlyCollection<string> Avoid { get; init; } = [];
+
     public override string Describe() => $"cover {Targets.Count} flags";
 }

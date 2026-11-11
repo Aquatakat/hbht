@@ -19,7 +19,7 @@ public sealed record CoverRoot(IReadOnlyList<string> Targets, string? Save, doub
 /// <param name="Step">The parent's step it branched before, if a branch.</param>
 /// <param name="Action">That step's action.</param>
 public sealed record CoverJob(string Id, string? Parent, string? Save, IReadOnlyList<string> Targets, int Depth, int? Step = null,
-    string? Action = null, string? Why = null);
+    string? Action = null, string? Why = null, IReadOnlyList<string>? Avoid = null);
 
 /// <summary>A flag a job saw set first: the step, the tick, and the save before the step (relative to the root).</summary>
 public sealed record CoverSeenEntry(string Flag, int Step, long Tick, string? Save);

@@ -431,9 +431,7 @@ public sealed partial class WorldGraph
                 chunks.Update(at);
                 var (ground, grounded) = Reach.SetDownAt(world, at, at.Y - PlayerMotion.Radius);
                 var feet = ground - SphereUp;
-                cells[p] = grounded && walk.Find(Reach.Cell.Of(feet)) is { } cell && walk.Steps(cell).Length > 0
-                    ? cell
-                    : walk.SnapStart(grounded ? feet : at, 4);
+                cells[p] = walk.SnapStart(grounded ? feet : at, 4);
             }
             return cells;
         })).Value;

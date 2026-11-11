@@ -24,7 +24,8 @@ internal static partial class CoverReport
                                                the minutes run out (a job cut short is carried on by another), or <n> jobs
                                                are done; <n> workers on threads share one model and world
                                                graph (1; about 20 suits a 32-thread machine), and several
-                                               processes may work one root at once
+                                               processes may work one root at once; exits 0 once no job
+                                               is pending, 3 when the minutes or jobs ran out first
           hbht playthrough cover status --root <dir> [--all]
                                                the targets covered, live and given up, the jobs by status, the branches,
                                                and the uncovered targets with their last reason (--all lists every one)
@@ -203,7 +204,8 @@ internal static partial class CoverReport
         workers.ForEach(t => t.Start());
         workers.ForEach(t => t.Join());
         Console.WriteLine($"{jobs} job(s) worked in {clock.Elapsed.TotalMinutes:0.0} minutes");
-        return 0;
+        // 0 once nothing is left to play, 3 when the minutes or the jobs ran out first (tools/cover.ps1 goes by it).
+        return queue.All().Any(j => j.Status == JobStatus.Pending) ? 3 : 0;
     }
 
     private static int Status(PluginSet plugins, string[] args)

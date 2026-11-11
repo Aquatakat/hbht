@@ -52,7 +52,11 @@ public sealed record CoverSeen(RecordId Flag, int Step, long Tick, string? Save)
 /// A step that lost targets not yet covered: the save from before it, from which a branch job plays for them, the step and why.
 /// </summary>
 /// <param name="Predicted">The loss check said before the step that it would lose these, and no safe step was left.</param>
-public sealed record CoverBranch(int Step, string Action, string? Save, IReadOnlyList<RecordId> Targets, bool Predicted);
+/// <param name="Stranded">
+/// The step left the player where no target has a plan, though the relaxation still sets them: the branch plays from before it with
+/// the step avoided (<see cref="CoverGoal.Avoid"/>).
+/// </param>
+public sealed record CoverBranch(int Step, string Action, string? Save, IReadOnlyList<RecordId> Targets, bool Predicted, bool Stranded = false);
 
 /// <summary>What a cover run (<see cref="CoverGoal"/>) came to, and how it spent its time.</summary>
 public sealed class Coverage

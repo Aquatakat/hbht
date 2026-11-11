@@ -121,6 +121,14 @@ public sealed class PlaythroughWorldGraphTests(Na10Import fixture)
         var stairwell = new Place(RecordId.Decimal(RecordTypes.MapSet, 4), new Vector3(1105.69f, 0.007f, 711.46f));
         Assert.True(Graph.CanReach(Object("4/I07/4"), state, stairwell));
 
+        // Standing by the observatory's door (4/O05/1), the feet are a hair over a floor at a whole height: the twin cell a unit down
+        // is a pocket of two that lead only into each other, and a way from it got nowhere.
+        var observatory = new Place(RecordId.Decimal(RecordTypes.MapSet, 4), new Vector3(1510.031f, 0.0099999f, 504.36f));
+        var walk = Graph.Walk(observatory.MapSet);
+        Assert.Equal(new Reach.Cell(1510, 504, 0), walk.Cell(walk.SnapStart(observatory.Feet, 6)!.Value));
+        Assert.True(Graph.CanReach(Object("4/O05/1"), state, observatory));
+        Assert.True(Graph.CanReach(Object("4/E07/2"), state, observatory));
+
         // Every arrival is a cell some step leaves.
         foreach (var portal in Graph.Portals)
         {
