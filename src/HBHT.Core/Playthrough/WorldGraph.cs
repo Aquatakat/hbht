@@ -329,6 +329,7 @@ public sealed partial class WorldGraph
         _plugins.TryGet<ChunkRecord>(ChunkRecord.ChunkOf(id)) is { } chunk && chunk.Object(ChunkRecord.IndexOf(id)) is { } o && UseRange(o) is { } range
             ? new Standing(this, id, chunk.MapSet, _plugins.Get<MapSetRecord>(chunk.MapSet).Origin(chunk) + o.Position, range)
             : null);
+
     private readonly ConcurrentDictionary<RecordId, Lazy<Dictionary<(int Row, int Column), int[]>>> _chunkCells = [];
 
     /// <summary>

@@ -269,6 +269,20 @@ Weapons that fly, rings, scrolls and wands are left as they are. What it put on 
 
 **Speed.** The host plays by `SessionSettings.Original`, but nobody's watching: cinematics are skipped with B, skippable credits are ended with A, and the ending's are rolled 8 ticks a tick (`PlaythroughOptions`). Standing in trek it runs at about 34,000 ticks a second in a Release build, some 560 times the game's speed. A short battle in a Debug build runs at about 2,300 a second.
 
+A run's wall time, in a Release build, goes in about three equal parts:
+
+- **The places' rounds** (`WorldReach.Layered`, [the run](#the-run)): about 20 floods of the walk graphs a step, each some 60 ms with the Overworld's million cells.
+- **The pilot's routes** (`WorldGraph.Route`'s A*): asked again at every replan, and up to three times a plan while keeping clear of triggers. A search that finds nothing goes over everything it can reach, about 250,000 cells, and is then run again to say why.
+- **The host's ticks**, most of them battles. Half a battle's time is its recording of each tick for Start Early (`BattleDrawing`, `BattleRecorder.Sample`), which a headless run draws nothing from.
+
+The planner's own search is a few percent. Loading the model takes about 4 s of each process's start. Everything below is kept so that a run plays the same steps it would without it:
+
+- The world graph keeps where each map object is used from (`WorldGraph.Standing`, the cells `StandNear` finds) and each chunk's cells (`ChunkCells`). The floods ask both of every place in every round; found afresh each time, they were three quarters of a run.
+- A reach keeps only its last round's flood. Each round looks up every place the planner asks of, so a place keeps the way the first round to get there found, and a place not got to keeps how many rounds were looked through. An earlier round is flooded again, as it flooded before, only for a place first asked of later. A flood is 8 MB of the Overworld. Keeping all of them put a run's peak at 2 GB, mostly garbage for the collector.
+- A round whose every way costs what the last round's did reuses its flood, which would come out the same.
+- The walk graphs mark the cells with gated steps and portals with a bit each, so a flood or a search doesn't look each cell up in a dictionary.
+- The route search keeps its costs, parents and avoided cells in arrays per walk graph and thread, stamped with the search's number, rather than in dictionaries.
+
 **With nobody at the controls**, a new game plays the opening cinematic and script 0x0362's thirteen pages. Then, 988 ticks in, trek has the player at Overworld I08, and nothing more comes to him. Everything after that is the pilot's.
 
 **What every host repeats**, which could move into `GameSession`:
@@ -289,6 +303,16 @@ hbht playthrough run --goal flag:<n>|member|ending [--save <save>] [--saves <dir
 
 It prints a line a step and a line a milestone, then the report. It exits 0 if the goal was reached, else 2.
 
+**Runs side by side.** Several runs can play on threads of one process. They share what nothing changes once it's built:
+
+- the plugins, whose lazily read records are read once under a lock (ADR 0036);
+- the quest model's actions, ways and facts. Each run plays on a model of its own (`QuestModel.ForRun`, which the `Playthrough` makes), since the one thing a run changes is the model's place reach and its cache of what places need;
+- the world graph: its walk graphs (each read once, with its lazily built indexes), and the standing, portal and chunk cells and `CanReach`'s closures, each made once under a lock or a concurrent dictionary. The route search's arrays and the floods' spare arrays are each thread's own.
+
+Everything else is the run's own: its host and game, planner, story triggers, battle pilot, levelling, outfitting, resting, reach and report. `hbht playthrough run … --copies <n>`, left out of the usage, plays n copies of a run on threads, each with its saves in `copy-<i>` and its report at `<path>-<i>`. It prints the process's peak memory and its collections. Each copy plays as one alone does (`PlaythroughSideBySideTests`).
+
+Runs on threads need the server collector, which the CLI's project sets (`ServerGarbageCollection`; the property ending in `Collector` does nothing). With the workstation collector's one heap, collections stop every run: 16 copies spent 116 s paused and took twice as long as 16 processes. With the server collector, 24 copies of a 41 s slice took 106 s in 7 GB, where 24 processes took 166 s in 21 GB. On the i9-14900K's 32 threads, threads stop gaining at about nine times one run's speed, by 24 of them, and processes at about six, by 16.
+
 **Each step:**
 
 1. It plans from the real state (`PlanState.From`), with the world graph behind the planner's places. The rest of the last plan is kept while it still holds from there.
@@ -302,7 +326,7 @@ It prints a line a step and a line a milestone, then the report. It exits 0 if t
 - a lock the party's thief picks (level under 10, thief skill above it) is open;
 - a gate with no flag, or whose literal nothing can make true, is a wall.
 
-The places are found in rounds (`WorldReach.Layered`), so that no gate is opened from beyond it. The first round floods with only the gates open now. Each round's relaxation takes the places that round reached as reached, and says which literals come true; the next round's flood opens those gates too. It stops when a round adds nothing: about 18 rounds and 6 s from Rheda joining. A place's way is the one the first round to get there found. Without the rounds, the shortest way to Overworld A22 went through the door 11/A01/8, locked behind 320, which only the Cradawgh's scene at A22 sets; now it goes round by D14's toggle.
+The places are found in rounds (`WorldReach.Layered`), so that no gate is opened from beyond it. The first round floods with only the gates open now. Each round's relaxation takes the places that round reached as reached, and says which literals come true; the next round's flood opens those gates too. It stops when a round adds nothing: 19 rounds and about 1.4 s from Rheda joining. A place's way is the one the first round to get there found. Without the rounds, the shortest way to Overworld A22 went through the door 11/A01/8, locked behind 320, which only the Cradawgh's scene at A22 sets; now it goes round by D14's toggle.
 
 A place's gates (`WorldReach.Gates`) are the literals of the closed gates on its way, such as `flag 50 set` for the lock on Oriana's hut's door (6/E03/2). The relaxation and the backward chain take them as preconditions of the actions there (`QuestModel.Needs`), and the search checks them in each plan state. So a plan to a place behind a closed door first makes its flag true. From inside the hut, every place outside needs 50, and only Oriana's conversation (0x0394) sets it.
 
@@ -404,7 +428,7 @@ A goal is a flag to set (`flag:<n>`), someone joining (`member`), or `ending`: t
 
 ## Where it stands
 
-From a new game the run reaches the ending: the Coronation of Alaron plays and the ending's credits roll. It plays 84 steps, 4,122,658 ticks (about 1,145 game minutes), in about 600 s of wall time (the run is deterministic: the same plugins play the same run).
+From a new game the run reaches the ending: the Coronation of Alaron plays and the ending's credits roll. It plays 84 steps, 4,122,658 ticks (about 1,145 game minutes), in about 130 s of wall time (the run is deterministic: the same plugins play the same run).
 
 - It fills the party in 6 steps (Abrecan, Brenna, Rheda), and reaches Erromon (step 7), the goblin camp, Jundar (16) and the herb (22), Port Saiid and the Lighthouse (27), Terminor (36), EhudUnder (38), Ugarit (48), the Barrows (51), the Shadow's merge (80), Roog's cave and Rooughah's naming (82), and the last scenes at Gwernia castle (84).
 - It fights 273 battles: 55 lost first and 31 won with a member dead, each played again and won outright; 4 stalemates; no deaths in battle stand; Niesen's death in EhudUnder is the story's. It camps 59 times, trains once, shops at 4 shopkeepers (5 bought) and puts on better gear 49 times.
