@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using HBHT.Core.Actors;
 using HBHT.Core.Chunks;
 using HBHT.Core.Combat;
+using HBHT.Core.Flags;
 using HBHT.Core.Movement;
 using HBHT.Core.Physics;
 using HBHT.Core.Scripts;
@@ -81,6 +82,23 @@ public sealed partial class PlaythroughHost
 
     private GameState _game = null!;
 
+    /// <summary>
+    /// What notes every flag that turns on (<see cref="FlagNetwork.Ledger"/>), kept across the games the host starts again on (a battle
+    /// played again, a save loaded); none if null.
+    /// </summary>
+    public FlagLedger? Ledger
+    {
+        get => _ledger;
+        set
+        {
+            _ledger = value;
+            if (_game is not null)
+                _game.Flags.Ledger = value;
+        }
+    }
+
+    private FlagLedger? _ledger;
+
     /// <summary>Trek's input when nothing else has the controls: nothing held by default.</summary>
     public IInputPolicy Input { get; set; } = NoInput.Instance;
 
@@ -134,6 +152,7 @@ public sealed partial class PlaythroughHost
     private void StartSession(GameState game, GameStart start, bool opening)
     {
         _game = game;
+        game.Flags.Ledger = _ledger;
         foreach (var problem in game.Problems)
             Warn(problem);
         _actors.Clear();

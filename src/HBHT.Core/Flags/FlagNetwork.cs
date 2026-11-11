@@ -91,6 +91,12 @@ public sealed class FlagNetwork
 
     public int Count => _ids.Length;
 
+    /// <summary>
+    /// What notes each flag that turns on, plain or derived, from here on; none if null. Not part of a save: loading or a new game sets
+    /// flags without noting them.
+    /// </summary>
+    public FlagLedger? Ledger { get; set; }
+
     /// <summary>True while a flag has changed since the derived flags were last brought up to date.</summary>
     public bool Dirty { get; private set; }
 
@@ -240,7 +246,10 @@ public sealed class FlagNetwork
             return;
         foreach (var handle in handles)
         {
-            _values[handle] = (byte)(value & 1);
+            var bit = (byte)(value & 1);
+            if (bit != 0 && _values[handle] == 0)
+                Ledger?.Mark(handle);
+            _values[handle] = bit;
             value >>= 1;
         }
         Dirty = true;
@@ -252,6 +261,8 @@ public sealed class FlagNetwork
     /// </summary>
     public void NewGame()
     {
+        var ledger = Ledger;
+        Ledger = null;
         for (var h = 0; h < _values.Length; h++)
             _values[h] = (byte)(_initial[h] ? 1 : 0);
         Array.Clear(_journalSeen);
@@ -259,6 +270,7 @@ public sealed class FlagNetwork
         _journalOrder.Clear();
         Dirty = true;
         Process();
+        Ledger = ledger;
     }
 
     /// <summary>
@@ -272,6 +284,8 @@ public sealed class FlagNetwork
     /// </param>
     public void Restore(Func<int, bool> plain, IReadOnlyList<RecordId>? journal = null)
     {
+        var ledger = Ledger;
+        Ledger = null;
         for (var h = 0; h < _values.Length; h++)
         {
             if (!IsDerived(h))
@@ -279,6 +293,7 @@ public sealed class FlagNetwork
         }
         Dirty = true;
         Process();
+        Ledger = ledger;
         var on = _journal.Where(j => _values[j.Handle] != 0).Select(j => j.Entry).Distinct().ToList();
         var saved = (journal ?? []).Where(_entries.Contains).Distinct().ToList();
         _journalOrder.Clear();
@@ -321,6 +336,8 @@ public sealed class FlagNetwork
             if (!on)
                 continue;
             var entry = _journal[i].Entry;
+            if (_values[_newJournalEntry] == 0)
+                Ledger?.Mark(_newJournalEntry);
             _values[_newJournalEntry] = 1;
             NewestJournalEntry = entry;
             if (!_journalOrder.Contains(entry))
@@ -335,6 +352,8 @@ public sealed class FlagNetwork
         if (_values[handle] == bit)
             return;
         _values[handle] = bit;
+        if (bit != 0)
+            Ledger?.Mark(handle);
         Dirty = true;
     }
 

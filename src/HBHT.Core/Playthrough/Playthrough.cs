@@ -59,7 +59,7 @@ public sealed record RunStep(int Number, Goal Goal, PlayerAction Action, bool Do
 /// <see cref="BattlePilot"/>'s, and experience is spent by <see cref="Playthrough.Levelling"/> after battles and at trainers near the way.
 /// At each milestone it writes a save, and it keeps the report (<see cref="RunReport"/>).
 /// </summary>
-public sealed class Playthrough
+public sealed partial class Playthrough
 {
     private readonly QuestPlanner _planner;
     private readonly HashSet<RecordId> _journal;
@@ -171,6 +171,8 @@ public sealed class Playthrough
     {
         _wall.Start();
         _startTicks = Host.Clock.Ticks;
+        if (Goal is CoverGoal cover)
+            StartCover(cover);
         string? why = null;
         var reached = false;
         var failures = new Dictionary<Goal, int>();
@@ -218,6 +220,9 @@ public sealed class Playthrough
                 var state = PlanState.From(Model, Game);
                 var reach = MakeReach(state);
                 var (goal, steps, plan) = Choose(state);
+                // A cover goal with nothing to play has given up on what it couldn't plan to, or has nothing left.
+                if (steps.Count == 0 && Goal is CoverGoal)
+                    continue;
                 if (steps.Count == 0 && Probe(state, Goal) is { } probe)
                 {
                     // No plan, but the relaxed plan's next step can be done here: the story may move the player on from it.
@@ -255,6 +260,8 @@ public sealed class Playthrough
                     _passing = new PassGoal(blocker);
                 if (step.Done)
                 {
+                    if (goal is FlagGoal done && Goal is CoverGoal)
+                        CoverDone(done);
                     failures[goal] = 0;
                     _rest[goal] = steps.Skip(1).ToList();
                     VisitTrainer();
@@ -265,7 +272,14 @@ public sealed class Playthrough
                     _rest.Remove(goal);
                     if (!step.Again)
                         failures[goal] = failures.GetValueOrDefault(goal) + 1;
-                    if (failures[goal] >= Options.MostFailures)
+                    if (goal is FlagGoal target && Goal is CoverGoal)
+                    {
+                        // A target is given up on after its own few failures; the cover goal goes on.
+                        if (!step.Again)
+                            CoverFailed(target, step);
+                        failures[goal] = 0;
+                    }
+                    else if (failures[goal] >= Options.MostFailures)
                     {
                         if (goal is PassGoal pass)
                         {
@@ -284,6 +298,7 @@ public sealed class Playthrough
                     }
                 }
             }
+            FinishCover();
         }
         catch (Exception e)
         {
@@ -302,6 +317,7 @@ public sealed class Playthrough
     {
         FlagGoal f => Game.Flags.IsSet(f.Flag),
         MemberGoal => _joined > 0,
+        CoverGoal => _coverDone,
         EndingGoal => EndingReached(),
         _ => false,
     };
@@ -313,6 +329,25 @@ public sealed class Playthrough
     /// a step towards it; else the run's own.
     /// </summary>
     private (Goal Goal, List<PlayerAction> Steps, Plan? Plan) Choose(PlanState state)
+    {
+        if (Goal is CoverGoal)
+            return ChooseCover(state);
+        if (ChoosePass(state) is { } passing)
+            return passing;
+        if (Goal is not MemberGoal && !_memberResting && Game.Party.HasEmptySlot())
+        {
+            var member = new MemberGoal();
+            var (steps, plan) = PlanTo(member, state);
+            if (steps.Count > 0)
+                return (member, steps, plan);
+            Rest($"no step towards it: {plan?.Why ?? "the planner found none"}");
+        }
+        var (main, mainPlan) = PlanTo(Goal, state);
+        return (Goal, main, mainPlan);
+    }
+
+    /// <summary>Getting past the story trigger that turned the player back, while it still does and the planner has steps; else null.</summary>
+    private (Goal Goal, List<PlayerAction> Steps, Plan? Plan)? ChoosePass(PlanState state)
     {
         if (_passing is { } pass)
         {
@@ -329,16 +364,7 @@ public sealed class Playthrough
                 GiveUp(pass, $"no step towards it: {plan?.Why ?? "the planner found none"}");
             }
         }
-        if (Goal is not MemberGoal && !_memberResting && Game.Party.HasEmptySlot())
-        {
-            var member = new MemberGoal();
-            var (steps, plan) = PlanTo(member, state);
-            if (steps.Count > 0)
-                return (member, steps, plan);
-            Rest($"no step towards it: {plan?.Why ?? "the planner found none"}");
-        }
-        var (main, mainPlan) = PlanTo(Goal, state);
-        return (Goal, main, mainPlan);
+        return null;
     }
 
     /// <summary>
