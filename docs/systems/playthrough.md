@@ -25,6 +25,9 @@ The planner is `QuestModel`, `ScriptWays`, `FlagModel`, `PlanState`, `Relaxation
 
 - talking to an npc, or using a script object, is an action per way through its script;
 - a container, a tripwire, an encounter, a secret door, a door's lock and its trap, and entering each world map region are an action each;
+- a trapped container's trap let go off is an action of its own (`Spring`), which sets its exploded flag; it and opening the container each rule the other out;
+- camping in a camp scene's chunk is an action per way through the scene's script (`Camp`), which the scene's object stands for ([camping](camping.md)): the scene's flag holds only while the camp looks for a scene (the check flag 4240), so the object has no other action;
+- reading the help menu from the System tab is an action per way through its script (`Help`, no place);
 - a new game's opening (`game.started`'s triggers) is the first step of any plan from one.
 
 An action needs its object to be there (its gates, as `MapObjectPresence` reads them), its place reached (`Reaches`), and whatever its script's conditions need to go its way. Its effects, in order:
@@ -36,7 +39,7 @@ An action needs its object to be there (its gates, as `MapObjectPresence` reads 
 
 A battle with the Shadow while the Horn of Kynon is held has the merge as a second outcome (the combat record's `shadow`). It's never won: without the Horn it ends in the Shadow vanishing, with nothing won and no flag set ([combat](combat.md)), so the model gives its battle no win (`QuestModel.NeverWon`) and its encounter's beaten flag (Overworld H08/12's 950) is no target.
 
-**What code decides** is a `CodeGate`: skill checks, gold, stats, locks' and traps' levels, drop chances, and winning. The planner takes each to hold, and lists it with the step for the pilot to meet. Flags the engine writes (the calendar, rain, terrain) can be either value, since the pilot can wait or walk for them. Derived flags follow from their formulas over what each input can be (`FlagModel`), with no correlation kept between inputs.
+**What code decides** is a `CodeGate`: skill checks, gold, stats, locks' and traps' levels, a trap going off, a camp not ambushed, a shop's price, drop chances, and winning. The planner takes each to hold, and lists it with the step for the pilot to meet. Flags the engine writes (the calendar, rain, terrain) can be either value, since the pilot can wait or walk for them. Derived flags follow from their formulas over what each input can be (`FlagModel`), with no correlation kept between inputs.
 
 **A script's ways come from the real runner**, not a model of it. `ScriptWays` runs the script again and again with a probe (`IScriptProbe`, an optional parameter of `ScriptRunner`) answering each condition and taking each effect that changes the state:
 
@@ -45,28 +48,30 @@ A battle with the Shadow while the Horn of Kynon is held has the merge as a seco
 - ways with the same effects are merged, keeping each branch's choices (`OtherChoices`), and the pilot takes whichever the page offers;
 - a cut-scene's ways go on through its `script.ended` triggers and the cinematics they play.
 
-From a new game on NA 1.0 that is 6,878 actions over the 429 scripts something starts, with 3,266 ways. A flag a way writes again with the value it last wrote isn't an effect again (`ScriptWays.Run.Write`): each pass through a backdrop's chapter wrote its flag again, so 0x036F's contents never looked seen and the explorer read its chapter 19 four hundred times, in 802 ways. An if node whose holding leads only through single-linked lines with no op changing the state, back to where its not holding leads, is a detour (`ScriptWays.Detours`): it goes the short way unasked, rather than being walked as a branch. Branches are walked shallowest first. Two scripts with 23 member checks each, `0x039F` (Becan's scene) and `0x0404` (Arturo's at the bridge), are still cut at 50,000 runs, in their deep full-party branches. Before detours, every combination of their eleven spawning checks came before the ways that mattered, and Arturo's ways (3460, 3461, joining) were missing. Every one of the 162 ways open after the opening, played from the same save on the real runner, does to the flags and the party what its action says.
+From a new game on NA 1.0 that is 6,960 actions over the 429 scripts something starts, with 3,266 ways: 28 camps, 82 traps let go off and the help menu among them. A flag a way writes again with the value it last wrote isn't an effect again (`ScriptWays.Run.Write`): each pass through a backdrop's chapter wrote its flag again, so 0x036F's contents never looked seen and the explorer read its chapter 19 four hundred times, in 802 ways. An if node whose holding leads only through single-linked lines with no op changing the state, back to where its not holding leads, is a detour (`ScriptWays.Detours`): it goes the short way unasked, rather than being walked as a branch. Branches are walked shallowest first. Two scripts with 23 member checks each, `0x039F` (Becan's scene) and `0x0404` (Arturo's at the bridge), are still cut at 50,000 runs, in their deep full-party branches. Before detours, every combination of their eleven spawning checks came before the ways that mattered, and Arturo's ways (3460, 3461, joining) were missing. Every one of the 162 ways open after the opening, played from the same save on the real runner, does to the flags and the party what its action says.
 
 **The static pass** relaxes every action from a state, with nothing ever undone (FF's relaxation, `Relaxation`). What never comes true in the relaxation can't come true in any order of steps. From a new game on NA 1.0:
 
-- 1,881 of the 4,972 plain flags can be set;
-- 458 of the 555 derived flags can be set;
+- 1,967 of the 4,972 plain flags can be set;
+- 466 of the 555 derived flags can be set;
 - all 13 members can join;
-- 408 of the 429 started scripts can run;
+- 417 of the 429 started scripts can run;
 - the ending can roll, and the merge with the Shadow can happen.
 
 Each plain flag that can't be set is given its reason:
 
 | Reason | Flags | Of them read |
 | --- | --- | --- |
-| Nothing sets them (the 17 "Has Map" flags and the Skull Key's among them) | 2,928 | 139 |
-| A container's trap going off, which is never planned | 87 | 87 |
-| Their setters need something that never comes true | 28 | 23 |
-| Only scripts nothing starts set them | 24 | 10 |
+| Nothing sets them (the 17 "Has Map" flags and the Skull Key's among them) | 2,927 | 138 |
+| Only scripts nothing starts set them | 23 | 10 |
+| Their setters need something that never comes true | 20 | 15 |
 | Only the engine sets them (the members' died flags) | 11 | 11 |
-| No way through their script reaches the setter (the death scenes' done flags) | 8 | 0 |
+| A container's trap going off, at a container the relaxation never gets to | 11 | 11 |
+| No way through their script reaches the setter: done flags, the death scenes', the Campsite's (which only a camp with no scene plays) and four backdrops' whose objects are gated off on flag 0 | 8 | 0 |
 | Their setters are map objects gated off on flag 0 | 4 | 4 |
 | Only a battle that's never won sets them: the Shadow's encounter at Overworld H08/12 (950) | 1 | 1 |
+
+Before stage 5's actions ([what the planner doesn't model](#what-the-planner-doesnt-model)) it was 1,881 plain and 458 derived, with every trap's flag and the camp scenes' out of reach.
 
 **Planning.** `QuestPlanner.Plan(state, goal)` works in three stages:
 
@@ -81,11 +86,11 @@ A goal the relaxation can't reach comes back with why: what sets it, and the fir
 - the first member is three steps: the opening, script 0x0362, then the companions' scene at Overworld I13 (0x0527), where Abrecan joins;
 - the ending is seven: the opening, 0x0362, Roog's scene (0x04F4), the tripwire at M06, and the last three scenes at Gwernia castle (0x04FC to 0x04FE), with the two battles won.
 
-**What it doesn't model:**
+**What it doesn't model** ([what the planner doesn't model](#what-the-planner-doesnt-model) has why):
 
-- deaths and traps going off;
+- deaths, the cheats, and the party's best stats, which 1.0 never writes;
 - buying anything but key items;
-- camp ambushes and training;
+- camp ambushes (a camp's step is played again from the save before one) and training;
 - wanderers catching the party;
 - encounters' random extras;
 - the `item.gained` and `spell.trained` triggers;
@@ -154,7 +159,7 @@ Each is explored about with its tripwire taken as gone off (`Reach.Explore`'s `t
 - a waypoint is passed within 0.8 across the ground, looking up to 3 ahead;
 - a stall is 1.5 s without getting 0.2 nearer, after which it steps aside for half a second (to one side of the way it wanted, the other, back, and between, in turn) and replans from there, avoiding where it stuck: walking straight at a lip the sphere doesn't climb moves him nowhere at all, as in EhudUnder's C03 below the teleporter C03/3, where the walk graph's step up was made from another approach;
 - it also replans whenever trek gets the controls back (after a cut-scene, a conversation, a battle a wanderer started, a menu or a teleport), when the map set changes, and when the player jumps more than 3 in a tick;
-- where a route is refused only by gates the hour opens (each gate's flag closed now, and derived, and the planner, which takes the calendar's flags either way, says it can open), it waits where it stands a game hour at a time, up to a game day, and asks again: the Burial Chamber's door in Ugarit2 A05 is locked behind derived 5022, which night (5283, the time of day) opens; the waiting isn't counted against the step's budget;
+- where a route is refused only by gates the hour opens (each gate's flag closed now, and derived, and the planner, which takes the calendar's flags either way, says it can open), on the way or on the object itself, it waits where it stands a game hour at a time, up to a game day, and asks again: the Burial Chamber's door in Ugarit2 A05 is locked behind derived 5022, which night (5283, the time of day) opens, and the Talewok commoner at Overworld H13/18 is there only at night; the waiting isn't counted against the step's budget. An npc's or encounter's gates are read, and its body made, as its chunk loads, so when the wait ends with its chunk loaded and no body, trek's world is built again where he stands (`TrekLoop.Rebuild`), as after a backdrop, a sign or the help menu;
 - it gives up after 10 stalls or 40 replans.
 
 **Keeping clear.** By default a route keeps out of the radius of every other enabled, tangible script object in its chunks (`RouteOptions.KeepClear`), so a step plays what it was asked to and not the story's cut-scenes on the way. Where it can't, it lets the triggers the plain route crosses be.
@@ -348,13 +353,15 @@ A place ways reach only through walls is walled, and nothing gets there. A place
 | Action kind | Use |
 | --- | --- |
 | Talk, Fight | Talk |
-| Open, FindSecret, Disarm, PickLock | Press |
+| Open, FindSecret, Disarm, PickLock, Spring | Press |
 | Enter | Arrive |
+| Camp | Camp: walk into the object's chunk, whatever its own gates, and camp from the World tab once there (`Resting.CampNow`) |
 | Play, Trip | as the object is (Auto) |
+| Help | no object: the System tab's Help by the menu's presses where the player stands (`Resting.ReadHelp`), and the help read through by the host's conversation policy |
 
 - **Choices.** Each choice becomes the page that offers it: the first menu or case of the script linking its node.
 - **Effects.** They become what the step should leave so: the last word on each plain flag, member (while there's room) and item, less items a drop chance or a shop decides.
-- **Code gates** are weighed against the party (`CodeCheck`). Gold, stats and locks are read, and one not met keeps the step from being played. A lock on the way to the place sets the route's `PickLocks`. Skill checks, traps, drop chances and the merge are left to the game, and reported if the step misses. Shops' purchases aren't made.
+- **Code gates** are weighed against the party (`CodeCheck`). Gold, stats and locks are read, and one not met keeps the step from being played. A lock on the way to the place sets the route's `PickLocks`. Skill checks, traps, drop chances and the merge are left to the game, and reported if the step misses. A trap the party always disarms never goes off, so a step to let it is a gate not met. A key item a shop sells (Map 7 at Talewok's, 3411, the only one a target hangs on) is bought by the way to the shop, the shop policy buying it first (`Outfitting.Buy`) and then what's better; its gate is the most the shop can ask, the item's price times its stock slots' multipliers and the keeper's Merchant times the step again (`CodeGates.MostPrice`).
 - **Events** (the opening) are played by running the host until the player has the controls.
 
 **Trainers.** After a step that's done, a trainer is visited if all of these hold:
@@ -404,7 +411,7 @@ From the herb, the dryads' scene sends the player to the queen twice, and the st
 
 **Rolls tried again.** A Troubadour check isn't kept by its map object (`ScriptOps.SkillCheck`), so a step that missed because one rolled against it is played again, up to 8 times, before it's banned, and these tries don't count against the goal's failures in a row. A skill check that can't come out in the range a way wants at all, as a Troubadour check with no one who has the skill, keeps the step from being played (`CodeGates.CanRoll`, 400 rolls of the party's real check).
 
-**Rolls the game keeps** are played again from the save before the step, as a player reloads: a trap that went off, which destroys its container so that its Opened and Used flags never come, and a skill check its map object remembers. The game starts again on that save, the player stands 17 ticks a try so that the world's random stream, which the weather draws on every frame, rolls anew, and the step is played again, up to 8 times (`Playthrough.LoadBefore`). A trap the party has no chance at keeps the step from being played (`CodeGates.DisarmChance`: the mechanic, the member with the most Mechanic who has the Stamina, rolls d100 under Intelligence × 4 + Mechanic × 10, and the step that leaves must reach the trap's level), so its container waits for a party that can. Before this, 59 of the targets a trunk tree gave up were a chest's Opened and Used flags, its trap gone off on the one try.
+**Rolls the game keeps** are played again from the save before the step, as a player reloads: a trap that went off, which destroys its container so that its Opened and Used flags never come, and a skill check its map object remembers. The game starts again on that save, the player stands 17 ticks a try so that the world's random stream, which the weather draws on every frame, rolls anew, and the step is played again, up to 8 times (`Playthrough.LoadBefore`). A trap the party has no chance at keeps the step from being played (`CodeGates.DisarmChance`: the mechanic, the member with the most Mechanic who has the Stamina, rolls d100 under Intelligence × 4 + Mechanic × 10, and the step that leaves must reach the trap's level), so its container waits for a party that can. Before this, 59 of the targets a trunk tree gave up were a chest's Opened and Used flags, its trap gone off on the one try. The other way about is played again the same way: a step to let a trap go off that the party disarmed instead, and a camp meant to play its scene that was ambushed (the ambush's roll is on the world's stream too).
 
 ## Goals and the party
 
@@ -434,7 +441,7 @@ A goal is a flag to set (`flag:<n>`), someone joining (`member`), some members i
 
 ## Flag coverage
 
-`hbht playthrough cover` sets every flag the static pass can set, over a tree of saves, so that a flag no play sets is a finding rather than a guess. It's the run with a goal of many flags (`CoverGoal`), and a queue of jobs on disk that several processes work at once. The code is `Playthrough.Cover.cs`, `Coverage.cs`, `CoverQueue.cs`, `CoverWorker.cs`, `Trunk.cs`, `PartyNeeds.cs` and `PartyJobs.cs`, the CLI's `CoverReport`, and the ledger in the core ([flags](flags.md#the-ledger)). The roadmap's [playthrough bot](../roadmap.md#the-playthrough-bot) table has its stages; this is stage 0, the machinery, stage 1, the trunk the jobs start from, stage 3, the party jobs, and stage 4, what's left uncovered.
+`hbht playthrough cover` sets every flag the static pass can set, over a tree of saves, so that a flag no play sets is a finding rather than a guess. It's the run with a goal of many flags (`CoverGoal`), and a queue of jobs on disk that several processes work at once. The code is `Playthrough.Cover.cs`, `Coverage.cs`, `CoverQueue.cs`, `CoverWorker.cs`, `Trunk.cs`, `PartyNeeds.cs` and `PartyJobs.cs`, the CLI's `CoverReport`, and the ledger in the core ([flags](flags.md#the-ledger)). The roadmap's [playthrough bot](../roadmap.md#the-playthrough-bot) table has its stages; this is stage 0, the machinery, stage 1, the trunk the jobs start from, stage 3, the party jobs, stage 4, what's left uncovered, and stage 5, what the planner didn't model.
 
 ```
 hbht playthrough cover init --root <dir> [--save <save>] [--targets all|<file>] [--job-minutes <n>] [--most-failures <n>]
@@ -449,7 +456,7 @@ hbht playthrough cover status --root <dir> [--all]
 
 **Overnight**, `tools/cover.ps1 -Root <dir> [-Hours 10] [-Threads 20] [-Retries 2]` builds the CLI and starts `work` again whenever its process dies, until no job is left or the hours run out, appending every process's output to `<root>/work.log`. With 16 workers a process once died of an access violation inside `FlagModel.Possible`, which reads only shared arrays and its caller's own, as the runtime dispatched an exception thrown there; the same jobs played again cleanly. Nothing in the core is unsafe, so it's taken for the runtime or the machine, and the script is the answer to it.
 
-**The targets.** By default, every flag, plain or derived, that the relaxation over every action from the start sets and isn't set at the start (`FactLayer` above 0): from a new game on NA 1.0, 2,229 (1,881 plain, 348 derived). A file names others, by number or record ID.
+**The targets.** By default, every flag, plain or derived, that the relaxation over every action from the start sets and isn't set at the start (`FactLayer` above 0), and every flag over what the engine writes, its own or derived from them, that the start hasn't set and the relaxation can make so ([what the planner doesn't model](#what-the-planner-doesnt-model)): from a new game on NA 1.0, 2,354 (1,967 plain, 367 derived of which 11 over the engine's, and 20 the engine's own). Stage 4's were the first kind alone, 2,229 (1,881 plain, 348 derived). A file names others, by number or record ID.
 
 **The tree.** `init` writes the root (`cover.json`) and one pending job, `0`, from a new game or a copy of the save; with `--trunk`, a job for each trunk save given targets ([the trunk](#the-trunk), below). A job is played as a run whose goal is its targets less those any job has seen. Where a step loses targets not yet covered, the job records a **branch**: a job from the save before that step, over the targets it lost, named after its parent (`0.3`, `0.3.1`). A branch avoids the exact way that lost them, and every way its parents avoided (`CoverGoal.Avoid`, the job's `avoid`: `#<action> <description>`, the description checked against the action, since a script's ways that differ only in its conditions describe alike). Taken again from the same save, that way lost them again. No branch is made deeper than 6 (`CoverWorker.MostDepth`): a target lost again eight steps into each branch made a chain thirteen deep, playing on long after the rest of the tree was done; its targets are given up there, for a retry round to start elsewhere. A job the worker's own time cuts short with targets still live is **carried on** from a save of where it stopped (`0+1`). A job's own cap (`--job-minutes`, 120) gives its live targets up instead.
 
@@ -471,7 +478,7 @@ hbht playthrough cover status --root <dir> [--all]
 
 **Each step** of a cover run:
 
-1. **The look.** A relaxation over every action from the real state, with the places' reach the run makes before every step ([places in plans](#the-run)), says which targets are still live. A covered target is one the ledger or another job saw. A derived target whose fact holds in the plan's state without the game setting it, as one over the calendar can, waits; the run doesn't wait for the hour, and they're given up at the end. A target live before the last step and not now is lost (below). Banned actions are in the relaxation: a ban is the bot's.
+1. **The look.** A relaxation over every action from the real state, with the places' reach the run makes before every step ([places in plans](#the-run)), says which targets are still live. A covered target is one the ledger or another job saw. A target over the flags the engine writes, an engine flag itself or a derived one whose fact holds in the plan's state without the game setting it, waits; once nothing else is live, the run waits for those of the clock where the player stands ([what the planner doesn't model](#what-the-planner-doesnt-model)), and gives up the rest. A target live before the last step and not now is lost (below). Banned actions are in the relaxation: a ban is the bot's.
 2. Getting past a story trigger comes first, as in any run.
 3. **The nearest step that sets a target and loses none.** Every action that can be done now, sets a live target for certain and whose code gates the party meets, is sorted by its distance from the player as the crow flies in his map set (another map set's is 10,000 on). In that order the loss check weighs up to 60, until four lose nothing; of those, the shortest world graph route is played.
 4. **Someone joins**, when no step nearby is safe and the party has a slot, if the member plan's first step loses nothing. The member goal doesn't come first, as it does in a story run: from a new game it played the whole Goblin Ambush and filled the party before the chest beside the start. Once the run must go further anyway, a fuller party fares better on the way.
@@ -479,7 +486,7 @@ hbht playthrough cover status --root <dir> [--all]
 6. With nothing safe, the step that loses fewest, of the direct steps and the plans' first steps.
 7. With nothing at all, the targets planned to are struck for that step. Once every live target is struck where the run stands, though the relaxation still sets them, the step just played has **stranded** the run: where it left the player, the world graph has no way on. The run ends, and the live targets go to a branch from the save before that step, which avoids it (`CoverGoal.Avoid`, the job's `avoid`, by the step's description, and every step its parents avoided). A stranded branch stranded again on its first step gives its targets up. With no step played, or no save before it, they're given up where they stand.
 
-**The loss check** (`LossCheck.Lost`): the step's action applied to the plan's state, and the relaxation run again; the live targets it no longer sets, less those the step sets itself, are lost. A place-free relaxation takes about 15 ms from a new game, and a loss check 3 to 4 ms; a look with the places' reach about 10 ms, once the run's rounds of floods (seconds) have made it. Either way it's the relaxation's say, which can't see an order of steps fail, only a fact never come true: from a new game with the dryads' wood entered (218), telling the male dryad "Ardra sent me" (0x03F9 by choice 45, setting 226) loses their fight's flag 3663, and a chest by the start loses nothing. Offending them (choice 10, setting 229) loses nothing it can see, since their scene at G12/5 makes peace once the Gorgon's task is done.
+**The loss check** (`LossCheck.Lost`): the step's action applied to the plan's state, and the relaxation run again; the live targets it no longer sets, less those the step sets itself, are lost. A place-free relaxation takes about 15 ms from a new game, and a loss check 3 to 4 ms; a look with the places' reach about 10 ms, once the run's rounds of floods (seconds) have made it. Either way it's the relaxation's say, which can't see an order of steps fail, only a fact never come true: from a new game with the dryads' wood entered (218), telling the male dryad "Ardra sent me" (0x03F9 by choice 45, setting 226) loses their fight's flag 3663, and a chest by the start loses nothing. Offending them (choice 10, setting 229) loses nothing it can see, since their scene at G12/5 makes peace once the Gorgon's task is done. Opening a trapped container would lose its exploded flag by the relaxation's say, and letting its trap go off its opened and Used flags; the check leaves out the first (`Playthrough.Springs`), so the run opens the container as it did before the trap's flag was a target, and the look after the step sends the exploded flag to a branch from the save before, where the opened flag is covered and letting the trap go off loses nothing.
 
 **The check after.** Each look compares the live targets with those before the step just played, so a step that lost more than predicted, as a story trigger on the way does, is caught as well: the lost targets go to a branch from the save before the step. A loss the place-free relaxation doesn't confirm is noted as **by the places alone**: where the step left the player walls them off. A lost target that comes back is live again (its branch is still played, and skips it if it's been covered). A step with no save before it (the player hadn't the controls) branches nowhere, and its targets say so. Every branch avoids the step that lost its targets (`avoid`), and what its parent avoided: taken again from the same save, it would only lose them again. A branch that loses the same targets on its own first step isn't branched again: whatever its first step is after, it loses them, as walking anywhere from the start plays Edur's scene.
 
@@ -505,7 +512,7 @@ From a new game over the 2,229 targets: the trunk covered 637 itself, and 1,591 
 
 **The jobs** are named by their save's step (`t007`, `t087`), from `trunk/saves/steps/t007.sav`, at depth 0; their branches and carried-on jobs hang off them as off the root job (`t007.1`, `t007+1`). `status` shows each trunk job compactly: where it is, its targets covered of its own, and how many jobs hang off it, starred while any is open. `--trunk <dir>` copies a trunk folder already played, rather than playing it again.
 
-**How it fares.** From a new game over the 2,229 targets, in a Release build: `init --trunk` takes about two and a half minutes (the trunk, 86 steps to the ending, about 145 s with its saves), and `tools/cover.ps1` with 20 workers in one process, two retry rounds and a party round works the tree in about 23 minutes. 2,111 targets are covered, 637 of them by the trunk itself, and 118 are given up: 333 jobs, 203 of them branches, at most 6 deep, and 3,223 steps; no game ends, and no process died. The first pass, 7 minutes, gave 207 up; the first retry round brought that to 130, the second and the party round to 118. The one sweep from a new game before the trunk covered 976 in 15 minutes, with 1,005 still live in jobs not played. What the 118 are is [what's left uncovered](#whats-left-uncovered).
+**How it fares.** From a new game over the 2,229 targets, in a Release build: `init --trunk` takes about two and a half minutes (the trunk, 86 steps to the ending, about 145 s with its saves), and `tools/cover.ps1` with 20 workers in one process, two retry rounds and a party round works the tree in about 23 minutes. 2,111 targets are covered, 637 of them by the trunk itself, and 118 are given up: 333 jobs, 203 of them branches, at most 6 deep, and 3,223 steps; no game ends, and no process died. The first pass, 7 minutes, gave 207 up; the first retry round brought that to 130, the second and the party round to 118. The one sweep from a new game before the trunk covered 976 in 15 minutes, with 1,005 still live in jobs not played. What the 118 are is [what's left uncovered](#whats-left-uncovered). Stage 5's tree, over 2,354 targets, covers 2,230 ([what the planner doesn't model](#what-the-planner-doesnt-model)).
 
 Stage 4's fixes, against the 2,047 covered and 183 given up before them, covered 77 of those 183 and gave up 12 others the runs had covered:
 
@@ -518,7 +525,7 @@ Stage 4's fixes, against the 2,047 covered and 183 given up before them, covered
 
 - The distance is straight within a map set, which an interiors map set's rooms make poor: they're unconnected rooms laid out in one grid, so Oriana's hut's save takes MiscInteriors' targets across the world, and its job walks to them with Alaron alone at level 1. The walk from the save, through the teleporters, would weigh them truly.
 - Weighing a target's distance by the relaxation's layer as well, so that a conversation a step away from one save goes there rather than to a later save where it waits on someone leaving, gains nothing: what keeps the castle's conversations ([what's left](#whats-left-uncovered)) is the party, not the save.
-- Waiting for the hour: derived targets over the calendar wait and are given up.
+- Waiting for the date: a job waits for the time of day, the moon and the rain, but not months for the season, which only the trunk's own game moves on.
 - A loss by the places alone may be the world graph's, not the game's, as the castle's was ([teleporters](#the-world-graph)): look at the cells where the step left the player before taking it as the game's.
 - Branches aren't capped by depth or count, and a branch whose targets are covered elsewhere is still claimed, to finish at once.
 - The ledger puts what a trainer or a shop visit sets down to the step before it.
@@ -595,6 +602,61 @@ Before stage 4's fixes, the Shadow's encounter's flag (950) was one too: its bat
 | Other conversations a branch had no plan to | 5 | 3151, 3193, 3209, the Chaos Mauler (1221), Lugash (1011) |
 
 So of the 2,229 targets the static pass calls reachable, play reaches 2,111, 6 are its overestimates, 5 are 1.0's cut content, and 107 are the bot's. The biggest gap is the party: 47 need a party the trunk and the jobs don't make, smaller, different or kept apart.
+
+### What the planner doesn't model
+
+Stage 5. The 2,229 targets above are only the flags the model's actions set. Every other flag was classified by what can set it, by a script over the plugins and stage 4's tree (`census.cs` in the stage's scratchpad, `C:\Users\aquat\AppData\Local\Temp\claude\4b1e3b4f7846419b\bdc87af7-6f2d-44c1-aadd-59996ef153eb\scratchpad\census\`, run as `dotnet run census.cs -- <stage 4 tree> [<stage 5 tree>]`). The 5,627 flags are 5,556 records and the 71 journal triggers the importer leaves out ([flags](flags.md#the-records)). Of the 3,327 records that weren't targets:
+
+| Class | Flags | Targets now | Stage 4's tree saw set | Stage 5's tree saw set |
+| --- | --- | --- | --- | --- |
+| **(a) Set by nothing** | | | | |
+| Unused | 2,768 | | | |
+| Only read (3717, the random skill checks, among them: no code in 1.0 or the debug build writes it) | 82 | | | |
+| Only cleared (containers' Used flags) | 9 | | | |
+| A key item's held flag that nothing gives (the "Has Map" flags) | 17 | | | |
+| Only scripts nothing starts | 23 | | | |
+| Only map objects gated off on flag 0 (four backdrops at EhudUnder G09 among them) | 8 | | | |
+| **(b) Set only by the original's code** | | | | |
+| A trap going off | 87 | 76 | 40 | 70 |
+| Camping: the eight scenes' flags, their scripts' done flags, the check flag 4240 and the Campsite's 4285 | 18 | 17 | 11 | 16 |
+| The help menu's done flag (3759) | 1 | 1 | 0 | 1 |
+| The clock: the time of day, the moon and the rain, and what's derived from them | 35 | 17 | 26 | 26 |
+| The clock: the date and the season | 15 | 9 | 13 | 13 |
+| The terrain walked on, and the journal's notice (3617) | 5 | 5 | 5 | 5 |
+| The triggers on a spell trained and a potion gained (3611, 3612) | 2 | | 2 | 2 |
+| A member's death, and the death scenes' done flags | 14 | | 10 | 10 |
+| The cheats, and the two containers only a cheat's flag shows | 6 | | | |
+| The party's best stats, which 1.0 never writes, and what's derived from them | 109 | | | |
+| **(c) Set by modelled ways the relaxation can't reach** | | | | |
+| Setters that need a flag nothing sets (64, 52, 1536, 4297, 402, 3677), one never true (5353, 5130), or themselves (4280) | 15 | | | |
+| Derived and never true: over flags nothing sets (the A05 goblins' leaving, 1694–1697; Pandara's reward), or a formula no inputs meet (5353 wants a fourth bit of three) | 19 | | | |
+| The Shadow's encounter (950), whose battle is never won | 1 | | | |
+| **(d) Derived and true at a new game** | 91 | | 5 | 5 |
+| Flags 0 and 1 | 2 | | | |
+
+**(d) comes along for free.** Every derived flag the relaxation can set from a new game is a target already; those that aren't hold at a new game, and the ledger sees one only as it turns on again. Of stage 4's 348 derived targets, its tree saw 320. 14 of the 28 it didn't have every input their formula wants set seen set somewhere in the tree, but not in one game with the inputs it wants clear still clear: they're "bits =" formulas over a party at once (Becan with Abrecan, 5141, 5409, 5410; Becan's and Keelin's campfires, 5156, 5172, 5180, 5162, 5185), Rheda never taken (5245), and the Barrows' dragon flags (5509–5513), each its cut-scene done with its tripwire not yet walked into, which no play makes ([what's left](#whats-left-uncovered)).
+
+**Modelled** (`PlaythroughEngineActionsTests`):
+
+- **Traps going off** (`Spring`): try the trap and let it go off, which destroys the container with what it held and sets its exploded flag (`Container.Disarm` failing, [map objects](map-objects.md#containers)). The host's popup policy takes the trap's menu's first choice, Disarm; a member with no Mechanic always fails. A trap the party disarms every time is a gate not met, and one it disarmed against the plan is played again from the save before. The trap's damage leaves each member at least 1 Endurance (`Containers.TrapDamage`), so it kills no one. 11 trapped containers' flags stay out of reach, where the relaxation never gets to the container.
+- **Camping** (`Camp`): the camp scenes ([camping](camping.md)) are each a script object in a chunk, enabled by a derived flag that's "bits =" over the check flag 4240 and the scene's own conditions; the action needs the conditions, sets 4240, plays the script's way and clears 4240, so the relaxation sees the scene's flag. The pilot walks into the chunk (the object's own gates unasked, `RouteOptions.IgnoreOwnGates`) and camps there from the World tab. An ambush, while two of Abrecan, Godric and Rheda have joined (5004), is a roll played again from the save before. The Campsite's scene, which plays when no scene holds, comes of the bot's own camps when it's hurt ([camping](#the-run)).
+- **The help menu** (`Help`): the System tab's Help by the menu's presses, wherever the player stands in trek, which plays script `0x054B` and sets its done flag ([pause menu](pause-menu.md#the-system-tab)).
+- **Buying a key item** at a shop, which stage 4 left out: Map 7 at Talewok's (3411) is the one target only a purchase sets ([translation](#the-run)).
+- **Waiting for the clock.** Given the game, the targets take in the engine's own flags and the derived flags over them that a new game hasn't set (`CoverGoal.StaticTargets`; the planner takes the engine's flags as either value, so these hold in its state from the start): the time of day, the moon's phase, the rain and snow, the date, the season, the terrain, the journal's notice, and night (5283), the Burial Chamber's door (5022) and the Troll west of Darkling Bog (5255) among the derived. Once nothing else is live, a cover run waits for them where the player stands, an hour at a time (`WaitForTheClock`), as long as the longest of those still waiting can take (`FlagModel.Horizon`): a day for the time of day, four weeks, the moon's cycle, for the moon and the rain. It doesn't wait for the date or the season (the trunk's own game, some 70 days, sees most of them), the terrain or the notice. Trek brings the network up to date every tick nothing fades, so the ledger sees a derived flag as soon as it holds. The pilot waits for an object only the hour opens ([the pilot](#the-pilot)).
+
+**Left out:**
+
+- **Deaths.** A member's died flag, Sholeh's (622) and the death scenes' done flags (630–632) come of a member or the party dying, which the bot undoes as a player reloads ([battles](#battles)); covering them means losing someone on purpose, after which every later target is played with a party short. The story's own deaths (Niesen's) set theirs, and stage 4's tree saw 10.
+- **The cheats** (3673, 3675, 3693, 3694, and the Hockey Stick's and the Lightreaver's containers, 3674 and 3676, which only they show): 1.0 offers them in ordinary play, typed as Alaron's name in Options' Rename, but the port hasn't ported them ([hardcoded content](../hardcoded-content.md#cheats)), and modelling them waits on the roadmap's cheat codes row; once the name entry takes them, an action per cheat would be one more like the help menu's.
+- **The party's best stats** (2325–2369, the derived flags over them, and the three EhudUnder G03 objects they gate): 1.0 never writes them ([flags](flags.md#what-the-engine-writes)).
+- **3611 and 3612**, the first spell trained and the first potion gained: the trainer visits and the loot set them anyway, and stage 4's tree saw both.
+- **3717**, the random skill checks: nothing in 1.0's or the debug build's code writes it (every literal flag passed to `FlagNetwork.Set`, `0x8001fda8`, is another; its one read is `Dialogue.Condition`'s case 0x19, `0x8004f680`), so only a mod or a save edit sets it.
+- **(a) and (c)** are the data's: nothing sets them, or what sets them never holds.
+
+**The run.** A fresh trunk tree from a new game over the 2,354 targets (`tools/cover.ps1 -Threads 20 -Retries 2 -PartyRounds 1`), in about 25 minutes: the trunk, the same 86 steps in 2.2 minutes, covered 672 itself; the first pass gave 221 up, the retry rounds 148, and the party round left 124. **2,230 are covered**, in 399 jobs (267 branches, at most 6 deep); no process died. The tree saw 2,263 flags set in all, 33 of them no target.
+
+- **Stage 4's 2,229: 2,115 covered**, against 2,111. New: the Talewok commoner who's out only at night (985, the pilot's wait), Map 7 bought (3411), three Chaos Isle encounters (1500, 1501, 3756), a chest in Elisheva's Tomb (2129, 2130) and three of Becan's flags with Abrecan (5141, 5156, 5172). Gone: three chests, in Elisheva's Tomb (MiscInteriors K05/49, 2126 and 2127) and a Jundar tomb (2192, 2193, 2198, 2199), whose traps went off on each of the eight tries of every job that tried them, and whose branches stranded at Overworld A22/0; stage 4's tree had a party that disarmed them. The rest of the 118 stage 4 gave up are as [what's left uncovered](#whats-left-uncovered) has them.
+- **The 125 new: 115 covered.** 70 of the 76 traps; 15 of the 17 camping flags, the check flag 4240 among them; the help menu; and 29 of the 31 over the engine's, most of them by the trunk's own game. Left: six traps (the chest in the canyon near Port Saiid, E13/14's 2034, with no plan; four in Shamsuk's Tower, 2286, 3218, 3221 and 3224, behind a way to the tower the planner gives up on; and E05/24's level 4, 2292, which the party there always disarms); Godric and Becan's camp after Shamsuk (468 and 5150), lost walking into Overworld I13/5, the story's order with Becan as at [party jobs](#party-jobs); and the seasons' bits 1 and 2 (2311, 2312), seasons 2 to 5, which the trunk's game, some 70 days from week 6 of the first season, doesn't reach and no job waits months for.
 
 ## Where it stands
 
