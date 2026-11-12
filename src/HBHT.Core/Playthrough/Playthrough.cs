@@ -272,6 +272,8 @@ public sealed partial class Playthrough
                         CoverDone(done, step, state);
                     if (goal is MemberGoal && Goal is CoverGoal)
                         CoverMemberDone(step, state, _joined > joinedBefore);
+                    if (goal is PartyGoal && Goal is CoverGoal)
+                        CoverPartyDone(step, state);
                     failures[goal] = 0;
                     _rest[goal] = steps.Skip(1).ToList();
                     VisitTrainer();
@@ -301,6 +303,11 @@ public sealed partial class Playthrough
                             Rest($"{Options.MostFailures} steps towards it failed in a row");
                             failures[goal] = 0;
                         }
+                        else if (goal is PartyGoal && Goal is CoverGoal)
+                        {
+                            CoverPartyFailed();
+                            failures[goal] = 0;
+                        }
                         else
                         {
                             why = $"{Options.MostFailures} steps in a row failed";
@@ -328,6 +335,7 @@ public sealed partial class Playthrough
     {
         FlagGoal f => Game.Flags.IsSet(f.Flag),
         MemberGoal => _joined > 0,
+        PartyGoal party => party.Members.All(Game.Party.Contains),
         CoverGoal => _coverDone,
         EndingGoal => EndingReached(),
         _ => false,
@@ -345,7 +353,7 @@ public sealed partial class Playthrough
             return ChooseCover(state);
         if (ChoosePass(state) is { } passing)
             return passing;
-        if (Goal is not MemberGoal && !_memberResting && Game.Party.HasEmptySlot())
+        if (Goal is not (MemberGoal or PartyGoal) && !_memberResting && Game.Party.HasEmptySlot())
         {
             var member = new MemberGoal();
             var (steps, plan) = PlanTo(member, state);

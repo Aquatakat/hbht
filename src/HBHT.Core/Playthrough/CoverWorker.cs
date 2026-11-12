@@ -72,6 +72,7 @@ public sealed class CoverWorker(CoverQueue queue, QuestModel model, WorldGraph g
             MostFailures = root.MostFailures,
             CoveredElsewhere = () => Queue.Ledger().Keys.Select(RecordId.Parse).ToHashSet(),
             Avoid = job.Avoid ?? [],
+            Party = [.. (job.Party ?? []).Select(RecordId.Parse)],
         };
         var options = Options with { Saves = Queue.SavesOf(job.Id), MostWall = wall };
         var run = new Playthrough(host, model, graph, goal, options) { Progress = Progress };
@@ -127,7 +128,7 @@ public sealed class CoverWorker(CoverQueue queue, QuestModel model, WorldGraph g
             made.Add(new CoverJob($"{job.Id}.{++n}", job.Id, Queue.Relative(branch.Save), [.. branch.Targets.Select(t => t.ToString())],
                 job.Depth + 1, branch.Step, branch.Action,
                 branch.Ended ? "the game ended in the step" : branch.Stranded ? "stranded after the step" : branch.Predicted ? "the loss check said it would lose them" : "lost after the step",
-                avoid));
+                avoid, job.Party));
         }
         // Stopped by the worker's own time with targets still live: carried on from here.
         var live = cover.Targets.Where(t => t.State == TargetState.Live).ToList();
@@ -137,7 +138,7 @@ public sealed class CoverWorker(CoverQueue queue, QuestModel model, WorldGraph g
             if (run.SaveNow(path))
             {
                 made.Add(new CoverJob(NextCarry(job.Id), job.Id, Queue.Relative(path), [.. live.Select(t => t.Flag.ToString())], job.Depth,
-                    Why: "carried on: the worker's time ran out", Avoid: job.Avoid));
+                    Why: "carried on: the worker's time ran out", Avoid: job.Avoid, Party: job.Party));
                 foreach (var t in live)
                     t.Why = "carried on in another job";
             }
@@ -167,6 +168,8 @@ public sealed class CoverWorker(CoverQueue queue, QuestModel model, WorldGraph g
                 ["routes"] = cover.Routes,
                 ["routeSeconds"] = cover.RouteSeconds,
             },
+            PartyAt = cover.PartyAt,
+            PartyWhy = cover.PartyWhy,
         };
         Queue.Complete(job, result, made);
         Progress?.Invoke($"job {job.Id} done: {cover}; made {made.Count} job(s)");

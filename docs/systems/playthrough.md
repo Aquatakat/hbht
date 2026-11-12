@@ -300,7 +300,7 @@ The planner's own search is a few percent. Loading the model takes about 4 s of 
 `Playthrough` (`Playthrough.cs`, `StepTranslation.cs`, `WorldReach.cs`, `WorldGraph.Flood.cs`, `RunReport.cs`) plays from a host's game to a goal:
 
 ```
-hbht playthrough run --goal flag:<n>|member|ending [--save <save>] [--saves <dir>] [--report <path>] [--most-ticks <n>] [--most-minutes <n>]
+hbht playthrough run --goal flag:<n>|member|party:<entities>|ending [--save <save>] [--saves <dir>] [--report <path>] [--most-ticks <n>] [--most-minutes <n>]
 ```
 
 It prints a line a step and a line a milestone, then the report. It exits 0 if the goal was reached, else 2.
@@ -405,10 +405,11 @@ From the herb, the dryads' scene sends the player to the queen twice, and the st
 
 ## Goals and the party
 
-A goal is a flag to set (`flag:<n>`), someone joining (`member`), or `ending`: the ending's credits rolling. The run's goal is at the bottom of its stack; getting past a story trigger that turned the player back ([above](#story-triggers)) is at the top.
+A goal is a flag to set (`flag:<n>`), someone joining (`member`), some members in the party at once (`party:<entities>`, each a hex number such as `0x0248` or a record ID), or `ending`: the ending's credits rolling. The run's goal is at the bottom of its stack; getting past a story trigger that turned the player back ([above](#story-triggers)) is at the top.
 
 - **A party member.** While a slot is empty of a living member (`Party.HasEmptySlot()`), the member goal comes first, as long as the planner has a step towards it (a partial plan included). A new game has Alaron alone, so its first goal is a member, which leads into the story anyway. When the planner has no step towards a member, or 8 steps towards one fail in a row, the member goal rests until the next milestone wakes it, and the report says so.
 - **Deaths.** A member who dies in battle leaves the party as it ends, as in the original. Their died flag keeps them out of the member goal, and their slot brings the goal back. From Before Rooughah with Sholeh gone, the next step is the companions' scene at I13 (0x0527). A lost battle is played again from its start, which undoes its deaths.
+- **The cap.** The planner's search keeps to four: `PlanState.Apply` adds no one to a full party, and a joining way whose script checks for a slot (`CheckPartySize`, the `PartySizeIn` literal) can't be planned with none. So with the party full, a party goal (`PartyGoal`) is planned through a conversation that asks who leaves: from a new game with Abrecan, Brenna and Rheda in, Godric is one step, the companions' scene at Overworld H13 (0x0529) by a way that sends someone else away. The relaxation keeps no cap ([party jobs](#party-jobs)).
 
 ## The report
 
@@ -430,13 +431,14 @@ A goal is a flag to set (`flag:<n>`), someone joining (`member`), or `ending`: t
 
 ## Flag coverage
 
-`hbht playthrough cover` sets every flag the static pass can set, over a tree of saves, so that a flag no play sets is a finding rather than a guess. It's the run with a goal of many flags (`CoverGoal`), and a queue of jobs on disk that several processes work at once. The code is `Playthrough.Cover.cs`, `Coverage.cs`, `CoverQueue.cs`, `CoverWorker.cs` and `Trunk.cs`, the CLI's `CoverReport`, and the ledger in the core ([flags](flags.md#the-ledger)). The roadmap's [playthrough bot](../roadmap.md#the-playthrough-bot) table has its stages; this is stage 0, the machinery, and stage 1, the trunk the jobs start from.
+`hbht playthrough cover` sets every flag the static pass can set, over a tree of saves, so that a flag no play sets is a finding rather than a guess. It's the run with a goal of many flags (`CoverGoal`), and a queue of jobs on disk that several processes work at once. The code is `Playthrough.Cover.cs`, `Coverage.cs`, `CoverQueue.cs`, `CoverWorker.cs`, `Trunk.cs`, `PartyNeeds.cs` and `PartyJobs.cs`, the CLI's `CoverReport`, and the ledger in the core ([flags](flags.md#the-ledger)). The roadmap's [playthrough bot](../roadmap.md#the-playthrough-bot) table has its stages; this is stage 0, the machinery, stage 1, the trunk the jobs start from, and stage 3, the party jobs.
 
 ```
 hbht playthrough cover init --root <dir> [--save <save>] [--targets all|<file>] [--job-minutes <n>] [--most-failures <n>]
                             [--trunk [<trunk dir>]] [--threads <n>]
 hbht playthrough cover work --root <dir> [--most-minutes <n>] [--most-jobs <n>] [--threads <n>]
 hbht playthrough cover retry --root <dir>
+hbht playthrough cover party --root <dir> [--threads <n>]
 hbht playthrough cover status --root <dir> [--all]
 ```
 
@@ -455,7 +457,7 @@ hbht playthrough cover status --root <dir> [--all]
 | Path | What |
 | --- | --- |
 | `cover.json` | The targets, the root's save, the caps, and the trunk's folder if there is one |
-| `trunk/` | The trunk: `trunk.json` (the manifest), `saves/steps/t<step>.sav`, its milestones' saves, its report, and `assignment.json` (each target's job and its window, each save's step and distance) |
+| `trunk/` | The trunk: `trunk.json` (the manifest), `saves/steps/t<step>.sav`, its milestones' saves, its report, `assignment.json` (each target's job and its window, each save's step and distance), `retries.json` and `party.json` (what each target was tried from) |
 | `jobs/pending`, `jobs/claimed`, `jobs/done` | A file a job; a claimed one is named `<id>@<machine>@<pid>@<process start>.json` |
 | `jobs/locks` | A job's lock while it's claimed |
 | `results/<id>.json` | The flags the job saw first, each target's end and why, the jobs it made, where its seconds went; `trunk.json` is the trunk's |
@@ -512,6 +514,42 @@ From a new game over the 2,230 targets: the trunk covered 637 itself, and 1,592 
 - A loss by the places alone may be the world graph's, not the game's, as the castle's was ([teleporters](#the-world-graph)): look at the cells where the step left the player before taking it as the game's.
 - Branches aren't capped by depth or count, and a branch whose targets are covered elsewhere is still claimed, to finish at once.
 - The ledger puts what a trainer or a shop visit sets down to the step before it.
+
+### Party jobs
+
+The relaxation keeps no cap on the party: anyone joins whenever their joining action can be done. The planner's search keeps to four ([goals and the party](#goals-and-the-party)). So a target that only someone outside a full party leads to looks live in every look, and the job given it has to find the party on the way, or doesn't. Party jobs start such targets with that party.
+
+**Who leaves.** 1.0 has no menu to dismiss a member ([characters](characters.md)): members leave only by scripts. The joining conversations after Gwernia castle ask who leaves when the party is full, with a way per member who could go: the companions' scenes at Overworld I13 and H13 (Abrecan's 0x0527, Godric's 0x0529), Arturo's at the bridge (0x0404), Becan's (0x039F), Keelin's (0x0410), Dougal's (0x04EA), Niesen's (0x0472), and those in Terminor's C05, where members sent away wait ([wanderers](wanderers.md)): Arturo's 0x0383, Baird's 0x045E, Donovan's 0x045F, Keelin's 0x0382 and Rheda's 0x0518. The castle's own (Abrecan's 0x03A0, Brenna's 0x03A3, Godric's 0x03A1, Rheda's 0x039E) and Brenna's at Overworld M06 (0x03AD) check nothing, and add no one to a full party. Niesen's in Terminor (0x045A), Sholeh's (0x04AD, 0x04C4) and Farris's (0x0490) need a slot, which from a full party only a script that takes someone out with no one joining makes: Niesen's at 12/G13/3 (0x048F), Farris's at Overworld I08/5 (0x0496) and Dougal's at 6/K03/26 (0x04EF).
+
+**What needs whom** (`PartyNeeds`). For each member, the relaxation is run again twice: with the member gone for good (out of the party, their joining actions left out), and kept for good (the actions whose last word on them is a leave left out). A target lost the first way and not the second needs them in the party. One lost both ways needs them to leave, and isn't theirs: Arturo's conversation on the bridge (0x0402 at Overworld D14/6) needs his joined flag clear. From a new game, 143 of the 2,230 targets need someone: Abrecan 26, Brenna 21, Becan 20, Godric 20, Rheda 19, Keelin 16, Arturo 14, Niesen 14, Baird 5, Donovan 4, Dougal 3, Farris 3 and Sholeh 1, some more than one. A trunk tree covers 124 of them without party jobs, since the story's own joins and the planner's who-leaves ways bring most members in; 19 are among the 183 it gives up.
+
+**Making the jobs** (`cover party`), once no job is pending in a trunk tree:
+
+1. Every trunk save is looked at as `init --trunk` looks at them (`Trunk.Look` with the party targets), with, for each target no job saw set, the members it needs from there (`TrunkLook.Needs`) and how far each member's nearest joining action is (`Joins`, 0 for one in the party).
+2. A target that needs only members the trunk itself brings in after that save (`PartyJobs.Brought`) has no start there: that's the story's own order. From before Rheda joins, most of what's uncovered needs her, as the story does, and a job's planner brings her in as the trunk did. Needing anyone else, the party is all it needs, three at most: Abrecan and Becan together for 416 at Overworld O17/1 (0x0474), though the trunk brings Abrecan in at the castle.
+3. A target's starts (`PartyJobs.Starts`) are those saves, weighed by its distance and its members' to join, best first by the trunk's rule: the nearest, and of those within its slack the latest.
+4. Each target takes the first of its best four whose party the planner reaches from the save, with the world graph's places as they stand there and the job's budget, by a way after which the relaxation still sets the target (`PartyJobs.PlanParty`). Each start is planned once, side by side.
+5. Each start with targets is a job at depth 0, `p<round>-t<step>-<members>` (`p1-t003-0242`), with its party (`CoverJob.Party`). `trunk/party.json` keeps each target's starts tried, so a later round tries others.
+
+**In the job** (`CoverGoal.Party`). Once no step nearby sets a target, the party comes next, before anyone else joins or a target is planned to (`PartyGoal`). A plan whose first step the loss check says loses targets is planned again without it, up to three plans, and the one that loses fewest is taken. With no plan, three steps towards it failing in a row, or two meant to bring a member in that brought none, the job stops trying and sweeps with the party it has. It never takes a step that leaves one of the party out (`PartyJobs.Leaving`), since none of its targets needs them to leave. Branches and carried-on jobs keep the party. `status` lists the party jobs, each with the step its party was whole after, or why it wasn't. `tools/cover.ps1` runs `-PartyRounds` rounds (1) after the retry rounds.
+
+**How it fares.** Over the trunk tree above, after its two retry rounds (2,047 covered, 183 given up), a party round takes about 40 s: the looks at the 87 trunk saves about 12 s, and the party plans from 14 starts the rest. 12 of the 183 need someone the trunk doesn't bring in, from a save they're live from; 9 get a start whose party the planner reaches keeping them, in 6 jobs, and 3 (Keelin's 558, and Niesen's with Becan) none. The jobs and their branches, 13 in all, take about 3 minutes with 20 workers. The party is made in 2 of the 6, and none of the 9 targets is covered: 2,047 covered and 183 given up, as before.
+
+The cap isn't what keeps these targets: the planner's search already plans who leaves, and what the party jobs meet is what the other jobs met.
+
+- Becan's targets (528, 553, 5156, 5172, 5180) are lost walking into the story's tripwires at Overworld I13/0 and P17/3 on the way, or to the dryads' fight ([the trunk](#the-trunk)), with Becan in the party or not.
+- 416 and 5141 need Abrecan and Becan together. From the castle the plan to them is four steps, but Erromon's 0x03C3 on the way brings Brenna in as well, which fills the party, and the plan from there gives up.
+- Godric's 73 and 5431 are lost to Erromon's story. 73 is set by his conversation in the castle (0x03A1 at Gwernia castle O07/4), which sets it even with the party full, so it needs the conversation in time, not Godric: Erromon's story (0x03C3, 0x03CA) closes it, and the plan to Godric goes through Erromon.
+- 5410 strands the run after Becan's scene, and 199 after 0x03E4 at Overworld H10/3.
+
+Of the 19 uncovered targets that need someone from a new game, the other 7 need only members the trunk brings in (Brenna's 600 and 1515, Niesen's 422, 423 and 5134, Farris's 565, Abrecan's 5409), and were given up for the story's order, a branch's first step, or a plan the search gave up on.
+
+**Left:**
+
+- What needs whom is the relaxation's say, which can't see an order: a joining conversation that also sets flags counts its flags as needing the member (73).
+- A party plan is long when the story must move first (Becan and Niesen from before the castle's companions join, 37 steps), and the story's triggers on the way change the party it planned with.
+- A target that needs someone to leave (Arturo's bridge conversation) gets no party job: a party goal is only of members in.
+- Niesen's join in Terminor, Sholeh's and Farris's need a slot, which only a death or the story's own leaving makes.
 
 ## Where it stands
 

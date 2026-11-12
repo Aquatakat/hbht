@@ -36,6 +36,13 @@ internal static partial class CoverReport
                                                a job from another trunk save in its window (the latest untried in odd
                                                rounds, the nearest in even ones), r<round>-t<step>; exits 0 if it made
                                                any, 4 if nothing is left to retry
+          hbht playthrough cover party --root <dir> [--threads <n>]
+                                               once no job is pending in a trunk tree, gives each target no job saw
+                                               set that needs someone in the party from a trunk save a party job:
+                                               from the save best for it whose party the planner reaches, it gets
+                                               that party first and keeps it, then sweeps its targets,
+                                               p<round>-t<step>-<members>; looked at and planned on <n> threads
+                                               (20); exits 0 if it made any, 4 if none
           hbht playthrough cover status --root <dir> [--all]
                                                the targets covered, live and given up, the jobs by status, the branches,
                                                and the uncovered targets with their last reason (--all lists every one)
@@ -47,6 +54,7 @@ internal static partial class CoverReport
         ["work", .. var rest] => Work(plugins, rest),
         ["status", .. var rest] => Status(plugins, rest),
         ["retry", .. var rest] => Retry(rest),
+        ["party", .. var rest] => Party(plugins, rest),
         _ => throw new ArgumentException(Usage),
     };
 
@@ -257,6 +265,124 @@ internal static partial class CoverReport
         return 0;
     }
 
+    /// <summary>The starts each target has been tried from in party rounds (<see cref="PartyStart.Key"/>), and the rounds made: <c>trunk/party.json</c>.</summary>
+    private sealed record PartyFile(int Rounds, Dictionary<string, List<string>> Tried);
+
+    /// <summary>How many of its starts, best first, a target's party is planned from before it's given no party job.</summary>
+    private const int MostPartyStarts = 4;
+
+    /// <summary>
+    /// A party round (<see cref="PartyJobs"/>): once no job is pending, the targets no job saw set are looked at from every trunk save
+    /// with the members they need; each that needs someone from a save gets the best start whose party the planner reaches from it (the
+    /// world graph's places from where the save stands, the job's own budget), and each start with targets is a job.
+    /// </summary>
+    private static int Party(PluginSet plugins, string[] args)
+    {
+        var options = Options(args);
+        var queue = new CoverQueue(options["--root"]);
+        if (!queue.Exists || queue.ReadRoot().Trunk is not { } trunk)
+            throw new ArgumentException($"{queue.Root} holds no trunk tree: start one with cover init --trunk.");
+        if (queue.All().Any(j => j.Status is JobStatus.Pending or JobStatus.Claimed))
+            throw new ArgumentException("Jobs are still pending or claimed: work them first.");
+        var threads = (int)Number(options, "--threads", 20);
+        var clock = Stopwatch.StartNew();
+        var folder = Path.Combine(queue.Root, trunk);
+        var manifest = Trunk.Read(folder);
+        var ledger = queue.Ledger();
+        var open = queue.ReadRoot().Targets.Where(t => !ledger.ContainsKey(t)).Select(RecordId.Parse).ToList();
+        if (open.Count == 0)
+        {
+            Console.WriteLine("Nothing left: every target has been seen set.");
+            return 4;
+        }
+        var json = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
+        var path = Path.Combine(folder, "party.json");
+        var file = File.Exists(path) ? System.Text.Json.JsonSerializer.Deserialize<PartyFile>(File.ReadAllText(path))! : new PartyFile(0, []);
+        var round = file.Rounds + 1;
+
+        var model = QuestModel.Build(plugins);
+        var graph = new WorldGraph(plugins);
+        GameState Load(int step) => GameState.Load(plugins, SaveFile.Read(Path.Combine(folder, manifest.Saves.First(s => s.Step == step).Save), plugins));
+        var looks = Trunk.Look(model, graph, [.. manifest.Saves.Select(s => (s.Step, (Func<GameState>)(() => Load(s.Step))))], open, threads, party: open);
+        Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"Looked at {looks.Count} trunk saves for {open.Count} uncovered targets in {clock.Elapsed.TotalSeconds:0.0} s"));
+
+        var brought = PartyJobs.Brought(manifest);
+        var starts = open.ToDictionary(t => t, t => PartyJobs.Starts(t, looks,
+            file.Tried.TryGetValue(t.ToString(), out var tried) ? tried.ToHashSet() : null, brought).Take(MostPartyStarts).ToList());
+        var needing = starts.Where(s => s.Value.Count > 0).Select(s => s.Key).ToList();
+        Console.WriteLine($"{needing.Count} of them need someone the trunk doesn't bring in from a trunk save they're live from, " +
+            "and haven't been tried from it");
+        foreach (var group in needing.GroupBy(t => string.Join(", ", starts[t][0].Members.Select(m => m.Key))).OrderByDescending(g => g.Count()))
+            Console.WriteLine($"  {group.Count(),4} best started with {group.Key}");
+
+        // Each target takes its first start whose party the planner reaches by a way that keeps the target; each start is planned once,
+        // side by side.
+        var verdicts = new System.Collections.Concurrent.ConcurrentDictionary<PartyStart, (Plan Plan, IReadOnlySet<RecordId> Keeps)>();
+        bool Takes(RecordId target, PartyStart start) => verdicts.TryGetValue(start, out var v) && v.Plan.Found && v.Keeps.Contains(target);
+        var at = needing.ToDictionary(t => t, _ => 0);
+        var chosen = new Dictionary<RecordId, PartyStart>();
+        while (true)
+        {
+            var asked = new HashSet<PartyStart>();
+            foreach (var target in needing.Where(t => !chosen.ContainsKey(t)))
+            {
+                while (at[target] < starts[target].Count && verdicts.ContainsKey(starts[target][at[target]]) && !Takes(target, starts[target][at[target]]))
+                    at[target]++;
+                if (at[target] >= starts[target].Count)
+                    continue;
+                var start = starts[target][at[target]];
+                if (verdicts.ContainsKey(start))
+                    chosen[target] = start;
+                else
+                    asked.Add(start);
+            }
+            if (asked.Count == 0)
+                break;
+            var list = asked.ToList();
+            var next = -1;
+            void Work()
+            {
+                int i;
+                while ((i = Interlocked.Increment(ref next)) < list.Count)
+                {
+                    var start = list[i];
+                    var timer = Stopwatch.StartNew();
+                    var (plan, keeps) = verdicts[start] = PartyJobs.PlanParty(model, graph, Load(start.Step), start.Members, needing);
+                    var lost = needing.Count(t => starts[t].Contains(start) && !keeps.Contains(t));
+                    Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+                        $"  t{start.Step:000} with {string.Join(", ", start.Members.Select(m => m.Key))}: " +
+                        $"{(plan.Found ? $"{plan.Steps.Count} steps{(lost > 0 ? $", losing {lost} of the targets it's a start for" : "")}" : $"no plan ({plan.Why?.Split(Environment.NewLine)[0]})")}, " +
+                        $"{timer.Elapsed.TotalSeconds:0.0} s"));
+                }
+            }
+            var workers = Enumerable.Range(0, Math.Max(1, Math.Min(threads, list.Count))).Select(_ => new Thread(Work, 64 * 1024 * 1024)).ToList();
+            workers.ForEach(t => t.Start());
+            workers.ForEach(t => t.Join());
+        }
+        foreach (var target in needing)
+        {
+            if (!file.Tried.TryGetValue(target.ToString(), out var tried))
+                file.Tried[target.ToString()] = tried = [];
+            // The starts planned and found wanting are tried too: they'd be found wanting again.
+            tried.AddRange(starts[target].Take(at[target] + (chosen.ContainsKey(target) ? 1 : 0)).Select(s => s.Key).Where(k => !tried.Contains(k)));
+        }
+        File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(file with { Rounds = round }, json));
+        if (chosen.Count == 0)
+        {
+            Console.WriteLine($"No party job: no start's party the planner reaches keeping them, for the {needing.Count} target(s) ({clock.Elapsed.TotalSeconds:0} s)");
+            return 4;
+        }
+        var jobs = PartyJobs.Jobs(manifest, chosen, trunk, round);
+        foreach (var job in jobs)
+            queue.Add(job);
+        Console.WriteLine($"Party {round}: {chosen.Count} target(s) in {jobs.Count} job(s); {needing.Count - chosen.Count} with no start whose party the planner reaches keeping them; " +
+            $"in {clock.Elapsed.TotalSeconds:0} s");
+        foreach (var job in jobs)
+            Console.WriteLine($"  {job.Id}: {job.Targets.Count} target(s)");
+        return 0;
+    }
+
     /// <summary>A folder's files copied into another, keeping their places under it.</summary>
     private static void CopyFolder(string from, string to)
     {
@@ -416,6 +542,7 @@ internal static partial class CoverReport
             Console.WriteLine($"Trunk: {trunk.Outcome}, {trunk.Steps} steps in {trunk.WallSeconds / 60:0.0} minutes; " +
                 $"{trunk.Targets.Count} targets covered by it, {trunk.Seen.Count} flags seen in all");
         TrunkJobs(jobs, ledger);
+        PartyJobLines(jobs, results, ledger);
         results = [.. results.Where(r => r.Job != "trunk")];
         var steps = results.Sum(r => r.Steps);
         var seconds = results.Sum(r => r.WallSeconds);
@@ -468,6 +595,27 @@ internal static partial class CoverReport
         var width = cells.Max(c => c.Length) + 3;
         for (var i = 0; i < cells.Count; i += 4)
             Console.WriteLine("  " + string.Concat(cells.Skip(i).Take(4).Select(c => c.PadRight(width))).TrimEnd());
+    }
+
+    /// <summary>
+    /// The party jobs, a line each: the members, whether the party was made (after which step) or why not, and their targets covered by
+    /// anyone of their own, with the jobs under them.
+    /// </summary>
+    private static void PartyJobLines(List<(CoverJob Job, JobStatus Status, CoverQueue.Claimant? Claim)> jobs, List<CoverResult> results,
+        Dictionary<string, (string Job, CoverSeenEntry Seen)> ledger)
+    {
+        var party = jobs.Where(j => j.Job.Party is { Count: > 0 } && j.Job.Parent is null).OrderBy(j => j.Job.Id, StringComparer.Ordinal).ToList();
+        if (party.Count == 0)
+            return;
+        var byJob = results.ToDictionary(r => r.Job);
+        Console.WriteLine($"Party jobs: {party.Count} (covered/targets; the party made after step n, or why not; +n jobs under it)");
+        foreach (var (job, status, _) in party)
+        {
+            var under = jobs.Count(j => j.Job.Id.Length > job.Id.Length && j.Job.Id.StartsWith(job.Id, StringComparison.Ordinal) && j.Job.Id[job.Id.Length] is '.' or '+');
+            var made = !byJob.TryGetValue(job.Id, out var result) ? status.ToString().ToLowerInvariant()
+                : result.PartyAt is { } at ? $"made after step {at}" : $"not made: {result.PartyWhy ?? result.Outcome}";
+            Console.WriteLine($"  {job.Id} {job.Targets.Count(ledger.ContainsKey)}/{job.Targets.Count}{(under > 0 ? $" +{under}" : "")}: {made}");
+        }
     }
 
     /// <summary>A reason with its particulars taken out, to count by: up to its first colon, its numbers and map objects as n.</summary>

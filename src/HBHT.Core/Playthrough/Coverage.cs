@@ -105,6 +105,12 @@ public sealed class Coverage
 
     public double RouteSeconds { get; internal set; }
 
+    /// <summary>For a goal with a <see cref="CoverGoal.Party"/>, the step the party was whole after (0 as the run began); null while it isn't.</summary>
+    public int? PartyAt { get; internal set; }
+
+    /// <summary>Why the run stopped trying to make its party, if it did.</summary>
+    public string? PartyWhy { get; internal set; }
+
     public int Count(TargetState state) => Targets.Count(t => t.State == state);
 
     public override string ToString() =>
