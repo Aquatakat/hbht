@@ -75,6 +75,20 @@ public sealed class PlaythroughCoverTests(Na10Import fixture, ITestOutputHelper 
         model.Actions.Single(a => a.Place == place && which(a));
 
     [Fact]
+    public void ABranchAvoidsTheWayThatLostItsTargetsNotEveryWayThatDescribesAlike()
+    {
+        var (model, _) = Built;
+        // Ways through a script that differ only in its conditions describe alike, as many scripts' do.
+        var alike = model.Actions.GroupBy(a => a.Describe()).First(g => g.Count() > 1).ToList();
+        var lost = alike[0];
+
+        Assert.Equal([lost.Index], CoverGoal.Avoided(model, new CoverBranch(1, lost.Describe(), null, [], false) { ActionIndex = lost.Index }.Avoid));
+        // An entry with no index, or one whose action no longer describes so, bans every way described alike.
+        Assert.Equal(alike.Select(a => a.Index), CoverGoal.Avoided(model, lost.Describe()));
+        Assert.Equal(alike.Select(a => a.Index), CoverGoal.Avoided(model, $"#{model.Actions.Count + 5} {lost.Describe()}"));
+    }
+
+    [Fact]
     public void TheLossCheckSaysTellingTheMaleDryadArdraSentYouLosesTheirFightAndAChestLosesNothing()
     {
         var (model, _) = Built;

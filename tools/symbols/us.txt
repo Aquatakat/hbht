@@ -146,6 +146,7 @@ Explosion.SpawnFlame = 0x80017138; // Explosion.cs: a fire's spawn callback, a f
 Explosion.MakeFire = 0x8001732c; // Explosion.cs: (place, life, texture slot, interval, flame life, growth, colour, fade, warmth, spread): a code emitter of flames, its lift, growth and fade
 Explosion.Fire = 0x800174f8; // Explosion.cs; docs/systems/map-objects.md: a fire of flames for its life, thrown with emitter flag 0x2000, and a light drifting red to yellow
 Particles.Shift = 0x80017918; // coined; docs/systems/weather.md: moves every particle by a vector, and the weather's drops' landing points, as walking into another chunk moves the world's origin
+MapObjects.WriteUsedQuietly = 0x80017acc; // coined; docs/systems/flags.md, docs/systems/playthrough.md: (flag, header): writes the Used flag, set unless header bit 0x200, with no read of flag 5626 after it; a tripwire's setFlag calls it before MapObjects.WriteUsed, so one whose Used flag is its own flag with Clear sets and clears it in one trip
 LoadedMap.Activate = 0x80017af8; // LoadedMap.cs: a chunk's objects as it loads, scene objects looked up in the chart
 Party.MirrorKeptSheets = 0x80017d9c; // coined; copies the four party slots into the kept sheets 0-3 (Party.Remove calls it)
 Party.EraseKeptSheet = 0x80017ec8; // coined; (slot)

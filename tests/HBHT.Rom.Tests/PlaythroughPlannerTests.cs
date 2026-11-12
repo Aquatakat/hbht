@@ -33,6 +33,18 @@ public sealed class PlaythroughPlannerTests(Na10Import fixture)
         }
     }
 
+    [Fact]
+    public void TheHistoryBookIsReadOnceAChapterNotRoundAndRound()
+    {
+        // 0x036F, Gwernia castle's history book (4/O09/6), goes back to its contents after each chapter, and a backdrop's chapters stay
+        // takeable: a way read chapter 19 again and again while each pass wrote 23 again.
+        var ways = Model.Ways[Ids.Script(0x036F)].Ways;
+        Assert.True(ways.Count <= 6, $"{ways.Count} ways");
+        Assert.All(ways, w => Assert.Equal(w.Choices.Distinct().Count(), w.Choices.Count));
+        Assert.Contains(ways, w => w.Choices.SequenceEqual([19, 24]) && w.Effects.Contains(new SetFlag(Ids.Flag(23), true)));
+        Assert.DoesNotContain(Model.Actions, a => a.Choices.Distinct().Count() != a.Choices.Count);
+    }
+
     private PlanState NewGame() => PlanState.From(Model, GameState.NewGame(Plugins));
 
     private static RecordId Flag(int n) => RecordId.Decimal(RecordTypes.Flag, n);

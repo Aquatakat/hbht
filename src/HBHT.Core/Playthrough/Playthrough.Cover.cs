@@ -21,10 +21,10 @@ public sealed partial class Playthrough
     private int _refreshedAt;
 
     /// <summary>The live targets before the step being played, and whether the loss check said it would lose some.</summary>
-    private (int Step, string Action, HashSet<int> Live, bool Predicted)? _pending;
+    private (int Step, string Action, int Index, HashSet<int> Live, bool Predicted)? _pending;
 
     /// <summary>The step the cover goal last chose, and its number: what stranded the run if nothing has a plan after it.</summary>
-    private (int Step, string Action)? _lastChosen;
+    private (int Step, string Action, int Index)? _lastChosen;
 
     /// <summary>What the cover goal came to: null unless the run's goal is one.</summary>
     public Coverage? Coverage => _cover;
@@ -60,11 +60,8 @@ public sealed partial class Playthrough
             _cover.Seen.Add(new CoverSeen(target.Flag, 0, Host.Clock.Ticks, null));
         }
         _elsewhere = goal.CoveredElsewhere?.Invoke() ?? new HashSet<RecordId>();
-        if (goal.Avoid.Count > 0)
-        {
-            var avoid = goal.Avoid.ToHashSet();
-            _bannedForGood.UnionWith(Model.Actions.Where(a => avoid.Contains(a.Describe())).Select(a => a.Index));
-        }
+        foreach (var avoid in goal.Avoid)
+            _bannedForGood.UnionWith(CoverGoal.Avoided(Model, avoid));
     }
 
     /// <summary>The flags first seen since the last look, put down to the step just played (or, before the first, to none).</summary>
@@ -153,9 +150,9 @@ public sealed partial class Playthrough
         }
         if (lost.Count > 0)
         {
-            var (step, action, _, predicted) = _pending!.Value;
+            var (step, action, index, _, predicted) = _pending!.Value;
             var save = SaveBefore();
-            _cover.Branches.Add(new CoverBranch(step, action, save, [.. lost.Select(t => t.Flag)], predicted));
+            _cover.Branches.Add(new CoverBranch(step, action, save, [.. lost.Select(t => t.Flag)], predicted) { ActionIndex = index });
             // Lost by the places alone: the relaxation with every place reached still sets them, so where the step left the player walls
             // them off (a way down with none back up, or the world graph's reach from there).
             var stranded = StrandedOf(state, lost);
@@ -207,6 +204,21 @@ public sealed partial class Playthrough
                 waiting.State = TargetState.GivenUp;
                 waiting.Why = "holds in the planner's state, over flags the engine writes, but the game never set it; the run doesn't wait for them";
             }
+            return (Goal, [], null);
+        }
+        // Nothing done for the targets in many steps: whatever the run is doing, it's going round.
+        var moved = _cover!.Targets.Count(t => t.State is not TargetState.Live and not TargetState.Waits);
+        if (moved != _movedCount)
+            (_movedCount, _movedAt) = (moved, _step);
+        else if (_step - _movedAt >= MostIdleSteps)
+        {
+            foreach (var h in live)
+            {
+                _targets[h].State = TargetState.GivenUp;
+                _targets[h].Why = $"no target covered, lost or given up in the {MostIdleSteps} steps up to step {_step}: the run was going round";
+            }
+            Progress?.Invoke($"     {MostIdleSteps} steps with nothing done for the targets: the {live.Count} live are given up");
+            _coverDone = true;
             return (Goal, [], null);
         }
         var banned = Banned(state);
@@ -326,7 +338,8 @@ public sealed partial class Playthrough
             var targets = live.Select(h => _targets[h]).ToList();
             if (save is not null)
             {
-                _cover!.Branches.Add(new CoverBranch(_step, _lastChosen!.Value.Action, save, [.. targets.Select(t => t.Flag)], false, Stranded: true));
+                _cover!.Branches.Add(new CoverBranch(_step, _lastChosen!.Value.Action, save, [.. targets.Select(t => t.Flag)], false, Stranded: true)
+                    { ActionIndex = _lastChosen.Value.Index });
                 Progress?.Invoke($"     stranded after step {_step} ({_lastChosen.Value.Action}): no plan to any of {targets.Count} live target(s); " +
                     "a branch from the save before it avoids it");
             }
@@ -346,8 +359,8 @@ public sealed partial class Playthrough
 
     private (Goal Goal, List<PlayerAction> Steps, Plan? Plan) Pending(Goal goal, List<PlayerAction> steps, Plan? plan, HashSet<int> live, bool predicted)
     {
-        _pending = (_step + 1, steps[0].Describe(), live, predicted);
-        _lastChosen = (_step + 1, steps[0].Describe());
+        _pending = (_step + 1, steps[0].Describe(), steps[0].Index, live, predicted);
+        _lastChosen = (_step + 1, steps[0].Describe(), steps[0].Index);
         return (goal, steps, plan);
     }
 
@@ -487,6 +500,43 @@ public sealed partial class Playthrough
     }
 
     /// <summary>
+    /// A step towards someone joining played out. One that brought no one in failed all the same: it's banned where it was played, and
+    /// after <see cref="MostMemberMisses"/> such running the member goal rests until the next milestone. The companions' scenes at
+    /// Overworld H13 and I13 (0x0529 by choice 94, 0x0527 by 110) each played out with no one joining, and a cover run went from one to
+    /// the other 3,543 times.
+    /// </summary>
+    private void CoverMemberDone(RunStep step, PlanState state, bool joined)
+    {
+        if (joined)
+        {
+            _memberMisses = 0;
+            return;
+        }
+        Ban(step.Action, state);
+        if (++_memberMisses >= MostMemberMisses)
+        {
+            _memberMisses = 0;
+            Rest($"{MostMemberMisses} steps towards it played out with no one joining");
+        }
+    }
+
+    private int _memberMisses;
+
+    /// <summary>Steps towards someone joining that may play out with no one joining before the member goal rests.</summary>
+    private const int MostMemberMisses = 2;
+
+    /// <summary>
+    /// Steps a cover run may play with no target covered, lost or given up before it gives the rest up: a guard against any loop that
+    /// plays out step after step and does nothing for the targets.
+    /// </summary>
+    private const int MostIdleSteps = 60;
+
+    /// <summary>The last step at which a target was covered, lost or given up.</summary>
+    private int _movedAt;
+
+    private int _movedCount = -1;
+
+    /// <summary>
     /// As the run stops: what the last step saw and lost, looked at once more where the player has the controls in trek. The targets
     /// still live stay so, for whoever runs the job to carry on or give up.
     /// </summary>
@@ -503,7 +553,8 @@ public sealed partial class Playthrough
             var save = _lastChosen is { } last && last.Step == _step && _step > 0 && live.Count > 0 ? SaveBefore() : null;
             if (save is null)
                 return;
-            _cover.Branches.Add(new CoverBranch(_step, _lastChosen!.Value.Action, save, [.. live.Select(t => t.Flag)], false, Stranded: true, Ended: true));
+            _cover.Branches.Add(new CoverBranch(_step, _lastChosen!.Value.Action, save, [.. live.Select(t => t.Flag)], false, Stranded: true, Ended: true)
+                { ActionIndex = _lastChosen.Value.Index });
             foreach (var target in live)
             {
                 target.State = TargetState.Lost;

@@ -228,11 +228,12 @@ public sealed class Pilot : IInputPolicy
             ScriptObject so => trek.Cued?.Script.Id == so.Plays || trek.Conversation?.Runner.Script.Id == so.Plays
                 || session.Scene?.Runner.Script.Id == so.Plays,
             TeleporterObject => trek.Teleporting && inRange,
-            // A tripwire that writes a flag has gone off once it's written: it goes off only where the chunk's grid lists it under the
-            // player, so standing at the edge of its radius may not set it off, and he goes on to its middle (Barrows B01/0).
-            TripwireObject { Used: { } used } => host.Game.Flags.IsSet(used.Flag) != used.Clear,
-            // Else every tick he's within it, in its chunk.
-            TripwireObject => inRange && trek.Chunks.MapAt(sphere)?.Record.Id == walk.Chunk!.Id,
+            // A tripwire goes off where trek's touch takes it (MapObjectUse.Touches): the grid cell under the player lists it, so standing
+            // at the edge of its radius may not set it off, and he goes on to its middle (Barrows B01/0). Its flag says nothing: 77
+            // tripwires clear their own flag as they set it, as 1.0's do (the castle's 4/E03/0 and 4/G07/1 flash 33 and 35), and a done
+            // rule on the flag called them used before he'd moved. Touch runs before he moves, so he trips it as he stands to settle.
+            TripwireObject => trek.Chunks.MapAt(sphere) is { } map && map.Record.Id == walk.Chunk!.Id
+                && trek.Use.Touches(map, sphere - map.Origin, walk.Object),
             _ => false,
         };
         // Anything that took the controls while he stood in it.

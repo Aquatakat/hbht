@@ -261,6 +261,7 @@ public sealed partial class Playthrough
                     Entry(EntryKind.Unreachable, null, Goal.Describe(), why, fromStep: false);
                     break;
                 }
+                var joinedBefore = _joined;
                 var step = Play(steps[0], goal, state, reach);
                 // Turned back by a story trigger: getting past it comes first.
                 if (step.Outcome is { Failure: StepFailure.Blocked, Blocker: { } blocker } && !_hopeless.Contains(blocker))
@@ -269,6 +270,8 @@ public sealed partial class Playthrough
                 {
                     if (goal is FlagGoal done && Goal is CoverGoal)
                         CoverDone(done, step, state);
+                    if (goal is MemberGoal && Goal is CoverGoal)
+                        CoverMemberDone(step, state, _joined > joinedBefore);
                     failures[goal] = 0;
                     _rest[goal] = steps.Skip(1).ToList();
                     VisitTrainer();

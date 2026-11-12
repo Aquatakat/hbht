@@ -69,4 +69,15 @@ public sealed class TrunkAssignmentTests
             Assert.Contains(saves, s => s.Step == step && s.Live.ContainsKey(target));
         Assert.Equal([2, 4], assignment.ByStep().Keys);
     }
+
+    [Fact]
+    public void AGivenUpTargetIsTriedAgainFromTheLatestUntriedSaveThenTheNearest()
+    {
+        (int, float)[] window = [(3, 40), (10, 5), (20, 300), (30, 5)];
+        Assert.Equal(30, Trunk.Retry(window, new HashSet<int> { 10 }, round: 1));
+        // The nearest untried, the latest of equals.
+        Assert.Equal(3, Trunk.Retry(window, new HashSet<int> { 10, 30 }, round: 2));
+        Assert.Equal(30, Trunk.Retry(window, new HashSet<int> { 10 }, round: 2));
+        Assert.Null(Trunk.Retry(window, new HashSet<int> { 3, 10, 20, 30 }, round: 3));
+    }
 }

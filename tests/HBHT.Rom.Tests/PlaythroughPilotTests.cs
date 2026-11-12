@@ -148,6 +148,26 @@ public sealed class PlaythroughPilotTests(Na10Import fixture, ITestOutputHelper 
     // Yeraza in the Overworld's C08 (script 1476), whose conversation comes to a page of three choices at node 7.
     private static readonly RecordId Yeraza = Ids.MapObject(0, "C08", 31);
 
+    [Fact]
+    public void ThePilotWalksIntoATripwireThatClearsItsOwnFlagAndTheLedgerSeesIt()
+    {
+        // Gwernia castle's 4/E03/0 sets 33 and clears it again as it goes off, as 1.0's does: 33 is clear before and after. The pilot
+        // goes by trek's touch, not the flag, so it walks into the room from the next chunk.
+        var tripwire = Ids.MapObject(4, "E03", 0);
+        var set = Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, 4));
+        var host = PlaythroughHost.From(GameState.NewGame(Data.Set), start: new GameStart(set, "E05", new Vector3(6.9f, 1, 13.2f), new Vector2(0, -1), SetDown: true),
+            opening: false);
+        var flag = Ids.Flag(33);
+        host.Ledger = new HBHT.Core.Flags.FlagLedger(host.Game.Flags.Count);
+
+        var outcome = Run(host, new PilotStep(tripwire), 20_000);
+
+        Assert.True(outcome.Done, outcome.ToString());
+        Assert.True(outcome.Ticks > new PilotOptions().SettleTicks);
+        Assert.True(host.Ledger.Seen(host.Game.Flags.Handle(flag)));
+        Assert.False(host.Game.Flags.Get(flag));
+    }
+
     /// <summary>A new game's state, with the player set down a little way from Yeraza, facing her.</summary>
     private PlaythroughHost NearYeraza()
     {

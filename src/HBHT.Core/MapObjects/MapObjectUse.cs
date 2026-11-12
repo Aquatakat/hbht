@@ -297,7 +297,7 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
         var listed = map.Record.Grid is { } grid ? grid.At(at).Select(i => map[i]).OfType<MapObject>() : map.Objects;
         foreach (var o in listed)
         {
-            if (!o.Tangible || !map.IsActive(o.Index) || Vector3.Distance(o.Position, at) > o.Radius || !Holds(o.Enabled))
+            if (!Reaches(map, at, o))
                 continue;
             if (Popup is not null && o is not TripwireObject)
                 continue;
@@ -315,6 +315,17 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
             }
         }
     }
+
+    /// <summary>
+    /// Whether standing at <paramref name="at"/> (in the map's own space) touches a tangible object, as <see cref="Touch"/> weighs it: the
+    /// grid cell there lists it (every object, in a map without a grid), it's active, he's within its radius, and its
+    /// <see cref="MapObject.Enabled"/> holds. The playthrough bot's pilot asks it, to know a tripwire has gone off.
+    /// </summary>
+    public bool Touches(LoadedMap map, Vector3 at, MapObject o) =>
+        (map.Record.Grid is not { } grid || grid.At(at).Contains(o.Index)) && Reaches(map, at, o);
+
+    private bool Reaches(LoadedMap map, Vector3 at, MapObject o) =>
+        o.Tangible && map.IsActive(o.Index) && Vector3.Distance(o.Position, at) <= o.Radius && Holds(o.Enabled);
 
     /// <summary>
     /// What touching a trigger triangle does (<c>check_trigger</c>, <c>0x8000a3ec</c>), if the object it names is active: a

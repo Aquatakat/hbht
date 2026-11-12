@@ -295,6 +295,30 @@ public static class Trunk
     }
 
     /// <summary>
+    /// The trunk save to try a given-up target from again, of those in its window not tried yet: in odd rounds the latest, where the
+    /// party is furthest on; in even rounds the nearest, the latest of equals. Another start brings another party, place and story, which
+    /// gets past most of what gave a target up where it was first tried: a branch that had no plan from its save, a fight lost again, a
+    /// loss on the way. Null when every save in its window has been tried.
+    /// </summary>
+    public static int? Retry(IEnumerable<(int Step, float Far)> window, IReadOnlySet<int> tried, int round)
+    {
+        var left = window.Where(w => !tried.Contains(w.Step)).ToList();
+        if (left.Count == 0)
+            return null;
+        return round % 2 == 1 ? left.Max(w => w.Step) : left.OrderBy(w => w.Far).ThenByDescending(w => w.Step).First().Step;
+    }
+
+    /// <summary>A retry round's jobs (<see cref="Retry"/>): one for each trunk save given targets, <c>r&lt;round&gt;-t&lt;step&gt;</c>, at depth 0.</summary>
+    /// <param name="folder">The trunk's folder, relative to the tree's root.</param>
+    public static List<CoverJob> RetryJobs(TrunkManifest manifest, IReadOnlyDictionary<RecordId, int> chosen, string folder, int round)
+    {
+        var saves = manifest.Saves.ToDictionary(s => s.Step);
+        return [.. chosen.GroupBy(c => c.Value).OrderBy(g => g.Key).Select(g => new CoverJob($"r{round}-t{g.Key:000}", null,
+            $"{folder}/{saves[g.Key].Save}", [.. g.Select(c => c.Key.ToString()).Order(StringComparer.Ordinal)], 0, g.Key, saves[g.Key].Action,
+            $"retry {round}: given up from the trunk saves tried before"))];
+    }
+
+    /// <summary>
     /// The trunk's own result in the tree (<c>results/trunk.json</c>): every flag it saw set, with the save before the step that set it,
     /// so the ledger counts them as covered; and its targets among them.
     /// </summary>

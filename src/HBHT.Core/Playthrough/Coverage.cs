@@ -58,7 +58,14 @@ public sealed record CoverSeen(RecordId Flag, int Step, long Tick, string? Save)
 /// </param>
 /// <param name="Ended">The game ended in the step (a battle lost again on its replay): stranded too, the branch avoiding it.</param>
 public sealed record CoverBranch(int Step, string Action, string? Save, IReadOnlyList<RecordId> Targets, bool Predicted, bool Stranded = false,
-    bool Ended = false);
+    bool Ended = false)
+{
+    /// <summary>The step's action (<see cref="PlayerAction.Index"/>), which the branch avoids by <see cref="CoverGoal.Avoid"/>.</summary>
+    public int? ActionIndex { get; init; }
+
+    /// <summary>How the branch's job names the step it avoids (<see cref="CoverGoal.Avoid"/>).</summary>
+    public string Avoid => ActionIndex is { } i ? $"#{i} {Action}" : Action;
+}
 
 /// <summary>What a cover run (<see cref="CoverGoal"/>) came to, and how it spent its time.</summary>
 public sealed class Coverage

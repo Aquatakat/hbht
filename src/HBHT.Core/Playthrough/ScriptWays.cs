@@ -475,9 +475,17 @@ public sealed class ScriptWays
             return true;
         }
 
+        /// <summary>
+        /// A flag written. Writing what the run last wrote changes nothing, so it isn't an effect again: a backdrop's chapters stay
+        /// takeable, and each pass through 0x036F's history book's chapter 19 set 23 again, so its contents never looked seen and the
+        /// explorer read 19 four hundred times.
+        /// </summary>
         private void Write(RecordId flag, bool value)
         {
-            _written[new Atom(AtomType.Flag, flag)] = value ? 1 : 0;
+            var atom = new Atom(AtomType.Flag, flag);
+            if (_written.TryGetValue(atom, out var was) && was == (value ? 1 : 0))
+                return;
+            _written[atom] = value ? 1 : 0;
             _effects.Add(new SetFlag(flag, value));
         }
 

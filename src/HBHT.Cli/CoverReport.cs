@@ -31,6 +31,11 @@ internal static partial class CoverReport
                                                graph (1; about 20 suits a 32-thread machine), and several
                                                processes may work one root at once; exits 0 once no job
                                                is pending, 3 when the minutes or jobs ran out first
+          hbht playthrough cover retry --root <dir>
+                                               once no job is pending in a trunk tree, gives each target given up
+                                               a job from another trunk save in its window (the latest untried in odd
+                                               rounds, the nearest in even ones), r<round>-t<step>; exits 0 if it made
+                                               any, 4 if nothing is left to retry
           hbht playthrough cover status --root <dir> [--all]
                                                the targets covered, live and given up, the jobs by status, the branches,
                                                and the uncovered targets with their last reason (--all lists every one)
@@ -41,6 +46,7 @@ internal static partial class CoverReport
         ["init", .. var rest] => Init(plugins, rest),
         ["work", .. var rest] => Work(plugins, rest),
         ["status", .. var rest] => Status(plugins, rest),
+        ["retry", .. var rest] => Retry(rest),
         _ => throw new ArgumentException(Usage),
     };
 
@@ -181,6 +187,73 @@ internal static partial class CoverReport
                 $"the last's {(byStep.Count > 0 ? byStep.Last().Value.Count : 0)} (step {(byStep.Count > 0 ? byStep.Last().Key : 0)} of {manifest.Steps})");
             Console.WriteLine($"Biggest: {string.Join(", ", sizes.Take(10).Select(s => $"{s.Id} {s.Count}"))}");
         }
+        return 0;
+    }
+
+    private sealed record AssignedWindow(int Step, float Far);
+
+    private sealed record AssignedTarget(string Flag, string? Job, List<AssignedWindow> Window);
+
+    private sealed record AssignmentFile(List<AssignedTarget> Targets);
+
+    /// <summary>The saves each given-up target has been tried from, and the rounds of retries made: <c>trunk/retries.json</c>.</summary>
+    private sealed record RetriesFile(int Rounds, Dictionary<string, List<int>> Tried);
+
+    /// <summary>
+    /// A retry round (<see cref="Trunk.Retry"/>): once no job is pending, each target no job saw set gets a job from a trunk save in its
+    /// window it hasn't been tried from.
+    /// </summary>
+    private static int Retry(string[] args)
+    {
+        var options = Options(args);
+        var queue = new CoverQueue(options["--root"]);
+        if (!queue.Exists || queue.ReadRoot().Trunk is not { } trunk)
+            throw new ArgumentException($"{queue.Root} holds no trunk tree: start one with cover init --trunk.");
+        if (queue.All().Any(j => j.Status is JobStatus.Pending or JobStatus.Claimed))
+            throw new ArgumentException("Jobs are still pending or claimed: work them first.");
+        var folder = Path.Combine(queue.Root, trunk);
+        var json = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
+        var assignment = System.Text.Json.JsonSerializer.Deserialize<AssignmentFile>(File.ReadAllText(Path.Combine(folder, "assignment.json")))!;
+        var retriesPath = Path.Combine(folder, "retries.json");
+        var retries = File.Exists(retriesPath)
+            ? System.Text.Json.JsonSerializer.Deserialize<RetriesFile>(File.ReadAllText(retriesPath))!
+            : new RetriesFile(0, []);
+        var round = retries.Rounds + 1;
+        var ledger = queue.Ledger();
+        var chosen = new Dictionary<RecordId, int>();
+        var none = 0;
+        foreach (var target in assignment.Targets)
+        {
+            if (ledger.ContainsKey(target.Flag) || target.Job is null or "trunk" || target.Window.Count == 0)
+                continue;
+            if (!retries.Tried.TryGetValue(target.Flag, out var tried))
+            {
+                retries.Tried[target.Flag] = tried = [];
+                if (target.Job.StartsWith('t') && int.TryParse(target.Job.AsSpan(1), NumberStyles.None, CultureInfo.InvariantCulture, out var first))
+                    tried.Add(first);
+            }
+            if (Trunk.Retry(target.Window.Select(w => (w.Step, w.Far)), tried.ToHashSet(), round) is { } step)
+            {
+                chosen[RecordId.Parse(target.Flag)] = step;
+                tried.Add(step);
+            }
+            else
+            {
+                none++;
+            }
+        }
+        if (chosen.Count == 0)
+        {
+            Console.WriteLine($"Nothing left to retry: {none} target(s) given up have been tried from every trunk save in their windows.");
+            return 4;
+        }
+        var manifest = Trunk.Read(folder);
+        var jobs = Trunk.RetryJobs(manifest, chosen, trunk, round);
+        foreach (var job in jobs)
+            queue.Add(job);
+        File.WriteAllText(retriesPath, System.Text.Json.JsonSerializer.Serialize(retries with { Rounds = round }, json));
+        Console.WriteLine($"Retry {round}: {chosen.Count} target(s) given up, in {jobs.Count} job(s) from other trunk saves; " +
+            $"{none} tried from every save in their windows");
         return 0;
     }
 

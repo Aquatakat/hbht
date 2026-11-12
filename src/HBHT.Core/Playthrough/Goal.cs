@@ -79,10 +79,24 @@ public sealed record CoverGoal(IReadOnlyList<RecordId> Targets) : Goal
     public int RefreshSteps { get; init; } = 10;
 
     /// <summary>
-    /// Steps the run never takes, by their description (<see cref="PlayerAction.Describe"/>): the steps that stranded the jobs it carries
-    /// on from, so it goes another way.
+    /// Steps the run never takes: the ways that lost the targets of the jobs it branched from, or stranded them. Each is
+    /// <c>#&lt;index&gt; &lt;description&gt;</c>, the action (<see cref="PlayerAction.Index"/>) and its <see cref="PlayerAction.Describe"/>
+    /// to check it by: a script's ways that differ only in its conditions describe alike, and banning by the description banned the way
+    /// that set a branch's target with the one that lost it (0x03C3's at Erromon's 7/E03/1, for flag 29). An index whose action no longer
+    /// describes so, or an entry with none, bans by the description.
     /// </summary>
     public IReadOnlyCollection<string> Avoid { get; init; } = [];
+
+    /// <summary>The actions an <see cref="Avoid"/> entry names in a model.</summary>
+    public static IEnumerable<int> Avoided(QuestModel model, string entry)
+    {
+        if (entry.StartsWith('#') && entry.IndexOf(' ') is var space and > 1
+            && int.TryParse(entry.AsSpan(1, space - 1), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var index)
+            && index < model.Actions.Count && model.Actions[index].Describe() == entry[(space + 1)..])
+            return [index];
+        var description = entry.StartsWith('#') && entry.IndexOf(' ') is var at and > 0 ? entry[(at + 1)..] : entry;
+        return model.Actions.Where(a => a.Describe() == description).Select(a => a.Index);
+    }
 
     public override string Describe() => $"cover {Targets.Count} flags";
 
