@@ -317,7 +317,8 @@ public sealed partial class Playthrough
                 target.NoPlans++;
                 target.NoPlanAt = _step;
                 // The planner's why is kept from the first, so a target given up where the run stood says it.
-                target.Why = $"no plan: {plan?.Why?.Split(Environment.NewLine)[0] ?? "the planner found none"}";
+                var stuck = _reach is { } reach ? Stuck(state, goal, reach) : "";
+                target.Why = $"no plan: {plan?.Why?.Split(Environment.NewLine)[0] ?? "the planner found none"}{(stuck.Length > 0 ? $"; {stuck}" : "")}";
                 if (target.NoPlans >= _cover.Goal.MostNoPlans)
                     target.State = TargetState.GivenUp;
                 continue;

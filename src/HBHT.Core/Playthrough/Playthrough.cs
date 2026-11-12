@@ -486,7 +486,10 @@ public sealed partial class Playthrough
     /// The world graph behind the planner's places, from where the player stands, found in rounds (<see cref="WorldReach.Layered"/>): a gate
     /// opens only once a relaxation over the places got to so far makes its literal true.
     /// </summary>
-    private WorldReach MakeReach(PlanState state) => WorldReach.Layered(Model, Graph, Game, state, Here() ?? Graph.PlaceOf(Game));
+    private WorldReach MakeReach(PlanState state) => _reach = WorldReach.Layered(Model, Graph, Game, state, Here() ?? Graph.PlaceOf(Game));
+
+    /// <summary>The places' reach last made, for saying why a target has no plan.</summary>
+    private WorldReach? _reach;
 
     private Place? Here() => Host.Session is { Mode: GameMode.Trek } s ? new Place(s.Trek.Chunks.MapSet.Id, s.Trek.Player.Feet) : null;
 
