@@ -171,6 +171,32 @@ public sealed class PlaythroughWorldGraphTests(Na10Import fixture)
     }
 
     [Fact]
+    public void GraphsKeptAtOnceInOneProcessDoNotCollide()
+    {
+        // Two world graphs in one process making the same map set's graph from a cold cache keep it at once: each writes a file of its
+        // own and renames it over the cache's, while others read it. None throws, and what's left is the graph whole.
+        var graph = Graph.Walk(RecordId.Decimal(RecordTypes.MapSet, 3));
+        var folder = Path.Combine(Path.GetTempPath(), $"hbht-cache-race-{Guid.NewGuid():N}");
+        var path = Path.Combine(folder, "walk-3.bin");
+        try
+        {
+            Parallel.For(0, 16, i =>
+            {
+                if (i % 4 == 3)
+                    WalkGraph.TryLoad(path, Graph.Fingerprint);
+                else
+                    graph.Save(path, Graph.Fingerprint);
+            });
+            Assert.Equal(graph.Count, WalkGraph.TryLoad(path, Graph.Fingerprint)?.Count);
+            Assert.Equal(["walk-3.bin"], Directory.GetFiles(folder).Select(Path.GetFileName));
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
     public void TeleportersJoinTheMapSetsAndMostAreOpen()
     {
         var portals = Graph.Portals;

@@ -10,7 +10,7 @@ namespace HBHT.Core.Playthrough;
 /// Plays the party's battles (docs/systems/playthrough.md, layer 5): every member's turns are the original's combat AI's, as the
 /// enemies' and Sholeh's are (<see cref="Battle.PlayByAi"/>), and the bot never flees. A battle the party loses (the game over:
 /// every member down, or Alaron dead) is played again from its start and won outright: the game is started again from a save made as
-/// the battle was cued, the same battle cued on it, and won on the party's first turn (<see cref="Battle.ForceWin"/>), so its flags,
+/// the battle was cued, the same battle cued on it, and won on the first turn anyone takes (<see cref="Battle.ForceWin"/> on the party's), so its flags,
 /// rewards and what follows come as a win's do, once. The second <see cref="BattleFought"/> says so (<see cref="BattleFought.LostFirst"/>).
 /// </summary>
 public sealed class BattlePilot : IBattlePolicy
@@ -115,7 +115,8 @@ public sealed class BattlePilot : IBattlePolicy
         var still = new PlayerInput(Vector2.Zero);
         if (_replaying)
         {
-            host.WinBattleOutright();
+            if (!host.WinBattleOutright())
+                WinOnTheirTurn(host, battle);
             return still;
         }
         // A battle the AI can't end, as two sides that can't reach each other: won outright, said as a stalemate.
@@ -134,6 +135,23 @@ public sealed class BattlePilot : IBattlePolicy
                 : $"{host.Clock.Ticks}: nobody in the battle with {Name(battle.Setup)} was hit for {QuietTicks} ticks, and it was won outright.");
         }
         return still;
+    }
+
+    /// <summary>
+    /// The replay of a battle lost is won on the first turn anyone takes, not only the party's (<see cref="Battle.ForceWin"/>): on an
+    /// AI-played turn, as it begins, the enemies are routed (<see cref="Battle.Rout"/>) and the turn ended, so its change wins the battle
+    /// through the game's own victory as the party's would. The dryads' four at Overworld H12/1 and G12/8 (<c>0x03FA</c>) cast Lightning
+    /// turn after turn and kill the party before it has one, a fight the story means to be lost; waiting for the party's turn lost it
+    /// again and ended the game. Not with the Shadow on the field, whose battle is never won.
+    /// </summary>
+    private static void WinOnTheirTurn(PlaythroughHost host, Battle battle)
+    {
+        if (battle.State != CombatState.AI || battle.Fade.Fading || battle.Current is not { } current || battle.Shadow is not null || battle.Over)
+            return;
+        battle.Rout();
+        battle.EndTurn(current);
+        if (host.BattlesFought.LastOrDefault() is { Ended: null } fought)
+            fought.WonOutright = true;
     }
 
     /// <summary>A loss starts the game again from the save made as the battle was cued, and cues it again, to be won outright.</summary>

@@ -151,6 +151,29 @@ public sealed class PlaythroughBattleTests(Na10Import fixture, ITestOutputHelper
     }
 
     [Fact]
+    public void ALostBattleWhoseEnemiesActFirstIsWonOnTheirFirstTurnWhenPlayedAgain()
+    {
+        // The dryads' four at Overworld H12/1, whom the male dryad's 0x03FA sets on the party, a fight the story means to be lost: they
+        // take the first turns and their Lightning kills the party before it has one. So the replay isn't won on the party's first turn,
+        // which never comes, but on the first turn anyone takes, theirs, through the game's own victory, and the game doesn't end.
+        var pilot = new BattlePilot();
+        var host = PlaythroughHost.NewGame(Set);
+        host.Battles = pilot;
+        Assert.Equal(HostRun.Done, host.RunUntilControl(10_000));
+        var setup = Encounter(host, "aidyn:mapobject/0/H12/1");
+        host.Session.CueBattle(setup);
+        Assert.Equal(HostRun.Done, host.RunUntil(h => h.BattlesFought.Count == 2 && h.BattlesFought[^1].Ended is not null && h.PlayerHasControl, 100_000));
+        Report(host, pilot);
+        var (lost, won) = (host.BattlesFought[0], host.BattlesFought[1]);
+        Assert.Equal(BattleOutcome.Lost, lost.Outcome);
+        Assert.Equal((BattleOutcome.Won, true, true), (won.Outcome, won.WonOutright, won.LostFirst));
+        Assert.Empty(pilot.Problems);
+        Assert.Equal(HostEnd.None, host.End);
+        if (setup.EncounterFlag is { } flag)
+            Assert.True(host.Game.Flags.IsSet(flag));
+    }
+
+    [Fact]
     public void ABattleNeitherSideCanEndIsWonOutrightAsAStalemate()
     {
         // A new game's Alaron alone talks to the Ogre in Overworld B06 (object 5), whose script fights him in arena E03. Each AI's way to

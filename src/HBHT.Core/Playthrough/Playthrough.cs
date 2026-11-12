@@ -735,10 +735,9 @@ public sealed partial class Playthrough
             if (System.Numerics.Vector3.Distance(at3, here.Feet) > Options.TrainerReach
                 || WorldGraph.ObjectGates(id, o).Any(g => g.Closed(Game.Flags)))
                 continue;
-            // A dialogue entity has no sheet to teach from: Fyrsil (0x140D, Overworld Q27/9), whose 0x04D4 has a way to training.
-            if (Model.Plugins.TryGet<EntityRecord>(entity) is not { Sheet: not null } record)
+            // A dialogue entity teaches from the sheet it trains as (Fyrsil, 0x140D at Overworld Q27/9, as STUG02); one with none is no trainer.
+            if (Model.Plugins.TryGet<EntityRecord>(entity) is not { } record || Trainer.Of(record, Game.Rules, Model.Plugins) is not { } trainer)
                 continue;
-            var trainer = Trainer.From(record, Game.Rules, Model.Plugins.Get<SpellRecord>);
             if (!party.Members.Any(m => Builds.Next(m, Levelling.Builds, trainer, gold) is not null))
                 continue;
             if (Graph.Route(Game, here, id) is not { Route: { } route } || route.Length > Options.TrainerReach * 1.5f)

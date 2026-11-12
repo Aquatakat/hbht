@@ -405,7 +405,9 @@ public sealed class WalkGraph
     public void Save(string path, string fingerprint)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        var temp = path + "." + Environment.ProcessId + ".tmp";
+        // A name of its own, since two graphs in one process (runs side by side, the tests' classes) can make the same map set's at
+        // once from a cold cache.
+        var temp = $"{path}.{Guid.NewGuid():N}.tmp";
         using (var file = File.Create(temp))
         using (var brotli = new BrotliStream(file, CompressionLevel.Optimal))
         using (var w = new BinaryWriter(brotli))
@@ -441,7 +443,15 @@ public sealed class WalkGraph
                     w.Write(toggle);
                 }
         }
-        File.Move(temp, path, overwrite: true);
+        try
+        {
+            File.Move(temp, path, overwrite: true);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // Another maker's rename, or a reader holding the file, came first: its graph is the same one.
+            File.Delete(temp);
+        }
     }
 
     private static void WriteDeltas(BinaryWriter w, int[] values)
@@ -470,7 +480,8 @@ public sealed class WalkGraph
             return null;
         try
         {
-            using var file = File.OpenRead(path);
+            // Shared for delete, so that another maker's rename over it isn't refused while it's read.
+            using var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
             using var brotli = new BrotliStream(file, CompressionMode.Decompress);
             using var r = new BinaryReader(brotli);
             if (r.ReadInt32() != Version || r.ReadString() != fingerprint)
