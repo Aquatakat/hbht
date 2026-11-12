@@ -55,8 +55,9 @@ public sealed record RouteGate(RecordId Object, GateKind Kind, RecordId? Flag, b
 /// <param name="PickLocks">Whether a locked door is taken to be one the party can open, so only its flag-gates stop the way.</param>
 /// <param name="Avoid">Places a pilot found itself stuck at: the walk graph's ground within <paramref name="AvoidRadius"/> of each is left out, so a new route goes round.</param>
 /// <param name="KeepClear">Zones the route keeps out of, each with its own radius: the ground within it is left out, as for <paramref name="Avoid"/>.</param>
+/// <param name="IgnoreOwnGates">Whether the object's own gates are left unasked: a camp scene's, which holds only as the party camps.</param>
 public sealed record RouteOptions(bool PickLocks = false, IReadOnlyList<Place>? Avoid = null, float AvoidRadius = 1.5f,
-    IReadOnlyList<RouteZone>? KeepClear = null);
+    IReadOnlyList<RouteZone>? KeepClear = null, bool IgnoreOwnGates = false);
 
 /// <summary>Ground a route keeps out of: the walk graph's cells whose middle is within <paramref name="Radius"/> of <paramref name="Centre"/>, in 3D.</summary>
 public readonly record struct RouteZone(Place Centre, float Radius);

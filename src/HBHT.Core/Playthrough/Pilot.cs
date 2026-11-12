@@ -284,7 +284,15 @@ public sealed class Pilot : IInputPolicy
         {
             walk.Waited++;
             if (--walk.WaitTicks == 0)
+            {
                 walk.Replan = true;
+                // An npc's or encounter's gates are read as its chunk loads, and its body made then: with its chunk loaded as the hour
+                // opened them, trek's world is built again where he stands, as after a backdrop, a sign or the help menu, so it's there.
+                if (walk.Object is PartyObject && trek.Chunks.All.Any(m => m.Chunk.Id == walk.Chunk!.Id)
+                    && !WorldGraph.ObjectGates(walk.Step.MapObject, walk.Object).Any(g => g.Closed(host.Game.Flags))
+                    && Wanderer(trek, walk) is null)
+                    trek.Rebuild();
+            }
             return TickInput.None;
         }
         if (walk.Replan && !Plan(host, walk, new Place(set, feet)))
@@ -304,6 +312,16 @@ public sealed class Pilot : IInputPolicy
                     return Use(host, walk, isTarget: true);
                 return Steer(walk, trek, at, Goal.Body, stalled: () => walk.DirectOff = 180);
             }
+        }
+        // A camp scene's: once he stands in its object's chunk, wherever in it, the party camps, and the scene plays as the camp looks for one.
+        if (walk.How == UseKind.Camp && here && trek.Chunks.ChunkAt(sphere)?.Id == walk.Chunk!.Id)
+        {
+            walk.Arrived = true;
+            if (Options.Rest?.CampNow(host) == true)
+                walk.Used = true;
+            else if (++walk.InRange > Options.UsePatience)
+                walk.Fail(StepFailure.NotUsed, $"in {walk.Chunk.Id} for {Options.UsePatience} ticks, and the party can't camp there");
+            return TickInput.None;
         }
         if (here && Vector3.Distance(sphere, walk.At) <= walk.Range)
         {
@@ -369,10 +387,12 @@ public sealed class Pilot : IInputPolicy
         if (!result.Found && walk.Avoid.Count > 0 && result.Refusal!.Kind is RefusalKind.NotOnFoot or RefusalKind.StartOffGraph or RefusalKind.Gated)
         {
             walk.Avoid.Clear();
-            result = _graph.Route(host.Game, from, walk.Step.MapObject, new RouteOptions(Options.PickLocks));
+            result = _graph.Route(host.Game, from, walk.Step.MapObject, new RouteOptions(Options.PickLocks, IgnoreOwnGates: walk.How == UseKind.Camp));
         }
-        // Shut only by gates the hour opens (the Burial Chamber's door in Ugarit2 A05 opens at night): he waits, up to a day.
-        if (!result.Found && result.Refusal is { Kind: RefusalKind.Gated } gated && Options.Waits?.Invoke(gated) == true && walk.Waited < MostWait)
+        // Shut only by gates the hour opens (the Burial Chamber's door in Ugarit2 A05 opens at night), on the way or on the object itself
+        // (the Troll west of Darkling Bog, Overworld K16/2, is out only at night): he waits, up to a day.
+        if (!result.Found && result.Refusal is { Kind: RefusalKind.Gated or RefusalKind.ObjectGated } gated && Options.Waits?.Invoke(gated) == true
+            && walk.Waited < MostWait)
         {
             walk.WaitTicks = WaitStep;
             walk.Plans--;
@@ -400,7 +420,8 @@ public sealed class Pilot : IInputPolicy
     private RouteResult Route(GameState game, Walk walk, Place from)
     {
         var shun = Shunned(walk, from);
-        var plain = new RouteOptions(Options.PickLocks, [.. walk.Avoid], KeepClear: shun);
+        // A camp scene's object holds only as the party camps: the way is to its chunk, whatever its own gates.
+        var plain = new RouteOptions(Options.PickLocks, [.. walk.Avoid], KeepClear: shun, IgnoreOwnGates: walk.How == UseKind.Camp);
         if (!Options.KeepClear || Triggers(game, walk, from) is not { Count: > 0 } zones)
             return _graph.Route(game, from, walk.Step.MapObject, plain);
         var clear = _graph.Route(game, from, walk.Step.MapObject, plain with { KeepClear = [.. shun, .. zones] });

@@ -65,7 +65,52 @@ public sealed class FlagModel
             foreach (var input in _inputs[d].Distinct())
                 readers[input].Add(d);
         _readers = [.. readers.Select(r => r.ToArray())];
+        _engineInputs = new int[count][];
+        for (var h = 0; h < count; h++)
+            _engineInputs[h] = _kinds[h] == FlagKind.Engine ? [h] : [];
+        // Through the derived flags between, in as many passes as their forward references need.
+        for (var changed = true; changed;)
+        {
+            changed = false;
+            foreach (var d in _derived)
+            {
+                var engine = _inputs[d].SelectMany(i => _engineInputs[i]).Distinct().Order().ToArray();
+                if (engine.Length != _engineInputs[d].Length)
+                    (_engineInputs[d], changed) = (engine, true);
+            }
+        }
+        _moonAndRain = [.. state.MoonPhase.Concat(state.Rain).Where(f => _network.TryHandle(f, out _)).Select(_network.Handle)];
+        _calendar = [.. new[] { state.DayOfSeason, state.Season, state.DayOfWeek, state.Week }.SelectMany(r => r)
+            .Where(f => _network.TryHandle(f, out _)).Select(_network.Handle)];
+        _timeOfDay = [.. state.TimeOfDay.Where(f => _network.TryHandle(f, out _)).Select(_network.Handle)];
     }
+
+    private readonly int[][] _engineInputs;
+    private readonly HashSet<int> _moonAndRain;
+    private readonly HashSet<int> _calendar;
+    private readonly HashSet<int> _timeOfDay;
+
+    /// <summary>
+    /// The engine flags a flag hangs on: an engine flag itself, a derived flag's through its inputs and any derived flags between them,
+    /// none for anything else. The clock, the weather and the terrain set these as play goes on, not any step.
+    /// </summary>
+    public IReadOnlyList<int> EngineInputs(int handle) => _engineInputs[handle];
+
+    /// <summary>
+    /// How long a flag over the engine's (<see cref="EngineInputs"/>) can take to come true while the player stands and waits, in game
+    /// time: a day for the time of day; four weeks, the moon's cycle, for the moon's phase and the rain; nothing for the date and the season
+    /// (a job doesn't wait months: the trunk's own game, some 70 days, sees the date move on), the terrain (walking) and the journal's flag.
+    /// </summary>
+    public uint Horizon(int handle)
+    {
+        var engine = _engineInputs[handle];
+        if (engine.Length == 0 || engine.Any(_calendar.Contains) || engine.Any(e => _kinds[e] == FlagKind.Engine && !IsClock(e)))
+            return 0;
+        return engine.Any(_moonAndRain.Contains) ? 4 * Calendar.GameClock.Week : Calendar.GameClock.Day;
+    }
+
+    /// <summary>Whether an engine flag is the clock's or the weather's: the time of day, the moon, the date, the rain.</summary>
+    private bool IsClock(int engine) => _moonAndRain.Contains(engine) || _calendar.Contains(engine) || _timeOfDay.Contains(engine);
 
     public int Count => _kinds.Length;
 

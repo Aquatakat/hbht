@@ -31,8 +31,9 @@ public static class StepTranslation
     public static UseKind UseOf(ActionKind kind) => kind switch
     {
         ActionKind.Talk or ActionKind.Fight => UseKind.Talk,
-        ActionKind.Open or ActionKind.FindSecret or ActionKind.Disarm or ActionKind.PickLock => UseKind.Press,
+        ActionKind.Open or ActionKind.FindSecret or ActionKind.Disarm or ActionKind.PickLock or ActionKind.Spring => UseKind.Press,
         ActionKind.Enter => UseKind.Arrive,
+        ActionKind.Camp => UseKind.Camp,
         _ => UseKind.Auto,
     };
 
@@ -184,11 +185,32 @@ public static class CodeGates
             CodeCheckKind.MemberStat when Stat(check.B) is { } s => In(((IScriptWorld)game).MemberStat(check.A, s) & 0xFFFF),
             CodeCheckKind.Lock => WorldReach.CanPick(game.Party, check.Lo),
             CodeCheckKind.Trap => DisarmChance(game.Party, check.Lo) > 0 ? null : false,
-            CodeCheckKind.Buy => false,
+            // A trap the party disarms every time never goes off.
+            CodeCheckKind.Spring => DisarmChance(game.Party, check.Lo) < 1 ? null : false,
+            CodeCheckKind.Buy => check.A is { } item && game.Party.Gold >= MostPrice(game, item, check.B) ? null : false,
             CodeCheckKind.Skill when check.Lo > 0 && check.A is { } skill && SkillId.TryFromRecord(skill) is { IsSkill: true } id
                 => CanRoll(game, id.Slot, check.Lo, check.Hi) ? null : false,
             _ => null,
         };
+    }
+
+    /// <summary>
+    /// The most a shop asks for an item (<see cref="Items.Shop.BuyPrice"/>): its price, times each of the keeper's stock slots' multipliers
+    /// for it (<see cref="Items.Shop.Open"/> applies each to the stack), and the barter factor's share again with nobody bartering, the
+    /// keeper's Merchant times the step (<see cref="Items.Shop.BarterFactor"/>). A member who barters only brings it down. With no keeper
+    /// known, the item's price.
+    /// </summary>
+    public static double MostPrice(GameState game, RecordId item, RecordId? keeper)
+    {
+        var catalog = game.Party.Inventory.Catalog;
+        double price = catalog[item].Price;
+        if (keeper is not { } k || game.Plugins.TryGet<EntityRecord>(k) is not { } record
+            || Items.Shop.For(game.Plugins.All<ShopRecord>(RecordTypes.Shop), k) is not { } shop)
+            return price;
+        foreach (var slot in shop.Stock.Where(s => s.Item == item))
+            price *= slot.PriceMultiplier;
+        var merchant = record.Sheet?.SkillLevel(new SkillId((int)Skill.Merchant).Record) ?? 0xFF;
+        return price * (1 + (byte)merchant * catalog.Rules.MerchantStep);
     }
 
     /// <summary>

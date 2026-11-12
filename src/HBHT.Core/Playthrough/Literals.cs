@@ -84,6 +84,10 @@ public enum CodeCheckKind
     Win,
     /// <summary>The Shadow reaching Alaron and merging with him.</summary>
     Merge,
+    /// <summary>A trap of level <see cref="CodeCheck.Lo"/> going off as the party tries it: its disarming failing, a roll.</summary>
+    Spring,
+    /// <summary>Camping without being ambushed, a roll while the ambushes' flag holds (docs/systems/camping.md).</summary>
+    Ambush,
     /// <summary>A check of a kind the model doesn't know.</summary>
     Unknown,
 }

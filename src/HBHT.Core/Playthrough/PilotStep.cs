@@ -22,6 +22,12 @@ public enum UseKind
     /// a trainer whom the run trains with itself.
     /// </summary>
     Arrive,
+
+    /// <summary>
+    /// Walk into the object's chunk and camp there from the World tab (<see cref="Resting.CampNow"/>): a camp scene's script object, which
+    /// plays as the party camps in its chunk, wherever in it he stands.
+    /// </summary>
+    Camp,
 }
 
 /// <summary>A choice the step wants taken: at <paramref name="Node"/> of <paramref name="Script"/>, the choice whose node is <paramref name="Choice"/>.</summary>

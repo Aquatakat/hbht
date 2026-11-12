@@ -131,12 +131,16 @@ public sealed class QuestModel
             opening.Add(Add(ActionKind.Event, null, null, way.Choices, [], way.Requires, way.Effects)!);
         Opening = opening;
 
+        var camping = Plugins.TrySingleton<CampingRecord>();
         foreach (var (id, o, chunk) in objects)
         {
             switch (o)
             {
                 case NpcObject npc when (npc.Flags & PartyFlags.Silent) == 0:
                     AddScript(ActionKind.Talk, id, npc.Script, Presence(id, o.Visible, o.Enabled), npc.Used?.Flag, npc, shops);
+                    break;
+                case ScriptObject play when camping is not null && o.Enabled is { Invert: false } scene && camping.Scenes.Contains(scene.Flag):
+                    AddCamp(id, play, chunk, camping);
                     break;
                 case ScriptObject play:
                     AddScript(ActionKind.Play, id, play.Plays, Presence(id, o.Visible, o.Enabled), null, null, shops);
@@ -184,7 +188,66 @@ public sealed class QuestModel
             }
         }
 
+        AddHelp(explorers.Value!);
         Index();
+    }
+
+    /// <summary>
+    /// The help menu, which the System tab's Help starts wherever the player is in trek (docs/systems/pause-menu.md): an action per way
+    /// through its script, with no place, which the run plays by the menu's own presses.
+    /// </summary>
+    private void AddHelp(ScriptWays explorer)
+    {
+        if (Plugins.TryGet<ScriptRecord>(Ui.SystemMenu.HelpScript) is not { } help)
+            return;
+        var result = explorer.Explore(help);
+        foreach (var way in result.Ways)
+            Add(ActionKind.Help, null, help.Id, way.Choices, [], way.Requires, way.Effects, fault: way.Fault, others: way.OtherChoices, way: way);
+    }
+
+    /// <summary>
+    /// A camp scene's script object (docs/systems/camping.md): its script plays as the party camps in its chunk while its enabling flag holds,
+    /// which is a derived flag over the camping record's check flag, set only while the camp looks for a scene. So it's an action of its own,
+    /// camping there: its place the object (the pilot camps once it stands in the object's chunk), its preconditions the scene's flag's other
+    /// inputs as its formula wants them and not being ambushed, and its effects the check flag set and cleared about the script's way, so the
+    /// relaxation sees the scene's flag come true. The object is never used otherwise, so it has no play actions. A scene whose flag isn't a
+    /// value its inputs' bits must equal, or whose chunk's terrain allows no camping, isn't modelled.
+    /// </summary>
+    private void AddCamp(RecordId id, ScriptObject scene, ChunkRecord chunk, CampingRecord camping)
+    {
+        var flag = scene.Enabled!.Flag;
+        if (Plugins.TryGet<TerrainRecord>(chunk.Terrain) is not { Camp: > 0 })
+        {
+            _notes.Add($"{id}: its camp scene's chunk allows no camping.");
+            return;
+        }
+        if (!Flags.TryHandle(flag, out var h) || Flags.Formula(h) is not ({ Kind: FlagFormulaKind.Logic, Op: FlagOperation.Mask } or { Kind: FlagFormulaKind.Value, Op: FlagOperation.Equal }) || Flags.Formula(h) is not { } formula)
+        {
+            _notes.Add($"{id}: its camp scene's flag {flag} isn't a value its inputs make, so camping there isn't modelled.");
+            return;
+        }
+        var wants = new List<Literal>();
+        var checking = false;
+        for (var i = 0; i < formula.Inputs.Count; i++)
+        {
+            var set = (formula.Operand >> i & 1) != 0;
+            if (formula.Inputs[i] == camping.Checking)
+                checking = set;
+            else
+                wants.Add(new FlagIs(formula.Inputs[i], set));
+        }
+        if (!checking || formula.Operand >> formula.Inputs.Count != 0 || Presence(id, scene.Visible) is not { } presence || !Ways.TryGetValue(scene.Plays, out var result))
+        {
+            _notes.Add($"{id}: its camp scene's flag {flag} never holds as the party camps.");
+            return;
+        }
+        presence.AddRange(wants);
+        var ambush = new CodeGate("camping without being ambushed") { Check = new(CodeCheckKind.Ambush) };
+        foreach (var way in result.Ways)
+        {
+            Add(ActionKind.Camp, id, scene.Plays, way.Choices, presence, [.. way.Requires, ambush],
+                [new SetFlag(camping.Checking, true), .. way.Effects, new SetFlag(camping.Checking, false)], fault: way.Fault, others: way.OtherChoices, way: way);
+        }
     }
 
     /// <summary>A win the planner takes as given: the battle pilot plays it, and plays it again until it's won.</summary>
@@ -315,7 +378,7 @@ public sealed class QuestModel
                 continue;
             foreach (var stock in shop.Stock.Where(s => _keyItems.ContainsKey(s.Item)).DistinctBy(s => s.Item))
             {
-                Add(kind, id, scriptId, way.Choices, presence, [.. requires, new CodeGate($"the gold to buy {stock.Item}") { Check = new(CodeCheckKind.Buy, A: stock.Item) }],
+                Add(kind, id, scriptId, way.Choices, presence, [.. requires, new CodeGate($"the gold to buy {stock.Item}") { Check = new(CodeCheckKind.Buy, A: stock.Item, B: k) }],
                     [.. effects, new Gain(stock.Item)], wins, stock.Item, way.Fault, way.OtherChoices, way);
             }
         }
@@ -358,6 +421,13 @@ public sealed class QuestModel
         }
         if (effects.Count > 0)
             Add(ActionKind.Open, id, null, [], presence, requires, effects);
+        // Its trap going off as the party tries it: the container destroyed with what it held, and its exploded flag set
+        // (docs/systems/map-objects.md, containers). It and opening it each rule the other out.
+        if (chest && c.TrapLevel != 0 && c.Exploded is { } blown)
+        {
+            Add(ActionKind.Spring, id, null, [], presence,
+                [new CodeGate($"a trap of level {c.TrapLevel} going off") { Check = new(CodeCheckKind.Spring, c.TrapLevel) }], [new SetFlag(blown, true)]);
+        }
     }
 
     private void AddDoor(RecordId id, TeleporterObject door)

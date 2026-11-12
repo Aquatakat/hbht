@@ -542,6 +542,10 @@ public sealed partial class Playthrough
             if (!done)
                 Entry(EntryKind.OutOfTicks, action, "the player gets the controls", summary);
         }
+        else if (action.Kind == ActionKind.Help)
+        {
+            (done, summary) = ReadHelp(action);
+        }
         else if (translated.Step is not { } pilotStep)
         {
             done = false;
@@ -551,7 +555,21 @@ public sealed partial class Playthrough
         else
         {
             var pilot = new Pilot(Graph, PilotOptions.Default with { PickLocks = translated.PickLocks, Rest = Resting, Triggers = Triggers, Dress = Outfitting, Waits = WaitsForTheHour, Shun = (Goal as CoverGoal)?.Shun });
-            outcome = pilot.Run(Host, pilotStep, Math.Min(Options.StepTicks, Math.Max(1, Options.MostTicks - (Host.Clock.Ticks - _startTicks))));
+            // A way that ends in a shop to buy a key item there: the shop policy buys it first (Outfitting.Buy), then what's better.
+            var boughtBefore = Outfitting.Bought.Count;
+            if (action.Buys is { } buys)
+                (Outfitting.Shopping, Outfitting.Buy) = (true, buys);
+            try
+            {
+                outcome = pilot.Run(Host, pilotStep, Math.Min(Options.StepTicks, Math.Max(1, Options.MostTicks - (Host.Clock.Ticks - _startTicks))));
+            }
+            finally
+            {
+                if (action.Buys is not null)
+                    (Outfitting.Shopping, Outfitting.Buy) = (false, null);
+            }
+            foreach (var b in Outfitting.Bought.Skip(boughtBefore))
+                Report.Purchases.Add($"bought {b}");
             var expect = pilotStep.Expect ?? [];
             // Done by the way: what it was for came about though the pilot didn't use it (an encounter caught the party first).
             var byTheWay = !outcome.Done && expect.Count > 0 && outcome.Misses.Count == 0;
@@ -566,8 +584,9 @@ public sealed partial class Playthrough
             && (_rerolls[action.Index] = _rerolls.GetValueOrDefault(action.Index) + 1) <= MostRerolls;
         // A roll the game keeps, a trap that went off or a skill check its map object remembers, is played again from the save before the
         // step, as a player reloads: a trap's container is destroyed, and its Opened and Used flags never come.
+        // So is a trap meant to go off that was disarmed, and a camp meant to play its scene that was ambushed.
         if (!done && !reroll && outcome is { Used: true, Misses.Count: > 0 } && _before is { } kept
-            && translated.Rolls.Any(g => g.Check?.Kind is CodeCheckKind.Trap or CodeCheckKind.Skill)
+            && translated.Rolls.Any(g => g.Check?.Kind is CodeCheckKind.Trap or CodeCheckKind.Skill or CodeCheckKind.Spring or CodeCheckKind.Ambush)
             && (_rerolls[action.Index] = _rerolls.GetValueOrDefault(action.Index) + 1) <= MostRerolls)
             reroll = LoadBefore(kept, _rerolls[action.Index]);
         // Stuck the first time, the game is saved and loaded where he stands, and the step may be tried again from there.
@@ -598,6 +617,33 @@ public sealed partial class Playthrough
         Host.RunUntil(h => h.Clock.Ticks >= until, 17 * tries + 1);
         Progress?.Invoke($"     a roll went against it: loaded the save before the step, for try {tries + 1}");
         return true;
+    }
+
+    /// <summary>
+    /// A help step: the System tab's Help, chosen by the menu's own presses where the player stands in trek (<see cref="Resting.ReadHelp"/>),
+    /// and the help's script read through by the host's conversation policy, until trek has the controls again. Done if what the way
+    /// should leave holds.
+    /// </summary>
+    private (bool Done, string Summary) ReadHelp(PlayerAction action)
+    {
+        if (!Resting.ReadHelp(Host))
+        {
+            Entry(EntryKind.NotUsed, action, "the System tab's Help", "the player hasn't the controls in trek");
+            return (false, "the player hasn't the controls in trek");
+        }
+        var run = Host.RunUntil(h => h.PlayerHasControl, Options.StepTicks);
+        var misses = StepTranslation.Expect(action, Model, Game).Where(e => !e.Holds(Game)).ToList();
+        if (run != HostRun.Done)
+        {
+            Entry(EntryKind.OutOfTicks, action, "the help read and trek back", $"ran out: {run}");
+            return (false, $"ran out: {run}");
+        }
+        if (misses.Count > 0)
+        {
+            Entry(EntryKind.StepMissed, action, string.Join(", ", misses), "the help read");
+            return (false, $"missed {string.Join(", ", misses)}");
+        }
+        return (true, "read the help menu");
     }
 
     /// <summary>

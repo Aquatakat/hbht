@@ -117,7 +117,7 @@ internal static partial class CoverReport
         var model = QuestModel.Build(plugins);
         var targets = options.TryGetValue("--targets", out var which) && which != "all"
             ? ReadTargets(which, model)
-            : CoverGoal.StaticTargets(model, PlanState.From(model, game));
+            : CoverGoal.StaticTargets(model, PlanState.From(model, game), game);
         var root = new CoverRoot([.. targets.Select(t => t.ToString())], save, Number(options, "--job-minutes", 120),
             (int)Number(options, "--most-failures", 3), DateTimeOffset.UtcNow);
         if (trunk)

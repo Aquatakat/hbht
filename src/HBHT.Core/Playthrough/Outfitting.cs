@@ -83,6 +83,9 @@ public sealed class Outfitting(IMenuPolicy? inner = null) : IMenuPolicy
 
     private bool _shopping;
 
+    /// <summary>An item to buy in the next shop shopped in, before anything better, whatever <see cref="GoldReserve"/>: a step's key item.</summary>
+    public RecordId? Buy { get; set; }
+
     /// <summary>The gold kept back from shopping.</summary>
     public uint GoldReserve { get; set; } = 1000;
 
@@ -187,7 +190,10 @@ public sealed class Outfitting(IMenuPolicy? inner = null) : IMenuPolicy
         var gold = party.Gold > GoldReserve ? party.Gold - GoldReserve : 0;
         var rows = barter.Pile.Rows;
         var (row, best) = (-1, Least);
-        for (var i = 0; i < rows.Count; i++)
+        // An item a step is to buy comes first, whatever the reserve, once: a key item the planner wants (PlayerAction.Buys).
+        if (Buy is { } wanted && !party.HasItem(wanted) && !_unbought.Contains(wanted))
+            row = rows.ToList().FindIndex(r => r.Item.Id == wanted && shop.BuyPrice(r.Instance) <= party.Gold);
+        for (var i = 0; i < rows.Count && row < 0; i++)
         {
             var item = rows[i].Item;
             if (_unbought.Contains(item.Id) || shop.BuyPrice(rows[i].Instance) > gold)

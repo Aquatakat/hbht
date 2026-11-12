@@ -25,6 +25,12 @@ public enum ActionKind
     Enter,
     /// <summary>Let an event the game fires play out: a new game's opening.</summary>
     Event,
+    /// <summary>Camp in a chunk from the World tab, where a camp scene's script object plays as the party camps.</summary>
+    Camp,
+    /// <summary>Try a container's trap and let it go off, which destroys the container and sets its exploded flag.</summary>
+    Spring,
+    /// <summary>Open the help menu from the System tab, which plays its script.</summary>
+    Help,
 }
 
 /// <summary>
@@ -81,6 +87,9 @@ public sealed record PlayerAction(
             ActionKind.PickLock => $"pick the lock of {Place}",
             ActionKind.Fight => $"fight {Place}",
             ActionKind.Enter => $"enter {Place}",
+            ActionKind.Camp => $"camp by {Place}",
+            ActionKind.Spring => $"set off the trap of {Place}",
+            ActionKind.Help => "read the help menu",
             _ => "the opening plays",
         };
         if (Script is { } script)

@@ -141,8 +141,9 @@ public sealed partial class Playthrough
             }
             if (target.State == TargetState.Lost)
                 Progress?.Invoke($"     target {FlagIs.Key(target.Flag)} is reachable again");
-            // A derived flag over what the engine writes can hold in the plan's state while the game hasn't set it: it waits.
-            if (facts[fact] && Model.Flags.Kind(target.Handle) == FlagKind.Derived)
+            // A derived flag over what the engine writes can hold in the plan's state while the game hasn't set it, and so can an engine flag
+            // itself: it waits.
+            if (facts[fact] && Model.Flags.Kind(target.Handle) is FlagKind.Derived or FlagKind.Engine)
             {
                 target.State = TargetState.Waits;
                 target.Why = "holds in the planner's state, over flags the engine writes, but the game hasn't set it";
@@ -209,10 +210,13 @@ public sealed partial class Playthrough
         if (live.Count == 0)
         {
             _coverDone = true;
+            var waited = WaitForTheClock();
             foreach (var waiting in _cover!.Targets.Where(t => t.State == TargetState.Waits))
             {
                 waiting.State = TargetState.GivenUp;
-                waiting.Why = "holds in the planner's state, over flags the engine writes, but the game never set it; the run doesn't wait for them";
+                waiting.Why = Model.Flags.Horizon(waiting.Handle) == 0
+                    ? "holds in the planner's state, over the date, the terrain or the journal's flag, which a job doesn't wait for, but the game never set it"
+                    : $"holds in the planner's state, over the clock or the weather, but the game didn't set it in {waited / (double)(Calendar.GameClock.Day / Calendar.GameClock.DaySpeed):0.#} game days of waiting";
             }
             return (Goal, [], null);
         }
@@ -371,6 +375,48 @@ public sealed partial class Playthrough
         return (Goal, [], null);
     }
 
+    /// <summary>
+    /// Once nothing is live, the targets that wait on the clock or the weather (<see cref="FlagModel.Horizon"/>) are waited for where the
+    /// player stands in trek, an hour at a time, up to the longest horizon of those still waiting and not seen by another job: a day for the
+    /// time of day, four weeks for the moon and the rain. Trek brings the network up to date every tick nothing fades, so the ledger sees a
+    /// derived flag as soon as it holds. Wanderers may come while he stands, and the battle pilot plays them. The ticks waited.
+    /// </summary>
+    private long WaitForTheClock()
+    {
+        var waiting = _cover!.Targets.Where(t => t.State == TargetState.Waits && Model.Flags.Horizon(t.Handle) > 0).ToList();
+        if (waiting.Count == 0)
+            return 0;
+        var start = Host.Clock.Ticks;
+        const long hour = Calendar.GameClock.Hour / Calendar.GameClock.DaySpeed;
+        const long day = Calendar.GameClock.Day / Calendar.GameClock.DaySpeed;
+        var refresh = start;
+        Progress?.Invoke($"     waiting for the clock: {string.Join(", ", waiting.Take(12).Select(t => FlagIs.Key(t.Flag)))}{(waiting.Count > 12 ? ", …" : "")}");
+        while (true)
+        {
+            if (_cover.Goal.CoveredElsewhere is { } elsewhere && Host.Clock.Ticks >= refresh)
+            {
+                _elsewhere = elsewhere();
+                refresh += day;
+            }
+            TakeSeen();
+            foreach (var target in waiting.Where(t => t.State == TargetState.Waits && _elsewhere.Contains(t.Flag)))
+            {
+                target.State = TargetState.Covered;
+                target.Why = "seen by another job";
+            }
+            waiting.RemoveAll(t => t.State != TargetState.Waits);
+            if (waiting.Count == 0 || Host.Clock.Ticks - start >= waiting.Max(t => Model.Flags.Horizon(t.Handle)) / Calendar.GameClock.DaySpeed
+                || OutOfBudget() is not null || Host.End != HostEnd.None)
+                break;
+            var until = Host.Clock.Ticks + hour;
+            if (Host.RunUntil(h => h.Clock.Ticks >= until && h.PlayerHasControl, 4 * hour) != HostRun.Done && Host.End != HostEnd.None)
+                break;
+        }
+        var waited = Host.Clock.Ticks - start;
+        Progress?.Invoke($"     waited {waited / (double)day:0.#} game days; {waiting.Count} still waiting");
+        return waited;
+    }
+
     private (Goal Goal, List<PlayerAction> Steps, Plan? Plan) Pending(Goal goal, List<PlayerAction> steps, Plan? plan, HashSet<int> live, bool predicted)
     {
         _pending = (_step + 1, steps[0].Describe(), steps[0].Index, live, predicted);
@@ -471,10 +517,22 @@ public sealed partial class Playthrough
     {
         var clock = Stopwatch.StartNew();
         var lost = LossCheck.Lost(relaxation, state, action, live);
+        // Opening a trapped container and its trap going off each rule the other out. The run opens it, as it would without the trap's
+        // flag to see, and the look after the step sends the exploded flag to a branch from the save before it, which sets the trap off
+        // once the opened flag is covered.
+        if (action.Kind == ActionKind.Open && action.Place is { } place && Springs.TryGetValue(place, out var blown))
+            lost.Remove(blown);
         _cover!.LossChecks++;
         _cover.LossSeconds += clock.Elapsed.TotalSeconds;
         return lost;
     }
+
+    /// <summary>Each trapped container's exploded flag, by the container: the flag its <see cref="ActionKind.Spring"/> action sets.</summary>
+    private Dictionary<RecordId, int> Springs => _springs ??= Model.Actions.Where(a => a.Kind == ActionKind.Spring && a.Place is not null)
+        .SelectMany(a => a.Effects.OfType<SetFlag>().Where(s => s.Value && Model.Flags.TryHandle(s.Flag, out _)).Select(s => (Place: a.Place!.Value, Handle: Model.Flags.Handle(s.Flag))))
+        .DistinctBy(s => s.Place).ToDictionary(s => s.Place, s => s.Handle);
+
+    private Dictionary<RecordId, int>? _springs;
 
     /// <summary>The first of a step's code gates the party doesn't meet now (<see cref="CodeGates.Meets"/>), which keeps it from being played.</summary>
     private CodeGate? Unmet(PlayerAction action) => action.Gates.Distinct().FirstOrDefault(g => CodeGates.Meets(g, Game) == false);

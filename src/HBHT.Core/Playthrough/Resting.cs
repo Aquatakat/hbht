@@ -55,8 +55,53 @@ public sealed class Resting(IMenuPolicy inner) : IMenuPolicy
         return true;
     }
 
+    /// <summary>
+    /// Opens the pause menu on the World tab to camp where the player stands, hurt or not, for a step that camps (a camp scene's,
+    /// <see cref="UseKind.Camp"/>): true if it did, the player having the controls in trek on ground the terrain lets the party camp on.
+    /// </summary>
+    public bool CampNow(PlaythroughHost host)
+    {
+        _wanted = false;
+        if (!host.PlayerHasControl || host.Session is not { Mode: GameMode.Trek } session)
+            return false;
+        var trek = session.Trek;
+        if (trek.Chunks.ChunkAt(trek.Player.Sphere.Position) is not { } chunk
+            || host.Game.Plugins.TryGet<TerrainRecord>(chunk.Terrain) is not { Camp: > 0 })
+            return false;
+        _wanted = true;
+        _asked = host.Clock.Ticks;
+        session.OpenMenu(PauseTab.World);
+        return true;
+    }
+
+    /// <summary>
+    /// Opens the pause menu on the System tab to read the help menu (a <see cref="ActionKind.Help"/> step): true if it did, the player
+    /// having the controls in trek. The help's script follows as the menu rolls up, and trek comes back after it.
+    /// </summary>
+    public bool ReadHelp(PlaythroughHost host)
+    {
+        _help = false;
+        if (!host.PlayerHasControl || host.Session is not { Mode: GameMode.Trek } session)
+            return false;
+        _help = true;
+        session.OpenMenu(PauseTab.System);
+        return true;
+    }
+
+    private bool _help;
+
     public MenuAction Press(PlaythroughHost host, PauseMenu menu)
     {
+        if (_help && menu.Tab == PauseTab.System)
+        {
+            var system = menu.System;
+            if (!system.OnList)
+                return Inner.Press(host, menu);
+            if (system.Items.Current != SystemItem.Help)
+                return MenuAction.Down;
+            _help = false;
+            return MenuAction.Accept;
+        }
         if (!_wanted || menu.Tab != PauseTab.World)
             return Inner.Press(host, menu);
         var world = menu.World;

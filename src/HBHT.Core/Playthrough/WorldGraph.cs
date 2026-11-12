@@ -507,7 +507,7 @@ public sealed partial class WorldGraph
         var target = set.Origin(chunk) + o.Position;
         var own = ObjectGates(mapObject, o);
         var shut = own.Where(g => g.Closed(state.Flags, pick)).ToList();
-        if (shut.Count > 0)
+        if (shut.Count > 0 && options?.IgnoreOwnGates != true)
             return Refuse(RefusalKind.ObjectGated, $"{mapObject} is gated: {string.Join("; ", shut)}.", shut);
 
         var stand = StandFor(mapObject, chunk.MapSet, target, range);

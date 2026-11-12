@@ -138,13 +138,24 @@ public sealed record CoverGoal(IReadOnlyList<RecordId> Targets) : Goal
 
     public override string Describe() => $"cover {Targets.Count} flags";
 
-    /// <summary>The default targets: every flag, plain or derived, that the relaxation over every action from the state sets and isn't set in it.</summary>
-    public static List<RecordId> StaticTargets(QuestModel model, PlanState state)
+    /// <summary>
+    /// The default targets: every flag, plain or derived, that the relaxation over every action from the state sets and isn't set in it.
+    /// Given the game, also the flags over what the engine writes (the clock, the weather, the terrain, the journal's notice), the engine's
+    /// own and those derived from them, that aren't set in the game and that the relaxation can make so: the planner takes the engine's
+    /// flags as either value, so these hold in its state from the start (layer 0), and play sets them by waiting or walking
+    /// (docs/systems/playthrough.md, "What the planner doesn't model").
+    /// </summary>
+    public static List<RecordId> StaticTargets(QuestModel model, PlanState state, GameState? game = null)
     {
         var result = new Relaxation(model, Enumerable.Range(0, model.Actions.Count)).Run(state);
         var flags = model.Flags;
         return [.. Enumerable.Range(0, flags.Count)
-            .Where(h => flags.Kind(h) is FlagKind.Plain or FlagKind.Derived && result.FactLayer[model.FlagFact(h, true)] > 0)
+            .Where(h => flags.Kind(h) is FlagKind.Plain or FlagKind.Derived && result.FactLayer[model.FlagFact(h, true)] > 0
+                || game is not null && OverTheEngine(model, h) && result.FactLayer[model.FlagFact(h, true)] == 0 && !game.Flags.Get(flags.Id(h)))
             .Select(flags.Id)];
     }
+
+    /// <summary>An engine flag, or a derived flag over one (<see cref="FlagModel.EngineInputs"/>).</summary>
+    public static bool OverTheEngine(QuestModel model, int handle) =>
+        model.Flags.Kind(handle) is FlagKind.Engine or FlagKind.Derived && model.Flags.EngineInputs(handle).Count > 0;
 }
