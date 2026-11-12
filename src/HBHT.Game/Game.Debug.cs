@@ -65,8 +65,11 @@ public partial class Game
                 break;
             case { } train when train.StartsWith("train:", StringComparison.Ordinal):
                 var game = _session!.Game;
-                if (RecordId.TryParse(train["train:".Length..], out var id) && game.Plugins.TryGet<EntityRecord>(id) is { } entity)
-                    _session.OpenTraining(HBHT.Core.Characters.Trainer.From(entity, game.Rules, game.Plugins.Get<SpellRecord>));
+                if (RecordId.TryParse(train["train:".Length..], out var id) && game.Plugins.TryGet<EntityRecord>(id) is { } entity
+                    && HBHT.Core.Characters.Trainer.Of(entity, game.Rules, game.Plugins) is { } trainer)
+                    _session.OpenTraining(trainer);
+                else
+                    GD.PushWarning($"{train}: no entity with anything to teach.");
                 break;
             case { } tab when Enum.TryParse<PauseTab>(tab, ignoreCase: true, out var opening):
                 _session!.OpenMenu(opening);

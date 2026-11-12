@@ -2,6 +2,7 @@ using System.Numerics;
 using HBHT.Core;
 using HBHT.Core.Actors;
 using HBHT.Core.Cameras;
+using HBHT.Core.Characters;
 using HBHT.Core.Chunks;
 using HBHT.Core.Combat;
 using HBHT.Core.Items;
@@ -261,6 +262,30 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         Assert.IsType<Transition.OpenTraining>(Assert.Single(Transition.AfterScript(game, ending with { Kind = ScriptEndKind.Train }, GameState.Alaron)));
         Assert.Equal("No one teaches nothing.",
             Assert.IsType<Transition.Say>(Assert.Single(Transition.AfterScript(game, ending with { Kind = ScriptEndKind.Train }, null))).Text);
+    }
+
+    [Fact]
+    public void FyrsilTeachesAsSTUG02TheEntityAtHisPlace()
+    {
+        // 1.0 reads a trainer's sheet from the entity DB at the keeper's place in its own table: Fyrsil (0x140D) is 28th of the
+        // dialogue entities, and the entity DB's 28th is STUG02 (0x02C4), who teaches Merchant to 7 and the shield to 10.
+        var (session, _) = Start();
+        var game = session.Game;
+        var fyrsil = Ids.Entity(0x140D);
+        Assert.Null(Data.Set.Get<EntityRecord>(fyrsil).Sheet);
+        Assert.Equal(Ids.Entity(0x02C4), Data.Set.Get<EntityRecord>(fyrsil).TrainsAs);
+        var ending = new ScriptEnding(ScriptEndKind.Train, fyrsil, null, 0, false);
+
+        var trainer = Assert.IsType<Transition.OpenTraining>(Assert.Single(Transition.AfterScript(game, ending, fyrsil))).Trainer;
+        Assert.Equal(fyrsil, trainer.Entity);
+        Assert.False(trainer.Free);
+        Assert.Equal([(SkillId)Skill.Merchant, SkillId.Shield], trainer.SkillsOffered);
+        Assert.Equal(7, trainer.Skills.Base(Skill.Merchant));
+        Assert.Equal(10, trainer.Skills.Base(SkillId.Shield));
+        Assert.Empty(trainer.Spells);
+        // Every other entity from the dialogue entity table trains as the entity at its place too, and each has a sheet.
+        Assert.All(Data.Set.All<EntityRecord>(RecordTypes.Entity).Where(e => e.Sheet is null),
+            e => Assert.NotNull(Data.Set.Get<EntityRecord>(e.TrainsAs!.Value).Sheet));
     }
 
     [Fact]

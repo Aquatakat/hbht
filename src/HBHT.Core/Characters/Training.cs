@@ -6,7 +6,8 @@ namespace HBHT.Core.Characters;
 
 /// <summary>
 /// Someone who teaches: their skills and spells, as their entity record has them
-/// (<c>init_skill_trainer</c>). A trainer teaches a skill or spell up to their own level of it.
+/// (<c>init_skill_trainer</c>). A trainer teaches a skill or spell up to their own level of it. One with no sheet teaches
+/// from the sheet of the entity it trains as (<see cref="EntityRecord.TrainsAs"/>), as 1.0 does.
 /// </summary>
 public sealed class Trainer
 {
@@ -29,11 +30,30 @@ public sealed class Trainer
     /// <summary>They charge no gold (<see cref="EntityRecord.TrainsFree"/>).</summary>
     public bool Free { get; }
 
-    public static Trainer From(EntityRecord entity, CharacterRules rules, Func<RecordId, SpellRecord> spells) => new(
-        entity.Id,
-        new CharacterSkills(rules, Character.SkillLevels(entity)),
-        [.. entity.CharacterSheet.Spells.Select(s => (spells(s.Spell), (int)(byte)s.Level))],
-        entity.TrainsFree);
+    /// <summary>An entity with a sheet as a trainer, teaching from its own.</summary>
+    public static Trainer From(EntityRecord entity, CharacterRules rules, Func<RecordId, SpellRecord> spells) =>
+        From(entity, entity.CharacterSheet, rules, spells);
+
+    /// <summary>
+    /// <paramref name="keeper"/> as a trainer, teaching from <paramref name="sheet"/>'s skills and spells; who they are and whether they
+    /// charge are the keeper's (<c>Trainer.From</c>, 0x80050a70).
+    /// </summary>
+    public static Trainer From(EntityRecord keeper, EntitySheet sheet, CharacterRules rules, Func<RecordId, SpellRecord> spells) => new(
+        keeper.Id,
+        new CharacterSkills(rules, SkillSlots.ToArray(sheet)),
+        [.. sheet.Spells.Select(s => (spells(s.Spell), (int)(byte)s.Level))],
+        keeper.TrainsFree);
+
+    /// <summary>
+    /// <paramref name="keeper"/> as a trainer, or null if it has nothing to teach from: no sheet of its own and none it trains as, which
+    /// only a mod's data or an import from before <see cref="EntityRecord.TrainsAs"/> leaves.
+    /// </summary>
+    public static Trainer? Of(EntityRecord keeper, CharacterRules rules, PluginSet plugins) =>
+        SheetOf(keeper, plugins) is { } sheet ? From(keeper, sheet, rules, plugins.Get<SpellRecord>) : null;
+
+    /// <summary>The sheet <paramref name="keeper"/> teaches from: its own, else that of the entity it trains as.</summary>
+    public static EntitySheet? SheetOf(EntityRecord keeper, PluginSet plugins) =>
+        keeper.Sheet ?? (keeper.TrainsAs is { } other ? plugins.TryGet<EntityRecord>(other)?.Sheet : null);
 
     /// <summary>What they teach, in the skill screen's order: the skills, weapon skills and shield they're above level 0 in.</summary>
     public IEnumerable<SkillId> SkillsOffered => Skills.Learnt;

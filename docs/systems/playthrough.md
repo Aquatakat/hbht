@@ -507,7 +507,7 @@ From a new game over the 2,230 targets: the trunk covered 637 itself, and 1,592 
 
 - The distance is straight within a map set, which an interiors map set's rooms make poor: they're unconnected rooms laid out in one grid, so Oriana's hut's save takes MiscInteriors' targets across the world, and its job walks to them with Alaron alone at level 1. The walk from the save, through the teleporters, would weigh them truly.
 - The dryads' fight (0x03FA at H12/1 and G12/8) is lost again on its replay, ending the game, in jobs from the trunk's later saves: the battle pilot's replay, or the fight itself, wants a look.
-- Found by the bot, for the game: a conversation with Fyrsil (Overworld Q27/9) that takes 0x04D4's way to training would throw in the runtime, since `Transition.TrainingOf` asks his sheetless entity for its skills. What 1.0 does there is unsettled.
+- Found by the bot, for the game, and fixed there: Fyrsil (Overworld Q27/9), whose 0x04D4 has a way to training, threw in the runtime. 1.0 has him teach as STUG02, the entity at his place, and the port now does too, by his `trainsAs` ([pause menu](pause-menu.md#training)). The bot still skips him as a trainer; it should take `Trainer.Of` instead of asking for a sheet.
 - Waiting for the hour: derived targets over the calendar wait and are given up.
 - A loss by the places alone may be the world graph's, not the game's, as the castle's was ([teleporters](#the-world-graph)): look at the cells where the step left the player before taking it as the game's.
 - Branches aren't capped by depth or count, and a branch whose targets are covered elsewhere is still claimed, to finish at once.

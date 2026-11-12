@@ -21,6 +21,12 @@ namespace HBHT.Plugins.Records;
 /// <param name="Member">The flags the engine keeps for a recruitable party member. Null for everyone else, Alaron and Trahern among them.</param>
 /// <param name="Combat">What's its own in combat: whose side it fights on, whether it fights at all, and the rest. Needs a sheet.</param>
 /// <param name="TrainsFree">As a trainer, it charges no gold (<c>shopkeepNotOriana</c>): Oriana. Needs a sheet.</param>
+/// <param name="TrainsAs">
+/// For one with no sheet, the entity whose sheet it teaches from if a script opens training with it (<c>Trainer.From</c>). 1.0
+/// reads a trainer's skills and spells from the entity DB at the keeper's place in its own table, so one from the dialogue entity
+/// table teaches as the entity at its place in that table: Fyrsil (<c>0x140D</c>, place 28) as STUG02 (<c>0x02C4</c>). Null for
+/// one with a sheet, which teaches from its own.
+/// </param>
 public sealed record EntityRecord(
     RecordId Id,
     string Name,
@@ -31,7 +37,8 @@ public sealed record EntityRecord(
     EntitySheet? Sheet = null,
     MemberFlags? Member = null,
     EntityCombat? Combat = null,
-    bool TrainsFree = false)
+    bool TrainsFree = false,
+    RecordId? TrainsAs = null)
 {
     /// <summary>Its sheet, for an entity the rules need to fight, join or train: an <see cref="InvalidOperationException"/> without one.</summary>
     [System.Text.Json.Serialization.JsonIgnore]

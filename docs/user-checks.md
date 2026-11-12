@@ -10,6 +10,10 @@ A check far into the story needn't be played to: Claude writes a save at the pla
 
 After your Nov 11 play ([combat](systems/combat.md#drawn-from-a-recording)): cast Fireball or Dragon Flames at a pack of rats (F09) under Start Early, and again under Original. Does every rat it kills fall, lie still a second and then fade out? The battle's last enemy stays whole as the screen fades to black, as in 1.0.
 
+### Fyrsil's training (Nov 11)
+
+Fyrsil, at the desert's Overworld Q27, offers training ("Teach me." in his talk). 1.0's training reads the wrong table for him, so he teaches what STUG02, an Ugarit trainer, does: Merchant up to 7 and the shield up to 10, for gold ([pause menu](systems/pause-menu.md#training)). The port now matches that, where it used to crash. Decide whether to keep it or have him teach something else; either is his `trainsAs` (or a sheet of his own), which a mod can change.
+
 ### Combat parity (2.9)
 
 Battles the user plays in 1.0 from written saves, logged with `tools/parity.ps1` and replayed into the port ([combat parity](systems/combat-parity.md)). Setups 1–14 are played, and none is waiting. If a hold (Web of Starlight, Wall of Bones, Frozen Doom) locks 1.0 up again, save a state in ares before closing it: the RAM at the lock settles its cause ([combat](systems/combat-actions.md#where-the-port-differs)).

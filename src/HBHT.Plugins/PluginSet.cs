@@ -251,8 +251,9 @@ public sealed class PluginSet
 
     /// <summary>
     /// What a record's type asks of its fields together, which their shapes alone can't say: a weapon's own fields on a weapon alone
-    /// (ADR 0031), an entity's combat traits and free training only with a sheet (ADR 0032), and each script or trigger op where it
-    /// can run, a camera move with one target, and a range only on a trigger's condition (ADR 0034).
+    /// (ADR 0031), an entity's combat traits and free training only with a sheet and training as another only without one (ADR 0032),
+    /// and each script or trigger op where it can run, a camera move with one target, and a range only on a trigger's condition
+    /// (ADR 0034).
     /// </summary>
     private static IEnumerable<(string Path, string Message)> Rules(object? record)
     {
@@ -271,6 +272,9 @@ public sealed class PluginSet
                     yield return ("trainsFree", "An entity with no sheet can't train anyone.");
                 if (entity.Member is not null)
                     yield return ("member", "An entity with no sheet can't join the party.");
+                break;
+            case EntityRecord { Sheet: not null, TrainsAs: not null }:
+                yield return ("trainsAs", "An entity with a sheet teaches from its own, so it trains as no one else.");
                 break;
             case ScriptRecord script:
                 foreach (var node in script.Nodes)

@@ -461,6 +461,35 @@ public class TrainingTests
         Assert.Equal(10, alaron.FindSpell(Characters.Fireball.Id)!.Level);
         Assert.Equal(TrainingRefusal.AtMost, Training.QuoteSpell(alaron, Characters.Fireball, null, gold).Refusal);
     }
+
+    [Fact]
+    public void OneWithNoSheetTeachesAsTheEntityItTrainsAsAndWithNoneOpensNoTraining()
+    {
+        var teacher = RecordId.Hex(RecordTypes.Entity, 0x02C4);
+        var speaker = RecordId.Hex(RecordTypes.Entity, 0x140D);
+        var bare = RecordId.Hex(RecordTypes.Entity, 0x1401);
+        var lost = RecordId.Hex(RecordTypes.Entity, 0x1402);
+        EntityRecord[] entities =
+        [
+            Characters.Trainer(teacher, new SkillLevels(Merchant: 7)),
+            new(speaker, "Speaker", Perception: 10, TrainsAs: teacher),
+            new(bare, "Sign", Perception: 10),
+            new(lost, "Stray", Perception: 10, TrainsAs: RecordId.Hex(RecordTypes.Entity, 0x02FF)),
+        ];
+        using var temp = new TempPlugins();
+        var plugins = temp.Aidyn(("entities.json", System.Text.Json.JsonSerializer.Serialize(entities, PluginJson.Options)));
+
+        // The keeper is who trains, and charges as itself; what it teaches is the other's.
+        var trainer = Assert.IsType<Transition.OpenTraining>(Transition.TrainingOf(plugins, Characters.Rules, speaker)).Trainer;
+        Assert.Equal(speaker, trainer.Entity);
+        Assert.False(trainer.Free);
+        Assert.Equal(7, trainer.Skills.Base(Skill.Merchant));
+        Assert.Empty(trainer.Spells);
+        // With nothing to teach from, it says so rather than throwing.
+        Assert.Equal("Sign teaches nothing.", Assert.IsType<Transition.Say>(Transition.TrainingOf(plugins, Characters.Rules, bare)).Text);
+        Assert.Equal("Stray teaches nothing.", Assert.IsType<Transition.Say>(Transition.TrainingOf(plugins, Characters.Rules, lost)).Text);
+        Assert.Null(Trainer.Of(plugins.Get<EntityRecord>(bare), Characters.Rules, plugins));
+    }
 }
 
 public class PartyTests

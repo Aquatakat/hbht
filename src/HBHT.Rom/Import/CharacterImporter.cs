@@ -131,7 +131,7 @@ internal static class CharacterImporter
     /// <summary>
     /// The dialogue entity table's entities, with their portraits and bodies and no sheet, but the twins (<see cref="DbRecordIds.Twins"/>).
     /// The five without a portrait get the code's fallback at run time, and a bat for a body. Each notices the party at 10
-    /// (<see cref="DialoguePerception"/>).
+    /// (<see cref="DialoguePerception"/>), and trains as the entity at its place (<see cref="TrainsAs"/>).
     /// </summary>
     internal static List<EntityRecord> BuildSpeakers(GameDb db, EntityModels models)
     {
@@ -141,12 +141,24 @@ internal static class CharacterImporter
         var fallback = Fallback(DialogEntityRadius);
         return
         [
-            .. db.DialogEntities.Where(e => !DbRecordIds.Twins.ContainsKey(e.Id.Value) && DbRecordIds.For(e.Id) is not null)
-                .Select(e => new EntityRecord(DbRecordIds.For(e.Id)!.Value, e.Name, portraits.TryGetValue(e.Id, out var p) ? p : null,
-                    DialoguePerception, bodies.GetValueOrDefault(e.Id, fallback)))
+            .. db.DialogEntities.Select((e, place) => (e, place))
+                .Where(p => !DbRecordIds.Twins.ContainsKey(p.e.Id.Value) && DbRecordIds.For(p.e.Id) is not null)
+                .Select(p => new EntityRecord(DbRecordIds.For(p.e.Id)!.Value, p.e.Name,
+                    portraits.TryGetValue(p.e.Id, out var portrait) ? portrait : null, DialoguePerception, bodies.GetValueOrDefault(p.e.Id, fallback),
+                    TrainsAs: TrainsAs(db, p.place)))
                 .DistinctBy(e => e.Id),
         ];
     }
+
+    /// <summary>
+    /// The entity a dialogue entity at <paramref name="place"/> in its table teaches as. Training (<c>Trainer.From</c>, 0x80050a70)
+    /// takes the keeper's place from <c>GetIdIndex</c> (0x8006cbf8), which for a dialogue entity's <c>0x14</c> searches
+    /// <c>DialogEntityList</c> (0x800e0d00), and reads the skills and spells of the entity DB's record at that place (0x80050ad4,
+    /// and <c>Skills.FromEntity</c> at 0x80079eec): the entity at the same place in the entity DB, whose order the entity list's is
+    /// (<see cref="PositionLists"/>). A twin isn't asked: it has its entity's sheet, and no script trains with one.
+    /// </summary>
+    private static RecordId? TrainsAs(GameDb db, int place) =>
+        place < db.Entities.Count ? DbRecordIds.For(db.Entities[place].Id) : null;
 
     /// <summary>
     /// How far one from the dialogue entity table notices the party: 10, the port's (<c>Wanderers.DialoguePerception</c>), as the

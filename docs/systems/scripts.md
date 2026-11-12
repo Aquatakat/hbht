@@ -54,7 +54,7 @@ The actor in force is the node's speaker in 1.0; the importer writes it (see [sp
 | `sound.play` | `sound` | effect | 43 PlaySound |
 | `shop.open` | `keeper` | effect | 44 Shop (the speaker) |
 | `battle.start` | | effect | 45 Battle |
-| `training.open` | `trainer` | effect | 46 Train (the speaker) |
+| `training.open` | `trainer` | effect | 46 Train (the speaker); the keeper teaches from its sheet or its `trainsAs` ([pause menu](pause-menu.md#training)) |
 | `party.addMember`, `party.removeMember` | `entity` | effect, trigger | 47 AddMember, 48 RemoveMember |
 | `script.randomLine` | `from` (a script), `firstLineWeight`? | effect | 50 RandomLine |
 | `actor.hold` | `actor`, `item` | effect | 51 ShowItem |

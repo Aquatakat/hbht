@@ -29,16 +29,20 @@ public sealed class ItemAndEntityRecordTests : IDisposable
     }
 
     [Fact]
-    public void AnEntityWithoutASheetHasNoCombatTraitsTrainingOrMembership()
+    public void AnEntityWithoutASheetHasNoCombatTraitsTrainingOrMembershipAndOnlyItTrainsAsAnother()
     {
         var problems = _temp.Aidyn(("entities.json", """
             [
-              { "id": "aidyn:entity/0x1401", "name": "Sign", "perception": 10 },
+              { "id": "aidyn:entity/0x1401", "name": "Sign", "perception": 10, "trainsAs": "aidyn:entity/0x023F" },
               { "id": "aidyn:entity/0x1402", "name": "Odd", "combat": { "rooted": true }, "trainsFree": true },
+              { "id": "aidyn:entity/0x023F", "name": "Alaron", "trainsAs": "aidyn:entity/0x02C4",
+                "sheet": { "category": "Party", "aspect": "Solar", "school": "aidyn:school/0", "trueName": false, "heavy": true, "level": 1,
+                  "attributes": {}, "skills": {}, "weaponSkills": {}, "spells": [], "weapons": {},
+                  "armor": null, "shield": null, "protection": 0, "damage": 2, "morale": 0, "resistances": [], "experience": 0, "lootCategory": 0 } },
             ]
             """)).Validate().Problems;
 
-        Assert.Equal(["aidyn:entity/0x1402 combat", "aidyn:entity/0x1402 trainsFree"],
+        Assert.Equal(["aidyn:entity/0x023F trainsAs", "aidyn:entity/0x1402 combat", "aidyn:entity/0x1402 trainsFree"],
             problems.Select(p => $"{p.Record} {p.Path}").Order(StringComparer.Ordinal));
     }
 
