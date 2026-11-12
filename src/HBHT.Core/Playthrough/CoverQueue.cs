@@ -10,7 +10,8 @@ namespace HBHT.Core.Playthrough;
 /// <param name="Save">The save the root job starts from, under the root or absolute; a new game if null.</param>
 /// <param name="JobMinutes">The wall time one job may take, after which its live targets are given up.</param>
 /// <param name="MostFailures">Steps towards one target that may fail before it's given up.</param>
-public sealed record CoverRoot(IReadOnlyList<string> Targets, string? Save, double JobMinutes, int MostFailures, DateTimeOffset Created);
+/// <param name="Trunk">The trunk's folder under the root, when the jobs start from its saves (<see cref="Trunk"/>); null for one root job.</param>
+public sealed record CoverRoot(IReadOnlyList<string> Targets, string? Save, double JobMinutes, int MostFailures, DateTimeOffset Created, string? Trunk = null);
 
 /// <summary>A job in the tree: where it starts, which flags it's after, and where it came from.</summary>
 /// <param name="Id">Its name: the root's <c>0</c>, a branch its parent's and <c>.n</c>, a job carried on its own and <c>+n</c>.</param>
@@ -60,7 +61,7 @@ public enum JobStatus
 /// </summary>
 public sealed class CoverQueue
 {
-    private static readonly JsonSerializerOptions Json = new()
+    internal static readonly JsonSerializerOptions Json = new()
     {
         WriteIndented = true,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
@@ -91,16 +92,30 @@ public sealed class CoverQueue
     /// <summary>Starts a tree: the root, and its one pending job. Refuses a folder that holds one already.</summary>
     public CoverJob Init(CoverRoot root)
     {
+        var job = new CoverJob("0", null, root.Save, root.Targets, 0, Why: "the root");
+        Init(root, [job]);
+        return job;
+    }
+
+    /// <summary>Starts a tree with the jobs given as its pending roots, as the trunk's are. Refuses a folder that holds one already.</summary>
+    public void Init(CoverRoot root, IEnumerable<CoverJob> jobs)
+    {
         if (Exists)
             throw new IOException($"{Root} holds a cover tree already.");
         foreach (var status in Enum.GetValues<JobStatus>())
             Directory.CreateDirectory(Jobs(status));
         Directory.CreateDirectory(Results);
+        foreach (var job in jobs)
+            Add(job);
+        // The root last: a folder whose root file is there holds a whole tree.
         WriteAtomic(RootFile, JsonSerializer.Serialize(root, Json));
-        var job = new CoverJob("0", null, root.Save, root.Targets, 0, Why: "the root");
-        Add(job);
-        return job;
     }
+
+    /// <summary>
+    /// A result written that no claimed job played, as the trunk's own (<c>results/trunk.json</c>): the flags it saw count in the ledger.
+    /// </summary>
+    public void WriteResult(CoverResult result) =>
+        WriteAtomic(Path.Combine(Results, result.Job + ".json"), JsonSerializer.Serialize(result, Json));
 
     public CoverRoot ReadRoot() => JsonSerializer.Deserialize<CoverRoot>(File.ReadAllText(RootFile), Json)
         ?? throw new InvalidDataException($"{RootFile} is empty.");
@@ -230,8 +245,8 @@ public sealed class CoverQueue
     }
 
     /// <summary>
-    /// Claims the next pending job for <paramref name="claimant"/> (this process by default), the shallowest first and then by name: null
-    /// if none is left. Dead claims go back to pending first. A claim is the job's lock made new (<see cref="FileMode.CreateNew"/>, which
+    /// Claims the next pending job for <paramref name="claimant"/> (this process by default), the shallowest first, then the one with
+    /// the most targets (so the trunk's biggest jobs, the longest, start first), then by name: null if none is left. Dead claims go back to pending first. A claim is the job's lock made new (<see cref="FileMode.CreateNew"/>, which
     /// only one maker wins), then the job moved into <c>claimed</c> under the claimer's name.
     /// </summary>
     public CoverJob? Claim(Claimant? claimant = null)
@@ -242,7 +257,7 @@ public sealed class CoverQueue
         var pending = Files(Jobs(JobStatus.Pending))
             .Select(f => (File: f, Job: TryRead<CoverJob>(f)))
             .Where(p => p.Job is not null)
-            .OrderBy(p => p.Job!.Depth).ThenBy(p => p.Job!.Id, StringComparer.Ordinal)
+            .OrderBy(p => p.Job!.Depth).ThenByDescending(p => p.Job!.Targets.Count).ThenBy(p => p.Job!.Id, StringComparer.Ordinal)
             .ToList();
         foreach (var (file, job) in pending)
         {

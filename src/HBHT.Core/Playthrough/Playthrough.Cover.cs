@@ -414,20 +414,23 @@ public sealed partial class Playthrough
         return null;
     }
 
+    /// <summary>How far a place is from the player (<see cref="Distance"/>); a step with no place is no distance.</summary>
+    private float Far(RecordId? place, Place? here) => place is { } id ? Distance(PositionOf(Model.Plugins, id), here) : 0;
+
     /// <summary>
     /// How far a place is from the player, as the crow flies within his map set; another map set's is 10,000 on, since only a teleporter
-    /// gets there. A step with no place is no distance.
+    /// gets there. No distance where either is unknown.
     /// </summary>
-    private float Far(RecordId? place, Place? here)
+    public static float Distance(Place? at, Place? here)
     {
-        if (place is not { } id || here is not { } h || Position(id) is not { } at)
+        if (at is not { } a || here is not { } h)
             return 0;
-        return at.MapSet == h.MapSet ? Vector3.Distance(at.Feet, h.Feet) : 10_000 + at.Feet.Length() / 100;
+        return a.MapSet == h.MapSet ? Vector3.Distance(a.Feet, h.Feet) : 10_000 + a.Feet.Length() / 100;
     }
 
-    private Place? Position(RecordId place)
+    /// <summary>Where an action's place is: a map object's position, or a chunk's middle; null if it's nowhere.</summary>
+    public static Place? PositionOf(PluginSet plugins, RecordId place)
     {
-        var plugins = Model.Plugins;
         if (place.Type == RecordTypes.Chunk)
         {
             if (plugins.TryGet<ChunkRecord>(place) is not { } chunk || plugins.TryGet<MapSetRecord>(chunk.MapSet) is not { } set)

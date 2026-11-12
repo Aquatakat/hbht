@@ -85,4 +85,14 @@ public sealed record CoverGoal(IReadOnlyList<RecordId> Targets) : Goal
     public IReadOnlyCollection<string> Avoid { get; init; } = [];
 
     public override string Describe() => $"cover {Targets.Count} flags";
+
+    /// <summary>The default targets: every flag, plain or derived, that the relaxation over every action from the state sets and isn't set in it.</summary>
+    public static List<RecordId> StaticTargets(QuestModel model, PlanState state)
+    {
+        var result = new Relaxation(model, Enumerable.Range(0, model.Actions.Count)).Run(state);
+        var flags = model.Flags;
+        return [.. Enumerable.Range(0, flags.Count)
+            .Where(h => flags.Kind(h) is FlagKind.Plain or FlagKind.Derived && result.FactLayer[model.FlagFact(h, true)] > 0)
+            .Select(flags.Id)];
+    }
 }

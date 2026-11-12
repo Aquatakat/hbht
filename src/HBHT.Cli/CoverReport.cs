@@ -15,10 +15,15 @@ internal static partial class CoverReport
 {
     public const string Usage = """
           hbht playthrough cover init --root <dir> [--save <save>] [--targets all|<file>] [--job-minutes <n>] [--most-failures <n>]
+                                      [--trunk [<trunk dir>]] [--threads <n>]
                                                starts a cover tree in <dir>: one job from a new game (or the save) over
                                                every flag the static pass can set that isn't set at the start (or the
                                                file's flags, numbers or record IDs, one or more a line); each job may take
-                                               <n> minutes (120), and <n> failed steps towards a target give it up (3)
+                                               <n> minutes (120), and <n> failed steps towards a target give it up (3);
+                                               with --trunk, the story run to the ending is played first (or the trunk
+                                               folder's copied) into <dir>/trunk with a save before every step, each
+                                               target is given to the trunk save it's best started from, looked at on
+                                               <n> threads (20), and each save with targets is a job, t<step>
           hbht playthrough cover work --root <dir> [--most-minutes <n>] [--most-jobs <n>] [--threads <n>]
                                                claims pending jobs one after another and plays them, until none is left,
                                                the minutes run out (a job cut short is carried on by another), or <n> jobs
@@ -63,7 +68,20 @@ internal static partial class CoverReport
 
     private static int Init(PluginSet plugins, string[] args)
     {
-        var options = Options(args);
+        // --trunk takes a folder, or nothing.
+        var (trunk, trunkFrom, rest) = (false, (string?)null, new List<string>());
+        for (var i = 0; i < args.Length; i++)
+        {
+            if (args[i] != "--trunk")
+            {
+                rest.Add(args[i]);
+                continue;
+            }
+            trunk = true;
+            if (i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal))
+                trunkFrom = args[++i];
+        }
+        var options = Options([.. rest]);
         var queue = new CoverQueue(options["--root"]);
         if (queue.Exists)
             throw new ArgumentException($"{queue.Root} holds a cover tree already.");
@@ -85,22 +103,99 @@ internal static partial class CoverReport
         var model = QuestModel.Build(plugins);
         var targets = options.TryGetValue("--targets", out var which) && which != "all"
             ? ReadTargets(which, model)
-            : StaticTargets(model, PlanState.From(model, game));
+            : CoverGoal.StaticTargets(model, PlanState.From(model, game));
         var root = new CoverRoot([.. targets.Select(t => t.ToString())], save, Number(options, "--job-minutes", 120),
             (int)Number(options, "--most-failures", 3), DateTimeOffset.UtcNow);
+        if (trunk)
+            return InitTrunk(plugins, queue, root with { Trunk = "trunk" }, model, targets, trunkFrom, (int)Number(options, "--threads", 20));
         queue.Init(root);
         Console.WriteLine($"A cover tree in {queue.Root}: {targets.Count} targets, from {save ?? "a new game"}, in {clock.Elapsed.TotalSeconds:F1} s");
         return 0;
     }
 
-    /// <summary>Every flag, plain or derived, the relaxation from the state sets that isn't set in it.</summary>
-    public static List<RecordId> StaticTargets(QuestModel model, PlanState state)
+    /// <summary>
+    /// The trunk's tree: the story run to the ending with a save before every step (or the trunk folder given, copied in), the targets
+    /// live from each save and the start, each target given to one save (<see cref="Trunk.Assign"/>), and a job for each save with
+    /// targets. The flags the trunk saw set are its own result, <c>results/trunk.json</c>, so the ledger counts them.
+    /// </summary>
+    private static int InitTrunk(PluginSet plugins, CoverQueue queue, CoverRoot root, QuestModel model, List<RecordId> targets, string? from, int threads)
     {
-        var result = new Relaxation(model, Enumerable.Range(0, model.Actions.Count)).Run(state);
-        var flags = model.Flags;
-        return [.. Enumerable.Range(0, flags.Count)
-            .Where(h => flags.Kind(h) is FlagKind.Plain or FlagKind.Derived && result.FactLayer[model.FlagFact(h, true)] > 0)
-            .Select(flags.Id)];
+        var graph = new WorldGraph(plugins);
+        var folder = Path.Combine(queue.Root, root.Trunk!);
+        GameState Start() => root.Save is { } s ? GameState.Load(plugins, SaveFile.Read(queue.Resolve(s), plugins)) : GameState.NewGame(plugins);
+
+        var clock = Stopwatch.StartNew();
+        TrunkManifest manifest;
+        if (from is not null)
+        {
+            CopyFolder(from, folder);
+            manifest = Trunk.Read(folder);
+            Console.WriteLine($"The trunk from {from}: {manifest.Steps} steps, {manifest.Saves.Count} saves, played in {manifest.WallSeconds:0} s");
+        }
+        else
+        {
+            var host = root.Save is null ? PlaythroughHost.NewGame(plugins) : PlaythroughHost.From(Start());
+            manifest = Trunk.Run(host, model, graph, folder, new EndingGoal(), RunOptions.Default, Console.WriteLine);
+            Console.WriteLine($"The trunk: {manifest.Steps} steps, {manifest.Saves.Count} saves, {(manifest.Reached ? "the ending reached" : $"stopped: {manifest.Why}")}, " +
+                $"in {clock.Elapsed.TotalSeconds:0} s");
+        }
+
+        clock.Restart();
+        var games = new List<(int, Func<GameState>)> { (0, Start) };
+        games.AddRange(manifest.Saves.Select(s => (s.Step, (Func<GameState>)(() => GameState.Load(plugins, SaveFile.Read(Path.Combine(folder, s.Save), plugins))))));
+        var looks = Trunk.Look(model, graph, games, targets, threads);
+        Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"Looked at {looks.Count} games on {threads} threads in {clock.Elapsed.TotalSeconds:0.0} s ({looks.Average(l => l.Seconds):0.0} s each, {looks.Average(l => l.Rounds):0} rounds)"));
+
+        var covered = manifest.Seen.Select(x => RecordId.Parse(x.Flag)).ToHashSet();
+        var assignment = Trunk.Assign(targets, looks.Skip(1).ToList(), looks[0], covered);
+        var byStep = assignment.ByStep();
+        var jobs = Trunk.Jobs(manifest, assignment, root.Trunk!, root.Save);
+        queue.Init(root, jobs);
+        queue.WriteResult(Trunk.Result(manifest, assignment, root.Trunk!, jobs));
+
+        // The assignment, for whoever asks why a target went where it did.
+        var windows = targets.ToDictionary(t => t, t => looks.Skip(1).Where(l => l.Live.ContainsKey(t)).Select(l => new { l.Step, Far = Math.Round(l.Live[t], 1) }).ToList());
+        File.WriteAllText(Path.Combine(folder, "assignment.json"), System.Text.Json.JsonSerializer.Serialize(new
+        {
+            Slack = Trunk.Slack,
+            Ratio = Trunk.Ratio,
+            Targets = targets.Select(t => new
+            {
+                Flag = t.ToString(),
+                Job = assignment.Chosen.TryGetValue(t, out var step) ? $"t{step:000}" : assignment.FromStart.Contains(t) ? "t000"
+                    : covered.Contains(t) ? "trunk" : null,
+                Window = windows[t],
+            }),
+            assignment.Nowhere,
+        }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+
+        var sizes = jobs.Select(j => (j.Id, j.Targets.Count)).OrderByDescending(j => j.Count).ToList();
+        Console.WriteLine($"A cover tree in {queue.Root}: {targets.Count} targets; the trunk covered {assignment.Covered.Count}; " +
+            $"{assignment.Chosen.Count} given to {byStep.Count} of its {manifest.Saves.Count} saves, {assignment.FromStart.Count} to a job from the start, " +
+            $"{assignment.Nowhere.Count} live from nowhere");
+        if (sizes.Count > 0)
+        {
+            var counts = sizes.Select(s => s.Count).Order().ToList();
+            Console.WriteLine($"Targets a job: {counts[0]} to {counts[^1]}, median {counts[counts.Count / 2]}; the first save's job {(byStep.Count > 0 ? byStep.First().Value.Count : 0)}, " +
+                $"the last's {(byStep.Count > 0 ? byStep.Last().Value.Count : 0)} (step {(byStep.Count > 0 ? byStep.Last().Key : 0)} of {manifest.Steps})");
+            Console.WriteLine($"Biggest: {string.Join(", ", sizes.Take(10).Select(s => $"{s.Id} {s.Count}"))}");
+        }
+        return 0;
+    }
+
+    /// <summary>A folder's files copied into another, keeping their places under it.</summary>
+    private static void CopyFolder(string from, string to)
+    {
+        from = Path.GetFullPath(from);
+        if (!File.Exists(Path.Combine(from, Trunk.ManifestFile)))
+            throw new ArgumentException($"{from} holds no trunk ({Trunk.ManifestFile}).");
+        foreach (var file in Directory.EnumerateFiles(from, "*", SearchOption.AllDirectories))
+        {
+            var target = Path.Combine(to, Path.GetRelativePath(from, file));
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(file, target, overwrite: true);
+        }
     }
 
     private static List<RecordId> ReadTargets(string file, QuestModel model)
@@ -244,6 +339,11 @@ internal static partial class CoverReport
             $"deepest {(jobs.Count == 0 ? 0 : jobs.Max(j => j.Job.Depth))}");
         foreach (var (job, _, claim) in jobs.Where(j => j.Status == JobStatus.Claimed))
             Console.WriteLine($"  claimed: {job.Id} by {claim?.Machine} process {claim?.Pid}{(claim?.Alive() == false ? " (dead: pending again at the next claim)" : "")}");
+        if (results.FirstOrDefault(r => r.Job == "trunk") is { } trunk)
+            Console.WriteLine($"Trunk: {trunk.Outcome}, {trunk.Steps} steps in {trunk.WallSeconds / 60:0.0} minutes; " +
+                $"{trunk.Targets.Count} targets covered by it, {trunk.Seen.Count} flags seen in all");
+        TrunkJobs(jobs, ledger);
+        results = [.. results.Where(r => r.Job != "trunk")];
         var steps = results.Sum(r => r.Steps);
         var seconds = results.Sum(r => r.WallSeconds);
         if (seconds > 0)
@@ -270,6 +370,32 @@ internal static partial class CoverReport
 
     [GeneratedRegex(@"\+\d+$")]
     private static partial Regex CarryPattern();
+
+    [GeneratedRegex(@"^t\d+$")]
+    private static partial Regex TrunkJobPattern();
+
+    /// <summary>
+    /// The trunk's jobs, four a line, each with where it is (pending, running, done, or done with branches or carried-on jobs still open
+    /// under it), its targets covered by anyone of its own, and how many jobs hang off it.
+    /// </summary>
+    private static void TrunkJobs(List<(CoverJob Job, JobStatus Status, CoverQueue.Claimant? Claim)> jobs, Dictionary<string, (string Job, CoverSeenEntry Seen)> ledger)
+    {
+        var trunk = jobs.Where(j => TrunkJobPattern().IsMatch(j.Job.Id)).OrderBy(j => j.Job.Id, StringComparer.Ordinal).ToList();
+        if (trunk.Count == 0)
+            return;
+        Console.WriteLine($"Trunk jobs: {trunk.Count} (covered/targets; +n jobs under it, * while any of them is open)");
+        var cells = trunk.Select(t =>
+        {
+            var under = jobs.Where(j => j.Job.Id.Length > t.Job.Id.Length && j.Job.Id.StartsWith(t.Job.Id, StringComparison.Ordinal)
+                && j.Job.Id[t.Job.Id.Length] is '.' or '+').ToList();
+            var status = t.Status switch { JobStatus.Pending => "wait", JobStatus.Claimed => "run", _ => "done" };
+            var open = under.Any(j => j.Status != JobStatus.Done) ? "*" : "";
+            return $"{t.Job.Id} {status} {t.Job.Targets.Count(ledger.ContainsKey)}/{t.Job.Targets.Count}{(under.Count > 0 ? $" +{under.Count}{open}" : "")}";
+        }).ToList();
+        var width = cells.Max(c => c.Length) + 3;
+        for (var i = 0; i < cells.Count; i += 4)
+            Console.WriteLine("  " + string.Concat(cells.Skip(i).Take(4).Select(c => c.PadRight(width))).TrimEnd());
+    }
 
     /// <summary>A reason with its particulars taken out, to count by: up to its first colon, its numbers and map objects as n.</summary>
     private static string Kind(string why)

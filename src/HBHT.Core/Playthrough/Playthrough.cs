@@ -24,6 +24,11 @@ namespace HBHT.Core.Playthrough;
 /// shops are in the towns' interiors, where nothing wanders.
 /// </param>
 /// <param name="MenuPatience">How long the pause menu may stay open: long, for spending a battle's experience.</param>
+/// <param name="SaveEveryStep">
+/// Whether a save is written before every step the player has the controls for (<c>steps/t&lt;n&gt;.sav</c> in the saves folder), each
+/// listed in <see cref="Playthrough.StepSaves"/>, and the flags a ledger on the host sees put down to the step they were seen in
+/// (<see cref="Playthrough.StepSeen"/>): the trunk (<see cref="Trunk"/>).
+/// </param>
 public sealed record RunOptions(
     long MostTicks = long.MaxValue,
     TimeSpan? MostWall = null,
@@ -35,7 +40,8 @@ public sealed record RunOptions(
     float TrainerReach = 40,
     uint GoldReserve = 300,
     int MenuPatience = 60 * 60 * 10,
-    float ShopReach = 150)
+    float ShopReach = 150,
+    bool SaveEveryStep = false)
 {
     public static readonly RunOptions Default = new();
 }
@@ -300,6 +306,7 @@ public sealed partial class Playthrough
                 }
             }
             FinishCover();
+            TakeStepSeen();
         }
         catch (Exception e)
         {
@@ -494,10 +501,12 @@ public sealed partial class Playthrough
         state ??= PlanState.From(Model, Game);
         if (_visited.Count == 0 && Here() is { } first)
             _visited.Add(first.MapSet);
+        TakeStepSeen();
         var number = ++_step;
         var clock = Stopwatch.StartNew();
         var startTick = Host.Clock.Ticks;
         KeepSaveBefore();
+        SaveStep(action);
         var before = Before.Take(this);
         var translated = StepTranslation.Translate(action, Model, Game, Graph, reach);
         StepOutcome? outcome = null;
@@ -823,6 +832,42 @@ public sealed partial class Playthrough
         _beforePath = NextSavePath($"before-step-{_step}");
         File.WriteAllText(_beforePath, _before);
         return _beforePath;
+    }
+
+    /// <summary>With <see cref="RunOptions.SaveEveryStep"/>: the save before each step the player had the controls for, in order.</summary>
+    public List<TrunkSave> StepSaves { get; } = [];
+
+    /// <summary>
+    /// With <see cref="RunOptions.SaveEveryStep"/> and a ledger on the host: every flag first seen, put down to the step it was seen in
+    /// (what a trainer or shop visit after it sets included), with that step's save; step 0 is before the first step.
+    /// </summary>
+    public List<CoverSeen> StepSeen { get; } = [];
+
+    private string? _stepSave;
+
+    /// <summary>With <see cref="RunOptions.SaveEveryStep"/>, the save kept before this step written as the step's own, and listed.</summary>
+    private void SaveStep(PlayerAction action)
+    {
+        _stepSave = null;
+        if (!Options.SaveEveryStep || _before is null)
+            return;
+        var folder = Path.Combine(SavesFolder, "steps");
+        Directory.CreateDirectory(folder);
+        var path = Path.Combine(folder, $"t{_step:000}.sav");
+        File.WriteAllText(path, _before);
+        // An entry from this step names this save rather than writing another.
+        _beforePath = _stepSave = path;
+        var party = Game.Party.Members.Select(m => new MemberLevel(m.Entity.ToString(), m.Name, m.Level, m.SpendableExp)).ToList();
+        StepSaves.Add(new TrunkSave(_step, action.Describe(), Host.Clock.Ticks, Spot.Of(Here()), party, path));
+    }
+
+    /// <summary>The flags a ledger saw first since the last step began, put down to that step (a cover run puts them down itself).</summary>
+    private void TakeStepSeen()
+    {
+        if (!Options.SaveEveryStep || _cover is not null || Host.Ledger is not { } ledger)
+            return;
+        foreach (var h in ledger.TakeFresh())
+            StepSeen.Add(new CoverSeen(Model.Flags.Id(h), _step, Host.Clock.Ticks, _step > 0 ? _stepSave : null));
     }
 
     private string NextSavePath(string slug)
