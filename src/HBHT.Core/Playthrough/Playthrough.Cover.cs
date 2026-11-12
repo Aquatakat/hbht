@@ -494,6 +494,24 @@ public sealed partial class Playthrough
     {
         if (_cover is null)
             return;
+        if (!_coverDone && Host.End != HostEnd.None)
+        {
+            // The game ended in the last step (a battle lost again on its replay): its live targets go to a branch from the save before
+            // it, which avoids it, as a stranded run's do.
+            TakeSeen();
+            var live = _cover.Targets.Where(t => t.State == TargetState.Live).ToList();
+            var save = _lastChosen is { } last && last.Step == _step && _step > 0 && live.Count > 0 ? SaveBefore() : null;
+            if (save is null)
+                return;
+            _cover.Branches.Add(new CoverBranch(_step, _lastChosen!.Value.Action, save, [.. live.Select(t => t.Flag)], false, Stranded: true, Ended: true));
+            foreach (var target in live)
+            {
+                target.State = TargetState.Lost;
+                target.Why = $"the game ended ({Host.End}) in step {_step} ({_lastChosen.Value.Action}); a branch from the save before it avoids it";
+            }
+            Progress?.Invoke($"     the game ended in step {_step}: {live.Count} live target(s) go to a branch from the save before it, which avoids it");
+            return;
+        }
         if (_coverDone || Host.End != HostEnd.None || !Host.PlayerHasControl)
         {
             TakeSeen();

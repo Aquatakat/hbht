@@ -362,7 +362,7 @@ A place ways reach only through walls is walled, and nothing gets there. A place
 - their gates are open;
 - they teach something a member's build wants that the party's experience and gold, less a reserve of 300, can buy.
 
-The pilot walks up (`Arrive`), and `Levelling.Train` buys. A trainer isn't visited again until the party has more experience than when it last was.
+The pilot walks up (`Arrive`), and `Levelling.Train` buys. A trainer isn't visited again until the party has more experience than when it last was. An npc whose entity has no sheet to teach from is never one: Fyrsil (0x140D, Overworld Q27/9), a dialogue entity whose 0x04D4 has a way to training.
 
 **From a new game**, the member goal takes 4 steps and 48,150 ticks, about 8 s of wall time:
 
@@ -479,6 +479,8 @@ hbht playthrough cover status --root <dir> [--all]
 
 **Failures.** A target is given up after `--most-failures` steps towards it fail (3). A step that should have set its target by its own effects and played out without the ledger seeing it counts as failed, and is banned where it was played: walking into the tripwire 4/E03/0 plays out without setting 33, and would otherwise be played again and again.
 
+**The game ending** in a step (a battle lost again on its replay) sends the job's live targets to a branch from the save before the step, which avoids it, as a stranding does. Without it, Oriana's hut's job (`t003`, Alaron alone at level 1) lost a battle at MiscInteriors A09/1 twice and ended with 105 targets live.
+
 ### The trunk
 
 The story run to the ending is the trunk: each target is given to the trunk save it's best started from, and each save with targets is a job, so that the jobs play at the story's own pace and level, all at once, rather than one sweep from a new game whose party does the whole world's optional content at level 2.
@@ -493,15 +495,17 @@ From a new game over the 2,230 targets: the trunk covered 637 itself, and 1,592 
 
 **The jobs** are named by their save's step (`t007`, `t087`), from `trunk/saves/steps/t007.sav`, at depth 0; their branches and carried-on jobs hang off them as off the root job (`t007.1`, `t007+1`). `status` shows each trunk job compactly: where it is, its targets covered of its own, and how many jobs hang off it, starred while any is open. `--trunk <dir>` copies a trunk folder already played, rather than playing it again.
 
-**How it fares.** `tools/cover.ps1` for 15 minutes from a new game over all 2,230 targets, 20 workers in one process, before branches avoided their losing step: 49 jobs and 905 steps (about 54 a minute), 976 targets covered (about 58 a minute), 249 given up, and 1,005 still live in the 5 jobs left pending when the time ran out; no process died and nothing stranded. The root job alone plays about a step a second; the rest of the throughput is the branches beside it. Given up, by reason:
+**How it fares.** From a new game over the 2,230 targets, in a Release build, `init --trunk` takes about two and a half minutes (the trunk 135 s, the looks 4 to 6 s), and `tools/cover.ps1` with 20 workers in one process then works the whole tree in 7.8 minutes, until no job is left: 193 jobs (63 from the trunk's saves, 130 branches, at most 4 deep) and 2,253 steps, about 290 a minute. 1,961 targets are covered, 637 of them by the trunk itself; 269 are given up and none is left live; no process died. The one sweep from a new game before the trunk covered 976 in 15 minutes, with 1,005 still live in jobs not played: each trunk job starts near its targets with the party the story has there, and they all start at once.
 
-- 150 no plan, mostly "n action(s) do it, none can be done": their setters banned after failing, or their code gates unmet where the run stood;
-- 88 lost again on a branch's first step, which branches avoiding their losing step now answers;
-- a handful after three failed steps: the tripwires 4/E03/0 and 4/G07/1, which play out without setting 33 and 35; 0x036F at 4/O09/6, whose way takes choice 19 over a hundred times; and the pilot stalling at Overworld (913.9, −17.6, 1090.3) on the way to Jundar's 11/C05/13 and to N17 and I13.
+- The longest jobs take about five minutes (`t004`, 331 s, 20 steps; `t005`; `t009`), and the tree's last minutes are chains of branches, Oriana's hut's (`t003`, `t003.1`, …) the longest, so no one job holds the tree up.
+- Given up, by reason: 167 no plan from where the run stood, most of them in branches deep in what they avoid, which from their save have no plan to anything (38 in `t003.1.4.1.1`); 25 no plan; about 40 lost again on a branch's first step; 10 stranded again on a branch's first step; a handful after three failed steps (the tripwires 4/E03/0 and 4/G07/1, chests whose flags another way sets).
+- The game still ends in six jobs at the dryads' fight through the male dryad's 0x03FA (Overworld H12/1, and G12/8 once a branch avoids it), with Alaron at 14 and up: the battle is lost, and lost again on its replay. Its targets go to branches, which meet the other dryad.
 
 **Left:**
 
-- The distance is straight within a map set, which an interiors map set's rooms make poor: they're unconnected rooms laid out in one grid, so Oriana's hut's save takes MiscInteriors' targets across the world, and its job walks to them with a party of level 2. The walk from the save, through the teleporters, would weigh them truly.
+- The distance is straight within a map set, which an interiors map set's rooms make poor: they're unconnected rooms laid out in one grid, so Oriana's hut's save takes MiscInteriors' targets across the world, and its job walks to them with Alaron alone at level 1. The walk from the save, through the teleporters, would weigh them truly.
+- The dryads' fight (0x03FA at H12/1 and G12/8) is lost again on its replay, ending the game, in jobs from the trunk's later saves: the battle pilot's replay, or the fight itself, wants a look.
+- Found by the bot, for the game: a conversation with Fyrsil (Overworld Q27/9) that takes 0x04D4's way to training would throw in the runtime, since `Transition.TrainingOf` asks his sheetless entity for its skills. What 1.0 does there is unsettled.
 - Waiting for the hour: derived targets over the calendar wait and are given up.
 - A loss by the places alone may be the world graph's, not the game's, as the castle's was ([teleporters](#the-world-graph)): look at the cells where the step left the player before taking it as the game's.
 - Branches aren't capped by depth or count, and a branch whose targets are covered elsewhere is still claimed, to finish at once.

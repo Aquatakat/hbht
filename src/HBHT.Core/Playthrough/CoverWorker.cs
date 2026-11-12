@@ -112,7 +112,7 @@ public sealed class CoverWorker(CoverQueue queue, QuestModel model, WorldGraph g
             IReadOnlyList<string> avoid = [.. job.Avoid ?? [], branch.Action];
             made.Add(new CoverJob($"{job.Id}.{++n}", job.Id, Queue.Relative(branch.Save), [.. branch.Targets.Select(t => t.ToString())],
                 job.Depth + 1, branch.Step, branch.Action,
-                branch.Stranded ? "stranded after the step" : branch.Predicted ? "the loss check said it would lose them" : "lost after the step",
+                branch.Ended ? "the game ended in the step" : branch.Stranded ? "stranded after the step" : branch.Predicted ? "the loss check said it would lose them" : "lost after the step",
                 avoid));
         }
         // Stopped by the worker's own time with targets still live: carried on from here.
