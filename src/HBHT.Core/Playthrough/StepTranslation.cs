@@ -183,11 +183,42 @@ public static class CodeGates
             CodeCheckKind.WorstStat when Stat(check.A) is { } s => In(((IScriptWorld)game).WorstStat(s) & 0xFFFF),
             CodeCheckKind.MemberStat when Stat(check.B) is { } s => In(((IScriptWorld)game).MemberStat(check.A, s) & 0xFFFF),
             CodeCheckKind.Lock => WorldReach.CanPick(game.Party, check.Lo),
+            CodeCheckKind.Trap => DisarmChance(game.Party, check.Lo) > 0 ? null : false,
             CodeCheckKind.Buy => false,
             CodeCheckKind.Skill when check.Lo > 0 && check.A is { } skill && SkillId.TryFromRecord(skill) is { IsSkill: true } id
                 => CanRoll(game, id.Slot, check.Lo, check.Hi) ? null : false,
             _ => null,
         };
+    }
+
+    /// <summary>
+    /// The chance the party disarms a trap of <paramref name="level"/> (<see cref="Items.Containers.Disarm"/>): its mechanic, the member with
+    /// the highest Mechanic above 0 who has the Stamina it costs, rolls d100 under Intelligence × 4 + Mechanic × 10, and the step that
+    /// leaves must reach the level. A trap the party has no chance at is a gate not met, so the step isn't played: a trap that goes off
+    /// destroys its container, and its Opened and Used flags never come.
+    /// </summary>
+    public static double DisarmChance(Party party, int level)
+    {
+        if (level == 0)
+            return 1;
+        Character? mechanic = null;
+        var best = 0;
+        foreach (var member in party.Members)
+        {
+            var skill = member.Skills.Modified(Skill.Mechanic);
+            if (best < skill && Math.Max(10 - skill, 1) <= member.Stats.Modified(Stat.Stamina))
+                (mechanic, best) = (member, skill);
+        }
+        if (mechanic is null)
+            return 0;
+        var total = (ushort)(mechanic.Stats.Modified(Stat.Intelligence) * 4 + best * 10);
+        var passes = 0;
+        for (var roll = 1; roll <= 100; roll++)
+        {
+            if (roll < total && Party.SkillCheckStep((short)(total - roll)) is var step and not 0 && step >= level)
+                passes++;
+        }
+        return passes / 100.0;
     }
 
     /// <summary>

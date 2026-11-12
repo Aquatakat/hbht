@@ -34,7 +34,7 @@ An action needs its object to be there (its gates, as `MapObjectPresence` reads 
 - key items gained, with their held and region flags;
 - after a battle won: the encounter flag, the rules' end flag, the bosses' flags of the enemy list's first four, and the party's loot.
 
-A battle with the Shadow while the Horn of Kynon is held has the merge as a second outcome (the combat record's `shadow`).
+A battle with the Shadow while the Horn of Kynon is held has the merge as a second outcome (the combat record's `shadow`). It's never won: without the Horn it ends in the Shadow vanishing, with nothing won and no flag set ([combat](combat.md)), so the model gives its battle no win (`QuestModel.NeverWon`) and its encounter's beaten flag (Overworld H08/12's 950) is no target.
 
 **What code decides** is a `CodeGate`: skill checks, gold, stats, locks' and traps' levels, drop chances, and winning. The planner takes each to hold, and lists it with the step for the pilot to meet. Flags the engine writes (the calendar, rain, terrain) can be either value, since the pilot can wait or walk for them. Derived flags follow from their formulas over what each input can be (`FlagModel`), with no correlation kept between inputs.
 
@@ -402,6 +402,8 @@ From the herb, the dryads' scene sends the player to the queen twice, and the st
 **Which ways send the player elsewhere** is also found from the data (`StoryTrigger.Sends`): a way whose effects open a tangible teleporter whose radius takes in the trigger. Seven triggers have such ways, the dryads' three among them. It isn't taken as turning back, since being sent to the Gorgon's cave is the way out of the wood, and the planner doesn't know where the player stands.
 
 **Rolls tried again.** A Troubadour check isn't kept by its map object (`ScriptOps.SkillCheck`), so a step that missed because one rolled against it is played again, up to 8 times, before it's banned, and these tries don't count against the goal's failures in a row. A skill check that can't come out in the range a way wants at all, as a Troubadour check with no one who has the skill, keeps the step from being played (`CodeGates.CanRoll`, 400 rolls of the party's real check).
+
+**Rolls the game keeps** are played again from the save before the step, as a player reloads: a trap that went off, which destroys its container so that its Opened and Used flags never come, and a skill check its map object remembers. The game starts again on that save, the player stands 17 ticks a try so that the world's random stream, which the weather draws on every frame, rolls anew, and the step is played again, up to 8 times (`Playthrough.LoadBefore`). A trap the party has no chance at keeps the step from being played (`CodeGates.DisarmChance`: the mechanic, the member with the most Mechanic who has the Stamina, rolls d100 under Intelligence × 4 + Mechanic × 10, and the step that leaves must reach the trap's level), so its container waits for a party that can. Before this, 59 of the targets a trunk tree gave up were a chest's Opened and Used flags, its trap gone off on the one try.
 
 ## Goals and the party
 

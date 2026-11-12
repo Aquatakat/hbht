@@ -47,6 +47,41 @@ public sealed class PlaythroughPlannerTests(Na10Import fixture)
 
     private PlanState NewGame() => PlanState.From(Model, GameState.NewGame(Plugins));
 
+    [Fact]
+    public void TheShadowsBattleIsNeverWon()
+    {
+        // The Shadow's battle ends in its merging with Alaron or its vanishing, neither of which sets an encounter's flag: its encounter
+        // at Overworld H08/12 is fought only for the merge, and its beaten flag, 950, is no target.
+        var shadow = Ids.MapObject(0, "H08", 12);
+        var fights = Model.Actions.Where(a => a.Place == shadow).ToList();
+        Assert.NotEmpty(fights);
+        Assert.All(fights, a => Assert.DoesNotContain(a.Effects, e => e is SetFlag { Flag: var f } && f == Flag(950)));
+        Assert.DoesNotContain(Flag(950), CoverGoal.StaticTargets(Model, NewGame()));
+    }
+
+    [Fact]
+    public void ATrapIsAGateTheRunMeetsByThePartysChanceOfDisarmingIt()
+    {
+        // A trap that goes off destroys its container, so a step to a trapped one is played only while the party has a chance: its
+        // mechanic rolls d100 under Intelligence × 4 + Mechanic × 10, and the step that leaves must reach the trap's level.
+        var game = GameState.NewGame(Plugins);
+        var alaron = game.Party.Members.Single();
+        static CodeGate Trap(int level) => new($"disarming a trap of level {level}") { Check = new(CodeCheckKind.Trap, level) };
+        Assert.Equal(1, CodeGates.DisarmChance(game.Party, 0));
+        if (alaron.Skills.Modified(HBHT.Core.Characters.Skill.Mechanic) == 0)
+        {
+            Assert.Equal(0, CodeGates.DisarmChance(game.Party, 1));
+            Assert.False(CodeGates.Meets(Trap(1), game));
+            alaron.Skills.Train(HBHT.Core.Characters.Skill.Mechanic, 1);
+        }
+        var chances = Enumerable.Range(1, 10).Select(level => CodeGates.DisarmChance(game.Party, level)).ToList();
+        Assert.True(chances[0] > 0);
+        Assert.Null(CodeGates.Meets(Trap(1), game));
+        Assert.Equal(chances.OrderByDescending(c => c), chances);
+        Assert.Equal(0, chances[^1]);
+        Assert.False(CodeGates.Meets(Trap(10), game));
+    }
+
     private static RecordId Flag(int n) => RecordId.Decimal(RecordTypes.Flag, n);
 
     [Fact]

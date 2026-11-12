@@ -561,6 +561,12 @@ public sealed partial class Playthrough
         var reroll = !done && outcome is { Used: true } && translated.Rolls.Any(g => g.Check is { Kind: CodeCheckKind.Skill, A: { } skill }
             && Characters.SkillId.TryFromRecord(skill) is { } id && id.Slot == (int)Characters.Skill.Troubadour)
             && (_rerolls[action.Index] = _rerolls.GetValueOrDefault(action.Index) + 1) <= MostRerolls;
+        // A roll the game keeps, a trap that went off or a skill check its map object remembers, is played again from the save before the
+        // step, as a player reloads: a trap's container is destroyed, and its Opened and Used flags never come.
+        if (!done && !reroll && outcome is { Used: true, Misses.Count: > 0 } && _before is { } kept
+            && translated.Rolls.Any(g => g.Check?.Kind is CodeCheckKind.Trap or CodeCheckKind.Skill)
+            && (_rerolls[action.Index] = _rerolls.GetValueOrDefault(action.Index) + 1) <= MostRerolls)
+            reroll = LoadBefore(kept, _rerolls[action.Index]);
         // Stuck the first time, the game is saved and loaded where he stands, and the step may be tried again from there.
         var reloaded = outcome?.Failure == StepFailure.Stuck && _failedTimes.GetValueOrDefault(action.Index) == 0 && SaveAndLoad();
         if (reloaded)
@@ -574,6 +580,21 @@ public sealed partial class Playthrough
         var step = new RunStep(number, goal, action, done, summary, outcome, translated) { Again = reroll };
         Played.Add(step);
         return step;
+    }
+
+    /// <summary>
+    /// After a roll went against a step, the game starts again on the save from before it, and the player stands a while (17 ticks a try)
+    /// so that the world's random stream, which the weather draws on every frame, rolls anew. Whether it did.
+    /// </summary>
+    private bool LoadBefore(string save, int tries)
+    {
+        Host.Restart(GameState.Load(Model.Plugins, SaveFile.Parse(save, Model.Plugins)));
+        if (Host.RunUntilControl(Options.StepTicks) != HostRun.Done)
+            return false;
+        var until = Host.Clock.Ticks + 17 * tries;
+        Host.RunUntil(h => h.Clock.Ticks >= until, 17 * tries + 1);
+        Progress?.Invoke($"     a roll went against it: loaded the save before the step, for try {tries + 1}");
+        return true;
     }
 
     /// <summary>

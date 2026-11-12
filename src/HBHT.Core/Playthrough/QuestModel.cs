@@ -163,7 +163,7 @@ public sealed class QuestModel
                     if (encounter.Used is { } beaten)
                         presence.Add(new FlagIs(beaten.Flag, false));
                     var effects = Battle(Sure(encounter.Enemies), encounter.Used?.Flag, encounter.Loot, encounter.BattleRules);
-                    if (effects.Count > 0)
+                    if (effects.Count > 0 && !NeverWon(encounter.Enemies.Select(e => e.Entity)))
                         Add(ActionKind.Fight, id, null, [], presence, [Won], effects, wins: true);
                     if (Merge(encounter.Enemies.Select(e => e.Entity)) is { } merge)
                         Add(ActionKind.Fight, id, null, [], presence, merge.Requires, merge.Effects, wins: true);
@@ -189,6 +189,14 @@ public sealed class QuestModel
 
     /// <summary>A win the planner takes as given: the battle pilot plays it, and plays it again until it's won.</summary>
     private static readonly CodeGate Won = new("winning the battle") { Check = new(CodeCheckKind.Win) };
+
+    /// <summary>
+    /// Whether a battle is never won: the Shadow's, which ends in its merging with Alaron or its vanishing, neither of which gives rewards or
+    /// sets an encounter or kill flag (docs/systems/combat.md, the special battles). Its encounter's beaten flag (Overworld H08/12's 950)
+    /// never comes.
+    /// </summary>
+    private bool NeverWon(IEnumerable<RecordId> enemies) =>
+        Plugins.TrySingleton<CombatRecord>()?.Shadow is { } shadow && enemies.Contains(shadow.Entity);
 
     /// <summary>
     /// A battle with the Shadow can end in its merging with Alaron instead, while the party carries the Horn of Kynon (the combat
@@ -284,11 +292,19 @@ public sealed class QuestModel
                 if (Merge(fighters) is { } merge)
                     Add(kind, id, scriptId, way.Choices, presence, [.. requires, .. merge.Requires], [.. effects, .. merge.Effects], true,
                         fault: way.Fault, others: way.OtherChoices, way: way);
-                requires.Add(Won);
-                // In a conversation with someone who wanders, the original fights their party instead (BattleSetup.Against).
-                effects.AddRange(npc is not null
-                    ? Battle(Sure(npc.Fighters), npc.BattleFlag, npc.Loot, npc.BattleRules)
-                    : Battle(way.Enemies, null, null, script.BattleRules));
+                if (NeverWon(fighters))
+                {
+                    // The Shadow's battle without the Horn ends in its vanishing, with nothing won and no flag set: the way's own effects.
+                    wins = false;
+                }
+                else
+                {
+                    requires.Add(Won);
+                    // In a conversation with someone who wanders, the original fights their party instead (BattleSetup.Against).
+                    effects.AddRange(npc is not null
+                        ? Battle(Sure(npc.Fighters), npc.BattleFlag, npc.Loot, npc.BattleRules)
+                        : Battle(way.Enemies, null, null, script.BattleRules));
+                }
             }
             var action = Add(kind, id, scriptId, way.Choices, presence, requires, effects, wins, fault: way.Fault, others: way.OtherChoices, way: way);
             if (action is null || way.End != ScriptEndKind.Shop)
