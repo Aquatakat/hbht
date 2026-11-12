@@ -73,6 +73,7 @@ public sealed class CoverWorker(CoverQueue queue, QuestModel model, WorldGraph g
             CoveredElsewhere = () => Queue.Ledger().Keys.Select(RecordId.Parse).ToHashSet(),
             Avoid = job.Avoid ?? [],
             Party = [.. (job.Party ?? []).Select(RecordId.Parse)],
+            Shun = [.. (job.Shun ?? []).Select(RecordId.Parse)],
         };
         var options = Options with { Saves = Queue.SavesOf(job.Id), MostWall = wall };
         var run = new Playthrough(host, model, graph, goal, options) { Progress = Progress };
@@ -90,8 +91,11 @@ public sealed class CoverWorker(CoverQueue queue, QuestModel model, WorldGraph g
             if (branch.Save is null)
                 continue;
             // A branch that lost what it was for on its own first step, as its parent did, would only branch the same way again: the step
-            // the run takes first from there loses them whatever it's after, as a story trigger on every way out does.
-            if (!branch.Stranded && job.Parent is not null && branch.Step == 1 && branch.Targets.All(t => job.Targets.Contains(t.ToString())))
+            // the run takes first from there loses them whatever it's after, as a story trigger on every way out does. Unless the step
+            // crossed a story trigger the job didn't shun: a branch shunning that one too goes round it, or finds no way.
+            var shun = (job.Shun ?? []).Union(branch.Crossed.Select(c => c.ToString())).ToList();
+            if (!branch.Stranded && job.Parent is not null && branch.Step == 1 && branch.Targets.All(t => job.Targets.Contains(t.ToString()))
+                && shun.Count == (job.Shun?.Count ?? 0))
             {
                 foreach (var t in cover.Targets.Where(t => branch.Targets.Contains(t.Flag)))
                 {
@@ -128,7 +132,7 @@ public sealed class CoverWorker(CoverQueue queue, QuestModel model, WorldGraph g
             made.Add(new CoverJob($"{job.Id}.{++n}", job.Id, Queue.Relative(branch.Save), [.. branch.Targets.Select(t => t.ToString())],
                 job.Depth + 1, branch.Step, branch.Action,
                 branch.Ended ? "the game ended in the step" : branch.Stranded ? "stranded after the step" : branch.Predicted ? "the loss check said it would lose them" : "lost after the step",
-                avoid, job.Party));
+                avoid, job.Party, shun.Count > 0 ? shun : null));
         }
         // Stopped by the worker's own time with targets still live: carried on from here.
         var live = cover.Targets.Where(t => t.State == TargetState.Live).ToList();
@@ -138,7 +142,7 @@ public sealed class CoverWorker(CoverQueue queue, QuestModel model, WorldGraph g
             if (run.SaveNow(path))
             {
                 made.Add(new CoverJob(NextCarry(job.Id), job.Id, Queue.Relative(path), [.. live.Select(t => t.Flag.ToString())], job.Depth,
-                    Why: "carried on: the worker's time ran out", Avoid: job.Avoid, Party: job.Party));
+                    Why: "carried on: the worker's time ran out", Avoid: job.Avoid, Party: job.Party, Shun: job.Shun));
                 foreach (var t in live)
                     t.Why = "carried on in another job";
             }

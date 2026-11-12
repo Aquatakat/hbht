@@ -155,7 +155,9 @@ public sealed partial class Playthrough
         {
             var (step, action, index, _, predicted) = _pending!.Value;
             var save = SaveBefore();
-            _cover.Branches.Add(new CoverBranch(step, action, save, [.. lost.Select(t => t.Flag)], predicted) { ActionIndex = index });
+            // A loss the check didn't foresee may be a story trigger the step crossed on the way: the branch shuns those it crossed.
+            var crossed = !predicted && Played.Count > 0 && Played[^1].Number == step ? Played[^1].Outcome?.Crossed ?? [] : [];
+            _cover.Branches.Add(new CoverBranch(step, action, save, [.. lost.Select(t => t.Flag)], predicted) { ActionIndex = index, Crossed = crossed });
             // Lost by the places alone: the relaxation with every place reached still sets them, so where the step left the player walls
             // them off (a way down with none back up, or the world graph's reach from there).
             var stranded = StrandedOf(state, lost);

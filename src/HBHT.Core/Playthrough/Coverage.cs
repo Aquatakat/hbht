@@ -63,6 +63,9 @@ public sealed record CoverBranch(int Step, string Action, string? Save, IReadOnl
     /// <summary>The step's action (<see cref="PlayerAction.Index"/>), which the branch avoids by <see cref="CoverGoal.Avoid"/>.</summary>
     public int? ActionIndex { get; init; }
 
+    /// <summary>The story triggers the step crossed, other than its own, which the branch shuns (<see cref="CoverGoal.Shun"/>).</summary>
+    public IReadOnlyList<RecordId> Crossed { get; init; } = [];
+
     /// <summary>How the branch's job names the step it avoids (<see cref="CoverGoal.Avoid"/>).</summary>
     public string Avoid => ActionIndex is { } i ? $"#{i} {Action}" : Action;
 }

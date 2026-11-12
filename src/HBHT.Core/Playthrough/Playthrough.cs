@@ -547,7 +547,7 @@ public sealed partial class Playthrough
         }
         else
         {
-            var pilot = new Pilot(Graph, PilotOptions.Default with { PickLocks = translated.PickLocks, Rest = Resting, Triggers = Triggers, Dress = Outfitting, Waits = WaitsForTheHour });
+            var pilot = new Pilot(Graph, PilotOptions.Default with { PickLocks = translated.PickLocks, Rest = Resting, Triggers = Triggers, Dress = Outfitting, Waits = WaitsForTheHour, Shun = (Goal as CoverGoal)?.Shun });
             outcome = pilot.Run(Host, pilotStep, Math.Min(Options.StepTicks, Math.Max(1, Options.MostTicks - (Host.Clock.Ticks - _startTicks))));
             var expect = pilotStep.Expect ?? [];
             // Done by the way: what it was for came about though the pilot didn't use it (an encounter caught the party first).
@@ -763,7 +763,7 @@ public sealed partial class Playthrough
                 continue;
             if (Graph.Route(Game, here, id) is not { Route: { } route } || route.Length > Options.TrainerReach * 1.5f)
                 continue;
-            var walk = new Pilot(Graph, PilotOptions.Default with { Rest = Resting, Triggers = Triggers, Dress = Outfitting, Waits = WaitsForTheHour }).Run(Host, new PilotStep(id, UseKind.Arrive), Options.StepTicks);
+            var walk = new Pilot(Graph, PilotOptions.Default with { Rest = Resting, Triggers = Triggers, Dress = Outfitting, Waits = WaitsForTheHour, Shun = (Goal as CoverGoal)?.Shun }).Run(Host, new PilotStep(id, UseKind.Arrive), Options.StepTicks);
             if (!walk.Done || !Host.PlayerHasControl)
                 return;
             var bought = Levelling.Train(Host, trainer);
@@ -817,7 +817,7 @@ public sealed partial class Playthrough
             Outfitting.Shopping = true;
             try
             {
-                new Pilot(Graph, PilotOptions.Default with { Rest = Resting, Triggers = Triggers, Dress = Outfitting, Waits = WaitsForTheHour })
+                new Pilot(Graph, PilotOptions.Default with { Rest = Resting, Triggers = Triggers, Dress = Outfitting, Waits = WaitsForTheHour, Shun = (Goal as CoverGoal)?.Shun })
                     .Run(Host, step with { Expect = [] }, Options.StepTicks);
             }
             finally

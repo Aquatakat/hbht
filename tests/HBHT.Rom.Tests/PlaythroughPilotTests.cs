@@ -271,6 +271,23 @@ public sealed class PlaythroughPilotTests(Na10Import fixture, ITestOutputHelper 
         return (leads, flag, script);
     }
 
+    /// <summary>Alaron's cut-scene's map objects (0x0364), which close every way from Edur's to the Goblin Ambush.</summary>
+    private static readonly RecordId[] AlaronsScene = [Ids.MapObject(0, "I08", 8), Ids.MapObject(0, "I08", 11), Ids.MapObject(0, "H08", 5)];
+
+    [Fact]
+    public void AStepThatMayNotCrossTheTriggersOnEveryWayFindsNoRoute()
+    {
+        // After Edur's cut-scene, every way to the Goblin Ambush passes one of Alaron's cut-scene's objects. Shunning them all, as a cover
+        // branch does the triggers that lost its parent's targets, the step finds no way, where without it the pilot walks through.
+        var host = NewGame(Data.Set);
+        var (leads, flag, _) = StoryStep(host);
+        Assert.True(Run(host, new PilotStep(leads, Expect: [ExpectedEffect.FlagSet(flag)]), 20_000).Done);
+        var at = Nearest(host, [.. Data.Index.StartersOf(Ambush).Select(s => s.By).Where(s => Open(host.Game, s, Data.Objects[s]))]);
+        var shunned = Run(host, new PilotStep(at), 20_000, PilotOptions.Default with { Shun = AlaronsScene });
+        Assert.Equal(StepFailure.NoRoute, shunned.Failure);
+        Assert.Empty(shunned.Crossed);
+    }
+
     [Fact]
     public void FromANewGameThePilotPlaysTheStoryOnToTheGoblinAmbushAndOrianasHut()
     {
@@ -299,6 +316,8 @@ public sealed class PlaythroughPilotTests(Na10Import fixture, ITestOutputHelper 
         // trek in the hut's map set. A wanderer's battle on the way, won outright, is its own.
         var scenes = ambush.Transitions.Select(t => t.Transition).OfType<Transition.StartCutScene>().Select(s => s.Scene.Runner.Script.Id).ToList();
         Assert.Equal([Ids.Script(0x0364), Ambush, Ids.Script(0x0392), Ids.Script(0x0393)], scenes);
+        // The trigger crossed on the way is the step's to say, for a cover branch to shun.
+        Assert.Contains(ambush.Crossed, c => AlaronsScene.Contains(c));
         var fought = Assert.Single(ambush.Battles, b => b.Setup.Source == BattleSource.Script);
         Assert.Equal(BattleOutcome.Spared, fought.Outcome);
         Assert.All(ambush.Battles.Where(b => b != fought), b => Assert.Equal((BattleSource.Wanderer, BattleOutcome.Won), (b.Setup.Source, b.Outcome)));

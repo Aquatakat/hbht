@@ -118,6 +118,13 @@ public sealed record CoverGoal(IReadOnlyList<RecordId> Targets) : Goal
     /// </summary>
     public IReadOnlyList<RecordId> Party { get; init; } = [];
 
+    /// <summary>
+    /// Story triggers no route of the run may cross (<see cref="PilotOptions.Shun"/>): those a step crossed in the jobs it branched from
+    /// when the step lost their targets. Walking out of Gwernia castle plays the story on, which closes the conversations there; a branch
+    /// that shuns the trigger has those first, and gives up the targets only that way leads to, which its parent went on to.
+    /// </summary>
+    public IReadOnlyList<RecordId> Shun { get; init; } = [];
+
     /// <summary>The actions an <see cref="Avoid"/> entry names in a model.</summary>
     public static IEnumerable<int> Avoided(QuestModel model, string entry)
     {

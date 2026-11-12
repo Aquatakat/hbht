@@ -167,6 +167,9 @@ public sealed record StepOutcome(
     /// <summary>The story trigger that turned the player back, for <see cref="StepFailure.Blocked"/>.</summary>
     public RecordId? Blocker { get; init; }
 
+    /// <summary>The story triggers other than the step's own cued on the step, as the player walked into them.</summary>
+    public IReadOnlyList<RecordId> Crossed { get; init; } = [];
+
     /// <summary>The object was used, its consequences played out, and nothing stopped it. Expectation misses don't count: they're the report's.</summary>
     public bool Done => Failure == StepFailure.None;
 

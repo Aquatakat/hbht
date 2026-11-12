@@ -31,6 +31,10 @@ namespace HBHT.Core.Playthrough;
 /// Whether routes keep out of the script objects walking into would set off, other than the step's own, while a route that does is
 /// to be had: the step plays what it was asked to, and not the story's cut-scenes on the way.
 /// </param>
+/// <param name="Shun">
+/// Story triggers no route may cross, other than the step's own: a cover branch's, whose crossing lost its targets in its parent (a
+/// step out of Gwernia castle playing the story on). A step with no way round them fails <see cref="StepFailure.NoRoute"/>.
+/// </param>
 public sealed record PilotOptions(
     int StallTicks = 90,
     float Progress = 0.2f,
@@ -47,7 +51,8 @@ public sealed record PilotOptions(
     StoryTriggers? Triggers = null,
     Outfitting? Dress = null,
     int SidestepTicks = 30,
-    Func<RouteRefusal, bool>? Waits = null)
+    Func<RouteRefusal, bool>? Waits = null,
+    IReadOnlyCollection<RecordId>? Shun = null)
 {
     public static readonly PilotOptions Default = new();
 }
@@ -156,6 +161,7 @@ public sealed class Pilot : IInputPolicy
             [.. choices.Taken], [.. choices.Missed], [.. choices.NotReached], where)
         {
             Blocker = walk.Blocker,
+            Crossed = [.. walk.Crossed],
         };
     }
 
@@ -166,7 +172,7 @@ public sealed class Pilot : IInputPolicy
     /// </summary>
     private void Watch(PlaythroughHost host, Walk walk)
     {
-        if (Options.Triggers is not { } triggers || host.Session is not { Mode: GameMode.Trek } session)
+        if (host.Session is not { Mode: GameMode.Trek } session)
             return;
         var cued = session.Trek.Cued;
         if (cued is not { Start.MapObject: { } source } || walk.Cued == source)
@@ -175,7 +181,9 @@ public sealed class Pilot : IInputPolicy
             return;
         }
         walk.Cued = source;
-        if (source == walk.Step.MapObject || triggers.Get(source) is null)
+        if (source != walk.Step.MapObject)
+            walk.Crossed.Add(source);
+        if (Options.Triggers is not { } triggers || source == walk.Step.MapObject || triggers.Get(source) is null)
             return;
         var ways = triggers.WaysNow(source, host.Game);
         var key = $"{source} {string.Join(",", ways)}";
@@ -391,10 +399,11 @@ public sealed class Pilot : IInputPolicy
     /// </summary>
     private RouteResult Route(GameState game, Walk walk, Place from)
     {
-        var plain = new RouteOptions(Options.PickLocks, [.. walk.Avoid]);
+        var shun = Shunned(walk, from);
+        var plain = new RouteOptions(Options.PickLocks, [.. walk.Avoid], KeepClear: shun);
         if (!Options.KeepClear || Triggers(game, walk, from) is not { Count: > 0 } zones)
             return _graph.Route(game, from, walk.Step.MapObject, plain);
-        var clear = _graph.Route(game, from, walk.Step.MapObject, plain with { KeepClear = zones });
+        var clear = _graph.Route(game, from, walk.Step.MapObject, plain with { KeepClear = [.. shun, .. zones] });
         if (clear.Found)
             return clear;
         var through = _graph.Route(game, from, walk.Step.MapObject, plain);
@@ -404,8 +413,26 @@ public sealed class Pilot : IInputPolicy
             && l.Waypoints.Any(w => Vector3.Distance(w, z.Centre.Feet) <= z.Radius))).ToHashSet();
         if (crossed.Count == 0 || crossed.Count == zones.Count)
             return through;
-        var fewer = _graph.Route(game, from, walk.Step.MapObject, plain with { KeepClear = [.. zones.Where(z => !crossed.Contains(z))] });
+        var fewer = _graph.Route(game, from, walk.Step.MapObject, plain with { KeepClear = [.. shun, .. zones.Where(z => !crossed.Contains(z))] });
         return fewer.Found ? fewer : through;
+    }
+
+    /// <summary>The zones of the triggers no route may cross (<see cref="PilotOptions.Shun"/>), but the step's own and one he stands in.</summary>
+    private List<RouteZone> Shunned(Walk walk, Place from)
+    {
+        var zones = new List<RouteZone>();
+        foreach (var id in Options.Shun ?? [])
+        {
+            if (id == walk.Step.MapObject || _graph.Plugins.TryGet<ChunkRecord>(ChunkRecord.ChunkOf(id)) is not { } chunk
+                || chunk.Object(ChunkRecord.IndexOf(id)) is not { } o)
+                continue;
+            var at = _graph.Plugins.Get<MapSetRecord>(chunk.MapSet).Origin(chunk) + o.Position;
+            var radius = o.Radius + 1;
+            if (chunk.MapSet == from.MapSet && Vector3.Distance(at, from.Feet) <= radius + 1)
+                continue;
+            zones.Add(new RouteZone(new Place(chunk.MapSet, at), radius));
+        }
+        return zones;
     }
 
     /// <summary>
@@ -593,6 +620,9 @@ public sealed class Pilot : IInputPolicy
         public int SidestepTicks;
         public RecordId? Cued;
         public readonly HashSet<string> Fired = [];
+
+        /// <summary>The story triggers other than the step's own cued on the step, in the order they were.</summary>
+        public readonly List<RecordId> Crossed = [];
         public RecordId? Blocker;
 
         public bool Arrived;

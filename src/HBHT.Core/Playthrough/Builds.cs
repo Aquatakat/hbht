@@ -162,15 +162,16 @@ public static class Builds
     /// <summary>
     /// A thief, whose Thief is at least 3 and above their Warrior, a D&amp;D rogue who strikes from behind: a blow from behind adds Thief × 10
     /// to the chance and Thief × 2 to the damage, so the weapon and Thief come first; Dexterity is their defence, twice over; Stamina
-    /// their hit points. Stealth is left: the AI doesn't sneak, and the scripts' Stealth check is a stub.
+    /// their hit points. Mechanic disarms the party's traps, which destroy a chest that goes off (a trap of level 6 needs a step of 6, so
+    /// Intelligence × 4 + Mechanic × 10 over 96). Stealth is left: the AI doesn't sneak, and the scripts' Stealth check is a stub.
     /// </summary>
     public static readonly Build Rogue = new("Rogue", new BuildFit(Skill.Thief, 3, Over: Skill.Warrior),
     [
         BuildStep.Weapon(1, 5), BuildStep.Raise(1, Skill.Thief, 4), BuildStep.Raise(1, Stat.Dexterity, 25), BuildStep.Raise(1, Stat.Stamina, 35),
         BuildStep.Weapon(2, 7), BuildStep.Raise(2, Skill.Thief, 6), BuildStep.Raise(2, Stat.Dexterity, 28), BuildStep.Raise(2, Stat.Stamina, 45),
-        BuildStep.Raise(2, Skill.Warrior, 2), BuildStep.Raise(2, Stat.Endurance, 16),
+        BuildStep.Raise(2, Skill.Warrior, 2), BuildStep.Raise(2, Stat.Endurance, 16), BuildStep.Raise(2, Skill.Mechanic, 3),
         BuildStep.Weapon(3, 9), BuildStep.Raise(3, Skill.Thief, 8), BuildStep.Raise(3, Stat.Strength, 17), BuildStep.Raise(3, Stat.Stamina, 55),
-        BuildStep.Raise(3, Skill.Warrior, 4),
+        BuildStep.Raise(3, Skill.Warrior, 4), BuildStep.Raise(3, Skill.Mechanic, 5),
         BuildStep.Weapon(4, 10), BuildStep.Raise(4, Skill.Thief, 10), BuildStep.Raise(4, Stat.Dexterity, 30), BuildStep.Raise(4, Stat.Endurance, 22),
         BuildStep.Raise(4, Skill.Warrior, 6), BuildStep.Raise(4, Stat.Stamina, 65),
     ]);
