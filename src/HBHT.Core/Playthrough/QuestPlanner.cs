@@ -50,6 +50,7 @@ public sealed class QuestPlanner
         EndingGoal => state.Credits,
         PassGoal p => Triggers?.Get(p.Trigger) is not { } t || !Triggers.Blocks(t, state),
         FactsGoal g => _model.Facts(state) is var facts && g.Facts.All(f => facts[f]),
+        PartyGoal p => p.Members.All(state.InParty),
         _ => false,
     };
 
@@ -65,6 +66,7 @@ public sealed class QuestPlanner
             .Select(m => _model.PersonFact(m.Key, true)).OfType<int>()],
         EndingGoal => [_model.CreditsFact],
         FactsGoal g => g.Facts,
+        PartyGoal p => [.. p.Members.Select(m => _model.PersonFact(m, true)).OfType<int>()],
         _ => [],
     };
 
@@ -161,6 +163,7 @@ public sealed class QuestPlanner
             {
                 MemberGoal => "No one living is left to join.",
                 PassGoal => "Nothing the model has lets the player past it.",
+                PartyGoal => "None of them is someone the model follows into the party.",
                 _ => "No such flag.",
             }, [], 0, 0);
         var any = AnyFact(goal);

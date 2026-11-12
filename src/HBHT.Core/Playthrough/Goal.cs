@@ -11,14 +11,25 @@ public abstract record Goal
 
     public sealed override string ToString() => Describe();
 
-    /// <summary><c>flag:&lt;n&gt;</c> (or a flag's record ID), <c>member</c> or <c>ending</c>.</summary>
+    /// <summary>
+    /// <c>flag:&lt;n&gt;</c> (or a flag's record ID), <c>member</c>, <c>party:&lt;entity&gt;[,&lt;entity&gt;…]</c> (each a hex number
+    /// such as <c>0x0241</c>, or a record ID) or <c>ending</c>.
+    /// </summary>
     public static Goal Parse(string text) => text switch
     {
         "member" => new MemberGoal(),
         "ending" => new EndingGoal(),
         _ when text.StartsWith("flag:", StringComparison.Ordinal) => new FlagGoal(ParseFlag(text["flag:".Length..])),
-        _ => throw new ArgumentException($"A goal is flag:<n>, member or ending, not {text}."),
+        _ when text.StartsWith("party:", StringComparison.Ordinal) =>
+            new PartyGoal([.. text["party:".Length..].Split(',', StringSplitOptions.RemoveEmptyEntries).Select(ParseEntity)]),
+        _ => throw new ArgumentException($"A goal is flag:<n>, member, party:<entities> or ending, not {text}."),
     };
+
+    private static RecordId ParseEntity(string entity) =>
+        entity.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+            && int.TryParse(entity.AsSpan(2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var n) ? RecordId.Hex(RecordTypes.Entity, n)
+        : RecordId.TryParse(entity, out var id) ? id
+        : throw new ArgumentException($"{entity} isn't an entity's hex number or record ID.");
 
     private static RecordId ParseFlag(string flag) =>
         int.TryParse(flag, NumberStyles.None, CultureInfo.InvariantCulture, out var n) ? RecordId.Decimal(RecordTypes.Flag, n)
@@ -36,6 +47,19 @@ public sealed record FlagGoal(RecordId Flag) : Goal
 public sealed record MemberGoal : Goal
 {
     public override string Describe() => "a member joins";
+}
+
+/// <summary>
+/// Each of some members in the party at once (docs/systems/playthrough.md, "Party jobs"). The planner searches with the party's cap, so
+/// with the party full it plans a joining conversation's way that asks someone else to leave.
+/// </summary>
+public sealed record PartyGoal(IReadOnlyList<RecordId> Members) : Goal
+{
+    public override string Describe() => $"the party with {string.Join(", ", Members.Select(m => m.Key))}";
+
+    public bool Equals(PartyGoal? other) => other is not null && Members.SequenceEqual(other.Members);
+
+    public override int GetHashCode() => Members.Aggregate(0, HashCode.Combine);
 }
 
 /// <summary>
@@ -86,6 +110,13 @@ public sealed record CoverGoal(IReadOnlyList<RecordId> Targets) : Goal
     /// describes so, or an entry with none, bans by the description.
     /// </summary>
     public IReadOnlyCollection<string> Avoid { get; init; } = [];
+
+    /// <summary>
+    /// Members to have in the party at once, a party job's (docs/systems/playthrough.md, "Party jobs"): once no step nearby sets a target,
+    /// the run plans to this party (<see cref="PartyGoal"/>) before anything else, and never takes a step that leaves one of them out
+    /// (<see cref="PartyJobs.Leaving"/>). None for an ordinary job.
+    /// </summary>
+    public IReadOnlyList<RecordId> Party { get; init; } = [];
 
     /// <summary>The actions an <see cref="Avoid"/> entry names in a model.</summary>
     public static IEnumerable<int> Avoided(QuestModel model, string entry)

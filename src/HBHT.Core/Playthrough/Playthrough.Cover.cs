@@ -62,6 +62,9 @@ public sealed partial class Playthrough
         _elsewhere = goal.CoveredElsewhere?.Invoke() ?? new HashSet<RecordId>();
         foreach (var avoid in goal.Avoid)
             _bannedForGood.UnionWith(CoverGoal.Avoided(Model, avoid));
+        // A party job keeps the party it makes: no step leaves one of its members out.
+        if (goal.Party.Count > 0)
+            _bannedForGood.UnionWith(PartyJobs.Leaving(Model, goal.Party));
     }
 
     /// <summary>The flags first seen since the last look, put down to the step just played (or, before the first, to none).</summary>
@@ -196,6 +199,11 @@ public sealed partial class Playthrough
     private (Goal Goal, List<PlayerAction> Steps, Plan? Plan) ChooseCover(PlanState state)
     {
         var (relaxation, result, live) = LookAtTargets(state);
+        if (_cover!.Goal.Party.Count > 0 && _cover.PartyAt is null && _cover.Goal.Party.All(Game.Party.Contains))
+        {
+            _cover.PartyAt = _step;
+            Progress?.Invoke($"     the party is whole{(_step > 0 ? $" after step {_step}" : "")}: {string.Join(", ", _cover.Goal.Party.Select(m => m.Key))}");
+        }
         if (live.Count == 0)
         {
             _coverDone = true;
@@ -263,6 +271,10 @@ public sealed partial class Playthrough
             var best = safe.Count == 1 ? safe[0] : safe.MinBy(c => Routed(c.Action, here, c.Far));
             return Pending(new FlagGoal(Model.Flags.Id(best.Target)), [best.Action], null, live, false);
         }
+
+        // A party job's party comes next, before anyone else joins or any target is planned to.
+        if (ChooseParty(state, relaxation, live) is { } party)
+            return party;
 
         // Nothing to do here, so the run must go further: someone joins first, while the party has a slot and the way loses nothing.
         if (!_memberResting && Game.Party.HasEmptySlot())
@@ -363,6 +375,94 @@ public sealed partial class Playthrough
         _lastChosen = (_step + 1, steps[0].Describe(), steps[0].Index);
         return (goal, steps, plan);
     }
+
+    /// <summary>
+    /// A party job's next step towards its party (<see cref="CoverGoal.Party"/>), while it isn't whole and the run hasn't stopped trying;
+    /// else null. A plan whose first step the loss check says loses targets is planned again without that step, up to
+    /// <see cref="MostPartyPlans"/> plans, so the party isn't got by a way that loses what it's wanted for. With none that loses nothing, the one that loses fewest is taken all the same: the party is what the
+    /// job is for, and what it loses goes to a branch as any step's does. A party the planner finds no plan to is given up on for the run.
+    /// </summary>
+    private (Goal Goal, List<PlayerAction> Steps, Plan? Plan)? ChooseParty(PlanState state, Relaxation relaxation, HashSet<int> live)
+    {
+        var cover = _cover!;
+        if (cover.Goal.Party.Count == 0 || cover.PartyWhy is not null || cover.Goal.Party.All(Game.Party.Contains))
+            return null;
+        var goal = new PartyGoal(cover.Goal.Party);
+        (List<PlayerAction> Steps, Plan? Plan, int Lost)? best = null;
+        var without = new HashSet<int>();
+        string? why = null;
+        for (var tries = 0; tries < MostPartyPlans; tries++)
+        {
+            var clock = Stopwatch.StartNew();
+            var (steps, plan) = tries == 0 ? PlanTo(goal, state) : Replan(goal, state, without);
+            cover.Plans++;
+            cover.PlanSeconds += clock.Elapsed.TotalSeconds;
+            if (steps.Count == 0 || plan is { Found: false })
+            {
+                why = plan?.Why?.Split(Environment.NewLine)[0] ?? "the planner found none";
+                break;
+            }
+            var lost = Losses(relaxation, state, steps[0], live).Count;
+            if (best is null || lost < best.Value.Lost)
+                best = (steps, plan, lost);
+            if (lost == 0)
+                break;
+            without.Add(steps[0].Index);
+        }
+        if (best is not { } chosen)
+        {
+            StopParty($"no plan: {why}");
+            return null;
+        }
+        if (chosen.Lost > 0)
+            Progress?.Invoke($"     towards the party, {chosen.Steps[0].Describe()} loses {chosen.Lost} target(s), the fewest; it's taken all the same");
+        return Pending(goal, chosen.Steps, chosen.Plan, live, chosen.Lost > 0);
+    }
+
+    /// <summary>The plans to the party tried in one look, each without the first steps of those before it that lost targets.</summary>
+    private const int MostPartyPlans = 3;
+
+    /// <summary>A new plan to a goal with some more actions banned, beside the run's own bans.</summary>
+    private (List<PlayerAction> Steps, Plan? Plan) Replan(Goal goal, PlanState state, IEnumerable<int> without)
+    {
+        var banned = Banned(state);
+        banned.UnionWith(without);
+        var plan = _planner.Plan(state, goal, Options.PlanBudget, banned);
+        return (plan.Steps.ToList(), plan);
+    }
+
+    /// <summary>The run stops trying to make its party, and sweeps its targets with the party it has.</summary>
+    private void StopParty(string why)
+    {
+        _cover!.PartyWhy = why;
+        Progress?.Invoke($"     the party is given up on: {why}");
+        Entry(EntryKind.Unreachable, null, new PartyGoal(_cover.Goal.Party).Describe(), $"given up on for the run: {why}", fromStep: false);
+    }
+
+    /// <summary>
+    /// A step towards the party played out. One meant to bring one of its members in that brought none failed all the same: it's banned
+    /// where it was played, and after <see cref="MostMemberMisses"/> such running the run stops trying to make its party.
+    /// </summary>
+    private void CoverPartyDone(RunStep step, PlanState state)
+    {
+        var wanted = _cover!.Goal.Party.Where(m => !state.InParty(m)).ToList();
+        var adds = Model.Adds(step.Action.Index);
+        if (!wanted.Any(m => Model.PersonFact(m, true) is { } f && adds.Contains(f)))
+            return;
+        if (wanted.Any(Game.Party.Contains))
+        {
+            _partyMisses = 0;
+            return;
+        }
+        Ban(step.Action, state);
+        if (++_partyMisses >= MostMemberMisses)
+            StopParty($"{MostMemberMisses} steps towards it played out with none of it joining, the last {step.Action.Describe()}");
+    }
+
+    private int _partyMisses;
+
+    /// <summary>The run stops trying to make its party after steps towards it failed in a row.</summary>
+    private void CoverPartyFailed() => StopParty($"{Options.MostFailures} steps towards it failed in a row");
 
     /// <summary>The loss check (<see cref="LossCheck.Lost"/>), timed.</summary>
     private List<int> Losses(Relaxation relaxation, PlanState state, PlayerAction action, HashSet<int> live)

@@ -212,6 +212,10 @@ public sealed class PlanState : IEquatable<PlanState>
         return new PlanState(_model, bits, _party, _items, Credits, Over, Opening, Forced);
     }
 
+    /// <summary>A copy with someone out of the party and their flags as they were, for tools (<see cref="PartyNeeds"/>).</summary>
+    public PlanState Without(RecordId entity) =>
+        new(_model, _bits, [.. _party.Where(p => p != entity)], _items, Credits, Over, Opening, Forced);
+
     private PlanState With(bool opening) => new(_model, _bits, _party, _items, Credits, Over, opening, Forced);
 
     public bool Equals(PlanState? other) => other is not null && (ReferenceEquals(this, other) ||

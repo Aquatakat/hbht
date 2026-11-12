@@ -19,11 +19,11 @@ internal static class PlaythroughReport
                                                be set, who can join, which scripts can run, whether the ending can roll,
                                                and each plain flag that can't, by why (--all lists every one, not the
                                                first 20 of each reason; flags nothing uses at all are counted, not listed)
-          hbht playthrough plan --goal flag:<n>|member|ending [--save <save>] [--budget <states>]
+          hbht playthrough plan --goal flag:<n>|member|party:<entities>|ending [--save <save>] [--budget <states>]
                                                the planner's steps from a new game (or the save) to the goal, each with
                                                the choices it takes and what code decides, or why there are none
-          hbht playthrough run --goal flag:<n>|member|ending [--save <save>] [--saves <dir>] [--report <path>]
-                               [--most-ticks <n>] [--most-minutes <n>]
+          hbht playthrough run --goal flag:<n>|member|party:<entities>|ending [--save <save>] [--saves <dir>]
+                               [--report <path>] [--most-ticks <n>] [--most-minutes <n>]
                                                plays from a new game (or the save) to the goal, a line a step, saving
                                                at each milestone in <dir> (the data folder's saves/playthrough), and
                                                writes the report as text and JSON (<path>.txt and <path>.json)

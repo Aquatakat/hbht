@@ -19,8 +19,10 @@ public sealed record CoverRoot(IReadOnlyList<string> Targets, string? Save, doub
 /// <param name="Depth">How many branches down the tree it is.</param>
 /// <param name="Step">The parent's step it branched before, if a branch.</param>
 /// <param name="Action">That step's action.</param>
+/// <param name="Avoid">The steps it never takes (<see cref="CoverGoal.Avoid"/>).</param>
+/// <param name="Party">The members it gets into the party first and keeps there (<see cref="CoverGoal.Party"/>), as record IDs: a party job's.</param>
 public sealed record CoverJob(string Id, string? Parent, string? Save, IReadOnlyList<string> Targets, int Depth, int? Step = null,
-    string? Action = null, string? Why = null, IReadOnlyList<string>? Avoid = null);
+    string? Action = null, string? Why = null, IReadOnlyList<string>? Avoid = null, IReadOnlyList<string>? Party = null);
 
 /// <summary>A flag a job saw set first: the step, the tick, and the save before the step (relative to the root).</summary>
 public sealed record CoverSeenEntry(string Flag, int Step, long Tick, string? Save);
@@ -42,6 +44,12 @@ public sealed record CoverResult(
 {
     /// <summary>Where the seconds went: the targets' looks, the loss checks, the plans and the routes, and how many of each.</summary>
     public IReadOnlyDictionary<string, double>? Costs { get; init; }
+
+    /// <summary>For a party job, the step its party was whole after (0 as it began); null if it never was.</summary>
+    public int? PartyAt { get; init; }
+
+    /// <summary>For a party job whose party never was whole, why it stopped trying.</summary>
+    public string? PartyWhy { get; init; }
 }
 
 /// <summary>Where a job is in the queue.</summary>

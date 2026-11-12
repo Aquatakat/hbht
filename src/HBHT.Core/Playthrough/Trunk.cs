@@ -34,7 +34,20 @@ public sealed record TrunkManifest(
 /// <param name="Step">The trunk step the save is before; 0 for the trunk's own start.</param>
 /// <param name="Live">The live targets, each with the distance to its nearest setter.</param>
 /// <param name="Rounds">The rounds of floods the places' reach took.</param>
-public sealed record TrunkLook(int Step, IReadOnlyDictionary<RecordId, float> Live, int Rounds, double Seconds);
+public sealed record TrunkLook(int Step, IReadOnlyDictionary<RecordId, float> Live, int Rounds, double Seconds)
+{
+    /// <summary>Who's in the party there.</summary>
+    public IReadOnlyList<RecordId> Party { get; init; } = [];
+
+    /// <summary>
+    /// The members each of the party targets asked about needs from there (<see cref="PartyNeeds.Needs"/>): out of the party and never
+    /// joining, the relaxation no longer sets it. Only targets that need someone are listed.
+    /// </summary>
+    public IReadOnlyDictionary<RecordId, IReadOnlyList<RecordId>> Needs { get; init; } = new Dictionary<RecordId, IReadOnlyList<RecordId>>();
+
+    /// <summary>How far each member who can join is from there: 0 for one in the party, else the nearest joining action the relaxation gets to.</summary>
+    public IReadOnlyDictionary<RecordId, float> Joins { get; init; } = new Dictionary<RecordId, float>();
+}
 
 /// <summary>Where each target goes (<see cref="Trunk.Assign"/>).</summary>
 /// <param name="Chosen">Each target given a trunk save, by the save's step.</param>
@@ -124,8 +137,11 @@ public static class Trunk
     /// (<see cref="Playthrough.Distance"/>); for a derived target, the nearest action of its relaxed plan that writes one of its inputs.
     /// </summary>
     /// <param name="games">Each game's step (0 for the start) and how to load it.</param>
+    /// <param name="party">
+    /// Targets to weigh the members for (<see cref="TrunkLook.Needs"/>, <see cref="TrunkLook.Joins"/>), for party jobs; none if null.
+    /// </param>
     public static List<TrunkLook> Look(QuestModel model, WorldGraph graph, IReadOnlyList<(int Step, Func<GameState> Load)> games,
-        IReadOnlyCollection<RecordId> targets, int threads = 1, Action<string>? progress = null)
+        IReadOnlyCollection<RecordId> targets, int threads = 1, Action<string>? progress = null, IReadOnlyCollection<RecordId>? party = null)
     {
         var plugins = model.Plugins;
         // Every action's place, and the plain setters of each flag, once for every look.
@@ -150,7 +166,7 @@ public static class Trunk
             {
                 try
                 {
-                    looks[i] = LookAt(model, graph, games[i].Step, games[i].Load(), handles, positions, setters);
+                    looks[i] = LookAt(model, graph, games[i].Step, games[i].Load(), handles, positions, setters, party);
                     progress?.Invoke($"look before step {games[i].Step}: {looks[i]!.Live.Count} live, {looks[i]!.Rounds} rounds, {looks[i]!.Seconds:0.0} s");
                 }
                 catch (Exception e)
@@ -169,7 +185,7 @@ public static class Trunk
     }
 
     private static TrunkLook LookAt(QuestModel shared, WorldGraph graph, int step, GameState game, List<(RecordId Id, int Handle)> targets,
-        Place?[] positions, List<int>?[] setters)
+        Place?[] positions, List<int>?[] setters, IReadOnlyCollection<RecordId>? party)
     {
         var clock = Stopwatch.StartNew();
         var model = shared.ForRun();
@@ -204,7 +220,31 @@ public static class Trunk
             // None that the relaxation gets to has a place (the opening, a battle the story starts): no distance to tell them by.
             live[id] = far == float.MaxValue ? 0 : far;
         }
-        return new TrunkLook(step, live, reach.Rounds, clock.Elapsed.TotalSeconds);
+        if (party is null)
+            return new TrunkLook(step, live, reach.Rounds, clock.Elapsed.TotalSeconds) { Party = state.Party };
+
+        // The members the party targets live from here need, and how far each member's nearest joining action is.
+        var asked = party.Where(live.ContainsKey).Select(model.Flags.Handle).ToList();
+        var needs = PartyNeeds.ByTarget(PartyNeeds.Needs(model, state, asked))
+            .ToDictionary(p => model.Flags.Id(p.Key), p => (IReadOnlyList<RecordId>)p.Value);
+        var joins = new Dictionary<RecordId, float>();
+        foreach (var member in model.Members.Keys)
+        {
+            if (state.InParty(member))
+            {
+                joins[member] = 0;
+                continue;
+            }
+            var far = float.MaxValue;
+            foreach (var a in PartyNeeds.Joins(model, member))
+            {
+                if (result.ActionLayer[a] >= 0)
+                    far = Math.Min(far, Playthrough.Distance(positions[a], here));
+            }
+            if (far < float.MaxValue)
+                joins[member] = far;
+        }
+        return new TrunkLook(step, live, reach.Rounds, clock.Elapsed.TotalSeconds) { Party = state.Party, Needs = needs, Joins = joins };
     }
 
     /// <summary>The plain flags a derived one is made from, through any derived flags between.</summary>
