@@ -29,6 +29,13 @@ public sealed class Outfitting(IMenuPolicy? inner = null) : IMenuPolicy
 {
     private readonly List<Outfit> _worn = [];
     private readonly HashSet<(RecordId Member, RecordId Item)> _refused = [];
+    private readonly Dictionary<(RecordId Member, RecordId Item), int> _putOn = [];
+
+    /// <summary>
+    /// How often one member may put the same item on before it's left off for good: a guard, so that a slip in the weighing that makes
+    /// two items each look better than the other can't swap them for ever and eat the steps' ticks.
+    /// </summary>
+    public int MostPutOn { get; init; } = 3;
     private bool _wanted;
     private long _looked = -1;
     private (int Slot, ItemInstance Item, float Gain)? _target;
@@ -112,7 +119,12 @@ public sealed class Outfitting(IMenuPolicy? inner = null) : IMenuPolicy
             _asked = null;
             _target = null;
             if (member.Equipment.All.Contains(item) || member.Equipment.All.Any(i => i.Id == item.Id))
+            {
                 _worn.Add(new Outfit(host.Clock.Ticks, member.Entity, item.Item.Name, replaced?.Item.Name, gain));
+                var key = (member.Entity, item.Id);
+                if ((_putOn[key] = _putOn.GetValueOrDefault(key) + 1) >= MostPutOn && replaced is not null)
+                    _refused.Add((member.Entity, replaced.Id));
+            }
             else
                 _refused.Add((member.Entity, item.Id));
         }
@@ -207,12 +219,13 @@ public sealed class Outfitting(IMenuPolicy? inner = null) : IMenuPolicy
         var best = 0f;
         foreach (var member in party.Members.Where(m => !m.IsDead))
         {
-            if (!CanUse(member, item) || Worth(member, item) is not { } worth)
+            var worn = Replaces(member, item)?.Item;
+            if (!CanUse(member, item) || Worth(member, item, worn) is not { } worth)
                 continue;
-            var have = Replaces(member, item) is { } worn ? Worth(member, worn.Item) ?? 0 : 0;
+            var have = worn is not null ? Worth(member, worn, worn) ?? 0 : 0;
             foreach (var stack in party.Inventory.Stacks)
             {
-                if (stack.Item.Kind == item.Kind && CanUse(member, stack.Item) && Worth(member, stack.Item) is { } carried)
+                if (stack.Item.Kind == item.Kind && CanUse(member, stack.Item) && Worth(member, stack.Item, worn) is { } carried)
                     have = Math.Max(have, carried);
             }
             best = Math.Max(best, worth - have);
@@ -237,9 +250,10 @@ public sealed class Outfitting(IMenuPolicy? inner = null) : IMenuPolicy
                 var item = stack.Item;
                 if (_refused.Contains((member.Entity, item.Id)) || !CanUse(member, item))
                     continue;
-                if (Worth(member, item) is not { } worth)
+                var old = Replaces(member, item)?.Item;
+                if (Worth(member, item, old) is not { } worth)
                     continue;
-                var gain = worth - (Replaces(member, item) is { } old ? Worth(member, old.Item) ?? 0 : 0);
+                var gain = worth - (old is not null ? Worth(member, old, old) ?? 0 : 0);
                 if (gain > bestGain)
                     (best, bestGain) = ((slot, stack.Instance, gain), gain);
             }
@@ -276,29 +290,52 @@ public sealed class Outfitting(IMenuPolicy? inner = null) : IMenuPolicy
     // Combatant.StrengthTier (0x80062008): the first of these the modified Strength is at or under, else 8.
     private static readonly int[] StrengthTiers = [4, 9, 17, 24, 28, 32, 36, 39];
 
-    /// <summary>What an item is worth to a member, in the rules' terms; null for what isn't weighed (a weapon that flies, a ring).</summary>
-    public static float? Worth(Character member, Item item)
+    /// <summary>
+    /// What an item is worth to a member wearing it in place of <paramref name="replaced"/> (what they wear of its kind, if anything), in
+    /// the rules' terms; null for what isn't weighed (a weapon that flies, a ring). The member is weighed as they'd be wearing it: their
+    /// stats and skills less what the replaced item adds, and with what this one adds. Weighed on the member as they stand, a sword whose
+    /// Warrior bonus raised every weapon's chance made the sword it was swapped for look better, and that one the first again, for ever
+    /// (Abrecan's Warfang and Chaos Sword).
+    /// </summary>
+    public static float? Worth(Character member, Item item, Item? replaced = null)
     {
-        float Stat(Stat s) => member.Stats.Modified(s);
-        var bonuses = 0f;
-        if (item.Bonuses.Stats is { } stats)
+        var stats = new Dictionary<Stat, int>();
+        var skills = new Dictionary<SkillId, int>();
+        void Wear(Item? worn, int sign)
         {
-            foreach (var (stat, by) in stats)
-            {
-                if (StatId.TryFromRecord(stat) is not { } s || s == Characters.Stat.Stamina)
-                    continue;
-                bonuses += s == Characters.Stat.Dexterity ? 2 * by : by;
-            }
+            if (worn is null)
+                return;
+            foreach (var (stat, by) in worn.Bonuses.Stats ?? new Dictionary<RecordId, int>())
+                if (StatId.TryFromRecord(stat) is { } s)
+                    stats[s] = stats.GetValueOrDefault(s) + sign * by;
+            foreach (var (skill, by) in worn.Bonuses.Skills ?? new Dictionary<RecordId, int>())
+                if (SkillId.TryFromRecord(skill) is { } k)
+                    skills[k] = skills.GetValueOrDefault(k) + sign * by;
+        }
+        Wear(replaced, -1);
+        Wear(item, 1);
+        float Stat(Stat s) => member.Stats.Modified(s) + stats.GetValueOrDefault(s);
+        float SkillOf(SkillId k) => member.Skills.Modified(k) + skills.GetValueOrDefault(k);
+
+        // What the item adds to stats the formula below doesn't read, flat; Dexterity twice, as defence.
+        var weapon = item.Kind == ItemKind.Weapon ? item.Weapon : null;
+        var bonuses = 0f;
+        foreach (var (stat, by) in item.Bonuses.Stats ?? new Dictionary<RecordId, int>())
+        {
+            if (StatId.TryFromRecord(stat) is not { } s || s == Characters.Stat.Stamina
+                || weapon is not null && s is Characters.Stat.Strength or Characters.Stat.Endurance or Characters.Stat.Level)
+                continue;
+            bonuses += s == Characters.Stat.Dexterity ? 2 * by : by;
         }
         switch (item.Kind)
         {
-            case ItemKind.Weapon when item.Weapon is { Missile: null } weapon:
+            case ItemKind.Weapon when weapon is { Missile: null }:
             {
                 if (SkillId.TryFromRecord(weapon.Skill) is not { } skill)
                     return null;
                 var level = Stat(Characters.Stat.Level);
                 var chance = Stat(Characters.Stat.Strength) + Stat(Characters.Stat.Endurance) + level + weapon.Hit
-                    + 6 * member.Skills.Modified(skill) + 2 * member.Skills.Modified(Skill.Warrior) - 50;
+                    + 6 * SkillOf(skill) + 2 * SkillOf(Skill.Warrior) - 50;
                 var strength = (int)Stat(Characters.Stat.Strength);
                 var tier = Array.FindIndex(StrengthTiers, t => strength <= t) is var i && i >= 0 ? i : StrengthTiers.Length;
                 var damage = 3.5f * (weapon.Damage + tier) + level;
@@ -307,7 +344,7 @@ public sealed class Outfitting(IMenuPolicy? inner = null) : IMenuPolicy
             case ItemKind.Body:
                 return 4 * item.Protection + bonuses;
             case ItemKind.Shield:
-                return item.Record.Defense * member.Skills.Modified(SkillId.Shield) + 4 * item.Protection + bonuses;
+                return item.Record.Defense * SkillOf(SkillId.Shield) + 4 * item.Protection + bonuses;
             case var _ when item.IsGear && item.Kind is not (ItemKind.Ring or ItemKind.Scroll or ItemKind.Wand):
                 return 4 * item.Protection + bonuses;
             default:

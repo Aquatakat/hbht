@@ -107,7 +107,9 @@ public sealed class CoverWorker(CoverQueue queue, QuestModel model, WorldGraph g
                 }
                 continue;
             }
-            IReadOnlyList<string>? avoid = branch.Stranded ? [.. job.Avoid ?? [], branch.Action] : job.Avoid;
+            // Every branch avoids the step that lost its targets (or stranded the run), and what its parent avoided: taking it again from
+            // the same save would only lose them again.
+            IReadOnlyList<string> avoid = [.. job.Avoid ?? [], branch.Action];
             made.Add(new CoverJob($"{job.Id}.{++n}", job.Id, Queue.Relative(branch.Save), [.. branch.Targets.Select(t => t.ToString())],
                 job.Depth + 1, branch.Step, branch.Action,
                 branch.Stranded ? "stranded after the step" : branch.Predicted ? "the loss check said it would lose them" : "lost after the step",
