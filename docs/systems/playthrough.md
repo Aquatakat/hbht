@@ -49,7 +49,7 @@ From a new game on NA 1.0 that is 6,878 actions over the 429 scripts something s
 
 **The static pass** relaxes every action from a state, with nothing ever undone (FF's relaxation, `Relaxation`). What never comes true in the relaxation can't come true in any order of steps. From a new game on NA 1.0:
 
-- 1,882 of the 4,972 plain flags can be set;
+- 1,881 of the 4,972 plain flags can be set;
 - 458 of the 555 derived flags can be set;
 - all 13 members can join;
 - 408 of the 429 started scripts can run;
@@ -66,6 +66,7 @@ Each plain flag that can't be set is given its reason:
 | Only the engine sets them (the members' died flags) | 11 | 11 |
 | No way through their script reaches the setter (the death scenes' done flags) | 8 | 0 |
 | Their setters are map objects gated off on flag 0 | 4 | 4 |
+| Only a battle that's never won sets them: the Shadow's encounter at Overworld H08/12 (950) | 1 | 1 |
 
 **Planning.** `QuestPlanner.Plan(state, goal)` works in three stages:
 
@@ -433,7 +434,7 @@ A goal is a flag to set (`flag:<n>`), someone joining (`member`), some members i
 
 ## Flag coverage
 
-`hbht playthrough cover` sets every flag the static pass can set, over a tree of saves, so that a flag no play sets is a finding rather than a guess. It's the run with a goal of many flags (`CoverGoal`), and a queue of jobs on disk that several processes work at once. The code is `Playthrough.Cover.cs`, `Coverage.cs`, `CoverQueue.cs`, `CoverWorker.cs`, `Trunk.cs`, `PartyNeeds.cs` and `PartyJobs.cs`, the CLI's `CoverReport`, and the ledger in the core ([flags](flags.md#the-ledger)). The roadmap's [playthrough bot](../roadmap.md#the-playthrough-bot) table has its stages; this is stage 0, the machinery, stage 1, the trunk the jobs start from, and stage 3, the party jobs.
+`hbht playthrough cover` sets every flag the static pass can set, over a tree of saves, so that a flag no play sets is a finding rather than a guess. It's the run with a goal of many flags (`CoverGoal`), and a queue of jobs on disk that several processes work at once. The code is `Playthrough.Cover.cs`, `Coverage.cs`, `CoverQueue.cs`, `CoverWorker.cs`, `Trunk.cs`, `PartyNeeds.cs` and `PartyJobs.cs`, the CLI's `CoverReport`, and the ledger in the core ([flags](flags.md#the-ledger)). The roadmap's [playthrough bot](../roadmap.md#the-playthrough-bot) table has its stages; this is stage 0, the machinery, stage 1, the trunk the jobs start from, stage 3, the party jobs, and stage 4, what's left uncovered.
 
 ```
 hbht playthrough cover init --root <dir> [--save <save>] [--targets all|<file>] [--job-minutes <n>] [--most-failures <n>]
@@ -448,7 +449,7 @@ hbht playthrough cover status --root <dir> [--all]
 
 **Overnight**, `tools/cover.ps1 -Root <dir> [-Hours 10] [-Threads 20] [-Retries 2]` builds the CLI and starts `work` again whenever its process dies, until no job is left or the hours run out, appending every process's output to `<root>/work.log`. With 16 workers a process once died of an access violation inside `FlagModel.Possible`, which reads only shared arrays and its caller's own, as the runtime dispatched an exception thrown there; the same jobs played again cleanly. Nothing in the core is unsafe, so it's taken for the runtime or the machine, and the script is the answer to it.
 
-**The targets.** By default, every flag, plain or derived, that the relaxation over every action from the start sets and isn't set at the start (`FactLayer` above 0): from a new game on NA 1.0, 2,230 (1,882 plain, 348 derived). A file names others, by number or record ID.
+**The targets.** By default, every flag, plain or derived, that the relaxation over every action from the start sets and isn't set at the start (`FactLayer` above 0): from a new game on NA 1.0, 2,229 (1,881 plain, 348 derived). A file names others, by number or record ID.
 
 **The tree.** `init` writes the root (`cover.json`) and one pending job, `0`, from a new game or a copy of the save; with `--trunk`, a job for each trunk save given targets ([the trunk](#the-trunk), below). A job is played as a run whose goal is its targets less those any job has seen. Where a step loses targets not yet covered, the job records a **branch**: a job from the save before that step, over the targets it lost, named after its parent (`0.3`, `0.3.1`). A branch avoids the exact way that lost them, and every way its parents avoided (`CoverGoal.Avoid`, the job's `avoid`: `#<action> <description>`, the description checked against the action, since a script's ways that differ only in its conditions describe alike). Taken again from the same save, that way lost them again. No branch is made deeper than 6 (`CoverWorker.MostDepth`): a target lost again eight steps into each branch made a chain thirteen deep, playing on long after the rest of the tree was done; its targets are given up there, for a retry round to start elsewhere. A job the worker's own time cuts short with targets still live is **carried on** from a save of where it stopped (`0+1`). A job's own cap (`--job-minutes`, 120) gives its live targets up instead.
 
@@ -500,19 +501,23 @@ The story run to the ending is the trunk: each target is given to the trunk save
 
 **The assignment** (`Trunk.Assign`, `Trunk.Choose`). A target's window is the saves it's live from. Of those, the nearest by distance, and of the saves within 50 of that or half as far again, whichever is more (`Slack`, `Ratio`), the latest: started from near where it is, with the party as far on in the story as that allows. The relaxation keeps nearly everything live from nearly everywhere (three in four of the windows are the whole trunk), so the distance decides more than the window does, and the slack keeps a save the trunk passes again later from losing to an earlier one a few units nearer. A target the trunk saw set goes to none; one live from the start but from no save goes to `t000`, a job from the start; one live from nowhere goes nowhere and is counted.
 
-From a new game over the 2,230 targets: the trunk covered 637 itself, and 1,592 went to 62 of its 87 saves, none nowhere, and 1 to `t000`: 788, which a new game sets as the title begins it, before a ledger can watch, and which a job from the start counts as covered at once. A job has 1 to 161, the median 11; the first save's has 54 and the last's (before the castle's last scene) 65, most of them targets in map sets the trunk never stands in, which are as far from every save and go to the latest. The biggest are the Overworld's places where the trunk passes nearest the most: `t077` (161, before the Barrows' B02/0), `t012` (121, before the Jundar gate), `t047` (111, at I13 before the companions' scene); and `t003` (112), Oriana's hut, the only save in MiscInteriors, whose rooms across the world are all nearer it in their map set's grid than any Overworld save is.
+From a new game over the 2,229 targets: the trunk covered 637 itself, and 1,591 went to 62 of its 86 saves, none nowhere, and 1 to `t000`: 788, which a new game sets as the title begins it, before a ledger can watch, and which a job from the start counts as covered at once. A job has 1 to 152, the median 9; the first save's has 53 and the last's (before the castle's last scene) 62, most of them targets in map sets the trunk never stands in, which are as far from every save and go to the latest. The biggest are the Overworld's places where the trunk passes nearest the most: `t076` (152, before the Barrows' B02/0), `t012` (120, before the Jundar gate), `t082` (117, before the Shadow at B15), `t046` (111, at I13 before the companions' scene); and `t003` (112), Oriana's hut, the only save in MiscInteriors, whose rooms across the world are all nearer it in their map set's grid than any Overworld save is.
 
 **The jobs** are named by their save's step (`t007`, `t087`), from `trunk/saves/steps/t007.sav`, at depth 0; their branches and carried-on jobs hang off them as off the root job (`t007.1`, `t007+1`). `status` shows each trunk job compactly: where it is, its targets covered of its own, and how many jobs hang off it, starred while any is open. `--trunk <dir>` copies a trunk folder already played, rather than playing it again.
 
-**How it fares.** From a new game over the 2,230 targets, in a Release build: `init --trunk` takes about six minutes (the trunk, 87 steps to the ending, about 360 s with its saves), and `tools/cover.ps1` with 20 workers in one process and two retry rounds works the tree in about 40 minutes. 2,047 targets are covered, 638 of them by the trunk itself, and 183 are given up: 413 jobs, 286 of them branches, at most 6 deep, and 2,965 steps; no process died. The first pass, 12 minutes, gave 280 up; the first retry round brought that to 200, the second to 183, so a third would add little. The one sweep from a new game before the trunk covered 976 in 15 minutes, with 1,005 still live in jobs not played.
+**How it fares.** From a new game over the 2,229 targets, in a Release build: `init --trunk` takes about two and a half minutes (the trunk, 86 steps to the ending, about 145 s with its saves), and `tools/cover.ps1` with 20 workers in one process, two retry rounds and a party round works the tree in about 23 minutes. 2,111 targets are covered, 637 of them by the trunk itself, and 118 are given up: 333 jobs, 203 of them branches, at most 6 deep, and 3,223 steps; no game ends, and no process died. The first pass, 7 minutes, gave 207 up; the first retry round brought that to 130, the second and the party round to 118. The one sweep from a new game before the trunk covered 976 in 15 minutes, with 1,005 still live in jobs not played. What the 118 are is [what's left uncovered](#whats-left-uncovered).
 
-- Given up, by reason: 96 no plan from a branch's save, which played no step; about 50 lost or stranded again on a branch's first step; 9 the search giving up; 6 whose setters none can do; a handful stuck on the way, or behind gold, a lock or a purchase the party can't meet. 101 of them are live from 80 or more of the trunk's saves.
-- The game still ends in jobs at the dryads' fight through the male dryad's 0x03FA (Overworld H12/1, and G12/8 once a branch avoids it), with Alaron at 14 and up: the battle is lost, and lost again on its replay. Its targets go to branches, which meet the other dryad.
+Stage 4's fixes, against the 2,047 covered and 183 given up before them, covered 77 of those 183 and gave up 12 others the runs had covered:
+
+- a lost battle's replay is won on the first turn anyone takes, so the dryads' fight no longer ends the game ([the dryads' fight](#the-dryads-fight)): the targets of the jobs it ended, Overworld A22's sea-cave chests among them;
+- rolls the game keeps are played again from the save before (a trap gone off destroyed its chest, whose two flags never came), traps the party can't disarm wait, and the Rogue build learns Mechanic ([rolls tried again](#story-triggers)): most of the 59 chests' flags that had gone with their traps;
+- branches shun the story triggers that lost their parents' targets: Trahern's 86 in Gwernia castle, and its derived 5470 and 5516;
+- the Shadow's battle is no longer modelled as won, so its encounter's flag (950) is no target.
 
 **Left:**
 
 - The distance is straight within a map set, which an interiors map set's rooms make poor: they're unconnected rooms laid out in one grid, so Oriana's hut's save takes MiscInteriors' targets across the world, and its job walks to them with Alaron alone at level 1. The walk from the save, through the teleporters, would weigh them truly.
-- The dryads' fight (0x03FA at H12/1 and G12/8) is lost again on its replay, ending the game, in jobs from the trunk's later saves: the battle pilot's replay, or the fight itself, wants a look.
+- Weighing a target's distance by the relaxation's layer as well, so that a conversation a step away from one save goes there rather than to a later save where it waits on someone leaving, gains nothing: what keeps the castle's conversations ([what's left](#whats-left-uncovered)) is the party, not the save.
 - Waiting for the hour: derived targets over the calendar wait and are given up.
 - A loss by the places alone may be the world graph's, not the game's, as the castle's was ([teleporters](#the-world-graph)): look at the cells where the step left the player before taking it as the game's.
 - Branches aren't capped by depth or count, and a branch whose targets are covered elsewhere is still claimed, to finish at once.
@@ -524,7 +529,7 @@ The relaxation keeps no cap on the party: anyone joins whenever their joining ac
 
 **Who leaves.** 1.0 has no menu to dismiss a member ([characters](characters.md)): members leave only by scripts. The joining conversations after Gwernia castle ask who leaves when the party is full, with a way per member who could go: the companions' scenes at Overworld I13 and H13 (Abrecan's 0x0527, Godric's 0x0529), Arturo's at the bridge (0x0404), Becan's (0x039F), Keelin's (0x0410), Dougal's (0x04EA), Niesen's (0x0472), and those in Terminor's C05, where members sent away wait ([wanderers](wanderers.md)): Arturo's 0x0383, Baird's 0x045E, Donovan's 0x045F, Keelin's 0x0382 and Rheda's 0x0518. The castle's own (Abrecan's 0x03A0, Brenna's 0x03A3, Godric's 0x03A1, Rheda's 0x039E) and Brenna's at Overworld M06 (0x03AD) check nothing, and add no one to a full party. Niesen's in Terminor (0x045A), Sholeh's (0x04AD, 0x04C4) and Farris's (0x0490) need a slot, which from a full party only a script that takes someone out with no one joining makes: Niesen's at 12/G13/3 (0x048F), Farris's at Overworld I08/5 (0x0496) and Dougal's at 6/K03/26 (0x04EF).
 
-**What needs whom** (`PartyNeeds`). For each member, the relaxation is run again twice: with the member gone for good (out of the party, their joining actions left out), and kept for good (the actions whose last word on them is a leave left out). A target lost the first way and not the second needs them in the party. One lost both ways needs them to leave, and isn't theirs: Arturo's conversation on the bridge (0x0402 at Overworld D14/6) needs his joined flag clear. From a new game, 143 of the 2,230 targets need someone: Abrecan 26, Brenna 21, Becan 20, Godric 20, Rheda 19, Keelin 16, Arturo 14, Niesen 14, Baird 5, Donovan 4, Dougal 3, Farris 3 and Sholeh 1, some more than one. A trunk tree covers 124 of them without party jobs, since the story's own joins and the planner's who-leaves ways bring most members in; 19 are among the 183 it gives up.
+**What needs whom** (`PartyNeeds`). For each member, the relaxation is run again twice: with the member gone for good (out of the party, their joining actions left out), and kept for good (the actions whose last word on them is a leave left out). A target lost the first way and not the second needs them in the party. One lost both ways needs them to leave, and isn't theirs: Arturo's conversation on the bridge (0x0402 at Overworld D14/6) needs his joined flag clear. From a new game, 143 of the 2,229 targets need someone: Abrecan 26, Brenna 21, Becan 20, Godric 20, Rheda 19, Keelin 16, Arturo 14, Niesen 14, Baird 5, Donovan 4, Dougal 3, Farris 3 and Sholeh 1, some more than one. A trunk tree covers 124 of them without party jobs, since the story's own joins and the planner's who-leaves ways bring most members in; what's left of them is in [what's left uncovered](#whats-left-uncovered).
 
 **Making the jobs** (`cover party`), once no job is pending in a trunk tree:
 
@@ -536,16 +541,16 @@ The relaxation keeps no cap on the party: anyone joins whenever their joining ac
 
 **In the job** (`CoverGoal.Party`). Once no step nearby sets a target, the party comes next, before anyone else joins or a target is planned to (`PartyGoal`). A plan whose first step the loss check says loses targets is planned again without it, up to three plans, and the one that loses fewest is taken. With no plan, three steps towards it failing in a row, or two meant to bring a member in that brought none, the job stops trying and sweeps with the party it has. It never takes a step that leaves one of the party out (`PartyJobs.Leaving`), since none of its targets needs them to leave. Branches and carried-on jobs keep the party. `status` lists the party jobs, each with the step its party was whole after, or why it wasn't. `tools/cover.ps1` runs `-PartyRounds` rounds (1) after the retry rounds.
 
-**How it fares.** Over the trunk tree above, after its two retry rounds (2,047 covered, 183 given up), a party round takes about 40 s: the looks at the 87 trunk saves about 12 s, and the party plans from 14 starts the rest. 12 of the 183 need someone the trunk doesn't bring in, from a save they're live from; 9 get a start whose party the planner reaches keeping them, in 6 jobs, and 3 (Keelin's 558, and Niesen's with Becan) none. The jobs and their branches, 13 in all, take about 3 minutes with 20 workers. The party is made in 2 of the 6, and none of the 9 targets is covered: 2,047 covered and 183 given up, as before.
+**How it fares.** Over the trunk tree above, after its two retry rounds, a party round takes about 35 s: the looks at the 86 trunk saves about 11 s, and the party plans from 15 starts the rest. 15 of the 118 uncovered need someone the trunk doesn't bring in, from a save they're live from; 9 get a start whose party the planner reaches keeping them, in 6 jobs, and the rest none. The party is made in 2 of the 6 (Becan's after six steps from Oriana's hut, Keelin's at once from `t028`), and none of the 9 targets is covered.
 
 The cap isn't what keeps these targets: the planner's search already plans who leaves, and what the party jobs meet is what the other jobs met.
 
-- Becan's targets (528, 553, 5156, 5172, 5180) are lost walking into the story's tripwires at Overworld I13/0 and P17/3 on the way, or to the dryads' fight ([the trunk](#the-trunk)), with Becan in the party or not.
+- Becan's targets (528, 553, 5156, 5172, 5180) are lost walking into the story's tripwires at Overworld I13/0 and P17/3 on the way, with Becan in the party or not.
 - 416 and 5141 need Abrecan and Becan together. From the castle the plan to them is four steps, but Erromon's 0x03C3 on the way brings Brenna in as well, which fills the party, and the plan from there gives up.
 - Godric's 73 and 5431 are lost to Erromon's story. 73 is set by his conversation in the castle (0x03A1 at Gwernia castle O07/4), which sets it even with the party full, so it needs the conversation in time, not Godric: Erromon's story (0x03C3, 0x03CA) closes it, and the plan to Godric goes through Erromon.
 - 5410 strands the run after Becan's scene, and 199 after 0x03E4 at Overworld H10/3.
 
-Of the 19 uncovered targets that need someone from a new game, the other 7 need only members the trunk brings in (Brenna's 600 and 1515, Niesen's 422, 423 and 5134, Farris's 565, Abrecan's 5409), and were given up for the story's order, a branch's first step, or a plan the search gave up on.
+Others that need someone need only members the trunk brings in (Niesen's 422, 423 and 5134, Farris's 565, Abrecan's 5409), and are given up for the story's order or a plan the search gave up on.
 
 **Left:**
 
@@ -554,13 +559,50 @@ Of the 19 uncovered targets that need someone from a new game, the other 7 need 
 - A target that needs someone to leave (Arturo's bridge conversation) gets no party job: a party goal is only of members in.
 - Niesen's join in Terminor, Sholeh's and Farris's need a slot, which only a death or the story's own leaving makes.
 
+### The dryads' fight
+
+The male dryad's conversation (`0x03FA`, Overworld H12/1, and G12/8 once he's moved) can end in a battle with four Female Dryads. They take the first three turns, and each casts Lightning, which strikes every member: a party at level 14 is dead before its first turn. The user says these fights are technically winnable but are the story's deaths, not meant to be won, and that winning them artificially is fine. So the battle pilot wins a lost battle's replay on the first turn anyone takes, theirs included ([battles](#battles)); waiting for the party's turn lost the replay again and ended the game, in six jobs of a trunk tree and more of its branches.
+
+The trunk itself gets past the dryads' scene at G12/5 this way: the planner's shortest way past is the male dryad's fight, won on its replay ([story triggers](#story-triggers)). A player who isn't meant to win it gets past by the queen's way instead (her Troubadour check for 231 and her scene `0x03FC`), which the relaxation keeps open, so nothing after the dryads needs the artificial win. Only the fight's own flags do: 3654 (H12/1's) and 3655 (G12/8's), the battles' flags, which the relaxation with every action but those two wins no longer sets. They're covered, and counted apart: in play they follow a death the story means to happen.
+
+### What's left uncovered
+
+Each of the 118 targets the tree above gives up is in one of three classes. The evidence is the run's own: each target's last reason, with the relaxed plan's next steps and what keeps each from being done (the cover run says them with every target it has no plan to), the relaxation run again from the save of the job that gave it up without the steps that job avoids, and the conditions the target's setters rest on, through derived flags.
+
+**(b) The relaxation's overestimate, 6.** It has no geometry and keeps no order, so it sets these, which no play can:
+
+- The Barrows' five dragon flags, 5509 to 5513: each is a dragon's cut-scene done (`0x18F6`–`0x18FC`, Barrows D01/7–11) with its tripwire not walked into (D01/1–5, "animates"). Each script object, radius 2, stands about 1 from its tripwire's middle, radius 3, so its whole radius lies inside the tripwire's, which goes off first. Nothing reads them.
+- Edur's npc talked to (1349) needs his cut-scene's flag 45 clear (Overworld I08/19), but every way from where the opening leaves the player to him passes within the cut-scene's radius (I08/4, 14), which sets it.
+
+Before stage 4's fixes, the Shadow's encounter's flag (950) was one too: its battle is never won ([the model](#the-planner)).
+
+**(c) Game findings, 5.** Gwernia castle's farewells: Brenna's (`0x04FF`, A01/11, 600), Arturo's (`0x0501`, A01/13, 602), Rheda's (`0x0502`, A01/12, 603), Keelin's (`0x0505`, A01/15, 606) and the throne's "Farewell." (`0x0508`, A01/14, 609) are enabled only once 599 is set (their gates 5202–5210). Only the coronation's scene sets 599 (`0x04FE`, A01/10), on the same way that rolls the ending's credits, and the credits' end goes back to the title in 1.0 ([ui](ui.md#coming-back-to-it)). So they never play: content cut from 1.0's ending, it seems. The user may want them played ([checks](../user-checks.md)). The dryads' battles' own flags, 3654 and 3655, are covered but only by an artificial win ([the dryads' fight](#the-dryads-fight)).
+
+**(a) The bot's gaps, 107**, none of them fixed:
+
+| Gap | Targets | Examples |
+| --- | --- | --- |
+| A smaller party at the time: at most one of Abrecan, Godric and Rheda joined (derived 5004 clear), after Abrecan's scene at Overworld M06/3 (63) and before the goblin camp (122) | 23 | Sheridan's 29, Gabrion's 32, Godric's 39 and 73, Gechina's 41 in Gwernia castle, and their gates 5366–5431. The trunk takes all three at the castle before it leaves, and a job's member goal fills the party first; the relaxation keeps them live from later saves only behind someone leaving at Erromon (`0x03C3`), which closes them |
+| Other windows the trunk passes without stopping | 10 | 18, 1520 and 5362 after M06/3 and before the goblin camp; Zurene's 948 and Gotzone's 1339 at Overworld I08, and 1507 at the castle; Erromon's 1310 and 1311 |
+| Someone kept out of the party | 9 | Rheda's talk in Port Saiid (262, 1001, 5245) needs her never taken at the castle (91 clear); Batrin's at the bridge (244, 289, 1007, 1008, 3462, 5246) needs Arturo out. A party job is only of members in |
+| Members the trunk doesn't bring together | 15 | Becan with Abrecan (416, 5141, 5409), Becan's campfires (528, 553, 5156, 5172, 5180, 5410), Keelin's (486, 557, 558, 5162, 5185), Farris's staff (565) ([party jobs](#party-jobs)) |
+| A consequence's choices left to the host's default | 4 | Pandara's amulet (234) is lost when the queen's conversation (`0x03FB`) goes the way that enables her scene (`0x03FC`, G12/4): the scene then plays as its consequence, by the host's default choices rather than the way that gives the amulet (26, 62, 83), and closes; then the riddle that needs it (479, 4239, 5158) |
+| The story's order at Overworld P17 and after Shamsuk | 10 | StageH's cut-scenes (422, 423, 424, 5134, 5135), which the tripwire P17/3 closes; EhudUnder's 1425, 2287, 2288 once Shamsuk is dead |
+| Traps, locks, gold and purchases beyond the party | 7 | the chest at EhudUnder K01/12 (a trap of 6 and a lock of 7), MiscInteriors K05/51's trap of 6, rolled against on every try (2129, 2130, 5381), a way that wants 9 gold or less (3143, 3150), the shop's 0x010A (3411) |
+| The pilot stuck, or a step that strands the run | 14 | Jundar's backdrops (346, 349, 350) stall at JundarInteriors A01 (117.8, 6.9, 106.8); MiscInteriors A05's tripwire and chest (2132, 2180, 1690, 5273); EhudUnder E05's chests (2297, 2298, 3219, 3220); Arturo's bridge scene `0x0404` stranding (4271, 4282) |
+| Encounters and npcs with no ground near | 8 | Overworld C14/10, Q25/2, O26/0, P26/2, Q16/3 and Q16/4, F23/9, E23/6: the world graph refuses a wanderer whose placement has no reached ground ([the pilot](#the-pilot)) |
+| Waiting for the hour | 2 | H13/18 and F23/3, enabled by night (5283) |
+| Other conversations a branch had no plan to | 5 | 3151, 3193, 3209, the Chaos Mauler (1221), Lugash (1011) |
+
+So of the 2,229 targets the static pass calls reachable, play reaches 2,111, 6 are its overestimates, 5 are 1.0's cut content, and 107 are the bot's. The biggest gap is the party: 47 need a party the trunk and the jobs don't make, smaller, different or kept apart.
+
 ## Where it stands
 
-From a new game the run reaches the ending: the Coronation of Alaron plays and the ending's credits roll. It plays 87 steps, 3,688,396 ticks (about 1,025 game minutes), in about 126 s of wall time (the run is deterministic: the same plugins play the same run, and a change to where routes start, as the set-down arrivals and `SnapStart` were, sends it another way).
+From a new game the run reaches the ending: the Coronation of Alaron plays and the ending's credits roll. It plays 86 steps, 3,915,237 ticks (about 1,088 game minutes), in about 2 minutes of wall time (the run is deterministic: the same plugins play the same run, and a change to where routes start, as the set-down arrivals and `SnapStart` were, sends it another way).
 
-- It fills the party in 6 steps (Abrecan, Brenna, Rheda), and reaches Erromon (step 7), the goblin camp, Jundar (17) and the herb (23), Arturo joining (27), Port Saiid and the Lighthouse (28, 29), Terminor and Niesen (37, 38), EhudUnder (39), Farris and Niesen's death (45), Abrecan back (47), Ugarit (50), the Barrows (53), the Shadow's merge (83), Roog's cave and Rooughah's naming (84, 85), and the last scenes at Gwernia castle (87).
-- It fights 269 battles: 56 lost first and 24 won with a member dead, each played again and won outright; 2 stalemates; no deaths in battle stand; Niesen's death in EhudUnder is the story's. It camps 66 times, trains twice, buys 6 things and puts on better gear 52 times.
-- The party at its milestones: Alaron 2 as Rheda joins; 12 at the herb; 13 at Terminor as Niesen joins; 16 at Ugarit; 19 at the Shadow's merge and the ending, with Brenna and Rheda 18 and Abrecan 17. The user's own game had Alaron at 14 before Shamsuk's Tower and 20 before Rooughah.
+- It fills the party in 6 steps (Abrecan, Brenna, Rheda), and reaches Erromon (step 7), the goblin camp (8), Jundar (16), Arturo joining (26), Port Saiid and the Lighthouse (27, 28), Terminor and Niesen (36, 37), EhudUnder (38), Farris and Niesen's death (44), Abrecan back (46), Ugarit (49), the Barrows (52), the Shadow's merge (82), Roog's cave and Rooughah's naming (83, 84), and the last scenes at Gwernia castle (86).
+- It fights 273 battles: 59 lost first and 27 won with a member dead, each played again and won outright, the dryads' fight at H12/1 among them; 3 stalemates; no deaths in battle stand; Niesen's death in EhudUnder is the story's. It camps 50 times and trains twice.
+- The party at its milestones: Alaron 2 as Rheda joins; 11 at Jundar; 12 at Terminor as Niesen joins; 16 at Ugarit; 19 at the Shadow's merge and the ending, with Brenna and Rheda 18 and Abrecan 16. The user's own game had Alaron at 14 before Shamsuk's Tower and 20 before Rooughah.
 - The lost-first battles cluster on the long walks: 17 of them on the walk from the goblin camp's C09 to the Jundar gate (P24/3) at level 7, and most of the rest in EhudUnder.
 
 **Blockers met, in order** (every one the bot's):

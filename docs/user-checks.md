@@ -10,6 +10,10 @@ A check far into the story needn't be played to: Claude writes a save at the pla
 
 After your Nov 11 play ([combat](systems/combat.md#drawn-from-a-recording)): cast Fireball or Dragon Flames at a pack of rats (F09) under Start Early, and again under Original. Does every rat it kills fall, lie still a second and then fade out? The battle's last enemy stays whole as the screen fades to black, as in 1.0.
 
+### Gwernia castle's farewells (Nov 12)
+
+The castle's A01 holds five scenes no play reaches: Brenna's (`0x04FF`), Arturo's (`0x0501`), Rheda's (`0x0502`), Keelin's (`0x0505`) and the throne's "Farewell." (`0x0508`). Each is enabled only once flag 599 is set, and only the coronation's scene (`0x04FE`) sets 599, on the way that rolls the ending's credits, after which 1.0 goes back to the title ([what's left uncovered](systems/playthrough.md#whats-left-uncovered)). It looks like a walk round the castle after the coronation that was cut. If you remember 1.0 letting you talk to the companions after the coronation, say so, since that would mean the port ends too soon. Otherwise decide whether to leave them unplayed, as 1.0 does, or to play them, for example after the coronation and before the credits, as an option or a mod.
+
 ### Fyrsil's training (Nov 11)
 
 Fyrsil, at the desert's Overworld Q27, offers training ("Teach me." in his talk). 1.0's training reads the wrong table for him, so he teaches what STUG02, an Ugarit trainer, does: Merchant up to 7 and the shield up to 10, for gold ([pause menu](systems/pause-menu.md#training)). The port now matches that, where it used to crash. Decide whether to keep it or have him teach something else; either is his `trainsAs` (or a sheet of his own), which a mod can change.
