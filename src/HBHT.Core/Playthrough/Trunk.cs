@@ -92,6 +92,14 @@ public static class Trunk
     public const float Ratio = 1.5f;
 
     /// <summary>
+    /// How much farther a target counts for each step the relaxation needs before the one that sets it, past the first (its fact's layer
+    /// less 1): a <see cref="Slack"/>'s worth. Sheridan's 29 (Gwernia castle A07/2, 0x0375) is a conversation away before Brenna joins, and
+    /// after Rheda joins only behind someone leaving at Erromon, which closes it: by distance alone the later saves won, from which no
+    /// plan reached it.
+    /// </summary>
+    public const float LayerDistance = 50;
+
+    /// <summary>
     /// Plays the trunk from the host's game to <paramref name="goal"/> (the ending), with a save before every step and a ledger on the host,
     /// and writes its saves, its report and its manifest to <paramref name="folder"/>.
     /// </summary>
@@ -218,7 +226,9 @@ public static class Trunk
                     far = Math.Min(far, Playthrough.Distance(positions[a], here));
             }
             // None that the relaxation gets to has a place (the opening, a battle the story starts): no distance to tell them by.
-            live[id] = far == float.MaxValue ? 0 : far;
+            // Each step the relaxation needs before it counts as LayerDistance more: a save from which it's a conversation away is
+            // nearer than one from which it waits on a member leaving or the story moving on.
+            live[id] = (far == float.MaxValue ? 0 : far) + LayerDistance * Math.Max(0, result.FactLayer[fact] - 1);
         }
         if (party is null)
             return new TrunkLook(step, live, reach.Rounds, clock.Elapsed.TotalSeconds) { Party = state.Party };
