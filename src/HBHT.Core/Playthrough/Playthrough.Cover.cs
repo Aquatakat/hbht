@@ -313,9 +313,11 @@ public sealed partial class Playthrough
             }
         }
 
-        // Nothing to do here: plan to the most promising targets, the nearest in the relaxation first.
+        // Nothing to do here: plan to the most promising targets, the nearest in the relaxation first. A job riding the story plans again
+        // to a target it had no plan to only every few steps: a search that finds nothing goes on to its budget.
+        var rides = Rides;
         var (found, tries) = (0, 0);
-        var order = live.Select(h => _targets[h]).Where(t => t.NoPlanAt != _step)
+        var order = live.Select(h => _targets[h]).Where(t => t.NoPlanAt != _step && !(rides && t.NoPlans > 0 && _step - t.NoPlanAt < RideReplan))
             .OrderBy(t => result.FactLayer[Model.FlagFact(t.Handle, true)])
             .ThenBy(t => result.Achiever[Model.FlagFact(t.Handle, true)] is var a && a >= 0 ? Far(Model.Actions[a].Place, here) : float.MaxValue)
             .ToList();
@@ -335,7 +337,7 @@ public sealed partial class Playthrough
                 // The planner's why is kept from the first, so a target given up where the run stood says it.
                 var stuck = _reach is { } reach ? Stuck(state, goal, reach) : "";
                 target.Why = $"no plan: {plan?.Why?.Split(Environment.NewLine)[0] ?? "the planner found none"}{(stuck.Length > 0 ? $"; {stuck}" : "")}";
-                if (target.NoPlans >= _cover.Goal.MostNoPlans)
+                if (target.NoPlans >= _cover.Goal.MostNoPlans && !rides)
                     target.State = TargetState.GivenUp;
                 continue;
             }
@@ -357,6 +359,22 @@ public sealed partial class Playthrough
         {
             Progress?.Invoke($"     no step loses nothing; the one that loses fewest ({least.Lost}) is taken: {least.Steps[0].Describe()}");
             return Pending(least.Goal, least.Steps, least.Plan, live, true);
+        }
+        // A party job with its party whole and no plan to any target rides the story on with the party kept, as the trunk plays it, until
+        // the targets come within a plan: Becan joins only between Erromon and the goblin camp's end (5003), and his targets want him at
+        // the Barrows and after Lugash, far beyond any plan from where he joins.
+        if (rides && found == 0)
+        {
+            var (steps, plan) = PlanTo(new EndingGoal(), state);
+            if (steps.Count > 0 && Unmet(steps[0]) is null)
+            {
+                var lost = Losses(relaxation, state, steps[0], live);
+                _movedAt = _step;
+                Progress?.Invoke($"     no plan to a target: the story on, with the party kept: {steps[0].Describe()}{(lost.Count > 0 ? $", losing {lost.Count}" : "")}");
+                return Pending(new EndingGoal(), steps, plan, live, lost.Count > 0);
+            }
+            StopRiding("no plan to a target, and no step towards the ending");
+            return ChooseCover(state);
         }
         // Every target planned to found nothing where the run stands.
         if (order.Count == 0)
@@ -552,6 +570,32 @@ public sealed partial class Playthrough
 
     /// <summary>A party job's party: its members in and those it keeps out.</summary>
     private PartyGoal PartyWanted => new(_cover!.Goal.Party, _cover.Goal.Out);
+
+    /// <summary>
+    /// Whether the run rides the story on when it has no plan to a target: a party job with members to have in, its party whole now, that
+    /// hasn't stopped riding. Its targets with no plan aren't given up for it while it rides.
+    /// </summary>
+    private bool Rides => _cover!.Goal.Party.Count > 0 && _cover.PartyAt is not null && _rodeTo is null && _cover.Goal.Party.All(Game.Party.Contains);
+
+    /// <summary>The step the run stopped riding the story at, if it has.</summary>
+    private int? _rodeTo;
+
+    /// <summary>How many steps a run riding the story waits before planning again to a target it had no plan to.</summary>
+    private const int RideReplan = 4;
+
+    /// <summary>Stops riding the story: the targets that had no plan twice are given up, as they'd have been.</summary>
+    private void StopRiding(string why)
+    {
+        if (_rodeTo is not null)
+            return;
+        _rodeTo = _step;
+        Progress?.Invoke($"     the story is ridden no further: {why}");
+        foreach (var target in _cover!.Targets.Where(t => t.State == TargetState.Live && t.NoPlans >= _cover.Goal.MostNoPlans))
+        {
+            target.State = TargetState.GivenUp;
+            target.Why = $"{target.Why}; the story was ridden to step {_step}, and then {why}";
+        }
+    }
 
     /// <summary>The plans to the party tried in one look, each without the first steps of those before it that lost targets.</summary>
     private const int MostPartyPlans = 3;

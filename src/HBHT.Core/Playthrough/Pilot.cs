@@ -52,9 +52,7 @@ public sealed record PilotOptions(
     Outfitting? Dress = null,
     int SidestepTicks = 30,
     Func<RouteRefusal, bool>? Waits = null,
-    IReadOnlyCollection<RecordId>? Shun = null,
-    int WalkAfterStalls = int.MaxValue,
-    float WalkTilt = 0.7f)
+    IReadOnlyCollection<RecordId>? Shun = null)
 {
     public static readonly PilotOptions Default = new();
 }
@@ -538,8 +536,7 @@ public sealed class Pilot : IInputPolicy
         }
         if (distance < 1e-3f)
             return TickInput.None;
-        var tilt = walk.Stalls >= Options.WalkAfterStalls ? Options.WalkTilt : 1;
-        return new TickInput(new PlayerInput(StickFor(across / distance, trek.Camera.LookXZ) * tilt), []);
+        return new TickInput(new PlayerInput(StickFor(across / distance, trek.Camera.LookXZ)), []);
     }
 
     /// <summary>

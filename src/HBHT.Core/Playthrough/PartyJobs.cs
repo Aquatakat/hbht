@@ -65,6 +65,11 @@ public static class PartyJobs
             var later = brought?.GetValueOrDefault(look.Step);
             if (members.Count > MostMembers || outs.Count == 0 && later is not null && members.All(later.Contains))
                 continue;
+            // Those the trunk brings in later come with the story, which the job rides on with the rest kept: Niesen, whose joining in
+            // Terminor is the story's way on, so that every target past it seems to need him, and who dies in Shamsuk's Tower; Abrecan,
+            // who leaves at Erromon and comes back at Overworld I13. Kept from the start, a job could never take the story past them.
+            if (later is not null && members.Any(m => !later.Contains(m)))
+                members = [.. members.Where(m => !later.Contains(m))];
             float? joins = 0;
             foreach (var m in members)
                 joins = look.Joins.TryGetValue(m, out var j) ? joins + j : null;
