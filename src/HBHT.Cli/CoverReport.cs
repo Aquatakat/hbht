@@ -115,9 +115,19 @@ internal static partial class CoverReport
             game = GameState.NewGame(plugins);
         }
         var model = QuestModel.Build(plugins);
-        var targets = options.TryGetValue("--targets", out var which) && which != "all"
-            ? ReadTargets(which, model)
-            : CoverGoal.StaticTargets(model, PlanState.From(model, game), game);
+        List<RecordId> targets;
+        if (options.TryGetValue("--targets", out var which) && which != "all")
+        {
+            targets = ReadTargets(which, model);
+        }
+        else
+        {
+            // What the story's order closes for good is no target: Shamsuk's Tower once he's defeated.
+            var closings = Closings.Find(model, new WorldGraph(plugins), game);
+            foreach (var (action, flag) in closings.Why.OrderBy(c => c.Key))
+                Console.WriteLine($"Closed for good once {flag} is set: {model.Actions[action].Describe()}");
+            targets = CoverGoal.StaticTargets(model, PlanState.From(model, game), game, closings);
+        }
         var root = new CoverRoot([.. targets.Select(t => t.ToString())], save, Number(options, "--job-minutes", 120),
             (int)Number(options, "--most-failures", 3), DateTimeOffset.UtcNow);
         if (trunk)

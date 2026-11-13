@@ -88,6 +88,8 @@ public sealed partial class WorldGraph
     private readonly Lazy<string> _fingerprint;
     private readonly ConcurrentDictionary<RecordId, Lazy<PortalCellIndex>> _portalCells = [];
     private readonly ConcurrentDictionary<RecordId, Lazy<Dictionary<int, int?>>> _setDowns = [];
+    private readonly ConcurrentDictionary<RecordId, Lazy<(Lock Lock, CollisionWorld World, Chunks.ChunkStreamer Chunks)>> _spawnWorlds = [];
+    private readonly ConcurrentDictionary<RecordId, Vector3> _spawns = [];
     private readonly Lock _closureLock = new();
     private readonly Dictionary<string, Dictionary<RecordId, bool[]>> _closures = [];
 
@@ -328,8 +330,40 @@ public sealed partial class WorldGraph
     /// </summary>
     internal Standing? StandingOf(RecordId mapObject) => _standing.GetOrAdd(mapObject, id =>
         _plugins.TryGet<ChunkRecord>(ChunkRecord.ChunkOf(id)) is { } chunk && chunk.Object(ChunkRecord.IndexOf(id)) is { } o && UseRange(o) is { } range
-            ? new Standing(this, id, chunk.MapSet, _plugins.Get<MapSetRecord>(chunk.MapSet).Origin(chunk) + o.Position, range)
+            ? new Standing(this, id, chunk.MapSet, TargetOf(id, chunk, o), range)
             : null);
+
+    /// <summary>
+    /// Where a map object of a chunk is used at, in its map set's world coordinates: its position, or for an npc or encounter, where its
+    /// body is set down as it spawns (<see cref="SpawnOf"/>).
+    /// </summary>
+    public Vector3 TargetOf(RecordId mapObject, ChunkRecord chunk, MapObject o) =>
+        o is PartyObject ? SpawnOf(mapObject, chunk, o) : _plugins.Get<MapSetRecord>(chunk.MapSet).Origin(chunk) + o.Position;
+
+    /// <summary>
+    /// Where an npc's or encounter's body stands as it spawns: set down from its placement as trek's wanderers are (<see cref="Body.SetDown"/>
+    /// near its own height, then from on high, and to the side once it misses, as <see cref="Reach.SetDownAt"/> tries for the arenas),
+    /// the sphere's middle at the player's radius above the ground. Many are placed in the air or under the ground they stand on: Batrin
+    /// at Overworld D14/6 is 1.8 above the bridge, and the Lizard Man's Damek at Q16/4 2.1 under the bog, so the ground about the
+    /// placement was more than 1.5 from it. Kept; found with each map set's collision streamed in under a lock of its own. The placement
+    /// if no ground is found under it.
+    /// </summary>
+    private Vector3 SpawnOf(RecordId mapObject, ChunkRecord chunk, MapObject o) => _spawns.GetOrAdd(mapObject, _ =>
+    {
+        var set = _plugins.Get<MapSetRecord>(chunk.MapSet);
+        var at = set.Origin(chunk) + o.Position;
+        var (gate, world, chunks) = _spawnWorlds.GetOrAdd(chunk.MapSet, id => new Lazy<(Lock, CollisionWorld, Chunks.ChunkStreamer)>(() =>
+        {
+            var world = new CollisionWorld();
+            return (new Lock(), world, new Chunks.ChunkStreamer(_plugins, GameState.NewGame(_plugins), world, set));
+        })).Value;
+        lock (gate)
+        {
+            chunks.Update(at);
+            var (ground, grounded) = Reach.SetDownAt(world, at, at.Y, sideways: true);
+            return grounded ? ground : at;
+        }
+    });
 
     private readonly ConcurrentDictionary<RecordId, Lazy<Dictionary<(int Row, int Column), int[]>>> _chunkCells = [];
 
@@ -503,8 +537,7 @@ public sealed partial class WorldGraph
             return Refuse(RefusalKind.UnknownObject, $"No chunk has {mapObject}.");
         if (UseRange(o) is not { } range)
             return Refuse(RefusalKind.NotUsable, $"{mapObject} is a {o.GetType().Name.Replace("Object", "", StringComparison.Ordinal).ToLowerInvariant()}, which the player doesn't use.");
-        var set = _plugins.Get<MapSetRecord>(chunk.MapSet);
-        var target = set.Origin(chunk) + o.Position;
+        var target = TargetOf(mapObject, chunk, o);
         var own = ObjectGates(mapObject, o);
         var shut = own.Where(g => g.Closed(state.Flags, pick)).ToList();
         if (shut.Count > 0 && options?.IgnoreOwnGates != true)
@@ -808,7 +841,7 @@ public sealed partial class WorldGraph
 
     /// <summary>The cells to stand in to use a map object of a chunk, within its use range (<see cref="StandNear"/>), kept.</summary>
     internal IReadOnlyList<(int Cell, float Distance)> StandCells(RecordId mapObject, ChunkRecord chunk, MapObject o, float range) =>
-        StandFor(mapObject, chunk.MapSet, _plugins.Get<MapSetRecord>(chunk.MapSet).Origin(chunk) + o.Position, range);
+        StandFor(mapObject, chunk.MapSet, TargetOf(mapObject, chunk, o), range);
 
     /// <summary>Every cell the player can reach from a place with the gates as they are, by map set; kept for the next ask under the same gates.</summary>
     private Dictionary<RecordId, bool[]>? Closure(GameState state, Place from, bool pick)

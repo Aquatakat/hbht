@@ -172,11 +172,12 @@ public sealed record CoverGoal(IReadOnlyList<RecordId> Targets) : Goal
     /// Given the game, also the flags over what the engine writes (the clock, the weather, the terrain, the journal's notice), the engine's
     /// own and those derived from them, that aren't set in the game and that the relaxation can make so: the planner takes the engine's
     /// flags as either value, so these hold in its state from the start (layer 0), and play sets them by waiting or walking
-    /// (docs/systems/playthrough.md, "What the planner doesn't model").
+    /// (docs/systems/playthrough.md, "What the planner doesn't model"). Given the actions the story's order closes for good
+    /// (<see cref="Closings"/>), the relaxation leaves them out, so what only they set is no target.
     /// </summary>
-    public static List<RecordId> StaticTargets(QuestModel model, PlanState state, GameState? game = null)
+    public static List<RecordId> StaticTargets(QuestModel model, PlanState state, GameState? game = null, Closings? closings = null)
     {
-        var result = new Relaxation(model, Enumerable.Range(0, model.Actions.Count)).Run(state);
+        var result = new Relaxation(model, Enumerable.Range(0, model.Actions.Count).Where(a => closings?.Closed(a) != true)).Run(state);
         var flags = model.Flags;
         return [.. Enumerable.Range(0, flags.Count)
             .Where(h => flags.Kind(h) is FlagKind.Plain or FlagKind.Derived && result.FactLayer[model.FlagFact(h, true)] > 0
