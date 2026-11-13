@@ -175,7 +175,6 @@ public sealed class Pilot : IInputPolicy
     {
         if (host.Session is not { Mode: GameMode.Trek } session)
             return;
-        Tripped(session.Trek, walk);
         var cued = session.Trek.Cued;
         if (cued is not { Start.MapObject: { } source } || walk.Cued == source)
         {
@@ -194,29 +193,6 @@ public sealed class Pilot : IInputPolicy
         triggers.Learn(source, ways);
         walk.Blocker = source;
         walk.Fail(StepFailure.Blocked, $"{source} ({cued.Value.Script.Id.Key}) played the same way twice on the way, ways {string.Join(", ", ways)}: it turns the player back");
-    }
-
-    /// <summary>
-    /// After a tick: a tripwire other than the step's own that writes a flag and that trek's touch takes where the player stands
-    /// (<see cref="MapObjectUse.Touches"/>), noted as crossed, as a story trigger cued is, so a branch from before the step can shun it:
-    /// the tower's tripwire at Overworld P17/3 (438) closes StageH's cut-scenes beside it (P17/8, 0x047A), their radii of 25 eight apart.
-    /// </summary>
-    private static void Tripped(TrekLoop trek, Walk walk)
-    {
-        var sphere = trek.Player.Sphere.Position;
-        foreach (var (_, map) in trek.Chunks.All)
-        {
-            var at = sphere - map.Origin;
-            IEnumerable<int> listed = map.Record.Grid is { } grid ? grid.At(at) : map.Record.Objects.Select(o => o.Index);
-            foreach (var index in listed)
-            {
-                if (map.Record.Object(index) is not TripwireObject { Tangible: true, Used: not null } o)
-                    continue;
-                var id = map.Record.ObjectId(index);
-                if (id != walk.Step.MapObject && !walk.Crossed.Contains(id) && trek.Use.Touches(map, at, o))
-                    walk.Crossed.Add(id);
-            }
-        }
     }
 
     /// <summary>What the step's object is, where, and how it's used.</summary>
