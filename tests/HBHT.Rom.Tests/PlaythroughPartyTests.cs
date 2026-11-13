@@ -159,8 +159,10 @@ public sealed class PlaythroughPartyTests(Na10Import fixture, ITestOutputHelper 
             var (trigger, play) = Assert.Single(opened);
             Assert.Equal(Ids.MapObject(0, "G12", 4), trigger.Id);
             Assert.Equal([26, 62, 83], play.Choices);
-            // Worth nothing, it's left to the host's default.
+            // Its ways all worth the same, it's left to the host's default; one that loses what the other keeps is passed over.
             Assert.Empty(triggers.Opened(state, queen, (_, _) => 0));
+            var (_, keeps) = Assert.Single(triggers.Opened(state, queen, (_, p) => p.Effects.Contains(new SetFlag(amulet, true)) ? 0 : -1000));
+            Assert.Equal([26, 62, 83], keeps.Choices);
         }
         finally
         {

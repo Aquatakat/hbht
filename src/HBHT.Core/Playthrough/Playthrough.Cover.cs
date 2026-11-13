@@ -475,9 +475,10 @@ public sealed partial class Playthrough
 
     /// <summary>
     /// The choices to take in the story triggers a step opens (<see cref="PilotStep.Consequences"/>, <see cref="StoryTriggers.Opened"/>):
-    /// each is played by its way that sets the most of the targets live before the step, if any does. The queen's conversation (0x03FB)
-    /// by the way that wins her trust (231) opens her scene at Overworld G12/4 (0x03FC), which then plays at once; by the host's default
-    /// it closes without giving Pandara's amulet (234), which its way by choices 26, 62 and 83 gives.
+    /// each is played by its way that loses the fewest of the targets live before the step and then sets the most, where its ways differ.
+    /// The queen's conversation (0x03FB) by the way that wins her trust (231) opens her scene at Overworld G12/4 (0x03FC), which then
+    /// plays at once; by the host's default it closes without giving Pandara's amulet (234), which its way by choices 26, 62 and 83
+    /// gives, and which the riddle at the Jundar Gate (479) wants long after.
     /// </summary>
     private List<ChoiceWanted> Consequences(PlayerAction action, PlanState state)
     {
@@ -486,7 +487,18 @@ public sealed partial class Playthrough
         var derived = DerivedInputs(pending.Live);
         var wanted = new List<ChoiceWanted>();
         var notes = new List<string>();
-        foreach (var (trigger, play) in Triggers.Opened(state, action, (next, p) => pending.Live.Count(h => Sets(next, p, h, derived))))
+        var relaxation = new Relaxation(Model, Enumerable.Range(0, Model.Actions.Count));
+        HashSet<int>? live = null;
+        int Worth(PlanState next, PlayerAction play)
+        {
+            if (live is null)
+            {
+                var result = relaxation.Run(next);
+                live = [.. pending.Live.Where(h => result.Reached(Model.FlagFact(h, true)))];
+            }
+            return pending.Live.Count(h => Sets(next, play, h, derived)) - 1000 * Losses(relaxation, next, play, live).Count;
+        }
+        foreach (var (trigger, play) in Triggers.Opened(state, action, Worth))
         {
             wanted.AddRange(StepTranslation.Choices(play, Model.Plugins, notes));
             Progress?.Invoke($"     the step opens {trigger.Id}; if it plays, it goes by {play.Describe()}");

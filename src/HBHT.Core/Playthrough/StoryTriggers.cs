@@ -164,11 +164,15 @@ public sealed class StoryTriggers
     }
 
     /// <summary>
-    /// The story triggers an action opens, each with the play of it worth most, if any is worth anything: a trigger none of whose plays can
-    /// be done before the action and some can after it, which plays at once where the player stands within its radius. The queen's
-    /// conversation (0x03FB) by a way that wins her trust (231) opens her scene at Overworld G12/4 (0x03FC) about her.
+    /// The story triggers an action opens, each with the play of it worth most, where its plays aren't all worth the same or one is worth
+    /// something: a trigger none of whose plays can be done before the action and some can after it, which plays at once where the player
+    /// stands within its radius. The queen's conversation (0x03FB) by a way that wins her trust (231) opens her scene at Overworld G12/4
+    /// (0x03FC) about her.
     /// </summary>
-    /// <param name="worth">What a play of a trigger is worth, from the state after the action: in a cover run, the live targets it sets.</param>
+    /// <param name="worth">
+    /// What a play of a trigger is worth, from the state after the action: in a cover run, the live targets it sets, less a thousand for
+    /// each it loses.
+    /// </param>
     public IEnumerable<(StoryTrigger Trigger, PlayerAction Play)> Opened(PlanState state, PlayerAction action, Func<PlanState, PlayerAction, int> worth)
     {
         var next = state.Apply(action);
@@ -176,10 +180,10 @@ public sealed class StoryTriggers
         {
             if (trigger.Id == action.Place || trigger.Plays.Count == 0 || trigger.Plays.Any(state.CanDo))
                 continue;
-            var best = trigger.Plays.Where(next.CanDo).Select(p => (Play: p, Worth: worth(next, p)))
-                .Where(p => p.Worth > 0).OrderByDescending(p => p.Worth).Select(p => p.Play).FirstOrDefault();
-            if (best is not null)
-                yield return (trigger, best);
+            var plays = trigger.Plays.Where(next.CanDo).Select(p => (Play: p, Worth: worth(next, p))).ToList();
+            if (plays.Count == 0 || plays.Max(p => p.Worth) <= 0 && plays.Min(p => p.Worth) == plays.Max(p => p.Worth))
+                continue;
+            yield return (trigger, plays.MaxBy(p => p.Worth).Play);
         }
     }
 
