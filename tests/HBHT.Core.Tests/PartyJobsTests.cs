@@ -73,6 +73,50 @@ public sealed class PartyJobsTests
         EqualityComparer<(int, IReadOnlyList<RecordId>)>.Create((a, b) => a.Item1 == b.Item1 && a.Item2.SequenceEqual(b.Item2), x => x.Item1);
 
     [Fact]
+    public void ATargetNeedingSomeoneOutStartsWhereverTheTrunkTakesThemInAndWeighsTheirLeaving()
+    {
+        var manifest = new TrunkManifest("the ending", true, null, 2, 0, 0,
+        [
+            new TrunkSave(1, "a", 0, null, [new MemberLevel(GameState.Alaron.ToString(), "Alaron", 1, 0)], "t001.sav"),
+            new TrunkSave(2, "b", 0, null, [new MemberLevel(GameState.Alaron.ToString(), "Alaron", 1, 0), new MemberLevel(Rheda.ToString(), "Rheda", 1, 0)], "t002.sav"),
+        ], [], DateTimeOffset.UnixEpoch);
+        var brought = PartyJobs.Brought(manifest);
+        TrunkLook Out(int step, float far, IReadOnlyList<RecordId> party, IReadOnlyList<RecordId> needs, IReadOnlyList<RecordId> outs,
+            params (RecordId Member, float Far)[] leaves) =>
+            new(step, new Dictionary<RecordId, float> { [Ids.Flag(10)] = far }, 1, 0)
+            {
+                Party = party,
+                Needs = needs.Count == 0 ? new Dictionary<RecordId, IReadOnlyList<RecordId>>() : new Dictionary<RecordId, IReadOnlyList<RecordId>> { [Ids.Flag(10)] = needs },
+                Out = new Dictionary<RecordId, IReadOnlyList<RecordId>> { [Ids.Flag(10)] = outs },
+                Joins = new Dictionary<RecordId, float> { [Godric] = 7, [Becan] = 3 },
+                Leaves = leaves.ToDictionary(l => l.Member, l => l.Far),
+            };
+        // Before Rheda joins, though the trunk brings her in, keeping her out is a party; after, she must leave first, which weighs.
+        List<TrunkLook> looks =
+        [
+            Out(1, 100, [GameState.Alaron], [], [Rheda]),
+            Out(2, 10, [GameState.Alaron, Rheda], [], [Rheda], (Rheda, 20)),
+        ];
+        var starts = PartyJobs.Starts(Ids.Flag(10), looks, brought: brought);
+        Assert.Equal([2, 1], starts.Select(s => s.Step));
+        Assert.All(starts, s => Assert.Equal([Rheda], s.Out));
+        Assert.All(starts, s => Assert.Empty(s.Members));
+        Assert.Equal(30, starts[0].Far);
+        Assert.Equal("2::out 0x024C", starts[0].Key);
+        Assert.Equal("the party without 0x024C", starts[0].Goal.Describe());
+        // One she can't leave from is no start.
+        Assert.Equal([1], PartyJobs.Starts(Ids.Flag(10), [looks[0], Out(2, 10, [GameState.Alaron, Rheda], [], [Rheda])]).Select(s => s.Step));
+
+        // Needed both in and out, as Godric's agreeing to join (73) needs him out until the conversation that sets it brings him in: out.
+        var both = PartyJobs.Starts(Ids.Flag(10), [Out(1, 10, [GameState.Alaron], [Godric, Becan], [Godric, Rheda])]);
+        var start = Assert.Single(both);
+        Assert.Equal([Becan], start.Members);
+        Assert.Equal([Godric, Rheda], start.Out);
+        Assert.Equal("p2-t001-0242-out-0248_024C", PartyJobs.JobId(2, start));
+        Assert.Equal("p1-t002-out-024C", PartyJobs.JobId(1, starts[0]));
+    }
+
+    [Fact]
     public void APartyJobIsNamedByItsRoundSaveAndMembersAndCarriesItsParty()
     {
         var start = new PartyStart(7, [Becan, Godric], 12);
@@ -84,6 +128,11 @@ public sealed class PartyJobsTests
         Assert.Equal("trunk/saves/steps/t007.sav", job.Save);
         Assert.Equal([Ids.Flag(10).ToString(), Ids.Flag(11).ToString()], job.Targets);
         Assert.Equal([Becan.ToString(), Godric.ToString()], job.Party);
+        Assert.Null(job.Out);
         Assert.Equal(0, job.Depth);
+
+        var without = Assert.Single(PartyJobs.Jobs(manifest, new Dictionary<RecordId, PartyStart> { [Ids.Flag(10)] = start with { Out = [Rheda] } }, "trunk", 1));
+        Assert.Equal([Rheda.ToString()], without.Out);
+        Assert.Equal("p1-t007-0242_0248-out-024C", without.Id);
     }
 }

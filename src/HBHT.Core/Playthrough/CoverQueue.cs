@@ -22,9 +22,10 @@ public sealed record CoverRoot(IReadOnlyList<string> Targets, string? Save, doub
 /// <param name="Avoid">The steps it never takes (<see cref="CoverGoal.Avoid"/>).</param>
 /// <param name="Party">The members it gets into the party first and keeps there (<see cref="CoverGoal.Party"/>), as record IDs: a party job's.</param>
 /// <param name="Shun">The story triggers no route of it crosses (<see cref="CoverGoal.Shun"/>), as record IDs.</param>
+/// <param name="Out">The members it gets out of the party first and keeps out (<see cref="CoverGoal.Out"/>), as record IDs: a party job's.</param>
 public sealed record CoverJob(string Id, string? Parent, string? Save, IReadOnlyList<string> Targets, int Depth, int? Step = null,
     string? Action = null, string? Why = null, IReadOnlyList<string>? Avoid = null, IReadOnlyList<string>? Party = null,
-    IReadOnlyList<string>? Shun = null);
+    IReadOnlyList<string>? Shun = null, IReadOnlyList<string>? Out = null);
 
 /// <summary>A flag a job saw set first: the step, the tick, and the save before the step (relative to the root).</summary>
 public sealed record CoverSeenEntry(string Flag, int Step, long Tick, string? Save);

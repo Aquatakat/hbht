@@ -13,17 +13,23 @@ public abstract record Goal
 
     /// <summary>
     /// <c>flag:&lt;n&gt;</c> (or a flag's record ID), <c>member</c>, <c>party:&lt;entity&gt;[,&lt;entity&gt;…]</c> (each a hex number
-    /// such as <c>0x0241</c>, or a record ID) or <c>ending</c>.
+    /// such as <c>0x0241</c>, or a record ID, and one to have out of the party after a <c>-</c>) or <c>ending</c>.
     /// </summary>
     public static Goal Parse(string text) => text switch
     {
         "member" => new MemberGoal(),
         "ending" => new EndingGoal(),
         _ when text.StartsWith("flag:", StringComparison.Ordinal) => new FlagGoal(ParseFlag(text["flag:".Length..])),
-        _ when text.StartsWith("party:", StringComparison.Ordinal) =>
-            new PartyGoal([.. text["party:".Length..].Split(',', StringSplitOptions.RemoveEmptyEntries).Select(ParseEntity)]),
+        _ when text.StartsWith("party:", StringComparison.Ordinal) => ParseParty(text["party:".Length..]),
         _ => throw new ArgumentException($"A goal is flag:<n>, member, party:<entities> or ending, not {text}."),
     };
+
+    private static PartyGoal ParseParty(string text)
+    {
+        var entities = text.Split(',', StringSplitOptions.RemoveEmptyEntries);
+        return new PartyGoal([.. entities.Where(e => !e.StartsWith('-')).Select(ParseEntity)],
+            [.. entities.Where(e => e.StartsWith('-')).Select(e => ParseEntity(e[1..]))]);
+    }
 
     private static RecordId ParseEntity(string entity) =>
         entity.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
@@ -50,16 +56,29 @@ public sealed record MemberGoal : Goal
 }
 
 /// <summary>
-/// Each of some members in the party at once (docs/systems/playthrough.md, "Party jobs"). The planner searches with the party's cap, so
-/// with the party full it plans a joining conversation's way that asks someone else to leave.
+/// Each of some members in the party at once, and each of some others out of it (docs/systems/playthrough.md, "Party jobs"). The
+/// planner searches with the party's cap, so with the party full it plans a joining conversation's way that asks someone else to leave.
 /// </summary>
-public sealed record PartyGoal(IReadOnlyList<RecordId> Members) : Goal
+/// <param name="Members">The members to have in the party.</param>
+/// <param name="Out">The members to have out of it.</param>
+public sealed record PartyGoal(IReadOnlyList<RecordId> Members, IReadOnlyList<RecordId>? Out = null) : Goal
 {
-    public override string Describe() => $"the party with {string.Join(", ", Members.Select(m => m.Key))}";
+    /// <summary>The members to have out of the party.</summary>
+    public IReadOnlyList<RecordId> Without => Out ?? [];
 
-    public bool Equals(PartyGoal? other) => other is not null && Members.SequenceEqual(other.Members);
+    public override string Describe() => Describe(Members, Without);
 
-    public override int GetHashCode() => Members.Aggregate(0, HashCode.Combine);
+    /// <summary>A party's members in and out, for reports: "the party with 0x0242", "the party without 0x024C".</summary>
+    public static string Describe(IReadOnlyList<RecordId> members, IReadOnlyList<RecordId> without) =>
+        "the party" + (members.Count > 0 ? $" with {string.Join(", ", members.Select(m => m.Key))}" : "")
+        + (without.Count > 0 ? $"{(members.Count > 0 ? " and" : "")} without {string.Join(", ", without.Select(m => m.Key))}" : "");
+
+    /// <summary>Whether a party as it stands is this one: every member in, every other out.</summary>
+    public bool Holds(Func<RecordId, bool> inParty) => Members.All(inParty) && !Without.Any(inParty);
+
+    public bool Equals(PartyGoal? other) => other is not null && Members.SequenceEqual(other.Members) && Without.SequenceEqual(other.Without);
+
+    public override int GetHashCode() => Without.Aggregate(Members.Aggregate(0, HashCode.Combine), HashCode.Combine);
 }
 
 /// <summary>
@@ -117,6 +136,16 @@ public sealed record CoverGoal(IReadOnlyList<RecordId> Targets) : Goal
     /// (<see cref="PartyJobs.Leaving"/>). None for an ordinary job.
     /// </summary>
     public IReadOnlyList<RecordId> Party { get; init; } = [];
+
+    /// <summary>
+    /// Members to have out of the party and keep out, a party job's: one in it is planned out with <see cref="Party"/>, and the run never
+    /// takes a step that brings one of them in, but for a step that sets one of its targets (<see cref="PartyJobs.Joining"/>). None for an
+    /// ordinary job.
+    /// </summary>
+    public IReadOnlyList<RecordId> Out { get; init; } = [];
+
+    /// <summary>Whether the goal is a party job's: members to have in the party or out of it.</summary>
+    public bool HasParty => Party.Count > 0 || Out.Count > 0;
 
     /// <summary>
     /// Story triggers no route of the run may cross (<see cref="PilotOptions.Shun"/>): those a step crossed in the jobs it branched from

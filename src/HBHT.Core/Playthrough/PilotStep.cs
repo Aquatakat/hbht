@@ -95,6 +95,13 @@ public sealed record PilotStep(RecordId MapObject, UseKind How = UseKind.Auto, I
     /// has kept to that the page offers, so a way the state doesn't take is left for one it does.
     /// </summary>
     public (RecordId Script, IReadOnlyList<IReadOnlyList<int>> Choices)? Ways { get; init; }
+
+    /// <summary>
+    /// The choices wanted in story triggers the step's way opens, which play as its consequence where the player stands within their
+    /// radius: taken where <see cref="Choices"/> want nothing, before the host's default. The queen's conversation (0x03FB) by the way that
+    /// wins her trust opens her scene (0x03FC, Overworld G12/4) about her, which then plays at once.
+    /// </summary>
+    public IReadOnlyList<ChoiceWanted> Consequences { get; init; } = [];
 }
 
 /// <summary>Why a step failed.</summary>

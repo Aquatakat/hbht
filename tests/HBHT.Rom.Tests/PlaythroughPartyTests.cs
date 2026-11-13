@@ -98,6 +98,76 @@ public sealed class PlaythroughPartyTests(Na10Import fixture, ITestOutputHelper 
         Assert.Contains(Brenna, end.Party);
     }
 
+    [Fact]
+    public void TargetsThatNeedSomeoneKeptOutOfThePartyAreFoundBeforeTheyJoinAndAfter()
+    {
+        var arturo = Ids.Entity(0x0240);
+        var start = NewGame();
+        int[] flags = [29, 32, 73, 244, 262, 1001, 5245];
+        var targets = flags.Select(f => Model.Flags.Handle(Ids.Flag(f))).ToList();
+        Dictionary<int, List<RecordId>> Out(PlanState state) =>
+            PartyNeeds.ByTarget(PartyNeeds.Out(Model, state, targets)).ToDictionary(p => int.Parse(Model.Flags.Id(p.Key).Key), p => p.Value);
+
+        // With Alaron alone: Rheda's talk in Port Saiid needs her out of the party then (5245 wants her joined flag 91 clear), and Batrin's
+        // task at the bridge needs Arturo out (5247 wants 247 clear). Once either joins for good, the relaxation can't have them leave.
+        var alone = Out(start);
+        Assert.Equal([Rheda], alone[262]);
+        Assert.Equal([Rheda], alone[5245]);
+        Assert.Equal([arturo], alone[244]);
+        // No one of Abrecan, Godric and Rheda alone closes the castle's conversations, but any two do (5004): two of them are kept out.
+        Assert.Equal(2, alone[29].Count);
+        Assert.All(alone[29], m => Assert.Contains(m, new[] { Abrecan, Godric, Rheda }));
+
+        // With Abrecan in, a second of the three closes them (5004): Godric and Rheda are kept out. Godric's agreeing to join (73) needs
+        // him out too, though its own conversation brings him in: the job keeps him out but for the steps that set it.
+        var abrecan = Out(start.Joined(Abrecan));
+        Assert.Equal([Godric, Rheda], abrecan[29]);
+        Assert.Equal([Godric, Rheda], abrecan[32]);
+        Assert.Contains(Godric, abrecan[73]);
+        var joining = PartyJobs.Joining(Model, [Godric], [Ids.Flag(73)]);
+        Assert.NotEmpty(joining);
+        Assert.All(Model.Actions.Where(a => a.Effects.OfType<SetFlag>().Any(s => s.Flag == Ids.Flag(73) && s.Value)), a => Assert.DoesNotContain(a.Index, joining));
+        Assert.All(joining, a => Assert.Contains(Model.Actions[a].Effects, e => e is Join { Entity: var m } && m == Godric));
+
+        // With Rheda in, she must leave first.
+        Assert.Equal([Rheda], Out(start.Joined(Rheda))[262]);
+
+        // A party goal of members out is planned too: the party without Rheda is met where she's out, and planned where she's in.
+        var planner = new QuestPlanner(Model);
+        Assert.True(planner.Achieved(start, new PartyGoal([], [Rheda]), []));
+        Assert.Equal([Model.PersonFact(Rheda, false)!.Value], planner.GoalFacts(start, new PartyGoal([], [Rheda])));
+        Assert.Equal(new PartyGoal([Becan], [Rheda]), Goal.Parse("party:0x0242,-0x024C"));
+    }
+
+    [Fact]
+    public void AStoryTriggerAStepOpensIsPlayedByItsWayThatSetsTheMostTargets()
+    {
+        // In the dryads' wood (218) with the Amaranth (222), from a new game whose opening has played: the queen's conversation (0x03FB at
+        // Overworld G12/16) by the way whose Troubadour check wins her trust (231) opens her scene at G12/4 (0x03FC), which plays at once.
+        var game = GameState.NewGame(Plugins);
+        foreach (var flag in new[] { 3, 218, 222 })
+            game.Flags.Set(Ids.Flag(flag), true);
+        var reach = Model.Reach;
+        try
+        {
+            Model.Reach = Everywhere.Instance;
+            var state = PlanState.From(Model, game);
+            var queen = Model.Actions.First(a => a.Place == Ids.MapObject(0, "G12", 16) && a.Effects.Contains(new SetFlag(Ids.Flag(231), true)) && state.CanDo(a));
+            var triggers = new StoryTriggers(Model);
+            var amulet = Ids.Flag(234);
+            var opened = triggers.Opened(state, queen, (_, p) => p.Effects.Contains(new SetFlag(amulet, true)) ? 1 : 0).ToList();
+            var (trigger, play) = Assert.Single(opened);
+            Assert.Equal(Ids.MapObject(0, "G12", 4), trigger.Id);
+            Assert.Equal([26, 62, 83], play.Choices);
+            // Worth nothing, it's left to the host's default.
+            Assert.Empty(triggers.Opened(state, queen, (_, _) => 0));
+        }
+        finally
+        {
+            Model.Reach = reach;
+        }
+    }
+
     /// <summary>Plays a plan's steps over the model's states, each one doable where it comes and the party never past its cap.</summary>
     private static PlanState Play(PlanState state, IEnumerable<PlayerAction> steps)
     {

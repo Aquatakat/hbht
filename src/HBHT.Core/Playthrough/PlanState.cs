@@ -216,6 +216,36 @@ public sealed class PlanState : IEquatable<PlanState>
     public PlanState Without(RecordId entity) =>
         new(_model, _bits, [.. _party.Where(p => p != entity)], _items, Credits, Over, Opening, Forced);
 
+    /// <summary>
+    /// A copy with someone in the party, their joined flag set and their left flag clear as a join writes them, for tools
+    /// (<see cref="PartyNeeds"/>). The party may go past its cap: the relaxation keeps none.
+    /// </summary>
+    public PlanState Joined(RecordId entity) => Moved(entity, true);
+
+    /// <summary>A copy with someone out of the party, their joined flag clear and their left flag set as a leave writes them, for tools.</summary>
+    public PlanState Left(RecordId entity) => Moved(entity, false);
+
+    private PlanState Moved(RecordId entity, bool joined)
+    {
+        var bits = (ulong[])_bits.Clone();
+        void Write(RecordId? flag, bool value)
+        {
+            if (flag is not { } id || !_model.Flags.TryHandle(id, out var h) || _model.Flags.Kind(h) != FlagKind.Plain)
+                return;
+            if (value)
+                bits[h >> 6] |= 1UL << (h & 63);
+            else
+                bits[h >> 6] &= ~(1UL << (h & 63));
+        }
+        if (_model.MemberFlags(entity) is { } flags)
+        {
+            Write(flags.Joined, joined);
+            Write(flags.Left, !joined);
+        }
+        RecordId[] party = joined ? InParty(entity) ? _party : [.. _party, entity] : [.. _party.Where(p => p != entity)];
+        return new PlanState(_model, bits, party, _items, Credits, Over, Opening, Forced);
+    }
+
     private PlanState With(bool opening) => new(_model, _bits, _party, _items, Credits, Over, opening, Forced);
 
     public bool Equals(PlanState? other) => other is not null && (ReferenceEquals(this, other) ||

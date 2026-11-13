@@ -311,9 +311,9 @@ internal static partial class CoverReport
         var starts = open.ToDictionary(t => t, t => PartyJobs.Starts(t, looks,
             file.Tried.TryGetValue(t.ToString(), out var tried) ? tried.ToHashSet() : null, brought).Take(MostPartyStarts).ToList());
         var needing = starts.Where(s => s.Value.Count > 0).Select(s => s.Key).ToList();
-        Console.WriteLine($"{needing.Count} of them need someone the trunk doesn't bring in from a trunk save they're live from, " +
+        Console.WriteLine($"{needing.Count} of them need a party the trunk doesn't make from a trunk save they're live from, " +
             "and haven't been tried from it");
-        foreach (var group in needing.GroupBy(t => string.Join(", ", starts[t][0].Members.Select(m => m.Key))).OrderByDescending(g => g.Count()))
+        foreach (var group in needing.GroupBy(t => starts[t][0].Goal.Describe()).OrderByDescending(g => g.Count()))
             Console.WriteLine($"  {group.Count(),4} best started with {group.Key}");
 
         // Each target takes its first start whose party the planner reaches by a way that keeps the target; each start is planned once,
@@ -348,10 +348,10 @@ internal static partial class CoverReport
                 {
                     var start = list[i];
                     var timer = Stopwatch.StartNew();
-                    var (plan, keeps) = verdicts[start] = PartyJobs.PlanParty(model, graph, Load(start.Step), start.Members, needing);
+                    var (plan, keeps) = verdicts[start] = PartyJobs.PlanParty(model, graph, Load(start.Step), start.Goal, needing);
                     var lost = needing.Count(t => starts[t].Contains(start) && !keeps.Contains(t));
                     Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
-                        $"  t{start.Step:000} with {string.Join(", ", start.Members.Select(m => m.Key))}: " +
+                        $"  t{start.Step:000}, {start.Goal.Describe()}: " +
                         $"{(plan.Found ? $"{plan.Steps.Count} steps{(lost > 0 ? $", losing {lost} of the targets it's a start for" : "")}" : $"no plan ({plan.Why?.Split(Environment.NewLine)[0]})")}, " +
                         $"{timer.Elapsed.TotalSeconds:0.0} s"));
                 }
@@ -604,7 +604,7 @@ internal static partial class CoverReport
     private static void PartyJobLines(List<(CoverJob Job, JobStatus Status, CoverQueue.Claimant? Claim)> jobs, List<CoverResult> results,
         Dictionary<string, (string Job, CoverSeenEntry Seen)> ledger)
     {
-        var party = jobs.Where(j => j.Job.Party is { Count: > 0 } && j.Job.Parent is null).OrderBy(j => j.Job.Id, StringComparer.Ordinal).ToList();
+        var party = jobs.Where(j => (j.Job.Party is { Count: > 0 } || j.Job.Out is { Count: > 0 }) && j.Job.Parent is null).OrderBy(j => j.Job.Id, StringComparer.Ordinal).ToList();
         if (party.Count == 0)
             return;
         var byJob = results.ToDictionary(r => r.Job);

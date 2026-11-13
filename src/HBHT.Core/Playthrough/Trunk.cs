@@ -47,6 +47,15 @@ public sealed record TrunkLook(int Step, IReadOnlyDictionary<RecordId, float> Li
 
     /// <summary>How far each member who can join is from there: 0 for one in the party, else the nearest joining action the relaxation gets to.</summary>
     public IReadOnlyDictionary<RecordId, float> Joins { get; init; } = new Dictionary<RecordId, float>();
+
+    /// <summary>
+    /// The members each of the party targets asked about needs out of the party from there, and kept out (<see cref="PartyNeeds.Out"/>).
+    /// Only targets that need someone out are listed.
+    /// </summary>
+    public IReadOnlyDictionary<RecordId, IReadOnlyList<RecordId>> Out { get; init; } = new Dictionary<RecordId, IReadOnlyList<RecordId>>();
+
+    /// <summary>How far each member in the party is from leaving it there: the nearest action that takes them out the relaxation gets to.</summary>
+    public IReadOnlyDictionary<RecordId, float> Leaves { get; init; } = new Dictionary<RecordId, float>();
 }
 
 /// <summary>Where each target goes (<see cref="Trunk.Assign"/>).</summary>
@@ -227,12 +236,23 @@ public static class Trunk
         var asked = party.Where(live.ContainsKey).Select(model.Flags.Handle).ToList();
         var needs = PartyNeeds.ByTarget(PartyNeeds.Needs(model, state, asked))
             .ToDictionary(p => model.Flags.Id(p.Key), p => (IReadOnlyList<RecordId>)p.Value);
+        var outs = PartyNeeds.ByTarget(PartyNeeds.Out(model, state, asked))
+            .ToDictionary(p => model.Flags.Id(p.Key), p => (IReadOnlyList<RecordId>)p.Value);
         var joins = new Dictionary<RecordId, float>();
+        var leaves = new Dictionary<RecordId, float>();
         foreach (var member in model.Members.Keys)
         {
             if (state.InParty(member))
             {
                 joins[member] = 0;
+                var away = float.MaxValue;
+                foreach (var a in PartyNeeds.Leaves(model, [member]))
+                {
+                    if (result.ActionLayer[a] >= 0)
+                        away = Math.Min(away, Playthrough.Distance(positions[a], here));
+                }
+                if (away < float.MaxValue)
+                    leaves[member] = away;
                 continue;
             }
             var far = float.MaxValue;
@@ -244,7 +264,8 @@ public static class Trunk
             if (far < float.MaxValue)
                 joins[member] = far;
         }
-        return new TrunkLook(step, live, reach.Rounds, clock.Elapsed.TotalSeconds) { Party = state.Party, Needs = needs, Joins = joins };
+        return new TrunkLook(step, live, reach.Rounds, clock.Elapsed.TotalSeconds)
+            { Party = state.Party, Needs = needs, Joins = joins, Out = outs, Leaves = leaves };
     }
 
     /// <summary>The plain flags a derived one is made from, through any derived flags between.</summary>

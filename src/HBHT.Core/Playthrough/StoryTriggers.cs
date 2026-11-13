@@ -163,6 +163,26 @@ public sealed class StoryTriggers
         }
     }
 
+    /// <summary>
+    /// The story triggers an action opens, each with the play of it worth most, if any is worth anything: a trigger none of whose plays can
+    /// be done before the action and some can after it, which plays at once where the player stands within its radius. The queen's
+    /// conversation (0x03FB) by a way that wins her trust (231) opens her scene at Overworld G12/4 (0x03FC) about her.
+    /// </summary>
+    /// <param name="worth">What a play of a trigger is worth, from the state after the action: in a cover run, the live targets it sets.</param>
+    public IEnumerable<(StoryTrigger Trigger, PlayerAction Play)> Opened(PlanState state, PlayerAction action, Func<PlanState, PlayerAction, int> worth)
+    {
+        var next = state.Apply(action);
+        foreach (var trigger in _triggers.Values)
+        {
+            if (trigger.Id == action.Place || trigger.Plays.Count == 0 || trigger.Plays.Any(state.CanDo))
+                continue;
+            var best = trigger.Plays.Where(next.CanDo).Select(p => (Play: p, Worth: worth(next, p)))
+                .Where(p => p.Worth > 0).OrderByDescending(p => p.Worth).Select(p => p.Play).FirstOrDefault();
+            if (best is not null)
+                yield return (trigger, best);
+        }
+    }
+
     /// <summary>The trigger's own plays that turn the player back: never a step towards getting past it.</summary>
     public IEnumerable<int> BlockingPlays(StoryTrigger trigger) =>
         trigger.Plays.Where(a => a.Way is { } way && trigger.Blocking.Contains(IndexOf(trigger, way))).Select(a => a.Index);

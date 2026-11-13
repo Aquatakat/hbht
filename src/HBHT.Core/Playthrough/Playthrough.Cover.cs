@@ -62,9 +62,11 @@ public sealed partial class Playthrough
         _elsewhere = goal.CoveredElsewhere?.Invoke() ?? new HashSet<RecordId>();
         foreach (var avoid in goal.Avoid)
             _bannedForGood.UnionWith(CoverGoal.Avoided(Model, avoid));
-        // A party job keeps the party it makes: no step leaves one of its members out.
+        // A party job keeps the party it makes: no step leaves one of its members out, or brings in one it keeps out but to set a target.
         if (goal.Party.Count > 0)
             _bannedForGood.UnionWith(PartyJobs.Leaving(Model, goal.Party));
+        if (goal.Out.Count > 0)
+            _bannedForGood.UnionWith(PartyJobs.Joining(Model, goal.Out, goal.Targets));
     }
 
     /// <summary>The flags first seen since the last look, put down to the step just played (or, before the first, to none).</summary>
@@ -202,10 +204,10 @@ public sealed partial class Playthrough
     private (Goal Goal, List<PlayerAction> Steps, Plan? Plan) ChooseCover(PlanState state)
     {
         var (relaxation, result, live) = LookAtTargets(state);
-        if (_cover!.Goal.Party.Count > 0 && _cover.PartyAt is null && _cover.Goal.Party.All(Game.Party.Contains))
+        if (_cover!.Goal.HasParty && _cover.PartyAt is null && PartyWanted.Holds(Game.Party.Contains))
         {
             _cover.PartyAt = _step;
-            Progress?.Invoke($"     the party is whole{(_step > 0 ? $" after step {_step}" : "")}: {string.Join(", ", _cover.Goal.Party.Select(m => m.Key))}");
+            Progress?.Invoke($"     the party is whole{(_step > 0 ? $" after step {_step}" : "")}: {PartyWanted.Describe()}");
         }
         if (live.Count == 0)
         {
@@ -282,8 +284,12 @@ public sealed partial class Playthrough
         if (ChooseParty(state, relaxation, live) is { } party)
             return party;
 
-        // Nothing to do here, so the run must go further: someone joins first, while the party has a slot and the way loses nothing.
-        if (!_memberResting && Game.Party.HasEmptySlot())
+        // Nothing to do here, so the run must go further: someone joins first, while the party has a slot and the way loses nothing. Not
+        // in a party job that keeps someone out: its targets want the party small, and the loss check can't see what a join closes behind
+        // the places. From Oriana's hut with Abrecan and Godric kept out, Brenna and then Rheda joined in Gwernia castle, whose way out
+        // only two of Abrecan, Godric and Rheda open, and the questioning outside it (63) that the castle's conversations wait on was
+        // walled off.
+        if (!_memberResting && _cover!.Goal.Out.Count == 0 && Game.Party.HasEmptySlot())
         {
             var member = new MemberGoal();
             var (steps, plan) = PlanTo(member, state);
@@ -433,9 +439,9 @@ public sealed partial class Playthrough
     private (Goal Goal, List<PlayerAction> Steps, Plan? Plan)? ChooseParty(PlanState state, Relaxation relaxation, HashSet<int> live)
     {
         var cover = _cover!;
-        if (cover.Goal.Party.Count == 0 || cover.PartyWhy is not null || cover.Goal.Party.All(Game.Party.Contains))
+        if (!cover.Goal.HasParty || cover.PartyWhy is not null || PartyWanted.Holds(Game.Party.Contains))
             return null;
-        var goal = new PartyGoal(cover.Goal.Party);
+        var goal = PartyWanted;
         (List<PlayerAction> Steps, Plan? Plan, int Lost)? best = null;
         var without = new HashSet<int>();
         string? why = null;
@@ -467,6 +473,41 @@ public sealed partial class Playthrough
         return Pending(goal, chosen.Steps, chosen.Plan, live, chosen.Lost > 0);
     }
 
+    /// <summary>
+    /// The choices to take in the story triggers a step opens (<see cref="PilotStep.Consequences"/>, <see cref="StoryTriggers.Opened"/>):
+    /// each is played by its way that sets the most of the targets live before the step, if any does. The queen's conversation (0x03FB)
+    /// by the way that wins her trust (231) opens her scene at Overworld G12/4 (0x03FC), which then plays at once; by the host's default
+    /// it closes without giving Pandara's amulet (234), which its way by choices 26, 62 and 83 gives.
+    /// </summary>
+    private List<ChoiceWanted> Consequences(PlayerAction action, PlanState state)
+    {
+        if (_pending is not { } pending || pending.Index != action.Index || pending.Live.Count == 0)
+            return [];
+        var derived = DerivedInputs(pending.Live);
+        var wanted = new List<ChoiceWanted>();
+        var notes = new List<string>();
+        foreach (var (trigger, play) in Triggers.Opened(state, action, (next, p) => pending.Live.Count(h => Sets(next, p, h, derived))))
+        {
+            wanted.AddRange(StepTranslation.Choices(play, Model.Plugins, notes));
+            Progress?.Invoke($"     the step opens {trigger.Id}; if it plays, it goes by {play.Describe()}");
+        }
+        return wanted;
+    }
+
+    /// <summary>Whether an action sets a target that isn't set in the state: a plain one by its effects, a derived one by its formula.</summary>
+    private bool Sets(PlanState state, PlayerAction action, int target, HashSet<int> derivedInputs)
+    {
+        if (Model.Flags.Kind(target) == FlagKind.Plain)
+            return !state.Plain(target) && Model.Adds(action.Index).Contains(Model.FlagFact(target, true));
+        if (Model.Flags.Kind(target) != FlagKind.Derived || SetFor(state, target)
+            || !Model.Adds(action.Index).Any(f => f < 2 * Model.Flags.Count && derivedInputs.Contains(f / 2)))
+            return false;
+        return SetFor(state.Apply(action), target);
+    }
+
+    /// <summary>A party job's party: its members in and those it keeps out.</summary>
+    private PartyGoal PartyWanted => new(_cover!.Goal.Party, _cover.Goal.Out);
+
     /// <summary>The plans to the party tried in one look, each without the first steps of those before it that lost targets.</summary>
     private const int MostPartyPlans = 3;
 
@@ -484,20 +525,22 @@ public sealed partial class Playthrough
     {
         _cover!.PartyWhy = why;
         Progress?.Invoke($"     the party is given up on: {why}");
-        Entry(EntryKind.Unreachable, null, new PartyGoal(_cover.Goal.Party).Describe(), $"given up on for the run: {why}", fromStep: false);
+        Entry(EntryKind.Unreachable, null, PartyWanted.Describe(), $"given up on for the run: {why}", fromStep: false);
     }
 
     /// <summary>
-    /// A step towards the party played out. One meant to bring one of its members in that brought none failed all the same: it's banned
-    /// where it was played, and after <see cref="MostMemberMisses"/> such running the run stops trying to make its party.
+    /// A step towards the party played out. One meant to bring one of its members in, or take one it keeps out away, that did neither failed
+    /// all the same: it's banned where it was played, and after <see cref="MostMemberMisses"/> such running the run stops trying to make
+    /// its party.
     /// </summary>
     private void CoverPartyDone(RunStep step, PlanState state)
     {
         var wanted = _cover!.Goal.Party.Where(m => !state.InParty(m)).ToList();
+        var away = _cover.Goal.Out.Where(state.InParty).ToList();
         var adds = Model.Adds(step.Action.Index);
-        if (!wanted.Any(m => Model.PersonFact(m, true) is { } f && adds.Contains(f)))
+        if (!wanted.Any(m => Model.PersonFact(m, true) is { } f && adds.Contains(f)) && !away.Any(m => Model.PersonFact(m, false) is { } f && adds.Contains(f)))
             return;
-        if (wanted.Any(Game.Party.Contains))
+        if (wanted.Any(Game.Party.Contains) || away.Any(m => !Game.Party.Contains(m)))
         {
             _partyMisses = 0;
             return;

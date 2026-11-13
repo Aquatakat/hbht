@@ -335,7 +335,7 @@ public sealed partial class Playthrough
     {
         FlagGoal f => Game.Flags.IsSet(f.Flag),
         MemberGoal => _joined > 0,
-        PartyGoal party => party.Members.All(Game.Party.Contains),
+        PartyGoal party => party.Holds(Game.Party.Contains),
         CoverGoal => _coverDone,
         EndingGoal => EndingReached(),
         _ => false,
@@ -555,6 +555,9 @@ public sealed partial class Playthrough
         else
         {
             var pilot = new Pilot(Graph, PilotOptions.Default with { PickLocks = translated.PickLocks, Rest = Resting, Triggers = Triggers, Dress = Outfitting, Waits = WaitsForTheHour, Shun = (Goal as CoverGoal)?.Shun });
+            // In a cover run, the story triggers the step opens are played by the way that sets the most live targets.
+            if (_cover is not null && Consequences(action, state) is { Count: > 0 } consequences)
+                pilotStep = pilotStep with { Consequences = consequences };
             // A way that ends in a shop to buy a key item there: the shop policy buys it first (Outfitting.Buy), then what's better.
             var boughtBefore = Outfitting.Bought.Count;
             if (action.Buys is { } buys)

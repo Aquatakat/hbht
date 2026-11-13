@@ -50,7 +50,7 @@ public sealed class QuestPlanner
         EndingGoal => state.Credits,
         PassGoal p => Triggers?.Get(p.Trigger) is not { } t || !Triggers.Blocks(t, state),
         FactsGoal g => _model.Facts(state) is var facts && g.Facts.All(f => facts[f]),
-        PartyGoal p => p.Members.All(state.InParty),
+        PartyGoal p => p.Holds(state.InParty),
         _ => false,
     };
 
@@ -66,7 +66,7 @@ public sealed class QuestPlanner
             .Select(m => _model.PersonFact(m.Key, true)).OfType<int>()],
         EndingGoal => [_model.CreditsFact],
         FactsGoal g => g.Facts,
-        PartyGoal p => [.. p.Members.Select(m => _model.PersonFact(m, true)).OfType<int>()],
+        PartyGoal p => [.. p.Members.Select(m => _model.PersonFact(m, true)).Concat(p.Without.Select(m => _model.PersonFact(m, false))).OfType<int>()],
         _ => [],
     };
 
