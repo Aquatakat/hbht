@@ -2,7 +2,7 @@
 
 Roadmap 2.9's differential tests: the port's [combat](combat.md) checked against 1.0's own execution. The combat checkpoints hold one battle, the party against ten rats, which pins the setup, the turn order, the rats' AI, melee and ranged at a few pairs, the casters' choices (`CasterCheckpointTests`, over the vectors `tools/aivectors` writes from 1.0's functions in its interpreter), the Fire and Sleep Gas flasks' blasts and the rewards. Past that, the campaign has two halves:
 
-- **The flow**: battles the user plays in 1.0 from saves written for them, logged by `tools/parity.ps1` and replayed into the port. How a setup's save is made and a battle logged is the [reference rig](../reference-rig.md#combat-parity-logs-toolsparityps1)'s.
+- **The flow**: battles the user plays in 1.0 from saves written for them, logged by `tools/parity.ps1` and replayed into the port. Setups 1–14 were played; no more are planned, the user judging the port at combat parity (Nov 12), though the flow stays for a question one could settle. How a setup's save is made and a battle logged is the [reference rig](../reference-rig.md#combat-parity-logs-toolsparityps1)'s.
 - **The formulas**: 1.0's own functions run in the interpreter on a checkpoint's or a log's RAM with the inputs varied, against the port's with the same draws ([below](#the-formula-vectors)). Every family is done.
 
 What the logs settled about 1.0 itself is written in the topic docs: [combat](combat.md), [combat-actions](combat-actions.md), [combat-ai](combat-ai.md) and [magic](magic.md).

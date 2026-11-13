@@ -155,8 +155,9 @@ public static class BasePlugin
     /// 81 gives Cadme's "Farewell." (1446 node 6) a copy for Alaron's way in, so it's hers after her closing lines, as 1.0 shows it.
     /// 82 gives each entity from the dialogue entity table <c>trainsAs</c>, the entity DB's record at its place, which 1.0 teaches from:
     /// Fyrsil teaches as STUG02.
+    /// 83 takes it away again: that was 1.0 reading the wrong table, which the user chose not to keep, so Fyrsil teaches nothing.
     /// </summary>
-    public const int ImporterVersion = 82;
+    public const int ImporterVersion = 83;
 
     /// <summary>
     /// What's wrong with the imported base plugin under <paramref name="pluginsDirectory"/>, worded for the player, or null if

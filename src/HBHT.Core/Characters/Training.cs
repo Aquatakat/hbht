@@ -7,7 +7,7 @@ namespace HBHT.Core.Characters;
 /// <summary>
 /// Someone who teaches: their skills and spells, as their entity record has them
 /// (<c>init_skill_trainer</c>). A trainer teaches a skill or spell up to their own level of it. One with no sheet teaches
-/// from the sheet of the entity it trains as (<see cref="EntityRecord.TrainsAs"/>), as 1.0 does.
+/// from the sheet of the entity it trains as (<see cref="EntityRecord.TrainsAs"/>), a mod's.
 /// </summary>
 public sealed class Trainer
 {
@@ -45,8 +45,8 @@ public sealed class Trainer
         keeper.TrainsFree);
 
     /// <summary>
-    /// <paramref name="keeper"/> as a trainer, or null if it has nothing to teach from: no sheet of its own and none it trains as, which
-    /// only a mod's data or an import from before <see cref="EntityRecord.TrainsAs"/> leaves.
+    /// <paramref name="keeper"/> as a trainer, or null if it has nothing to teach from: no sheet of its own and none it trains as, as
+    /// Fyrsil, the one sheetless entity a script trains with.
     /// </summary>
     public static Trainer? Of(EntityRecord keeper, CharacterRules rules, PluginSet plugins) =>
         SheetOf(keeper, plugins) is { } sheet ? From(keeper, sheet, rules, plugins.Get<SpellRecord>) : null;

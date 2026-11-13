@@ -169,7 +169,8 @@ public abstract record Transition
                 next.Add(ShopOf(game, keeper));
                 break;
             case ScriptEndKind.Train:
-                next.Add(TrainingOf(game.Plugins, game.Rules, keeper));
+                if (TrainingOf(game.Plugins, game.Rules, keeper) is { } training)
+                    next.Add(training);
                 break;
             case ScriptEndKind.Battle when ending.Battle is { } battle:
                 battle = battle with { Place = place.Chunk, Terrain = place.Terrain };
@@ -206,15 +207,15 @@ public abstract record Transition
 
     /// <summary>
     /// Training with the keeper as the trainer (<c>init_skill_trainer</c>), from its sheet or the one it trains as
-    /// (<see cref="Trainer.Of"/>). The original opens it with empty lists when there's no keeper, and always has a sheet to read, the
-    /// entity DB's record at the keeper's place; the port says the keeper teaches nothing when there's no keeper, or nothing to teach
-    /// from, which only a mod's data or an older import leaves.
+    /// (<see cref="Trainer.Of"/>), or null when the keeper has nothing to teach from, and the conversation just ends: Fyrsil, whose
+    /// "Teach me." 1.0 answers with STUG02's lists, the entity DB's record at his place in the dialogue entity table, which the port
+    /// doesn't keep. The original opens it with empty lists when there's no keeper, which no script leaves; the port says so.
     /// </summary>
-    internal static Transition TrainingOf(PluginSet plugins, CharacterRules rules, RecordId? keeper)
+    internal static Transition? TrainingOf(PluginSet plugins, CharacterRules rules, RecordId? keeper)
     {
         var entity = keeper is { Type: RecordTypes.Entity } id ? plugins.TryGet<EntityRecord>(id) : null;
-        if (entity is null || Trainer.Of(entity, rules, plugins) is not { } trainer)
-            return new Say($"{entity?.Name ?? keeper?.ToString() ?? "No one"} teaches nothing.");
-        return new OpenTraining(trainer);
+        if (entity is null)
+            return new Say($"{keeper?.ToString() ?? "No one"} teaches nothing.");
+        return Trainer.Of(entity, rules, plugins) is { } trainer ? new OpenTraining(trainer) : null;
     }
 }

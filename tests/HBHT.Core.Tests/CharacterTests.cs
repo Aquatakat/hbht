@@ -463,7 +463,7 @@ public class TrainingTests
     }
 
     [Fact]
-    public void OneWithNoSheetTeachesAsTheEntityItTrainsAsAndWithNoneOpensNoTraining()
+    public void OneWithNoSheetTeachesAsTheEntityItTrainsAsAndWithNoneEndsTheTalk()
     {
         var teacher = RecordId.Hex(RecordTypes.Entity, 0x02C4);
         var speaker = RecordId.Hex(RecordTypes.Entity, 0x140D);
@@ -485,9 +485,9 @@ public class TrainingTests
         Assert.False(trainer.Free);
         Assert.Equal(7, trainer.Skills.Base(Skill.Merchant));
         Assert.Empty(trainer.Spells);
-        // With nothing to teach from, it says so rather than throwing.
-        Assert.Equal("Sign teaches nothing.", Assert.IsType<Transition.Say>(Transition.TrainingOf(plugins, Characters.Rules, bare)).Text);
-        Assert.Equal("Stray teaches nothing.", Assert.IsType<Transition.Say>(Transition.TrainingOf(plugins, Characters.Rules, lost)).Text);
+        // With nothing to teach from, the conversation just ends, as Fyrsil's does.
+        Assert.Null(Transition.TrainingOf(plugins, Characters.Rules, bare));
+        Assert.Null(Transition.TrainingOf(plugins, Characters.Rules, lost));
         Assert.Null(Trainer.Of(plugins.Get<EntityRecord>(bare), Characters.Rules, plugins));
     }
 }

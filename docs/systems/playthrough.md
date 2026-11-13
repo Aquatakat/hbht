@@ -370,7 +370,7 @@ A place ways reach only through walls is walled, and nothing gets there. A place
 - their gates are open;
 - they teach something a member's build wants that the party's experience and gold, less a reserve of 300, can buy.
 
-The pilot walks up (`Arrive`), and `Levelling.Train` buys. A trainer isn't visited again until the party has more experience than when it last was. What a trainer teaches is the game's own (`Trainer.Of`): a dialogue entity teaches from the sheet it trains as, as Fyrsil (0x140D, Overworld Q27/9, whose 0x04D4 has a way to training) does as STUG02, and one with nothing to teach from, as from an import before `trainsAs`, is no trainer.
+The pilot walks up (`Arrive`), and `Levelling.Train` buys. A trainer isn't visited again until the party has more experience than when it last was. What a trainer teaches is the game's own (`Trainer.Of`): one with no sheet and none it trains as is no trainer, as Fyrsil (0x140D, Overworld Q27/9, whose 0x04D4 has a way to training) isn't.
 
 **From a new game**, the member goal takes 4 steps and 48,150 ticks, about 8 s of wall time:
 
@@ -583,7 +583,7 @@ Each of the 118 targets the tree above gives up is in one of three classes. The 
 
 Before stage 4's fixes, the Shadow's encounter's flag (950) was one too: its battle is never won ([the model](#the-planner)).
 
-**(c) Game findings, 5.** Gwernia castle's farewells: Brenna's (`0x04FF`, A01/11, 600), Arturo's (`0x0501`, A01/13, 602), Rheda's (`0x0502`, A01/12, 603), Keelin's (`0x0505`, A01/15, 606) and the throne's "Farewell." (`0x0508`, A01/14, 609) are enabled only once 599 is set (their gates 5202–5210). Only the coronation's scene sets 599 (`0x04FE`, A01/10), on the same way that rolls the ending's credits, and the credits' end goes back to the title in 1.0 ([ui](ui.md#coming-back-to-it)). So they never play: content cut from 1.0's ending, it seems. The user may want them played ([checks](../user-checks.md)). The dryads' battles' own flags, 3654 and 3655, are covered but only by an artificial win ([the dryads' fight](#the-dryads-fight)).
+**(c) Game findings, 5.** Gwernia castle's farewells: Brenna's (`0x04FF`, A01/11, 600), Arturo's (`0x0501`, A01/13, 602), Rheda's (`0x0502`, A01/12, 603), Keelin's (`0x0505`, A01/15, 606) and the throne's "Farewell." (`0x0508`, A01/14, 609) are enabled only once 599 is set (their gates 5202–5210). Only the coronation's scene sets 599 (`0x04FE`, A01/10), on the same way that rolls the ending's credits, and the credits' end goes back to the title in 1.0 ([ui](ui.md#coming-back-to-it)). So they never play: content cut from 1.0's ending, it seems. The user confirmed 1.0 never reaches them, and the port leaves them unplayed as 1.0 does (Nov 12). The dryads' battles' own flags, 3654 and 3655, are covered but only by an artificial win ([the dryads' fight](#the-dryads-fight)).
 
 **(a) The bot's gaps, 107**, none of them fixed:
 

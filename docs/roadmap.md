@@ -1,6 +1,6 @@
 # Aidyn Chronicles Reimplementation: Roadmap
 
-Sep 26, 2026 · Updated Nov 11, 2026
+Sep 26, 2026 · Updated Nov 12, 2026
 
 ## Summary
 

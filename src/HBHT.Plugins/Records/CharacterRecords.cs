@@ -22,10 +22,9 @@ namespace HBHT.Plugins.Records;
 /// <param name="Combat">What's its own in combat: whose side it fights on, whether it fights at all, and the rest. Needs a sheet.</param>
 /// <param name="TrainsFree">As a trainer, it charges no gold (<c>shopkeepNotOriana</c>): Oriana. Needs a sheet.</param>
 /// <param name="TrainsAs">
-/// For one with no sheet, the entity whose sheet it teaches from if a script opens training with it (<c>Trainer.From</c>). 1.0
-/// reads a trainer's skills and spells from the entity DB at the keeper's place in its own table, so one from the dialogue entity
-/// table teaches as the entity at its place in that table: Fyrsil (<c>0x140D</c>, place 28) as STUG02 (<c>0x02C4</c>). Null for
-/// one with a sheet, which teaches from its own.
+/// For one with no sheet, the entity whose sheet it teaches from if a script opens training with it (<c>Trainer.From</c>), for a
+/// mod's sheetless trainer. The base plugin sets it on none: 1.0's slip that had Fyrsil teach as STUG02 isn't kept. Null for one
+/// with a sheet, which teaches from its own, and for one that teaches nothing.
 /// </param>
 public sealed record EntityRecord(
     RecordId Id,
