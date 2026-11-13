@@ -308,8 +308,9 @@ internal static partial class CoverReport
             $"Looked at {looks.Count} trunk saves for {open.Count} uncovered targets in {clock.Elapsed.TotalSeconds:0.0} s"));
 
         var brought = PartyJobs.Brought(manifest);
-        var starts = open.ToDictionary(t => t, t => PartyJobs.Starts(t, looks,
-            file.Tried.TryGetValue(t.ToString(), out var tried) ? tried.ToHashSet() : null, brought).Take(MostPartyStarts).ToList());
+        var every = open.ToDictionary(t => t, t => PartyJobs.Starts(t, looks,
+            file.Tried.TryGetValue(t.ToString(), out var tried) ? tried.ToHashSet() : null, brought));
+        var starts = every.ToDictionary(s => s.Key, s => s.Value.Take(MostPartyStarts).ToList());
         var needing = starts.Where(s => s.Value.Count > 0).Select(s => s.Key).ToList();
         Console.WriteLine($"{needing.Count} of them need a party the trunk doesn't make from a trunk save they're live from, " +
             "and haven't been tried from it");
@@ -359,6 +360,14 @@ internal static partial class CoverReport
             var workers = Enumerable.Range(0, Math.Max(1, Math.Min(threads, list.Count))).Select(_ => new Thread(Work, 64 * 1024 * 1024)).ToList();
             workers.ForEach(t => t.Start());
             workers.ForEach(t => t.Join());
+        }
+        // A target none of whose best starts would do rides along with a start chosen for another, further down its own list, whose
+        // party the planner reaches keeping it: Rheda's talk in Port Saiid (262) is nearer the saves where she's in the party, from which
+        // the only ways to take her out are after Shamsuk, and goes with 5245 from before she joins.
+        foreach (var target in needing.Where(t => !chosen.ContainsKey(t)))
+        {
+            if (every[target].Skip(MostPartyStarts).FirstOrDefault(s => chosen.ContainsValue(s) && Takes(target, s)) is { } along)
+                chosen[target] = along;
         }
         foreach (var target in needing)
         {
