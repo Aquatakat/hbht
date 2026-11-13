@@ -66,7 +66,11 @@ public sealed partial class Playthrough
         if (goal.Party.Count > 0)
             _bannedForGood.UnionWith(PartyJobs.Leaving(Model, goal.Party));
         if (goal.Out.Count > 0)
-            _bannedForGood.UnionWith(PartyJobs.Joining(Model, goal.Out, goal.Targets));
+        {
+            _outBans = PartyJobs.Joining(Model, goal.Out, goal.Targets);
+            _outBans.ExceptWith(_bannedForGood);
+            _bannedForGood.UnionWith(_outBans);
+        }
     }
 
     /// <summary>The flags first seen since the last look, put down to the step just played (or, before the first, to none).</summary>
@@ -209,6 +213,8 @@ public sealed partial class Playthrough
             _cover.PartyAt = _step;
             Progress?.Invoke($"     the party is whole{(_step > 0 ? $" after step {_step}" : "")}: {PartyWanted.Describe()}");
         }
+        if (live.Count == 0 && LetIn())
+            return ChooseCover(state);
         if (live.Count == 0)
         {
             _coverDone = true;
@@ -289,7 +295,7 @@ public sealed partial class Playthrough
         // the places. From Oriana's hut with Abrecan and Godric kept out, Brenna and then Rheda joined in Gwernia castle, whose way out
         // only two of Abrecan, Godric and Rheda open, and the questioning outside it (63) that the castle's conversations wait on was
         // walled off.
-        if (!_memberResting && _cover!.Goal.Out.Count == 0 && Game.Party.HasEmptySlot())
+        if (!_memberResting && _outBans is null && Game.Party.HasEmptySlot())
         {
             var member = new MemberGoal();
             var (steps, plan) = PlanTo(member, state);
@@ -515,6 +521,33 @@ public sealed partial class Playthrough
             || !Model.Adds(action.Index).Any(f => f < 2 * Model.Flags.Count && derivedInputs.Contains(f / 2)))
             return false;
         return SetFor(state.Apply(action), target);
+    }
+
+    /// <summary>The steps a party job keeps out of its plans to keep members out (<see cref="PartyJobs.Joining"/>), while it does.</summary>
+    private HashSet<int>? _outBans;
+
+    /// <summary>
+    /// Once a party job that keeps members out has nothing live, it lets them in for the rest of the run, if a target it gave up for no
+    /// plan may then have one: those are played on. Gwernia castle's conversations need two of Abrecan, Godric and Rheda kept out, and
+    /// Gabrion's second talk in the kitchen (1522, derived 5366) needs his first (32) and then the party gathered. Whether it did.
+    /// </summary>
+    private bool LetIn()
+    {
+        if (_outBans is null)
+            return false;
+        _bannedForGood.ExceptWith(_outBans);
+        _outBans = null;
+        var again = _cover!.Targets.Where(t => t.State == TargetState.GivenUp && t.Why?.StartsWith("no plan", StringComparison.Ordinal) == true).ToList();
+        if (again.Count > 0)
+            Progress?.Invoke($"     nothing live: the members kept out may join now, for {again.Count} target(s) with no plan");
+        foreach (var target in again)
+        {
+            target.State = TargetState.Live;
+            target.NoPlans = 0;
+            target.NoPlanAt = -1;
+            target.Why = null;
+        }
+        return again.Count > 0;
     }
 
     /// <summary>A party job's party: its members in and those it keeps out.</summary>
