@@ -195,6 +195,16 @@ public sealed class LaunchOptions(Dictionary<string, string> values)
         ? camera.Split(',')[0].Trim() == "enhanced" ? Core.Cameras.CameraStyle.Enhanced : Core.Cameras.CameraStyle.Original
         : null;
 
+    /// <summary><c>--dialogue-camera original|enhanced[,Name=value,…]</c>: a conversation's camera, apart from the options' Camera, and its numbers by name.</summary>
+    public Core.Cameras.CameraStyle? DialogueCamera => Text("dialogue-camera") is { } camera
+        ? camera.Split(',')[0].Trim() == "enhanced" ? Core.Cameras.CameraStyle.Enhanced : Core.Cameras.CameraStyle.Original
+        : null;
+
+    /// <summary>The conversation camera's numbers <c>--dialogue-camera</c> sets, after its style (<see cref="Core.Cameras.DialogueTuning.Parse"/>).</summary>
+    public Core.Cameras.DialogueTuning? DialogueTuning => Text("dialogue-camera") is { } camera && camera.IndexOf(',') is var comma and >= 0
+        ? Core.Cameras.DialogueTuning.Default.Parse(camera[(comma + 1)..])
+        : null;
+
     /// <summary>The enhanced camera's numbers <c>--battle-camera</c> sets, after its style.</summary>
     public Core.Combat.CameraTuning? CameraTuning => Text("battle-camera") is { } camera && camera.IndexOf(',') is var comma and >= 0
         ? Core.Combat.CameraTuning.Default.Parse(camera[(comma + 1)..])
