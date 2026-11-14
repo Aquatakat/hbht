@@ -794,6 +794,40 @@ What's left, 14 (Zaratas filed with the overestimates after the run, 36 not the 
 | Traps let go off | 3 | 2007, 2076, 3389 |
 | Trahern's sword | 1 | 3516, wanting a discard action |
 
+#### Stage 10: Tamberlain's inn
+
+392 (Found the zombies in Darkling Bog), 1535 (Defeated the Troll south of Talewok) and 3594 (Defeated the Zombie between Terminor and the desert) all go through talking to Tamberlain behind the counter of Terminor's inn (8/C05/19, `0x0459`, enabled by derived 5397: 372, 400, 399, 402 and 3149 clear). In stage 9's runs the pilot stalled eleven times at about (615.2, 1004.25) on every try, steering for his body or a waypoint behind the counter's east end.
+
+- **The counter** is a block 4 high from (609.6, 1002.15) to (614.0, 1003.75) in C05's collision (`aidyn:collision/0x1436`). The room behind it is walled to the west and north, so the only way in is round its east end. Tamberlain stands at his home node 115, (611.8, 1001.3): his next node, 116, only turns him. From the front, A doesn't reach him: he's 2.9 away across the ground, and A's reach is his radius 0.47, plus the player's 0.5, plus 0.5 (`Wanderers.Reaches`).
+- **Arturo** waits at the inn while he's out of the party (8/C05/16, entity `0x0240`, derived 5412: 246 and 363 set, 614 and 247 clear). He's placed at (614.7, 1003.0), against the stool beside the counter's end (613.8–614.4 by 1002.75–1003.3), and his body (radius 0.76) is set down out of it at (615.2, 1003.0). His home node, 107, never walks him anywhere: its next nodes, 108 and 109, only turn him. The walk graph, made without bodies, routed between him and the counter's corner, which are 1.46 apart where the player needs 1.76. The player's push never moves a body (`Crowd.Push` moves only the one that moved), so every stall and sidestep ended in the same place.
+- **The fix: routes go round bodies that stand** (`Pilot.Standing`, `Pilot.Stands`). A body counts as standing if it's an npc loaded about the player, isn't the step's own, and every node it would walk to lies within that node's wander radius, less its scatter, of where it stands, so it never sets off. Each is ground no route crosses: the walk graph's cells within the two radii of its feet (`RouteOptions.KeepClear`). The route then goes round Arturo's east side, by (616.5, 1003.0) and (615.3, 1001.7), 1.26 from his centre at its tightest. That gets the player behind the counter, where A reaches Tamberlain after at most a stall.
+- **Walled in.** Where the standing bodies cut every way the walk graph has, the way without them is walked all the same. Its cells are a unit across, so a gap the player fits through may have none left. The bodies it passes are named, and if the player sticks, the step's outcome says so (`StepOutcome.WalledBy`). The run then bans every way at the object in that state, rather than saving and loading where he stands and trying again. So the planner turns to another object that does the same: Tamberlain at Terminor's gate (8/G01/31) plays the same `0x0459` behind the same gate. No case in the base game is known to come to this.
+- **What the trace showed** came from `PlaythroughHost.Watch`, called each tick trek has the controls before the input is asked. A scratch script logs the player's sphere and the bodies near him there while the pilot holds the input.
+- **A run's end:** a goal whose first failed step was a roll played again (`Again`) threw `KeyNotFoundException` reading that goal's failures (`Playthrough.Run`), ending the run. It now reads none as 0.
+
+Choice 68 at node 56, the way to 391, stands behind a Diplomat check of 3–21 or a Troubadour check of 2–21. A roll against it is played again (`Again`), so it doesn't count as a failure, and the runs below took two or three talks to get it.
+
+**3594's "search gave up after 4001 states"** in stage 9 (job `r2-t012.1.1.1.1`) had the same cause. That branch began with an avoid list holding all four ways of `0x0459`: C05/19 and G01/31, each choosing 33 68 or 27 33 68. Its ancestors had lost targets at each, after the stalls and after rolls against 391. With every way to 391 avoided, there was no plan to find. From the same save with nothing avoided, the run plays it in 4 steps.
+
+**From trunk save `t077`** the walk to Terminor crosses the trolls' bridge (Overworld M21's TROLLSTAGE, `0x046B`), which it can't keep clear of. Beating the trolls sets 399, which shuts 5397 for good, so 392 and 3594 are lost on the way from there. They're for saves already at Terminor, such as `t083`.
+
+Targeted runs (`hbht playthrough run --goal flag:<n> --save <save>`), on the stage's code:
+
+| Target | From | Steps | The way |
+| --- | --- | --- | --- |
+| 392 | trunk `t083` | 4 | three talks to C05/19 (two rolls against 391), then the Zombie's talk at L17/5 (`0x0465`) |
+| 392 | trunk `t012` | 31 | the story on to Terminor; the first talk at C05/19 rolls against, the third gets 391 |
+| 1535 | trunk `t083` | 4 | three talks to C05/19 choosing 33 76 94, then the Troll's battle at I14/7 |
+| 3594 | trunk `t083` | 5 | as 392, then the battle at L20/3 |
+| 3594 | `r2-t012.1.1.1/03-before-step-2` | 4 | the save the stage 9 search failed from |
+
+`PlaythroughPilotTests.ThePilotGoesRoundABodyThatStandsInTheWayToTalkToTheInnkeeperBehindHisCounter` guards it. It starts from a new game with Arturo waiting at the inn, with the player where the stalls ended, and talks to Tamberlain. Without the standing bodies it stalls eleven times there, as stage 9 did. Stage 8's 3150 (Tamberlain's other self, 8/C05/21, `0x0385`, the user's to set aside) stalled at the same place.
+
+Left out:
+
+- Bodies that walk aren't routed round.
+- Only bodies already loaded are known. The route is asked for again on a map set change, a teleport, a stall or trek's getting the controls back, but not on walking into a chunk.
+
 ### What the planner doesn't model
 
 Stage 5. The 2,229 targets above are only the flags the model's actions set. Every other flag was classified by what can set it, by a script over the plugins and stage 4's tree (`census.cs` in the stage's scratchpad, `C:\Users\aquat\AppData\Local\Temp\claude\4b1e3b4f7846419b\bdc87af7-6f2d-44c1-aadd-59996ef153eb\scratchpad\census\`, run as `dotnet run census.cs -- <stage 4 tree> [<stage 5 tree>]`). The 5,627 flags are 5,556 records and the 71 journal triggers the importer leaves out ([flags](flags.md#the-records)). Of the 3,327 records that weren't targets:

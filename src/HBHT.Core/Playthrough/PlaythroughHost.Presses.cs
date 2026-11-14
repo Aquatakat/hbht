@@ -61,6 +61,7 @@ public sealed partial class PlaythroughHost
             case GameMode.Combat when session.Battle is { } battle:
                 return Battles.Tick(this, battle);
             case GameMode.Trek:
+                Watch?.Invoke(this);
                 var input = Input.Next(this);
                 foreach (var press in input.Presses)
                     Press(press);

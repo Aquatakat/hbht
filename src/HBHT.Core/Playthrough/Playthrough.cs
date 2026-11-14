@@ -291,7 +291,7 @@ public sealed partial class Playthrough
                             CoverFailed(target, step);
                         failures[goal] = 0;
                     }
-                    else if (failures[goal] >= Options.MostFailures)
+                    else if (failures.GetValueOrDefault(goal) >= Options.MostFailures)
                     {
                         if (goal is PassGoal pass)
                         {
@@ -477,6 +477,14 @@ public sealed partial class Playthrough
         return banned;
     }
 
+    /// <summary>Bans an action in a state without counting a failure of its own.</summary>
+    private void BanHere(PlayerAction action, PlanState state)
+    {
+        if (!_bannedIn.TryGetValue(state, out var here))
+            _bannedIn[state] = here = [];
+        here.Add(action.Index);
+    }
+
     /// <summary>A failed action is banned in the state it was tried in, and for good once it has failed three times.</summary>
     private void Ban(PlayerAction action, PlanState state)
     {
@@ -598,11 +606,22 @@ public sealed partial class Playthrough
             && (_rerolls[action.Index] = _rerolls.GetValueOrDefault(action.Index) + 1) <= MostRerolls)
             reroll = LoadBefore(kept, _rerolls[action.Index]);
         // Stuck the first time, the game is saved and loaded where he stands, and the step may be tried again from there.
-        var reloaded = outcome?.Failure == StepFailure.Stuck && _failedTimes.GetValueOrDefault(action.Index) == 0 && SaveAndLoad();
+        // Not when bodies that stand walled the object in: they stand there still.
+        var reloaded = outcome is { Failure: StepFailure.Stuck, WalledBy.Count: 0 } && _failedTimes.GetValueOrDefault(action.Index) == 0 && SaveAndLoad();
         if (reloaded)
             _failedTimes[action.Index] = 1;
         else if (!done && !reroll)
+        {
             Ban(action, state);
+            // Walled in by bodies that stand: every way at the object fails alike while they do, so all are banned where it was tried, and
+            // the planner turns to another object that does the same, as Tamberlain at Terminor's gate (8/G01/31) does what the one behind
+            // the inn's counter (8/C05/19) does.
+            if (outcome is { WalledBy.Count: > 0 } && action.Place is { } place)
+            {
+                foreach (var other in Model.Actions.Where(a => a.Place == place && a.Index != action.Index))
+                    BanHere(other, state);
+            }
+        }
         AfterStep(action, before, startTick);
         var line = new StepLine(number, goal.Describe(), action.Describe(), summary, Host.Clock.Ticks - startTick, clock.Elapsed.TotalSeconds, startTick);
         Report.Steps.Add(line);
