@@ -8,6 +8,7 @@ using HBHT.Core.Combat;
 using HBHT.Core.MapObjects;
 using HBHT.Core.Movement;
 using HBHT.Core.Physics;
+using HBHT.Core.Rng;
 using HBHT.Plugins;
 using HBHT.Plugins.Records;
 
@@ -365,11 +366,19 @@ public sealed partial class WorldGraph
             var world = new CollisionWorld();
             return (new Lock(), world, new Chunks.ChunkStreamer(_plugins, GameState.NewGame(_plugins), world, set));
         })).Value;
+        // At the body's own radius, as trek's wanderers spawn (Wanderers.Load): the Sand Worm at Overworld P26/2 (radius 1) is placed
+        // at the rim of a pit, where the player's radius rests on the dune and its own falls through to the pit's floor, 14 below. The
+        // result is the sphere's middle at the player's radius above that ground, which routes go to.
+        var radius = o is PartyObject party && _plugins.TryGet<DbRecord>(party.Entity)?.Body is { } look ? look.Radius : PlayerMotion.Radius;
         lock (gate)
         {
             chunks.Update(at);
-            var (ground, grounded) = Reach.SetDownAt(world, at, at.Y, sideways: true);
-            return grounded ? ground : at;
+            var (ground, grounded) = Body.SetDown(world, at, radius, null, at.Y);
+            if (!grounded)
+                (ground, grounded) = Body.SetDown(world, ground, radius, null);
+            if (!grounded)
+                (ground, grounded) = Body.SetDown(world, at, radius, new Lcg(0));
+            return grounded ? ground with { Y = ground.Y - radius + PlayerMotion.Radius } : at;
         }
     });
 

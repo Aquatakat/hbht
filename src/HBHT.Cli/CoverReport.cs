@@ -381,6 +381,15 @@ internal static partial class CoverReport
             if (every[target].Skip(MostPartyStarts).FirstOrDefault(s => chosen.ContainsValue(s) && Takes(target, s)) is { } along)
                 chosen[target] = along;
         }
+        // One that needs, from a save, the members a start chosen there keeps and others besides rides along with it too, if its plan keeps
+        // the target: the others join as the job gets to it. Godric and Becan's camp after Shamsuk (468, 5150) goes with Becan's job, which
+        // rides the story past Shamsuk; Godric, who leaves on the way, comes back at Overworld H13 (0x0529) before the camp.
+        foreach (var target in needing.Where(t => !chosen.ContainsKey(t)))
+        {
+            if (chosen.Values.Distinct().OrderBy(s => s.Step).FirstOrDefault(s => s.Members.Count > 0 && Takes(target, s)
+                && every[target].Any(o => o.Step == s.Step && s.Members.All(o.Members.Contains) && o.Members.Count > s.Members.Count)) is { } with)
+                chosen[target] = with;
+        }
         foreach (var target in needing)
         {
             if (!file.Tried.TryGetValue(target.ToString(), out var tried))

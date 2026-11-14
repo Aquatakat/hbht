@@ -51,6 +51,8 @@ public sealed partial class Playthrough
                 targets.Add(new CoverTarget(flag, h));
         }
         _cover = new Coverage(goal, targets);
+        if (goal.PartyMade && goal.HasParty)
+            _cover.PartyAt = 0;
         _targets = targets.ToDictionary(t => t.Handle);
         // Set already as the run begins, as a new game's start sets a few before the ledger can watch: covered, seen at step 0.
         foreach (var target in targets.Where(t => Game.Flags.Get(t.Handle)))
@@ -228,8 +230,8 @@ public sealed partial class Playthrough
             {
                 waiting.State = TargetState.GivenUp;
                 waiting.Why = Model.Flags.Horizon(waiting.Handle) == 0
-                    ? "holds in the planner's state, over the date, the terrain or the journal's flag, which a job doesn't wait for, but the game never set it"
-                    : $"holds in the planner's state, over the clock or the weather, but the game didn't set it in {waited / (double)(Calendar.GameClock.Day / Calendar.GameClock.DaySpeed):0.#} game days of waiting";
+                    ? "holds in the planner's state, over the terrain or the journal's flag, which a job doesn't wait for, but the game never set it"
+                    : $"holds in the planner's state, over the clock, the date or the weather, but the game didn't set it in {waited / (double)Calendar.GameClock.Day:0.#} game days of waiting";
             }
             return (Goal, [], null);
         }
@@ -294,6 +296,13 @@ public sealed partial class Playthrough
         // A party job's party comes next, before anyone else joins or any target is planned to.
         if (ChooseParty(state, relaxation, live) is { } party)
             return party;
+
+        // A step of a live target's relaxed plan that can be done here, near, and loses nothing, before anyone joins or a plan goes
+        // further: from Oriana's hut, walking out by its door (6/E03/1, 51) leads to the questioning outside the castle (63) and Sheridan's
+        // goodbye in the barracks (82, 1523), which the castle's farewell on the road (M07/17, 98) shuts once the party has gone to the
+        // castle and come back.
+        if (NearHelpful(state, relaxation, result, live, banned, here) is { } helpful)
+            return Pending(new FlagGoal(Model.Flags.Id(helpful.Target)), [helpful.Action], null, live, false);
 
         // Nothing to do here, so the run must go further: someone joins first, while the party has a slot and the way loses nothing. Not
         // in a party job that keeps someone out: its targets want the party small, and the loss check can't see what a join closes behind
@@ -371,6 +380,8 @@ public sealed partial class Playthrough
         if (rides && found == 0)
         {
             var (steps, plan) = PlanTo(new EndingGoal(), state);
+            if (steps.Count == 0 && Release(state) is { } freed)
+                (steps, plan) = freed;
             if (steps.Count > 0 && Unmet(steps[0]) is null)
             {
                 var lost = Losses(relaxation, state, steps[0], live);
@@ -421,17 +432,22 @@ public sealed partial class Playthrough
         var waiting = _cover!.Targets.Where(t => t.State == TargetState.Waits && Model.Flags.Horizon(t.Handle) > 0).ToList();
         if (waiting.Count == 0)
             return 0;
-        var start = Host.Clock.Ticks;
         const long hour = Calendar.GameClock.Hour / Calendar.GameClock.DaySpeed;
-        const long day = Calendar.GameClock.Day / Calendar.GameClock.DaySpeed;
-        var refresh = start;
+        // Game time waited, in the clock's own units (it wraps at a year), and when the other jobs' flags were last read.
+        ulong waited = 0, refresh = 0;
+        var last = Game.Clock.Time;
+        var camps = 0;
+        var camping = true;
         Progress?.Invoke($"     waiting for the clock: {string.Join(", ", waiting.Take(12).Select(t => FlagIs.Key(t.Flag)))}{(waiting.Count > 12 ? ", …" : "")}");
         while (true)
         {
-            if (_cover.Goal.CoveredElsewhere is { } elsewhere && Host.Clock.Ticks >= refresh)
+            waited += (Game.Clock.Time + Calendar.GameClock.Year - last) % Calendar.GameClock.Year;
+            last = Game.Clock.Time;
+            var horizon = waiting.Count == 0 ? 0 : waiting.Max(t => Model.Flags.Horizon(t.Handle));
+            if (_cover.Goal.CoveredElsewhere is { } elsewhere && waited >= refresh)
             {
                 _elsewhere = elsewhere();
-                refresh += day;
+                refresh = waited + (horizon > MostStoodFor ? Calendar.GameClock.Week : Calendar.GameClock.Day);
             }
             TakeSeen();
             foreach (var target in waiting.Where(t => t.State == TargetState.Waits && _elsewhere.Contains(t.Flag)))
@@ -440,17 +456,33 @@ public sealed partial class Playthrough
                 target.Why = "seen by another job";
             }
             waiting.RemoveAll(t => t.State != TargetState.Waits);
-            if (waiting.Count == 0 || Host.Clock.Ticks - start >= waiting.Max(t => Model.Flags.Horizon(t.Handle)) / Calendar.GameClock.DaySpeed
-                || OutOfBudget() is not null || Host.End != HostEnd.None)
+            if (waiting.Count == 0 || waited >= waiting.Max(t => Model.Flags.Horizon(t.Handle)) || OutOfBudget() is not null || Host.End != HostEnd.None)
                 break;
-            var until = Host.Clock.Ticks + hour;
+            // Months for the date and the season pass by camping, eight hours a camp, where the ground lets the party camp; an ambush is a
+            // battle the battle pilot plays. Elsewhere, and for the hour, the moon and the rain, he stands and waits an hour at a time.
+            var before = Host.Clock.Ticks;
+            if (horizon > MostStoodFor && camping && Resting.CampNow(Host))
+            {
+                var time = Game.Clock.Time;
+                if (Host.RunUntil(h => h.PlayerHasControl && h.Game.Clock.Time != time, 8 * hour) != HostRun.Done && Host.End != HostEnd.None)
+                    break;
+                // A camp that passed no hours (refused, or its menu left) isn't tried again: he stands instead.
+                if ((Game.Clock.Time + Calendar.GameClock.Year - time) % Calendar.GameClock.Year < Calendar.GameClock.Hour)
+                    camping = false;
+                else
+                    camps++;
+                continue;
+            }
+            var until = before + hour;
             if (Host.RunUntil(h => h.Clock.Ticks >= until && h.PlayerHasControl, 4 * hour) != HostRun.Done && Host.End != HostEnd.None)
                 break;
         }
-        var waited = Host.Clock.Ticks - start;
-        Progress?.Invoke($"     waited {waited / (double)day:0.#} game days; {waiting.Count} still waiting");
-        return waited;
+        Progress?.Invoke($"     waited {waited / (double)Calendar.GameClock.Day:0.#} game days{(camps > 0 ? $", {camps} camps" : "")}; {waiting.Count} still waiting");
+        return (long)waited;
     }
+
+    /// <summary>The longest wait (game time) the player stands through; longer ones, the date's and the season's, pass by camping.</summary>
+    private const uint MostStoodFor = 4 * Calendar.GameClock.Week;
 
     private (Goal Goal, List<PlayerAction> Steps, Plan? Plan) Pending(Goal goal, List<PlayerAction> steps, Plan? plan, HashSet<int> live, bool predicted)
     {
@@ -471,13 +503,21 @@ public sealed partial class Playthrough
         if (!cover.Goal.HasParty || cover.PartyWhy is not null || PartyWanted.Holds(Game.Party.Contains))
             return null;
         var goal = PartyWanted;
+        // A member let go at a join comes back only by a free slot, no one else sent away (the join's newcomer is the story's), and is
+        // planned to every few steps as the run rides on, never given up on.
+        var again = AnyLetGo;
+        if (again && _step - _partyAgainAt < RideReplan)
+            return null;
+        var slot = again ? PartyJobs.Leaving(Model, Game.Party.Members.Select(m => m.Entity)) : [];
+        if (again)
+            _partyAgainAt = _step;
         (List<PlayerAction> Steps, Plan? Plan, int Lost)? best = null;
-        var without = new HashSet<int>();
+        var without = new HashSet<int>(slot);
         string? why = null;
         for (var tries = 0; tries < MostPartyPlans; tries++)
         {
             var clock = Stopwatch.StartNew();
-            var (steps, plan) = tries == 0 ? PlanTo(goal, state) : Replan(goal, state, without);
+            var (steps, plan) = tries == 0 && !again ? PlanTo(goal, state) : Replan(goal, state, without);
             cover.Plans++;
             cover.PlanSeconds += clock.Elapsed.TotalSeconds;
             if (steps.Count == 0 || plan is { Found: false })
@@ -494,7 +534,10 @@ public sealed partial class Playthrough
         }
         if (best is not { } chosen)
         {
-            StopParty($"no plan: {why}");
+            if (again)
+                Progress?.Invoke($"     no plan yet to bring back who was let go: {why}");
+            else
+                StopParty($"no plan: {why}");
             return null;
         }
         if (chosen.Lost > 0)
@@ -580,7 +623,88 @@ public sealed partial class Playthrough
     /// Whether the run rides the story on when it has no plan to a target: a party job with members to have in, its party whole now, that
     /// hasn't stopped riding. Its targets with no plan aren't given up for it while it rides.
     /// </summary>
-    private bool Rides => _cover!.Goal.Party.Count > 0 && _cover.PartyAt is not null && _rodeTo is null && _cover.Goal.Party.All(Game.Party.Contains);
+    private bool Rides => _cover!.Goal.Party.Count > 0 && _cover.PartyAt is not null && _rodeTo is null;
+
+    /// <summary>How near (as <see cref="Far"/> measures) a step of a target's relaxed plan must be to be taken first (<see cref="NearHelpful"/>).</summary>
+    private const float NearHelpfulFar = 30;
+
+    /// <summary>The targets whose relaxed plans are looked at for a near step, the first in the relaxation first.</summary>
+    private const int MostHelpfulTargets = 8;
+
+    /// <summary>The last near step taken and the state it was taken in, to ban one that changed nothing.</summary>
+    private (PlanState State, PlayerAction Action)? _helpfulLast;
+
+    /// <summary>
+    /// A first step of a live target's relaxed plan (<see cref="Relaxation.Extract"/>'s helpful actions) that can be done now, within
+    /// <see cref="NearHelpfulFar"/> of the player, and loses no live target; null if none. A step taken so that changed nothing is banned
+    /// where it was taken.
+    /// </summary>
+    private (PlayerAction Action, int Target)? NearHelpful(PlanState state, Relaxation relaxation, Relaxation.Result result, HashSet<int> live, HashSet<int> banned, Place? here)
+    {
+        if (_helpfulLast is { } last && last.State.Equals(state))
+        {
+            Ban(last.Action, state);
+            banned.Add(last.Action.Index);
+        }
+        _helpfulLast = null;
+        foreach (var h in live.Where(h => _targets[h].NoPlanAt != _step).OrderBy(h => result.FactLayer[Model.FlagFact(h, true)]).Take(MostHelpfulTargets))
+        {
+            var goal = new FlagGoal(Model.Flags.Id(h));
+            var facts = _planner.GoalFacts(state, goal);
+            if (facts.Count == 0)
+                continue;
+            var relevant = _planner.Relevant(facts);
+            relevant.ExceptWith(banned);
+            var relaxed = new Relaxation(Model, relevant);
+            if (relaxed.Extract(relaxed.Run(state), facts) is not { } plan)
+                continue;
+            foreach (var a in plan.Helpful)
+            {
+                var action = Model.Actions[a];
+                if (banned.Contains(a) || !state.CanDo(action) || Unmet(action) is not null || Far(action.Place, here) > NearHelpfulFar
+                    || Losses(relaxation, state, action, live).Count > 0)
+                    continue;
+                _helpfulLast = (state, action);
+                Progress?.Invoke($"     near, on the way to {FlagIs.Key(Model.Flags.Id(h))}: {action.Describe()}");
+                return (action, h);
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// The members kept who are out of the party since it was whole: let go at one of the story's joins that could send only them away
+    /// (<see cref="Release"/>), to be brought back once a slot is free.
+    /// </summary>
+    private bool AnyLetGo => _cover!.PartyAt is not null && _cover.Goal.Party.Any(m => !Game.Party.Contains(m));
+
+    /// <summary>The step a party job last planned to bring back a member it let go.</summary>
+    private int _partyAgainAt = int.MinValue;
+
+    /// <summary>
+    /// With no step towards the ending while the party is kept, the plan to it that may let a kept member go at a join that brings someone
+    /// else in, if there's one; else null. Niesen's join in Terminor (<c>0x0472</c> at 8/G01/18) is the story's way on, and with Brenna
+    /// and Rheda in (who can't leave before Shamsuk) it can send only Keelin away: a job keeping her stranded there. She waits at
+    /// Terminor's C05 once met in Port Saiid (5413), and the party goal brings her back when a slot is free, after Shamsuk.
+    /// </summary>
+    private (List<PlayerAction> Steps, Plan? Plan)? Release(PlanState state)
+    {
+        var kept = _cover!.Goal.Party.Where(Game.Party.Contains).ToList();
+        if (kept.Count == 0)
+            return null;
+        var letGo = PartyJobs.Leaving(Model, kept);
+        letGo.RemoveWhere(a => !Model.Actions[a].Effects.OfType<Join>().Any(j => !kept.Contains(j.Entity)));
+        if (letGo.Count == 0)
+            return null;
+        var banned = Banned(state);
+        banned.ExceptWith(letGo);
+        var plan = _planner.Plan(state, new EndingGoal(), Options.PlanBudget, banned);
+        if (!plan.Found || plan.Steps.Count == 0)
+            return null;
+        Progress?.Invoke($"     no step towards the ending with the party kept; one that lets a member go at a join: " +
+            $"{string.Join(", ", plan.Steps.Where(s => letGo.Contains(s.Index)).Take(1).Select(s => s.Describe()))}");
+        return (plan.Steps.ToList(), plan);
+    }
 
     /// <summary>The step the run stopped riding the story at, if it has.</summary>
     private int? _rodeTo;

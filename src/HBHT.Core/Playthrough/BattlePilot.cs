@@ -47,6 +47,9 @@ public sealed class BattlePilot : IBattlePolicy
     /// <summary>The save made as the last battle was cued, and its setup: what a loss goes back to.</summary>
     private (string Save, BattleSetup Setup)? _cued;
 
+    /// <summary>The members' hit points as the last battle was cued, which going back to its save keeps (<see cref="KeepHitPoints"/>).</summary>
+    private Dictionary<HBHT.Plugins.RecordId, int> _cuedHp = [];
+
     /// <summary>The next battle to begin is the one lost, played again to be won outright.</summary>
     private bool _replayNext;
 
@@ -72,6 +75,7 @@ public sealed class BattlePilot : IBattlePolicy
         if (_replayNext)
             return;
         _cued = host.Session.NotePlace() ? (SaveFile.Serialize(host.Game.Save()), setup) : null;
+        _cuedHp = host.Game.Party.Members.ToDictionary(m => m.Entity, m => m.Hp);
         if (_cued is null)
             _problems.Add($"{host.Clock.Ticks}: the battle with {Name(setup)} was cued where the player stands in no chunk, so it can't be played again.");
     }
@@ -170,11 +174,32 @@ public sealed class BattlePilot : IBattlePolicy
         }
         var plugins = host.Game.Plugins;
         var game = GameState.Load(plugins, SaveFile.Parse(save, plugins));
+        KeepHitPoints(host, game);
         if (fought is not null)
             fought.Undone = true;
         _replayNext = true;
         _diedNext = died;
         host.Restart(game, h => h.Session.CueBattle(setup));
+    }
+
+    /// <summary>
+    /// A member the save loads with fewer hit points than they had as the battle was cued gets them back, through their current Endurance.
+    /// The save keeps each stat's trained and current values, and loading puts what's worn back on them, so what a spell left raised at a
+    /// battle's end (<see cref="Character.EndBattleEffects"/>) isn't kept: Brenna, held up by the Endurance spell in Shamsuk's Tower
+    /// (EhudUnder O05/84) and left at 1 of 96, loaded dead from the next battle's save (0 of 88), and the replay of that battle took her
+    /// out of the party. Going back is the bot's (a player reloads an older save), so it goes back to the game as it stood.
+    /// </summary>
+    private void KeepHitPoints(PlaythroughHost host, GameState game)
+    {
+        foreach (var member in game.Party.Members)
+        {
+            if (!_cuedHp.TryGetValue(member.Entity, out var hp) || member.Hp >= hp)
+                continue;
+            var was = member.Hp;
+            for (var i = 0; i < 255 && member.Hp < hp; i++)
+                member.Stats.ChangeCurrent(Stat.Endurance, 1);
+            _problems.Add($"{host.Clock.Ticks}: going back to the battle with {Name(_cued!.Value.Setup)}, {member.Name} loaded with {was} hit points of the {hp} they had; given back.");
+        }
     }
 
     private static string Name(BattleSetup setup) => setup.Party?.ToString() ?? $"a {setup.Source} battle";

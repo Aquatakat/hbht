@@ -101,7 +101,26 @@ public sealed class PlaythroughEngineActionsTests(Na10Import fixture, ITestOutpu
         Assert.DoesNotContain(Ids.Flag(5283), CoverGoal.StaticTargets(model, state));
         Assert.Equal(Core.Calendar.GameClock.Day, model.Flags.Horizon(model.Flags.Handle(Ids.Flag(5283))));
         Assert.Equal(4 * Core.Calendar.GameClock.Week, model.Flags.Horizon(model.Flags.Handle(Ids.Flag(5276))));
-        Assert.Equal(0u, model.Flags.Horizon(model.Flags.Handle(Ids.Flag(2312))));
+        Assert.Equal(Core.Calendar.GameClock.Year - 1, model.Flags.Horizon(model.Flags.Handle(Ids.Flag(2312))));
+    }
+
+    [Fact]
+    public void ACoverRunWithOnlyTheSeasonLeftCampsThroughTheMonths()
+    {
+        // A new game starts in week 6 of the first season; the second (season 1, its bit 2310) is some twelve days on, which a cover run
+        // passes by camping where the player stands, eight hours a camp, rather than standing through them.
+        var host = PlaythroughHost.NewGame(Data.Set);
+        Assert.Equal(HostRun.Done, host.RunUntilControl(60 * 60 * 5));
+        Assert.False(host.Game.Flags.Get(Ids.Flag(2310)));
+        var start = host.Clock.Ticks;
+        var run = Run(host, new CoverGoal([Ids.Flag(2310)]), RunOptions.Default with { WriteSaves = false });
+        run.Run();
+        var cover = run.Coverage!;
+        output.WriteLine(cover.ToString());
+        Assert.All(cover.Targets, t => Assert.True(t.State == TargetState.Covered, $"{t.Flag}: {t.State}, {t.Why}"));
+        Assert.Empty(run.Played);
+        Assert.InRange(run.Resting.Camps, 30, 50);
+        Assert.InRange(host.Clock.Ticks - start, 1, 2 * Core.Calendar.GameClock.Day / Core.Calendar.GameClock.DaySpeed);
     }
 
     [Fact]

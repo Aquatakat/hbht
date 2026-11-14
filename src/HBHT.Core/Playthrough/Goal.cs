@@ -148,6 +148,12 @@ public sealed record CoverGoal(IReadOnlyList<RecordId> Targets) : Goal
     public bool HasParty => Party.Count > 0 || Out.Count > 0;
 
     /// <summary>
+    /// The party was made before the run's save (a party job's branch from after its parent made it): the run starts with it made, and a
+    /// member kept who's out of it was let go at a join, to be brought back with a slot free.
+    /// </summary>
+    public bool PartyMade { get; init; }
+
+    /// <summary>
     /// Story triggers no route of the run may cross (<see cref="PilotOptions.Shun"/>): those a step crossed in the jobs it branched from
     /// when the step lost their targets. Walking out of Gwernia castle plays the story on, which closes the conversations there; a branch
     /// that shuns the trigger has those first, and gives up the targets only that way leads to, which its parent went on to.

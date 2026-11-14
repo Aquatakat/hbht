@@ -172,6 +172,20 @@ public sealed class PlaythroughWorldGraphTests(Na10Import fixture)
     }
 
     [Fact]
+    public void AWanderersBodyIsSetDownAtItsOwnRadius()
+    {
+        // The Sand Worm at Overworld P26/2 (radius 1) is placed at the rim of a pit: the player's radius rests on the dune, its own falls
+        // through to the pit's floor about 14 below, where trek's wanderers spawn it. The route goes down into the pit, not to the rim.
+        var id = Object("0/P26/2");
+        var chunk = Plugins.Get<ChunkRecord>(ChunkRecord.ChunkOf(id));
+        var o = chunk.Object(ChunkRecord.IndexOf(id))!;
+        var placed = Plugins.Get<MapSetRecord>(chunk.MapSet).Origin(chunk) + o.Position;
+        var target = Graph.TargetOf(id, chunk, o);
+        Assert.True(target.Y < placed.Y - 10, $"set down at {target.Y}, placed at {placed.Y}");
+        Assert.NotEmpty(WorldGraph.StandNear(Graph.Walk(chunk.MapSet), target, WorldGraph.PartyTalkRange));
+    }
+
+    [Fact]
     public void TheChaosPartyInShamsuksTowerIsClosedForGoodOnceHeIsDefeated()
     {
         var model = QuestModel.Build(Plugins);

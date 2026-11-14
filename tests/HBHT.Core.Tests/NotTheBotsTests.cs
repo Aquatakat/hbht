@@ -19,5 +19,8 @@ public sealed class NotTheBotsTests
         // Keelin's and Godric and Becan's are the bot's: the user expects them reachable.
         Assert.Null(NotTheBots.Of(Ids.Flag(486)));
         Assert.Null(NotTheBots.Of(Ids.Flag(468)));
+        Assert.Equal(20, NotTheBots.All.Count(n => n.Kind == NotTheBotsKind.Overestimate));
+        Assert.Equal(13, NotTheBots.All.Count(n => n.Kind == NotTheBotsKind.Original));
+        Assert.Equal(2, NotTheBots.All.Count(n => n.Kind == NotTheBotsKind.SetAside));
     }
 }

@@ -75,6 +75,7 @@ public sealed class CoverWorker(CoverQueue queue, QuestModel model, WorldGraph g
             Party = [.. (job.Party ?? []).Select(RecordId.Parse)],
             Out = [.. (job.Out ?? []).Select(RecordId.Parse)],
             Shun = [.. (job.Shun ?? []).Select(RecordId.Parse)],
+            PartyMade = job.PartyMade == true,
         };
         var options = Options with { Saves = Queue.SavesOf(job.Id), MostWall = wall };
         var run = new Playthrough(host, model, graph, goal, options) { Progress = Progress };
@@ -84,6 +85,9 @@ public sealed class CoverWorker(CoverQueue queue, QuestModel model, WorldGraph g
         var cover = run.Coverage!;
         var summary = report.Summary;
         var outOfTime = summary?.Why?.Contains("wall time", StringComparison.Ordinal) == true;
+
+        // Whether a job from the save before a step starts with the party made: the parent's was, or was made before that step.
+        bool? Made(int step) => job.PartyMade == true || cover.PartyAt is { } at && at < step ? true : null;
 
         // Branches, from the saves before the steps that lost their targets.
         var n = 0;
@@ -133,7 +137,7 @@ public sealed class CoverWorker(CoverQueue queue, QuestModel model, WorldGraph g
             made.Add(new CoverJob($"{job.Id}.{++n}", job.Id, Queue.Relative(branch.Save), [.. branch.Targets.Select(t => t.ToString())],
                 job.Depth + 1, branch.Step, branch.Action,
                 branch.Ended ? "the game ended in the step" : branch.Stranded ? "stranded after the step" : branch.Predicted ? "the loss check said it would lose them" : "lost after the step",
-                avoid, job.Party, shun.Count > 0 ? shun : null, job.Out));
+                avoid, job.Party, shun.Count > 0 ? shun : null, job.Out, Made(branch.Step)));
         }
         // Stopped by the worker's own time with targets still live: carried on from here.
         var live = cover.Targets.Where(t => t.State == TargetState.Live).ToList();
@@ -143,7 +147,8 @@ public sealed class CoverWorker(CoverQueue queue, QuestModel model, WorldGraph g
             if (run.SaveNow(path))
             {
                 made.Add(new CoverJob(NextCarry(job.Id), job.Id, Queue.Relative(path), [.. live.Select(t => t.Flag.ToString())], job.Depth,
-                    Why: "carried on: the worker's time ran out", Avoid: job.Avoid, Party: job.Party, Shun: job.Shun, Out: job.Out));
+                    Why: "carried on: the worker's time ran out", Avoid: job.Avoid, Party: job.Party, Shun: job.Shun, Out: job.Out,
+                    PartyMade: Made(int.MaxValue)));
                 foreach (var t in live)
                     t.Why = "carried on in another job";
             }

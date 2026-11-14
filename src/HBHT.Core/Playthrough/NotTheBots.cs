@@ -33,6 +33,13 @@ public sealed record NotTheBots(RecordId Flag, NotTheBotsKind Kind, string Why)
         new(F(3209), NotTheBotsKind.Overestimate, "Sheridan in Talewok wanders inside Niesen's scene's radius, H13/11, and his script is a placeholder (the user's review)"),
         new(F(5409), NotTheBotsKind.Overestimate, "Abrecan left and in the party at once: true only between a rejoin's two writes (the user's review)"),
         new(F(5410), NotTheBotsKind.Overestimate, "Becan left and in the party at once: true only between a rejoin's two writes (the user's review)"),
+        new(F(948), NotTheBotsKind.Overestimate, "Zurene at Overworld I08/27 stands inside I08/6's radius (10), which plays her script on her gate 5027 and shuts it (the data; after stage 9)"),
+        new(F(1339), NotTheBotsKind.Overestimate, "Gotzone and Zurene at I08/20 and I08/23 stand inside I08/10's and I08/9's radii (7, 5), which play 0x0396 on their gate 5033 and shut it (the data; after stage 9)"),
+        new(F(1507), NotTheBotsKind.Overestimate, "Abrecan in the throne room (4/I01/5) stands inside the list scene's radius (I01/2, 10), on the same gate, which shuts it (the data; after stage 9)"),
+        new(F(1310), NotTheBotsKind.Overestimate, "Txomin at 7/K09/6 stands inside K09/2's radius (25), which plays 0x03CA on arrival and sets 140, his gate (the data; after stage 9)"),
+        new(F(1311), NotTheBotsKind.Overestimate, "Txomin at 7/K09/7 stands inside K09/3's radius (25), which plays 0x03D8 on his gate 5059 and shuts it (the data; after stage 9)"),
+        new(F(1515), NotTheBotsKind.Overestimate, "Brenna outside the castle (M06/9) stands inside M06/4's radius (10), which plays 0x03AD on her gate 5359 and shuts it (the data; after stage 9)"),
+        new(F(3151), NotTheBotsKind.Overestimate, "Farris outside Terminor (I19/4) wanders inside I19/2's radius (20), which plays 0x044E on his gate 5110 and sets 360, shutting it (the data; after stage 9)"),
 
         .. new[] { 600, 602, 603, 606, 609 }.Select(f => new NotTheBots(F(f), NotTheBotsKind.Original,
             "Gwernia castle's farewells, gated on 599, which only the coronation's scene sets as the credits roll (the user; what's left uncovered)")),

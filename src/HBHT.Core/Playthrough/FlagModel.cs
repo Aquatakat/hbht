@@ -98,14 +98,17 @@ public sealed class FlagModel
 
     /// <summary>
     /// How long a flag over the engine's (<see cref="EngineInputs"/>) can take to come true while the player stands and waits, in game
-    /// time: a day for the time of day; four weeks, the moon's cycle, for the moon's phase and the rain; nothing for the date and the season
-    /// (a job doesn't wait months: the trunk's own game, some 70 days, sees the date move on), the terrain (walking) and the journal's flag.
+    /// time: a day for the time of day; four weeks, the moon's cycle, for the moon's phase and the rain; a year for the date and the season,
+    /// which a cover run passes by camping (stage 9: the trunk's own game, some 70 days, never reaches the third season); nothing for the
+    /// terrain (walking) and the journal's flag.
     /// </summary>
     public uint Horizon(int handle)
     {
         var engine = _engineInputs[handle];
-        if (engine.Length == 0 || engine.Any(_calendar.Contains) || engine.Any(e => _kinds[e] == FlagKind.Engine && !IsClock(e)))
+        if (engine.Length == 0 || engine.Any(e => _kinds[e] == FlagKind.Engine && !IsClock(e)))
             return 0;
+        if (engine.Any(_calendar.Contains))
+            return Calendar.GameClock.Year - 1;
         return engine.Any(_moonAndRain.Contains) ? 4 * Calendar.GameClock.Week : Calendar.GameClock.Day;
     }
 
