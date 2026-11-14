@@ -51,6 +51,9 @@ public sealed record SessionSettings
     /// <summary>A battle's camera (<see cref="CombatCamera.Style"/>): the original's, or the enhanced one.</summary>
     public CameraStyle Camera { get; init; }
 
+    /// <summary>Trek's camera (<see cref="Trek.TrekLoop.CameraStyle"/>): the Camera setting's, unless <c>--trek-camera</c> says otherwise.</summary>
+    public CameraStyle TrekCamera { get; init; }
+
     /// <summary>The enhanced camera's numbers (<see cref="CameraTuning"/>), from the command line, or null for its defaults.</summary>
     public CameraTuning? CameraTuning { get; init; }
 
@@ -75,6 +78,7 @@ public sealed record SessionSettings
         SpellAuras = settings.SpellAuras,
         CombatTurns = settings.CombatTurns,
         Camera = settings.Camera,
+        TrekCamera = settings.Camera,
         UiLines = Math.Max(settings.UiLines, 1),
         WanderReach = Trek.Wanderers.ReachFor(settings.ObjectDistance),
     };

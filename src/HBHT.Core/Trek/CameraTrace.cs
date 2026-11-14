@@ -42,17 +42,17 @@ public sealed record CameraWalk(string Name, int MapSet, string Chunk, Vector3 L
 /// One walk's trace of trek's camera, as shares of ticks and the view's turning: the view ahead blocked close by (a level ray
 /// from the aim along the look, out to 3 past the player, crosses collision from either side or the drawn world), the camera
 /// past a wall (the segment from the aim to it does), the player hidden from it, and the camera looking at his front while
-/// he moves (within 60° of against his travel); and how fast the view turns, its peak and 95th percentile, and how fast that
+/// he moves (within 60° of against his travel); the view ahead blocked again from the walk's second second; and how fast the view turns, its peak and 95th percentile, and how fast that
 /// changes. The front and the turning are counted from the walk's second second, past the arrival.
 /// </summary>
-public sealed record CameraTraceResult(string Walk, CameraStyle Style, int Ticks, float Blocked, float PastWall, float Hidden, float Front,
+public sealed record CameraTraceResult(string Walk, CameraStyle Style, int Ticks, float Blocked, float BlockedLate, float PastWall, float Hidden, float Front,
     float PeakTurn, float Turn95, float PeakAccel, float Accel95, ulong Checksum, int Ends, int Points)
 {
     public static string Header =>
-        $"{"walk",-16} {"style",-9} {"ticks",5} {"blocked",8} {"past",6} {"hidden",7} {"front",6} {"turn pk",8} {"turn95",7} {"acc pk",8} {"acc95",7} {"route",5}";
+        $"{"walk",-16} {"style",-9} {"ticks",5} {"blocked",8} {">1s",5} {"past",6} {"hidden",7} {"front",6} {"turn pk",8} {"turn95",7} {"acc pk",8} {"acc95",7} {"route",5}";
 
     public override string ToString() => string.Create(CultureInfo.InvariantCulture,
-        $"{Walk,-16} {Style,-9} {Ticks,5} {Blocked,8:P0} {PastWall,6:P0} {Hidden,7:P0} {Front,6:P0} {PeakTurn,8:F0} {Turn95,7:F0} {PeakAccel,8:F0} {Accel95,7:F0} {Ends,3}/{Points}");
+        $"{Walk,-16} {Style,-9} {Ticks,5} {Blocked,8:P0} {BlockedLate,5:P0} {PastWall,6:P0} {Hidden,7:P0} {Front,6:P0} {PeakTurn,8:F0} {Turn95,7:F0} {PeakAccel,8:F0} {Accel95,7:F0} {Ends,3}/{Points}");
 }
 
 /// <summary>
@@ -86,9 +86,12 @@ public static class CameraTrace
 
     /// <summary>Walks <paramref name="walk"/> under <paramref name="style"/> and measures the camera.</summary>
     /// <param name="each">Called after each tick traced, with the tick's number from the arrival.</param>
-    public static CameraTraceResult Run(PluginSet plugins, CameraWalk walk, CameraStyle style, Action<TrekLoop, int>? each = null)
+    public static CameraTraceResult Run(PluginSet plugins, CameraWalk walk, CameraStyle style, Action<TrekLoop, int>? each = null,
+        TrekCameraTuning? tuning = null)
     {
         var trek = Start(plugins, walk);
+        trek.CameraStyle = style;
+        trek.EnhancedCamera.Tuning = tuning ?? TrekCameraTuning.Default;
         var checksum = 14695981039346656037UL;
         void Sum(Vector3 v)
         {
@@ -122,7 +125,7 @@ public static class CameraTrace
         var route = walk.Route.Select(p => new Vector2(origin.X + p.X, origin.Z + p.Y)).ToArray();
         var next = 0;
         var ticks = 0;
-        int blocked = 0, past = 0, hidden = 0, front = 0, late = 0;
+        int blocked = 0, blockedLate = 0, past = 0, hidden = 0, front = 0, late = 0;
         var turns = new List<float>();
         var accels = new List<float>();
         Vector3? lastLook = null;
@@ -155,7 +158,11 @@ public static class CameraTrace
                 level = Vector3.Normalize(level);
                 var reach = MathF.Max(0, Vector3.Dot(player - camera.Aim, level)) + AheadReach;
                 if (Crosses(world, visible, camera.Aim, camera.Aim + level * reach))
+                {
                     blocked++;
+                    if (ticks >= TicksPerSecond)
+                        blockedLate++;
+                }
             }
             if (Crosses(world, visible, camera.Aim, camera.Position))
                 past++;
@@ -185,14 +192,17 @@ public static class CameraTrace
         }
 
         float Share(int n) => ticks == 0 ? 0 : (float)n / ticks;
-        return new CameraTraceResult(walk.Name, style, ticks, Share(blocked), Share(past), Share(hidden), late == 0 ? 0 : (float)front / late,
+        return new CameraTraceResult(walk.Name, style, ticks, Share(blocked), late == 0 ? 0 : (float)blockedLate / late, Share(past), Share(hidden), late == 0 ? 0 : (float)front / late,
             Peak(turns), Percentile(turns, 0.95f), Peak(accels), Percentile(accels, 0.95f), checksum, next, route.Length);
     }
 
-    /// <summary>Whether the segment crosses collision, tested from both ends, or the drawn world.</summary>
+    /// <summary>
+    /// Whether the segment crosses collision, tested from both ends, or the drawn world's solid surfaces (not light shafts,
+    /// canopies' cut-outs or water, <see cref="VisibleWorld.RaycastSolid"/>).
+    /// </summary>
     public static bool Crosses(CollisionWorld world, VisibleWorld? visible, Vector3 from, Vector3 to) =>
         SpherePhysics.SweepEitherSide(world, from, to, 0.01f, skipSeeThrough: true) is not null
-        || (visible is not null && visible.Raycast(from, to, out _, out _, out _));
+        || visible?.RaycastSolid(from, to) is not null;
 
     /// <summary>The table of results, a line each, under its header.</summary>
     public static string Table(IEnumerable<CameraTraceResult> results)

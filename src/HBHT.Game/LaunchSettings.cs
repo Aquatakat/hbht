@@ -6,7 +6,7 @@ namespace HBHT.Game;
 
 /// <summary>
 /// The settings the command line sets for one run (<c>--sky</c>, <c>--object-distance</c>, <c>--draw-distance</c>, <c>--detail</c>,
-/// <c>--precipitation</c>, <c>--ui-lines</c>, <c>--spell-auras</c>, <c>--combat-turns</c>, <c>--battle-camera</c>, <c>--pace</c> and <c>--movement</c>): a layer over the player's settings,
+/// <c>--precipitation</c>, <c>--ui-lines</c>, <c>--spell-auras</c>, <c>--combat-turns</c>, <c>--battle-camera</c>, <c>--trek-camera</c>, <c>--pace</c> and <c>--movement</c>): a layer over the player's settings,
 /// which the runtime draws by (<see cref="Over"/>) and makes each tick's <see cref="SessionSettings"/> from
 /// (<see cref="Session"/>), never written into them, so <c>settings.json</c> only ever holds the player's own. Each holds for
 /// the run until the player changes that setting, in the options menu or with a debug key (<see cref="Changed"/>), and then the
@@ -24,6 +24,7 @@ public sealed class LaunchSettings
     private CombatTurns? _combatTurns;
     private Core.Cameras.CameraStyle? _camera;
     private CameraTuning? _cameraTuning;
+    private Core.Cameras.CameraStyle? _trekCamera;
     private float? _pace;
     private Core.Movement.MovementMode? _movement;
 
@@ -43,6 +44,7 @@ public sealed class LaunchSettings
         _combatTurns = options.CombatTurns;
         _camera = options.BattleCamera;
         _cameraTuning = options.CameraTuning;
+        _trekCamera = options.TrekCamera;
         _pace = options.Pace;
         _movement = options.Movement;
         _seen = player.Copy();
@@ -78,7 +80,8 @@ public sealed class LaunchSettings
     /// <summary>What the core plays by: the player's settings with this run's over them, and <c>--pace</c>'s pace.</summary>
     public SessionSettings Session(Settings player)
     {
-        var settings = SessionSettings.From(Over(player)) with { CameraTuning = _cameraTuning };
+        // --battle-camera is the battle's alone: trek's camera is the player's Camera setting, or --trek-camera's.
+        var settings = SessionSettings.From(Over(player)) with { CameraTuning = _cameraTuning, TrekCamera = _trekCamera ?? player.Camera };
         return _pace is { } pace ? settings with { Pace = pace } : settings;
     }
 
@@ -102,7 +105,7 @@ public sealed class LaunchSettings
         if (player.CombatTurns != _seen.CombatTurns)
             _combatTurns = null;
         if (player.Camera != _seen.Camera)
-            _camera = null;
+            (_camera, _trekCamera) = (null, null);
         if (player.BriskPace != _seen.BriskPace)
             _pace = null;
         if (player.Movement != _seen.Movement)

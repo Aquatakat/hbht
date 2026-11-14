@@ -369,6 +369,7 @@ public sealed class GameSession
         Trek.Player.Pace = settings.Pace;
         Trek.Player.Movement = settings.Movement;
         Trek.Wanderers.Reach = settings.WanderReach;
+        Trek.CameraStyle = settings.TrekCamera;
         Trek.Wanderers.Movement = settings.Movement;
         Scene?.Movement = settings.Movement;
         Battle?.Movement = settings.Movement;
