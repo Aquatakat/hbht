@@ -449,7 +449,7 @@ A goal is a flag to set (`flag:<n>`), someone joining (`member`), some members i
 
 ## Flag coverage
 
-`hbht playthrough cover` sets every flag the static pass can set, over a tree of saves, so that a flag no play sets is a finding rather than a guess. It's the run with a goal of many flags (`CoverGoal`), and a queue of jobs on disk that several processes work at once. The code is `Playthrough.Cover.cs`, `Coverage.cs`, `CoverQueue.cs`, `CoverWorker.cs`, `Trunk.cs`, `PartyNeeds.cs` and `PartyJobs.cs`, the CLI's `CoverReport`, and the ledger in the core ([flags](flags.md#the-ledger)). The roadmap's [playthrough bot](../roadmap.md#the-playthrough-bot) table has its stages; this is stage 0, the machinery, stage 1, the trunk the jobs start from, stage 3, the party jobs, stage 4, what's left uncovered, stage 5, what the planner didn't model, stage 6, the parties kept small or without someone, and stage 7, what the story's order closes and the jobs that ride it.
+`hbht playthrough cover` sets every flag the static pass can set, over a tree of saves, so that a flag no play sets is a finding rather than a guess. It's the run with a goal of many flags (`CoverGoal`), and a queue of jobs on disk that several processes work at once. The code is `Playthrough.Cover.cs`, `Coverage.cs`, `CoverQueue.cs`, `CoverWorker.cs`, `Trunk.cs`, `PartyNeeds.cs` and `PartyJobs.cs`, the CLI's `CoverReport`, and the ledger in the core ([flags](flags.md#the-ledger)). The roadmap's [playthrough bot](../roadmap.md#the-playthrough-bot) table has its stages; this is stage 0, the machinery, stage 1, the trunk the jobs start from, stage 3, the party jobs, stage 4, what's left uncovered, stage 5, what the planner didn't model, stage 6, the parties kept small or without someone, stage 7, what the story's order closes and the jobs that ride it, and stage 8, the tower's chests, the stair, flashed flags and crowded joins.
 
 ```
 hbht playthrough cover init --root <dir> [--save <save>] [--targets all|<file>] [--job-minutes <n>] [--most-failures <n>]
@@ -684,6 +684,38 @@ What's left, 75:
 | Gwernia castle's window | 4 | 82, 1523, 1515, 5431 |
 | Places | 3 | Batrin's pay (3462, no plan through `0x0404`), the Dust Devil at O26/0 (3626), placed over no floor, and the Sand Worm at P26/2 (1479), stuck at its body |
 | The seasons | 2 | 2311, 2312 |
+
+#### After stage 8
+
+**StageH is 1.0's** (422, 423, 424, 5134, 5135). Its cut-scenes at Overworld P17 never play in 1.0: in every grid cell that lists them, the tower's tripwire (P17/3, sets 438) is listed first and goes off first, which shuts them ([map objects](map-objects.md#walking-into-objects-and-onto-triangles)). They're counted with the castle's farewells.
+
+**Abrecan and Sheridan outside Gwernia castle** (1513) is the relaxation's overestimate, as Edur's is: Abrecan (Overworld M06/7) and Sheridan (M06/8), enabled by derived 5045 (51 set, 63 clear), are set down within 3 of the questioning scene's middle (M06/3, `0x039B`, radius 10), which sets 63; talking to either needs the player within 1.5 of their bodies, inside its radius, where it plays first.
+
+**Shamsuk's Tower's chests.** The chamber isn't a one-way trap ([flag coverage](#flag-coverage), ways closed for good); what kept the chests was Brenna's Thief, 6 all through the tower, against locks of 6 and 7. With the Rogue's Thief 8 and Mechanic 5 in its second tier, the tree opens all of them, the trap of 4 at O05/115 (3224) included, gone off with another party at another time.
+
+**Traps the party always disarms.** Who disarms is the game's choice: the trap's menu has only Disarm and Exit, and the member with the most Mechanic who has the Stamina tries ([items](items.md#containers)). A player lets a trap go off only when that roll fails or nobody with Mechanic has the Stamina: in the tower, only by spending Niesen's Stamina below 4. The bot doesn't spend a member's Stamina on purpose. Instead a trap's exploded flag isn't live from a save whose party always disarms it ([the trunk](#the-trunk)), and goes to an earlier party: with Mechanic 5 in the Rogue's second tier, Brenna disarms every trap of 1 and 2, and a tree without that rule lost six of their exploded flags (1960, 1996, 2034, 2055, 2076, 3389).
+
+**The run.** A fresh trunk tree over the 2,353 targets (`tools/cover.ps1 -Threads 20 -Retries 2 -PartyRounds 1`, about 40 minutes): the trunk, 87 steps in 4 minutes, covered 679 itself; 367 jobs, 245 of them branches, at most 6 deep. **2,302 are covered**, 51 given up; against stage 7's 2,278, 28 gained and 4 lost.
+
+- **Gained, 28.** The tower's chests, all 8 (2285, 2287, 2288, 2297, 2298, 3219, 3220, 3224), and the other traps, locks and gold but two, 8 (2007, 2126, 2127, 2201, 3243, 3244, 3352, 5381), by the Rogue's Thief and Mechanic and the trap window. Jundar's library, 3 (346, 349, 350), by the stair's pushes. Becan's at Overworld I13 and the Barrows, 5 (416, 5141, 528, 553, 5180), by a branch of his crowded job (`p1-t003-0242-out-024C`), whose party Abrecan and Godric fill at the castle in Rheda's place, and which rides the story to the Barrows, Arturo making room for Niesen at Terminor. Godric agreed but out of the party (5431), on the way. And 199, 476 and 525, given up in stage 7 for no plan or a strand on a branch's first step.
+- **Lost, 4.** Tamberlain's ways that want 9 gold or less (3143, 3150), with another party at another time, as stage 7 gained them; and Keelin's 5162 and 5185, which stage 7's tree covered and stage 6's didn't, from jobs riding to the desert.
+
+What's left, 51:
+
+| Class | Targets | Examples |
+| --- | --- | --- |
+| The relaxation's overestimates | 7 | the Barrows' dragons (5509–5513), Edur (1349), Abrecan and Sheridan outside the castle (1513) |
+| 1.0's, never reached | 11 | Gwernia castle's farewells (600, 602, 603, 606, 609); Amann on his ship (987); StageH's cut-scenes at P17 (422, 423, 424, 5134, 5135) |
+| Members the story doesn't bring together | 9 | Godric and Becan (468, 5150), Becan and Abrecan through Arturo's and Godric's scenes (5409, 5410), Keelin's in the desert (486, 558, 5162, 5185), Farris's staff (565) |
+| Conversations with no plan | 7 | 3151, 3193, 3209, 3516, 3728, the Chaos Mauler (1221), Lugash (1011): his talk's branch, shunning G03/10 and taking the talk again, strands |
+| Other windows | 5 | 948, 1339, 1507, 1310, 1311 |
+| Arturo's bridge scene `0x0404` | 3 | 4271, 4282 and Batrin's pay (3462): their ways want the party small (1 to 3) with particular members, which the relaxation keeps no cap for, and the scene's ways are cut at 50,000 runs |
+| Gwernia castle's window | 3 | 82, 1523, 1515 |
+| Places | 2 | the Dust Devil at O26/0 (3626), placed over no floor, and the Sand Worm at P26/2 (1479) |
+| Gold | 2 | Tamberlain's 3143 and 3150, which want 9 gold or less |
+| The seasons | 2 | 2311, 2312 |
+
+So of the 2,353 targets, play reaches 2,302, 7 are the relaxation's overestimates, 11 are 1.0's, and 33 are the bot's.
 
 ### What the planner doesn't model
 
