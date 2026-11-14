@@ -10,6 +10,7 @@ using HBHT.Core.Movement;
 using HBHT.Core.Physics;
 using HBHT.Core.Rng;
 using HBHT.Plugins;
+using HBHT.Plugins.Assets;
 using HBHT.Plugins.Records;
 
 namespace HBHT.Core.Playthrough;
@@ -338,7 +339,7 @@ public sealed partial class WorldGraph
     /// ask it of every place in every round.
     /// </summary>
     internal Standing? StandingOf(RecordId mapObject) => _standing.GetOrAdd(mapObject, id =>
-        _plugins.TryGet<ChunkRecord>(ChunkRecord.ChunkOf(id)) is { } chunk && chunk.Object(ChunkRecord.IndexOf(id)) is { } o && UseRange(o) is { } range
+        _plugins.TryGet<ChunkRecord>(ChunkRecord.ChunkOf(id)) is { } chunk && chunk.Object(ChunkRecord.IndexOf(id)) is { } o && RangeOf(id, chunk, o) is { } range
             ? new Standing(this, id, chunk.MapSet, TargetOf(id, chunk, o), range)
             : null);
 
@@ -347,7 +348,63 @@ public sealed partial class WorldGraph
     /// body is set down as it spawns (<see cref="SpawnOf"/>).
     /// </summary>
     public Vector3 TargetOf(RecordId mapObject, ChunkRecord chunk, MapObject o) =>
-        o is PartyObject ? SpawnOf(mapObject, chunk, o) : _plugins.Get<MapSetRecord>(chunk.MapSet).Origin(chunk) + o.Position;
+        o is PartyObject ? SpawnOf(mapObject, chunk, o)
+        : TreadOf(mapObject, chunk, o) is { } tread ? tread
+        : _plugins.Get<MapSetRecord>(chunk.MapSet).Origin(chunk) + o.Position;
+
+    /// <summary>
+    /// How near the player's sphere must be to use a map object of a chunk (<see cref="UseRange"/>), or for a script object only trigger
+    /// triangles name, to tread on one (<see cref="TreadOf"/>).
+    /// </summary>
+    public float? RangeOf(RecordId mapObject, ChunkRecord chunk, MapObject o) => TreadOf(mapObject, chunk, o) is not null ? TreadRange : UseRange(o);
+
+    /// <summary>How near a trigger triangle's middle the player's sphere must come to tread on it.</summary>
+    public const float TreadRange = 1;
+
+    /// <summary>
+    /// For a script object its chunk's grid lists in no cell, which only trigger triangles start ([map objects](map-objects.md)), the
+    /// middle of the one naming it nearest its position, the sphere's middle at the player's radius above it; null for any other object,
+    /// or one no triangle names. Walking within such an object's radius starts nothing: R27/3's Brenna and Keelin's talk approaching
+    /// Ugarit (<c>0x04DD</c>, radius 200) was walked up to three times, and never trodden on. Kept.
+    /// </summary>
+    private Vector3? TreadOf(RecordId mapObject, ChunkRecord chunk, MapObject o)
+    {
+        if (o is not ScriptObject || chunk.Grid is not { } grid || grid.Cells.Any(c => c.Contains(o.Index)))
+            return null;
+        return _treads.GetOrAdd(mapObject, _ =>
+        {
+            var set = _plugins.Get<MapSetRecord>(chunk.MapSet);
+            var at = set.Origin(chunk) + o.Position;
+            var (gate, world, chunks) = SpawnWorld(chunk.MapSet, set);
+            lock (gate)
+            {
+                chunks.Update(at);
+                var key = Chunks.ChunkKey.Of(chunk);
+                var near = new List<CollisionWorld.Triangle>();
+                world.Near(at.X - o.Radius, at.Z - o.Radius, at.X + o.Radius, at.Z + o.Radius, near);
+                Vector3? best = null;
+                foreach (var t in near)
+                {
+                    if (t.Role != CollisionRole.Trigger || t.Target != o.Index || t.Part != key)
+                        continue;
+                    var middle = (t.A + t.B + t.C) / 3 + t.Normal * PlayerMotion.Radius;
+                    if (best is not { } b || Vector3.DistanceSquared(middle, at) < Vector3.DistanceSquared(b, at))
+                        best = middle;
+                }
+                return best;
+            }
+        });
+    }
+
+    private readonly ConcurrentDictionary<RecordId, Vector3?> _treads = [];
+
+    /// <summary>A map set's collision streamed in for setting bodies down and finding triangles, under a lock of its own.</summary>
+    private (Lock Gate, CollisionWorld World, Chunks.ChunkStreamer Chunks) SpawnWorld(RecordId mapSet, MapSetRecord set) =>
+        _spawnWorlds.GetOrAdd(mapSet, id => new Lazy<(Lock, CollisionWorld, Chunks.ChunkStreamer)>(() =>
+        {
+            var world = new CollisionWorld();
+            return (new Lock(), world, new Chunks.ChunkStreamer(_plugins, GameState.NewGame(_plugins), world, set));
+        })).Value;
 
     /// <summary>
     /// Where an npc's or encounter's body stands as it spawns: set down from its placement as trek's wanderers are (<see cref="Body.SetDown"/>
@@ -361,11 +418,7 @@ public sealed partial class WorldGraph
     {
         var set = _plugins.Get<MapSetRecord>(chunk.MapSet);
         var at = set.Origin(chunk) + o.Position;
-        var (gate, world, chunks) = _spawnWorlds.GetOrAdd(chunk.MapSet, id => new Lazy<(Lock, CollisionWorld, Chunks.ChunkStreamer)>(() =>
-        {
-            var world = new CollisionWorld();
-            return (new Lock(), world, new Chunks.ChunkStreamer(_plugins, GameState.NewGame(_plugins), world, set));
-        })).Value;
+        var (gate, world, chunks) = SpawnWorld(chunk.MapSet, set);
         // At the body's own radius, as trek's wanderers spawn (Wanderers.Load): the Sand Worm at Overworld P26/2 (radius 1) is placed
         // at the rim of a pit, where the player's radius rests on the dune and its own falls through to the pit's floor, 14 below. The
         // result is the sphere's middle at the player's radius above that ground, which routes go to.
@@ -552,7 +605,7 @@ public sealed partial class WorldGraph
         var pick = options?.PickLocks ?? false;
         if (_plugins.TryGet<ChunkRecord>(ChunkRecord.ChunkOf(mapObject)) is not { } chunk || chunk.Object(ChunkRecord.IndexOf(mapObject)) is not { } o)
             return Refuse(RefusalKind.UnknownObject, $"No chunk has {mapObject}.");
-        if (UseRange(o) is not { } range)
+        if (RangeOf(mapObject, chunk, o) is not { } range)
             return Refuse(RefusalKind.NotUsable, $"{mapObject} is a {o.GetType().Name.Replace("Object", "", StringComparison.Ordinal).ToLowerInvariant()}, which the player doesn't use.");
         var target = TargetOf(mapObject, chunk, o);
         var own = ObjectGates(mapObject, o);
@@ -846,7 +899,7 @@ public sealed partial class WorldGraph
     {
         var pick = options?.PickLocks ?? false;
         if (_plugins.TryGet<ChunkRecord>(ChunkRecord.ChunkOf(mapObject)) is not { } chunk || chunk.Object(ChunkRecord.IndexOf(mapObject)) is not { } o
-            || UseRange(o) is not { } range)
+            || RangeOf(mapObject, chunk, o) is not { } range)
             return false;
         if (ObjectGates(mapObject, o).Any(g => g.Closed(state.Flags, pick)))
             return false;

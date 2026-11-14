@@ -204,7 +204,7 @@ public sealed class Pilot : IInputPolicy
             walk.Fail(StepFailure.NoRoute, $"no chunk has {id}");
             return;
         }
-        if (WorldGraph.UseRange(o) is not { } range)
+        if (_graph.RangeOf(id, chunk, o) is not { } range)
         {
             walk.Fail(StepFailure.NoRoute, $"{id} is a {o.GetType().Name}, which the player doesn't use");
             return;

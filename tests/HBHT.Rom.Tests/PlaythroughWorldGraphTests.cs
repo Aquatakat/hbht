@@ -172,6 +172,26 @@ public sealed class PlaythroughWorldGraphTests(Na10Import fixture)
     }
 
     [Fact]
+    public void AScriptObjectOnlyTrianglesNameIsUsedByTreadingOnOne()
+    {
+        // Brenna and Keelin's talk approaching Ugarit (Overworld R27/3, 0x04DD, radius 200) is listed in no grid cell: only its trigger
+        // triangles start it, so the route goes onto one, not within its radius.
+        var id = Object("0/R27/3");
+        var chunk = Plugins.Get<ChunkRecord>(ChunkRecord.ChunkOf(id));
+        var o = chunk.Object(ChunkRecord.IndexOf(id))!;
+        Assert.DoesNotContain(chunk.Grid!.Cells, c => c.Contains(o.Index));
+        Assert.Equal(WorldGraph.TreadRange, Graph.RangeOf(id, chunk, o));
+        var target = Graph.TargetOf(id, chunk, o);
+        var placed = Plugins.Get<MapSetRecord>(chunk.MapSet).Origin(chunk) + o.Position;
+        Assert.InRange(System.Numerics.Vector3.Distance(target, placed), 0.01f, o.Radius);
+        Assert.NotEmpty(WorldGraph.StandNear(Graph.Walk(chunk.MapSet), target, WorldGraph.TreadRange));
+        // One the grid lists keeps its radius.
+        var listed = Object("0/I08/6");
+        var castle = Plugins.Get<ChunkRecord>(ChunkRecord.ChunkOf(listed));
+        Assert.Equal(10, Graph.RangeOf(listed, castle, castle.Object(ChunkRecord.IndexOf(listed))!));
+    }
+
+    [Fact]
     public void AWanderersBodyIsSetDownAtItsOwnRadius()
     {
         // The Sand Worm at Overworld P26/2 (radius 1) is placed at the rim of a pit: the player's radius rests on the dune, its own falls
