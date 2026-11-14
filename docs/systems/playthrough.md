@@ -194,7 +194,6 @@ Elsewhere, an npc 122 away in Gwernia is talked to in 1,978 ticks, and a chest t
 **Left out:**
 
 - Script objects that only trigger triangles name aren't kept clear of, nor are tripwires.
-
 - Jundar's library stair (JundarInteriors A01, about 117.7, 7.8, 107.9) is a spiral whose steps a run climbed and the stick doesn't: steering from one cell's middle to the next, the player slides off the inside of the turn, every replan the same.
 - Only running is used, never sneaking.
 - A consequence starting more than a second after trek gets the controls back counts in the next step.
