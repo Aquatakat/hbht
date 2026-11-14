@@ -19,4 +19,7 @@
     <Using Include="HBHT.Views" />
   </ItemGroup>
 
+  <!-- How the export publishes: trimmed, without the debugger's files. -->
+  <Import Project="../Godot.Export.props" />
+
 </Project>

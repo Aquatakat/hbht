@@ -1,0 +1,34 @@
+<Project>
+  <!--
+    How the two Godot projects publish when Godot exports them (docs/systems/releases.md#the-net-runtime).
+    The export publishes each project self-contained, with a whole .NET runtime of its own; trimming the
+    framework's assemblies to what the apps use takes that from about 85 MB to about 25.
+  -->
+  <PropertyGroup>
+    <PublishTrimmed>true</PublishTrimmed>
+    <!-- Only assemblies marked trimmable, the framework's: ours and GodotSharp are kept whole, so reflection over them still works. -->
+    <TrimMode>partial</TrimMode>
+    <!-- The warnings are about our assemblies' reflection, which partial trimming leaves alone; TreatWarningsAsErrors would fail the export on them. -->
+    <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+    <!-- Godot starts .NET through hostfxr's load_assembly_and_get_function_pointer, which trimming turns off by default. -->
+    <_EnableConsumingManagedCodeFromNativeHosting>true</_EnableConsumingManagedCodeFromNativeHosting>
+    <!-- The plugins and saves are read and written by System.Text.Json's reflection, which trimming also turns off by default. -->
+    <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <TrimmerRootAssembly Include="GodotSharp" />
+  </ItemGroup>
+
+  <!--
+    What only a debugger or a crash dump uses (the debugger's access and its interface, createdump, the PDB writer),
+    and HTTP/3's library, which trimming turns off: about 7 MB a platform the players never run.
+  -->
+  <Target Name="RemoveDebuggerFiles" AfterTargets="Publish">
+    <ItemGroup>
+      <_DebuggerFile Include="$(PublishDir)Microsoft.DiaSymReader.Native.*.dll;$(PublishDir)*mscordaccore*;$(PublishDir)*mscordbi.*;$(PublishDir)createdump;$(PublishDir)createdump.exe;$(PublishDir)msquic.dll" />
+    </ItemGroup>
+    <Delete Files="@(_DebuggerFile)" />
+  </Target>
+</Project>

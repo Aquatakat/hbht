@@ -1,9 +1,9 @@
 # Build the release packages for the machine it runs on (docs/systems/releases.md).
 # Usage: tools/package.ps1 [-Version <n>] [-OutDir <folder>]
 #
-#   Windows: HBHT-alpha-<n>-windows.msi and HBHT-alpha-<n>-windows-portable.zip
-#   Linux:   HBHT-alpha-<n>-linux-x86_64.tar.gz
-#   macOS:   HBHT-alpha-<n>-macos.dmg
+#   Windows: HBHT-beta-<n>-windows.msi and HBHT-beta-<n>-windows-portable.zip
+#   Linux:   HBHT-beta-<n>-linux-x86_64.tar.gz
+#   macOS:   HBHT-beta-<n>-macos.dmg
 #
 # It fetches the pinned Godot and its export templates into .tools/ (tools/godot-pin.ps1),
 # exports both Godot projects with release templates, lays them out side by side and
@@ -28,7 +28,7 @@ $repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 if (-not $OutDir) { $OutDir = Join-Path $repo 'out/packages' }
 $OutDir = [IO.Path]::GetFullPath($OutDir)
 $platform = Get-HostPlatform
-$name = "HBHT-alpha-$Version"
+$name = "HBHT-beta-$Version"
 $work = Join-Path $OutDir "work-$platform"
 
 # The two apps: the Godot project, the executable (and PCK) name, the macOS bundle name.
@@ -222,6 +222,29 @@ function New-WindowsPackages {
     Write-Host "Wrote $msi"
 }
 
+# The two apps share most of their files: the same engine (Linux's exports leave the
+# template as it is) and the same .NET runtime. Each of the editor's that the game has
+# too becomes a hard link to the game's, which tar keeps, so the tarball holds it once
+# and unpacks it once.
+function Join-SameFiles([string]$stage) {
+    $pairs = @(@{ From = $apps[0].Exe; To = $apps[1].Exe })
+    $gameData = "data_$($apps[0].Project)_linuxbsd_x86_64"
+    $editorData = "data_$($apps[1].Project)_linuxbsd_x86_64"
+    foreach ($file in Get-ChildItem -LiteralPath (Join-Path $stage $editorData) -File) {
+        $pairs += @{ From = "$gameData/$($file.Name)"; To = "$editorData/$($file.Name)" }
+    }
+    $linked = 0
+    foreach ($pair in $pairs) {
+        $from = Join-Path $stage $pair.From
+        $to = Join-Path $stage $pair.To
+        if (-not (Test-Path -LiteralPath $from)) { continue }
+        if ((Get-FileHash -LiteralPath $from).Hash -ne (Get-FileHash -LiteralPath $to).Hash) { continue }
+        Invoke-Native ln @('-f', $from, $to)
+        $linked++
+    }
+    Write-Host "Linked $linked of the editor's files to the game's"
+}
+
 function New-LinuxPackage {
     $stage = Join-Path $work $name
     Reset-Folder $stage
@@ -234,6 +257,7 @@ function New-LinuxPackage {
         Invoke-Native chmod @('+x', (Join-Path $stage $app.Exe))
     }
     Copy-Item (Join-Path $repo 'LICENSE'), (Join-Path $repo 'README.md') $stage
+    Join-SameFiles $stage
     $tar = Join-Path $OutDir "$name-linux-x86_64.tar.gz"
     Invoke-Native tar @('-czf', $tar, '-C', $work, $name)
     Write-Host "Wrote $tar"
@@ -280,9 +304,11 @@ function New-MacPackage {
     Invoke-Native ln @('-s', '/Applications', (Join-Path $stage 'Applications'))
     $dmg = Join-Path $OutDir "$name-macos.dmg"
     if (Test-Path -LiteralPath $dmg) { Remove-Item -LiteralPath $dmg }
-    # hdiutil now and then fails with "Resource busy" on a busy machine; a retry clears it.
+    # ULMO is LZMA, which packs the apps smaller than UDZO's zlib, and which disk images open
+    # with from macOS 10.15, the oldest the presets allow. hdiutil now and then fails with
+    # "Resource busy" on a busy machine; a retry clears it.
     foreach ($attempt in 1..3) {
-        & hdiutil create -volname "HBHT alpha $Version" -srcfolder $stage -ov -format UDZO $dmg
+        & hdiutil create -volname "HBHT beta $Version" -srcfolder $stage -ov -format ULMO $dmg
         if ($LASTEXITCODE -eq 0) { break }
         if ($attempt -eq 3) { throw "hdiutil create exited with $LASTEXITCODE" }
         Start-Sleep -Seconds 5

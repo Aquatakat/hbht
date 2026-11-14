@@ -3,7 +3,7 @@
 #
 # One bullet per commit since the previous release's tag (the highest v<number> below
 # this one), newest first, each the first sentence of its message with a link to the
-# commit. With no previous release it says this is the first alpha and links the
+# commit. With no previous release it says this is the first release and links the
 # history instead of listing every commit. Needs the full history (fetch-depth: 0).
 [CmdletBinding()]
 param(
@@ -38,7 +38,7 @@ function Get-Headline([string]$subject) {
 }
 
 $lines = [System.Collections.Generic.List[string]]::new()
-$lines.Add("An early build of HBHT: expect rough edges. HBHT doesn't include the game. When it first runs, you import your own ROM of Aidyn Chronicles: The First Mage.")
+$lines.Add("A beta of HBHT: it plays, with some rough edges left. HBHT doesn't include the game. When it first runs, you import your own ROM of Aidyn Chronicles: The First Mage.")
 $lines.Add('')
 $lines.Add('**Windows:** the `.msi` installs HBHT for everyone on the PC. The `-portable.zip` runs from wherever you unzip it and keeps its data there. ' +
     '**Linux:** unpack the `.tar.gz` and run `hbht`. ' +
@@ -48,13 +48,13 @@ $lines.Add('')
 if (-not $Previous) {
     $lines.Add('## Changes')
     $lines.Add('')
-    $lines.Add("This is the first alpha. The [history so far]($RepositoryUrl/commits/v$Version) has every change that led to it.")
+    $lines.Add("This is the first release. The [history so far]($RepositoryUrl/commits/v$Version) has every change that led to it.")
 } else {
     $commits = @(git log --no-merges --format='%H%x09%s' "$Previous..$Head")
     if ($LASTEXITCODE -ne 0) { throw "git log $Previous..$Head failed" }
     $lines.Add("## Changes since $Previous")
     $lines.Add('')
-    if ($commits.Count -eq 0) { $lines.Add('No changes since the last alpha.') }
+    if ($commits.Count -eq 0) { $lines.Add('No changes since the last release.') }
     foreach ($commit in $commits | Select-Object -First $maxCommits) {
         $sha, $subject = $commit -split "`t", 2
         $lines.Add("- $(Get-Headline $subject) ([``$($sha.Substring(0, 7))``]($RepositoryUrl/commit/$sha))")

@@ -1,15 +1,15 @@
 # Releases and packages
 
-HBHT ships as two programs, the game (`hbht`, the Godot project `src/HBHT.Game`) and the editor (`hbht-editor`, `src/HBHT.Editor`), with no game content: players import their own ROM on first run. `tools/package.ps1` builds the packages for the machine it runs on, and the release workflow (`.github/workflows/release.yml`) runs it on Windows, Linux and macOS and publishes the result as a numbered prerelease.
+HBHT ships as two programs, the game (`hbht`, the Godot project `src/HBHT.Game`) and the editor (`hbht-editor`, `src/HBHT.Editor`), with no game content: players import their own ROM on first run. `tools/package.ps1` builds the packages for the machine it runs on, and the release workflow (`.github/workflows/release.yml`) runs it on Windows, Linux and macOS and publishes the result as a numbered beta release.
 
 ## The packages
 
 | Package | File | Data folder |
 | --- | --- | --- |
-| Windows installer | `HBHT-alpha-N-windows.msi` | `%LOCALAPPDATA%\HBHT` |
-| Windows portable | `HBHT-alpha-N-windows-portable.zip` | beside the executables (`portable.txt`) |
-| Linux | `HBHT-alpha-N-linux-x86_64.tar.gz` | `~/.local/share/HBHT` |
-| macOS | `HBHT-alpha-N-macos.dmg` | `~/Library/Application Support/HBHT` |
+| Windows installer | `HBHT-beta-N-windows.msi` | `%LOCALAPPDATA%\HBHT` |
+| Windows portable | `HBHT-beta-N-windows-portable.zip` | beside the executables (`portable.txt`) |
+| Linux | `HBHT-beta-N-linux-x86_64.tar.gz` | `~/.local/share/HBHT` |
+| macOS | `HBHT-beta-N-macos.dmg` | `~/Library/Application Support/HBHT` |
 
 On Windows and Linux both apps are in one folder, side by side, as Godot's .NET export lays each out:
 
@@ -20,11 +20,24 @@ data_HBHT.Game_<platform>_x86_64/     data_HBHT.Editor_<platform>_x86_64/
 LICENSE   README.md   portable.txt (the portable zip only)
 ```
 
-`<platform>` is `windows` or `linuxbsd`. The two exports don't collide: each executable finds the PCK with its own name, and its .NET assemblies and runtime in the data folder named after its assembly. The Windows zip has the files at its root (Explorer's Extract All makes the folder); the Linux tarball has them in a folder `HBHT-alpha-N/`. The first-run code finds the other app, and `portable.txt`, by these names, so they don't change.
+`<platform>` is `windows` or `linuxbsd`. The two exports don't collide: each executable finds the PCK with its own name, and its .NET assemblies and runtime in the data folder named after its assembly. The Windows zip has the files at its root (Explorer's Extract All makes the folder); the Linux tarball has them in a folder `HBHT-beta-N/`. The first-run code finds the other app, and `portable.txt`, by these names, so they don't change.
 
 On macOS the disk image holds `HBHT.app` (executable `Contents/MacOS/hbht`) and `HBHT Editor.app` (`Contents/MacOS/hbht-editor`), `LICENSE`, `README.md` and a link to Applications. Each bundle has its PCK and two data folders, `data_<assembly>_macos_arm64` and `_x86_64`, in `Contents/Resources`: the export is universal, and the .NET export publishes each architecture's runtime.
 
+Releases 1 and 2 were alphas, "HBHT alpha N", published as prereleases; from 3 on they're betas, "HBHT beta N", published as full releases. The number carries on rather than starting again, as the MSI's upgrade needs it to rise.
+
 Every package is built with Godot's **release** templates, so `OS.IsDebugBuild()` is false in it, which is what keeps the debug keys out of a player's hands. The exports don't embed the PCK and have no console wrapper.
+
+### The .NET runtime
+
+Godot's .NET export publishes each project self-contained, so each app's data folder holds a whole .NET runtime of its own. Both projects import `src/Godot.Export.props`, which trims it (`PublishTrimmed`, `TrimMode` partial): the framework's assemblies lose what neither app reaches, and those nothing reaches go, while ours and GodotSharp, which aren't marked trimmable, are kept whole, so reflection over them still works. That took each Windows data folder from 85 MB to 24, and the Windows packages from 158 MB (zip) and 120 (MSI) to 99.5 and 70; an import made by the trimmed editor is byte for byte the dev build's. Trimming turns two things off by default that the apps need, and the props turn them back on:
+
+- **Native hosting** (`_EnableConsumingManagedCodeFromNativeHosting`): Godot starts .NET through hostfxr's `load_assembly_and_get_function_pointer`, which fails without it.
+- **System.Text.Json's reflection** (`JsonSerializerIsReflectionEnabledByDefault`), which reads and writes the plugins and saves.
+
+The trim warnings are about our own assemblies' reflection, which partial trimming leaves alone, so they're suppressed (`TreatWarningsAsErrors` would fail the export on them). After publishing, the props delete what only a debugger or a crash dump uses (the DAC `mscordaccore`, `mscordbi`, `createdump`, the PDB writer `Microsoft.DiaSymReader.Native`) and HTTP/3's `msquic.dll`, which trimming turns off: about 7 MB a platform.
+
+What's left is mostly the engine: each executable is Godot's stock .NET release template, 109.5 MB on Windows, and the two are the same but for their icon and version resources. On Linux they're byte for byte the same, and so are most of the two data folders, so the script hard-links each of the editor's files to the game's where they match (`Join-SameFiles`), which tar keeps: the tarball holds them once and unpacks them once. The macOS disk image is ULMO (LZMA), which opens from macOS 10.15, the oldest the presets allow, and packs smaller than UDZO's zlib.
 
 ### Windows
 
@@ -79,8 +92,8 @@ Run **Release** by hand from the repository's Actions tab (`workflow_dispatch`).
 1. Picks the number: one more than the highest tag `v<number>`, or 1 with none. Two runs never overlap (`concurrency: release`).
 2. Runs `dotnet test` on Windows. The real-data tests skip, as CI has no ROMs.
 3. Runs `tools/package.ps1 -Version N` on `windows-latest`, `ubuntu-latest` and `macos-latest`, with .NET from `global.json` and `.tools/godot` cached by the hash of `tools/godot-pin.ps1`, and uploads the packages (and Godot's logs, if it fails).
-4. Writes the description with `tools/release-notes.ps1`: what to download and how to open it, then one bullet per commit since the previous `v*` tag, newest first, each the first sentence of its message (cut at 280 characters) with a link to the commit, at most 100, and a link to the full comparison. The first release, with no tag before it, says it's the first alpha and links the history instead.
-5. Creates the release `vN`, "HBHT alpha N", as a prerelease on the commit the workflow ran on, with the four packages attached (`gh release create`, which makes the tag).
+4. Writes the description with `tools/release-notes.ps1`: what to download and how to open it, then one bullet per commit since the previous `v*` tag, newest first, each the first sentence of its message (cut at 280 characters) with a link to the commit, at most 100, and a link to the full comparison. The first release, with no tag before it, says so and links the history instead.
+5. Creates the release `vN`, "HBHT beta N", on the commit the workflow ran on, with the four packages attached (`gh release create`, which makes the tag).
 
 Only the last job can write to the repository (`contents: write`); the rest read. The actions are GitHub's own, pinned to major versions.
 
@@ -88,6 +101,7 @@ To try the notes without a release: `tools/release-notes.ps1 -Version 2 -Previou
 
 ## Not done yet
 
+- The engine is Godot's stock template, with every module. A template built for size (`optimize=size`, the modules neither app uses turned off, a build profile of the classes they use) could take tens of megabytes off each executable (not measured), but Godot would have to be built from source, with .NET, for each platform, and cached by the pin. Merging the game and the editor into one Godot project, one executable started as either, would ship the engine and the runtime once, but they're separate projects by design ([ADR 0022](../adr/0022-views-library.md)).
 - Nothing is signed with a certificate: no Authenticode on Windows, no Developer ID or notarization on macOS. Both need paid certificates and secrets in the workflow.
 - Linux is x86_64 only, and Windows x86_64 only; Godot has arm64 templates for both.
 - The game doesn't show its version anywhere yet; `ProjectSettings` holds it as `application/config/version`.
