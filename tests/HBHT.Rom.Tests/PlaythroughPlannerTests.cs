@@ -84,6 +84,15 @@ public sealed class PlaythroughPlannerTests(Na10Import fixture)
     }
 
     [Fact]
+    public void WhatsNotTheBotsIsStillATarget()
+    {
+        // The targets settled as not the bot's stay targets, so a mod or a fix that reaches one counts it covered; one no longer a target
+        // from a new game comes out of the table.
+        var targets = CoverGoal.StaticTargets(Model, NewGame()).ToHashSet();
+        Assert.All(NotTheBots.All, n => Assert.Contains(n.Flag, targets));
+    }
+
+    [Fact]
     public void ATrapIsAGateTheRunMeetsByThePartysChanceOfDisarmingIt()
     {
         // A trap that goes off destroys its container, so a step to a trapped one is played only while the party has a chance: its

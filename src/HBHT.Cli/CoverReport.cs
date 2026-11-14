@@ -548,10 +548,15 @@ internal static partial class CoverReport
         }
         var covered = root.Targets.Where(ledger.ContainsKey).ToList();
         var live = root.Targets.Where(t => !ledger.ContainsKey(t) && waiting.ContainsKey(t)).ToList();
-        var given = root.Targets.Where(t => !ledger.ContainsKey(t) && !waiting.ContainsKey(t)).ToList();
+        var uncovered = root.Targets.Where(t => !ledger.ContainsKey(t) && !waiting.ContainsKey(t)).ToList();
+        // What's settled as not the bot's (NotTheBots) is reported apart, and only while uncovered: a mod or a fix that reaches it covers it.
+        var notTheBots = uncovered.Select(t => RecordId.TryParse(t, out var id) ? NotTheBots.Of(id) : null).OfType<NotTheBots>().ToList();
+        var given = uncovered.Where(t => !RecordId.TryParse(t, out var id) || NotTheBots.Of(id) is null).ToList();
 
         Console.WriteLine($"Cover tree {queue.Root}, from {root.Save ?? "a new game"}, made {root.Created:yyyy-MM-dd HH:mm} UTC");
-        Console.WriteLine($"Targets: {root.Targets.Count}: {covered.Count} covered, {live.Count} live in jobs not done, {given.Count} given up");
+        Console.WriteLine($"Targets: {root.Targets.Count}: {covered.Count} covered, {live.Count} live in jobs not done, " +
+            $"{notTheBots.Count} not the bot's ({string.Join(", ", Enum.GetValues<NotTheBotsKind>().Select(k => $"{notTheBots.Count(n => n.Kind == k)} {KindName(k)}"))}), " +
+            $"{given.Count} the bot's given up");
         Console.WriteLine($"Flags seen set in all, targets or not: {ledger.Count}");
         Console.WriteLine($"Jobs: {string.Join(", ", Enum.GetValues<JobStatus>().Select(s => $"{jobs.Count(j => j.Status == s)} {s.ToString().ToLowerInvariant()}"))}");
         var branches = jobs.Where(j => j.Job.Parent is not null && !CarryPattern().IsMatch(j.Job.Id)).ToList();
@@ -575,19 +580,36 @@ internal static partial class CoverReport
         if (given.Count > 0)
         {
             Console.WriteLine();
-            Console.WriteLine("Given up, by reason:");
+            Console.WriteLine("The bot's given up, by reason:");
             foreach (var group in reasons.GroupBy(Kind).OrderByDescending(g => g.Count()))
                 Console.WriteLine($"  {group.Count(),5}  {group.Key}");
             Console.WriteLine();
-            Console.WriteLine("Uncovered targets given up:");
+            Console.WriteLine("The bot's uncovered targets given up:");
             var all = options.ContainsKey("--all");
             foreach (var (flag, why) in given.Zip(reasons).Take(all ? int.MaxValue : 40))
                 Console.WriteLine($"  {Label(plugins, flag)}: {why}");
             if (!all && given.Count > 40)
                 Console.WriteLine($"  … {given.Count - 40} more (--all)");
         }
+        if (notTheBots.Count > 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Uncovered, not the bot's:");
+            foreach (var n in notTheBots.OrderBy(n => n.Kind))
+                Console.WriteLine($"  {Label(plugins, n.Flag.ToString())}: {KindName(n.Kind)}: {n.Why}");
+        }
+        Console.WriteLine();
+        Console.WriteLine($"Covered {covered.Count} / not the bot's {notTheBots.Count} / the bot's {given.Count + live.Count}" +
+            (live.Count > 0 ? $" ({live.Count} still live in jobs)" : ""));
         return 0;
     }
+
+    private static string KindName(NotTheBotsKind kind) => kind switch
+    {
+        NotTheBotsKind.Overestimate => "the relaxation's overestimates",
+        NotTheBotsKind.Original => "1.0's",
+        _ => "set aside",
+    };
 
     [GeneratedRegex(@"\+\d+$")]
     private static partial Regex CarryPattern();

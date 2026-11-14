@@ -460,6 +460,8 @@ hbht playthrough cover party --root <dir> [--threads <n>]
 hbht playthrough cover status --root <dir> [--all]
 ```
 
+`status` counts the targets covered, live in jobs, given up as the bot's, and uncovered but settled as not the bot's ([the user's review](#the-users-review-of-whats-left)).
+
 **Workers.** `work --threads <n>` plays up to n jobs at once on threads of one process, sharing one quest model and world graph ([runs side by side](#the-run)); about 20 suits a 32-thread machine. A worker that finds nothing pending waits while another is still playing, since that job may make branches, and they all stop once none is. A job that throws is left claimed and the others go on; it's played again when a later `work` finds its process gone. `work` exits 0 once no job is pending, and 3 when its minutes or jobs ran out first.
 
 **Overnight**, `tools/cover.ps1 -Root <dir> [-Hours 10] [-Threads 20] [-Retries 2]` builds the CLI and starts `work` again whenever its process dies, until no job is left or the hours run out, appending every process's output to `<root>/work.log`. With 16 workers a process once died of an access violation inside `FlagModel.Possible`, which reads only shared arrays and its caller's own, as the runtime dispatched an exception thrown there; the same jobs played again cleanly. Nothing in the core is unsafe, so it's taken for the runtime or the machine, and the script is the answer to it. A retry or party round whose command fails (any exit but 0, jobs made, or 4, nothing to make) has its output in the log, and is tried once more after `work` has run again, which hands back any dead process's claims; failing twice it's skipped, and the script says so in capitals and in its last line.
@@ -740,6 +742,8 @@ So of the 2,353, play reaches 2,302, 13 are the relaxation's overestimates, 13 a
 | Gwernia castle's window | 3 | 82, 1523, 1515 |
 | Places | 1 | the Sand Worm at P26/2 (1479) |
 | The seasons | 2 | 2311, 2312 |
+
+**In the report** (stage 9). The 28 are a table in the core (`NotTheBots`), each with its kind (the relaxation's overestimate, 1.0's, or set aside) and the deciding facts in a line. They stay targets, so a mod or a fix that reaches one counts it covered; `cover status`, and so the end of `tools/cover.ps1`, reports an uncovered one apart, under "Uncovered, not the bot's", and ends with "Covered n / not the bot's n / the bot's n". A real-data test keeps each of them a target from a new game.
 
 ### What the planner doesn't model
 
