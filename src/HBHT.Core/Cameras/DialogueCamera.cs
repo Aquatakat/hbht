@@ -148,6 +148,9 @@ public sealed class DialogueCamera(DialoguePlanner planner, DialogueTuning? tuni
             yield return shot with { Kind = DialogueShotKind.Single };
         if (shot.Kind == DialogueShotKind.Punch)
             yield return shot with { Kind = DialogueShotKind.Single };
+        // A single that can't be clean is honestly an over-the-shoulder.
+        if (shot.Kind is DialogueShotKind.Single or DialogueShotKind.Punch)
+            yield return shot with { Kind = DialogueShotKind.OverShoulder };
         if (shot.Kind != DialogueShotKind.TwoShot)
             yield return DialogueShot.TwoShot;
         if (shot.Kind != DialogueShotKind.Wide)
@@ -166,18 +169,66 @@ public sealed class DialogueCamera(DialoguePlanner planner, DialogueTuning? tuni
     }
 
     /// <summary>Whether <paramref name="shot"/> fits on <paramref name="side"/> in one of its placings, and where.</summary>
-    public static bool TryPlace(DialogueScene scene, int side, DialogueShot shot, DialogueTuning t, out Shot at)
+    public static bool TryPlace(DialogueScene scene, int side, DialogueShot shot, DialogueTuning t, out Shot at) =>
+        TryPlace(scene, side, shot, t, out at, out _);
+
+    /// <summary>As <see cref="TryPlace(DialogueScene, int, DialogueShot, DialogueTuning, out Shot)"/>, and which of its placings, counted from 0.</summary>
+    public static bool TryPlace(DialogueScene scene, int side, DialogueShot shot, DialogueTuning t, out Shot at, out int placing)
     {
+        placing = 0;
         foreach (var (candidate, shows, foreground) in Placings(scene, side, shot, t))
         {
-            if (Fits(scene, side, candidate, shows, foreground, t))
+            if (Fits(scene, side, candidate, shows, foreground, t)
+                && (shot.Kind is not (DialogueShotKind.Single or DialogueShotKind.Punch) || ListenerCover(scene, candidate, Other(shot.Subject), t) <= t.SingleSliver))
             {
                 at = candidate;
                 return true;
             }
+            placing++;
         }
         at = default;
         return false;
+    }
+
+    /// <summary>
+    /// The share of the frame's width a talker's body covers in a shot: its head and chest (the two-shot's spheres) projected across the screen (the
+    /// whole lens, not its margins), their union clipped to the frame. 0 when it's out of the frame or behind the eye.
+    /// </summary>
+    public static float ListenerCover(DialogueScene scene, Shot shot, Talker who, DialogueTuning t)
+    {
+        var body = scene.Of(who);
+        var lens = new Lens(t.FieldOfView, 4f / 3, 1);
+        var spans = new List<(float From, float To)>();
+        foreach (var (at, r) in new[] { (body.Eyes, t.HeadRadius), (body.Eyes - Vector3.UnitY * t.ChestDrop, t.ChestRadius) })
+        {
+            var v = at - shot.Eye;
+            var depth = Vector3.Dot(v, shot.Forward);
+            if (depth <= 0.05f)
+                continue;
+            var y = Vector3.Dot(v, shot.Up) / (depth * lens.TanV);
+            if (MathF.Abs(y) - r / (depth * lens.TanV) > 1)
+                continue;
+            var x = Vector3.Dot(v, shot.Right) / (depth * lens.TanH);
+            var w = r / (depth * lens.TanH);
+            var (from, to) = (MathF.Max(x - w, -1), MathF.Min(x + w, 1));
+            if (to > from)
+                spans.Add((from, to));
+        }
+        if (spans.Count == 0)
+            return 0;
+        spans.Sort();
+        float covered = 0, start = spans[0].From, end = spans[0].To;
+        foreach (var (from, to) in spans.Skip(1))
+        {
+            if (from > end)
+            {
+                covered += end - start;
+                (start, end) = (from, to);
+            }
+            else
+                end = MathF.Max(end, to);
+        }
+        return (covered + end - start) / 2;
     }
 
     /// <summary>Where a shot may stand, best first: the talkers it must show, and the one whose shoulder is in front, if any.</summary>
@@ -218,10 +269,13 @@ public sealed class DialogueCamera(DialoguePlanner planner, DialogueTuning? tuni
                 var (x, l) = (scene.Of(shot.Subject), scene.Of(Other(shot.Subject)));
                 var toL = Way(x.Eyes, l.Eyes, n);
                 var aim = x.Eyes - up * t.AimDrop;
-                foreach (var (back, across) in new[] { (t.ShoulderBack, t.ShoulderSide), (t.ShoulderBack * 0.75f, t.ShoulderSide * 1.2f),
-                    (t.ShoulderBack * 0.5f, t.ShoulderSide * 1.4f) })
+                // The roomy placing, then the tight one, then nearer still, as rooms have space for.
+                foreach (var (back, across, rise) in new[] { (t.ShoulderBack, t.ShoulderSide, t.ShoulderRise),
+                    (t.TightShoulderBack, t.TightShoulderSide, t.TightShoulderRise),
+                    (t.TightShoulderBack * 0.75f, t.TightShoulderSide * 1.2f, t.TightShoulderRise),
+                    (t.TightShoulderBack * 0.5f, t.TightShoulderSide * 1.4f, t.TightShoulderRise) })
                 {
-                    var eye = l.Eyes + toL * back + n * across + up * t.ShoulderRise;
+                    var eye = l.Eyes + toL * back + n * across + up * rise;
                     yield return (Shot.Of(eye, aim), [shot.Subject], Other(shot.Subject));
                 }
                 break;
@@ -232,12 +286,20 @@ public sealed class DialogueCamera(DialoguePlanner planner, DialogueTuning? tuni
                 var toL = Way(x.Eyes, l.Eyes, n);
                 var aim = x.Eyes - up * t.AimDrop;
                 var near = shot.Kind == DialogueShotKind.Punch ? t.PunchDistance : t.SingleDistance;
-                foreach (var (angle, scale) in new[] { (t.SingleAngle, 1f), (t.SingleAngle + 15, 1f), (t.SingleAngle - 15, 1f), (t.SingleAngle, 0.85f) })
+                // Round toward across the line, so the listener leaves the frame; the view turned away from the listener by up to a
+                // share of the half-width, which sets the subject off-centre on the listener's side and the listener past the edge.
+                foreach (var angle in t.SingleAngles)
+                foreach (var scale in new[] { 1f, 0.85f })
+                foreach (var lead in t.SingleLeads)
                 {
                     var (s, c) = MathF.SinCos(Degrees.ToRadians(angle));
                     var way = Vector3.Normalize(toL * c + n * s);
                     var eye = x.Eyes + way * near * scale + up * t.SingleRise;
-                    yield return (Shot.Of(eye, aim), [shot.Subject], Talker.None);
+                    var straight = Shot.Of(eye, aim);
+                    // Turn the aim away from the listener's side of the frame.
+                    var listenerSide = MathF.Sign(Vector3.Dot(l.Eyes - eye, straight.Right));
+                    var turned = aim - straight.Right * listenerSide * lead * Vector3.Distance(eye, aim) * MathF.Tan(t.FieldOfView * MathF.PI / 360) * 4f / 3;
+                    yield return (Shot.Of(eye, turned), [shot.Subject], Talker.None);
                 }
                 break;
             }

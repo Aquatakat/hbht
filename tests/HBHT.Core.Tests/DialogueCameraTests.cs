@@ -199,6 +199,12 @@ public class DialogueFittingTests
             {
                 var (shown, at) = DialogueCamera.Fit(scene, side, shot, T);
                 Assert.Equal(shot, shown);
+                // A single is clean: the listener at most a sliver at the edge. Over the shoulder, the listener in a third or so.
+                if (shot.Subject != Talker.None)
+                {
+                    var cover = DialogueCamera.ListenerCover(scene, at!.Value, shot.Subject == Talker.Npc ? Talker.Player : Talker.Npc, T);
+                    Assert.True(shot.Kind == DialogueShotKind.OverShoulder ? cover is > 0.1f and < 0.4f : cover <= T.SingleSliver, $"{shot}: {cover}");
+                }
                 Assert.Equal(side, MathF.Sign(at!.Value.Eye.Z));
                 // A medium shot: the face is under a quarter of the frame's height.
                 var frame = 2 * Vector3.Distance(at.Value.Eye, at.Value.Aim) * MathF.Tan(T.FieldOfView * MathF.PI / 360);
@@ -212,6 +218,10 @@ public class DialogueFittingTests
     {
         Assert.Equal([new(DialogueShotKind.OverShoulder, Talker.Npc), new(DialogueShotKind.Single, Talker.Npc), DialogueShot.TwoShot, DialogueShot.Wide],
             DialogueCamera.Ladder(new DialogueShot(DialogueShotKind.OverShoulder, Talker.Npc)));
+        // A single that can't be clean is an over-the-shoulder; a wide falls to the two-shot.
+        Assert.Equal([new(DialogueShotKind.Punch, Talker.Npc), new(DialogueShotKind.Single, Talker.Npc), new(DialogueShotKind.OverShoulder, Talker.Npc),
+            DialogueShot.TwoShot, DialogueShot.Wide], DialogueCamera.Ladder(new DialogueShot(DialogueShotKind.Punch, Talker.Npc)));
+        Assert.Equal([DialogueShot.Wide, DialogueShot.TwoShot], DialogueCamera.Ladder(DialogueShot.Wide));
         // A corridor 1.8 wide: nothing fits beside the line.
         var (shown, at) = DialogueCamera.Fit(Scene(With(0.9f, -0.9f)), 1, new DialogueShot(DialogueShotKind.OverShoulder, Talker.Npc), T);
         Assert.Equal(DialogueShotKind.Original, shown.Kind);
