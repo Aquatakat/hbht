@@ -78,19 +78,24 @@ public static class PartyJobs
             // who leaves at Erromon and comes back at Overworld I13. Kept from the start, a job could never take the story past them.
             if (later is not null && members.Any(m => !later.Contains(m)))
                 members = [.. members.Where(m => !later.Contains(m))];
-            // Members the story's later joins can't send away, crowding the members kept, are kept out too.
-            if (crowds is not null && members.Count > 0)
-                outs = [.. outs, .. Crowding(look.Step, members, outs, crowds)];
-            float? joins = 0;
-            foreach (var m in members)
-                joins = look.Joins.TryGetValue(m, out var j) ? joins + j : null;
-            foreach (var m in outs.Where(look.Party.Contains))
-                joins = look.Leaves.TryGetValue(m, out var l) ? joins + l : null;
-            if (joins is not { } toJoin)
-                continue;
-            var start = new PartyStart(look.Step, members, far + toJoin) { Out = outs };
-            if (tried?.Contains(start.Key) != true)
-                options.Add(start);
+            // Members the story's later joins can't send away, crowding the members kept, are kept out too, as a start of its own ahead of
+            // the one without them: Becan's targets lie past Niesen's join in Terminor, and Keelin's, from saves where Rheda is in and
+            // can't leave before Shamsuk, before it.
+            var crowding = crowds is not null && members.Count > 0 ? Crowding(look.Step, members, outs, crowds) : [];
+            IReadOnlyList<RecordId>[] variants = crowding.Count > 0 ? [[.. outs, .. crowding], outs] : [outs];
+            foreach (var those in variants)
+            {
+                float? joins = 0;
+                foreach (var m in members)
+                    joins = look.Joins.TryGetValue(m, out var j) ? joins + j : null;
+                foreach (var m in those.Where(look.Party.Contains))
+                    joins = look.Leaves.TryGetValue(m, out var l) ? joins + l : null;
+                if (joins is not { } toJoin)
+                    continue;
+                var start = new PartyStart(look.Step, members, far + toJoin) { Out = those };
+                if (tried?.Contains(start.Key) != true)
+                    options.Add(start);
+            }
         }
         var ordered = new List<PartyStart>();
         while (options.Count > 0)

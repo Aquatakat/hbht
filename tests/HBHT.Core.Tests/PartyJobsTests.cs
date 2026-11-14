@@ -133,9 +133,11 @@ public sealed class PartyJobsTests
         Assert.Empty(PartyJobs.Crowding(3, [Becan], [Rheda], crowds));
         Assert.Empty(PartyJobs.Crowding(40, [Becan], [], crowds));
 
-        // A start for Becan from step 3 keeps Rheda out.
+        // A start for Becan from step 3 keeps Rheda out, ahead of the one that doesn't.
         var starts = PartyJobs.Starts(Ids.Flag(10), [Look(3, 10, [Becan], (Becan, 5))], crowds: crowds);
-        Assert.Equal([Rheda], Assert.Single(starts).Out);
+        Assert.Equal(2, starts.Count);
+        Assert.Equal([Rheda], starts[0].Out);
+        Assert.Empty(starts[1].Out);
     }
 
     [Fact]
