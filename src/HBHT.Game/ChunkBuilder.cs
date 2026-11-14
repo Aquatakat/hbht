@@ -39,19 +39,37 @@ public sealed class ChunkBuilder : IDisposable
         }
     }
 
+    /// <summary>Whether it's stopping, which a long job checks between its steps to stop early.</summary>
+    public bool Stopping => _stopping;
+
+    private volatile bool _stopping;
+
     /// <summary>
-    /// Stops once the job under way is done, leaving the rest. The job may be waiting on the renderer, which serves another
-    /// thread's calls on the main thread between frames, so the main thread serves them while it waits (a few seconds at most).
+    /// Stops once the job under way is done, leaving the rest, and waits for it however long it takes: Godot frees everything
+    /// once the tree has gone, and a job still running then used what was freed, which crashed the game as it quit
+    /// (runtime.md#loading-chunks). The job waits on the main thread for each call into the renderer that returns something,
+    /// which the main thread serves between frames, so here it serves them as fast as they come, without sleeping: a sleep
+    /// of Windows' 15.6 ms tick a call made a scenery build's thousand or so calls take 16 s. The thread works below the
+    /// main thread's priority, and is raised above it to finish, as a busy machine can leave it waiting for its turn.
     /// </summary>
     public void Dispose()
     {
+        _stopping = true;
         _builds.CompleteAdding();
         _reads.CompleteAdding();
         while (_builds.TryTake(out _))
         {
         }
         DropReads();
-        for (var waited = 0; waited < 500 && !_thread.Join(10); waited++)
+        try
+        {
+            _thread.Priority = ThreadPriority.AboveNormal;
+        }
+        catch (ThreadStateException)
+        {
+            // It has already stopped.
+        }
+        while (!_thread.Join(0))
             RenderingServer.ForceSync();
     }
 

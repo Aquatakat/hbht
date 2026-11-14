@@ -336,6 +336,7 @@ public partial class ChunkStreamerView : Node3D
         var plugins = _plugins!;
         var models = _models!;
         var chunks = Chunks;
+        var builder = _builder;
         var index = ChunkIndex.For(plugins);
         var reach = ring ? _ring!.Reach + 1 : 2;
         for (var r = centre.Row - reach; r <= centre.Row + reach; r++)
@@ -353,11 +354,12 @@ public partial class ChunkStreamerView : Node3D
                         return;
                     if (inner)
                         chunks.Prepare(chunk);
-                    foreach (var asset in ChunkScenery.Assets(plugins, chunk))
+                    // Each asset a step, as the game quitting waits for the job (ChunkBuilder.Dispose).
+                    foreach (var asset in ChunkScenery.Assets(plugins, chunk).TakeWhile(_ => !builder.Stopping))
                         models.Warm(asset);
                     if (inner)
                     {
-                        foreach (var party in chunk.Objects.OfType<PartyObject>())
+                        foreach (var party in chunk.Objects.OfType<PartyObject>().TakeWhile(_ => !builder.Stopping))
                         {
                             if (plugins.TryGet<DbRecord>(party.Entity)?.Body is { } look)
                                 models.Warm(look.Actor);
