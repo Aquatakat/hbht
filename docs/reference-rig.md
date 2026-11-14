@@ -126,12 +126,11 @@ Entries 1 and 4–13 are null in the function table.
 
 Save states are captured by the user playing, not scripted. They live in `roms/` and are named `<rom basename> - <label>.bsN`, made with ares v148. What exists now:
 
-- **1.0's "Before final encounter"** (slot A's position, chunk M06). Load it by label: `tools/ares.ps1 debug -Checkpoint "Before final encounter"`.
+- **1.0's "Before final encounter"** (slot A's position, chunk M06). Load it by label: `tools/ares.ps1 debug -Checkpoint "Before final encounter"`, which copies the named state to the ROM's `.bs9` slot and passes `--save-state 9`. Slot 9 is scratch, and the named files are never written. The ares slot convention is `<rom basename>.bsN`.
 - **The story pak**, `<1.0 rom basename> - story saves.pak`, the four story saves (A before the final encounter, B before Shamsuk's Tower in P17, C before Rooughah in B01, D in Terminor at G01), which the playthrough's tests start from (`StorySaves`).
+- **The port's saves of the checkpoints**, in `roms/checkpoints/`: what `hbht save from <checkpoint>` made of them (save format 1), the lost ones among them: the four story checkpoints and the debug build's (`AidynDebug.json`), `combat01.json` ("Combat 01, before"), and the user's own runtime saves (`Save N.json` with their screenshots, and named ones such as `every-spell.json` or `dire-wolves.json`). They hold what a save holds, not the RAM, so they start the runtime or a test at a place but can't stand in for a checkpoint in a test that reads 1.0's memory. The rat fight's party in `combat01.json` is slot A's exactly, sheets, gear and gold, which is why `TestBattles` builds it from slot A.
 
 On 2026-11-13 a worktree cleanup emptied `roms/` of the rest, which are gone: the other three story checkpoints for 1.0 and all four for the debug build, the 14 "Combat 01 … 14" states of one battle against ten rats (the checkpoints combat was read and checked from), and "Wanderers around H13" (a new game's Alaron standing in Overworld H13 at noon with 27 wanderers loaded, [wanderers](systems/wanderers.md#bodies-as-their-chunk-loads)). They can only come back by the user playing and capturing them again, so read the docs' findings from them as settled rather than checkable until then. The findings stand in [combat](systems/combat.md) and the rest.
-
-This copies the named state to the ROM's `.bs9` slot and passes `--save-state 9`. Slot 9 is scratch, and the named files are never written. The ares slot convention is `<rom basename>.bsN`.
 
 ### Emulator captures
 
