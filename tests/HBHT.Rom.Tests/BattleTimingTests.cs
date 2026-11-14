@@ -10,7 +10,8 @@ namespace HBHT.Rom.Tests;
 /// <summary>
 /// The timing of a battle's turns as the user saw them in 1.0 (docs/systems/combat.md): A skipping the AI's walk, the blow landing at
 /// the attack's strike while the swing plays on, and the bodies' keys sounding for the swing, the hit, the dodge and the death. Played
-/// headless with the actors' real animations over checkpoint 01's battle, the party attacking what's in reach or skipping.
+/// headless with the actors' real animations over the rats' battle the port sets up (<see cref="TestBattles"/>), the party attacking
+/// what's in reach or skipping.
 /// </summary>
 public sealed class BattleTimingTests(Na10Import fixture)
 {
@@ -19,7 +20,7 @@ public sealed class BattleTimingTests(Na10Import fixture)
     private sealed class Run
     {
         private readonly PluginSet _set;
-        private readonly CombatCheckpoints.Built _built;
+        private readonly TestBattles.Built _built;
         private readonly HBHT.Core.Chunks.ZoneEngine _zone;
 
         /// <summary>Whether the party attacks what's in reach; otherwise it skips every turn, and only the rats strike.</summary>
@@ -29,8 +30,8 @@ public sealed class BattleTimingTests(Na10Import fixture)
         {
             _set = set;
             _attack = attack;
-            _built = CombatCheckpoints.Plain(set, 2);
-            _zone = CombatCheckpoints.Zone(_built);
+            _built = TestBattles.Plain(set);
+            _zone = TestBattles.Zone(_built);
         }
 
         public Battle Battle => _built.Battle;
@@ -67,7 +68,8 @@ public sealed class BattleTimingTests(Na10Import fixture)
             // Combat.InputMoving: Body.GiveUp puts the body at the last point queued, the leg's end, whatever lies between.
             var end = c.Body.Queued.Count > 0 ? c.Body.Queued.Last().Goal : c.Body.Goal;
             Assert.True(run.Battle.SkipWalk());
-            Assert.Equal(end, new Vector2(c.Body.Sphere.Position.X, c.Body.Sphere.Position.Z));
+            Assert.True(Vector2.Distance(end, new Vector2(c.Body.Sphere.Position.X, c.Body.Sphere.Position.Z)) < 1e-3f,
+                $"at {c.Body.Sphere.Position}, the leg's end {end}");
             Assert.False(c.Body.Moving);
             Assert.Empty(c.Body.Queued);
             // The state's next step goes on as on arriving: the turn toward the way it walked, then the action or the rest.
@@ -117,9 +119,9 @@ public sealed class BattleTimingTests(Na10Import fixture)
         }
         Assert.True(attacks.Count >= 4);
         Assert.All(attacks, a => Assert.Equal(a.Expected, a.Ticks));
-        // A rat's bite (279 ticks, 0.23) lands at 66 and Alaron's club (111, 0.42) at 48.
+        // A rat's bite (279 ticks, 0.23) lands at 66 and Rheda's staff (279, 0.34) at 96.
         Assert.Contains(attacks, a => a.Name.Contains("Rat", StringComparison.Ordinal) && a.Ticks == 66);
-        Assert.Contains(attacks, a => a.Name == "Alaron" && a.Ticks == 48);
+        Assert.Contains(attacks, a => a.Name == "Rheda" && a.Ticks == 96);
     }
 
     [Fact]

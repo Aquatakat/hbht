@@ -3,6 +3,7 @@ using HBHT.Core;
 using HBHT.Core.Chunks;
 using HBHT.Core.Combat;
 using HBHT.Core.Physics;
+using HBHT.Core.Ui;
 using HBHT.Plugins;
 using HBHT.Plugins.Records;
 
@@ -40,6 +41,47 @@ internal static class TestBattles
     }
 
     public static ZoneEngine Zone(Built built) => new(built.Game, built.Streamer) { Camera = built.Battle.Camera };
+
+    /// <summary>
+    /// Plays the battle on with the port's own stepping, the party skipping every turn <paramref name="take"/> doesn't want, until one it
+    /// does: a member's turn, faded in, with no line held. The member.
+    /// </summary>
+    public static Combatant Turn(Built built, ZoneEngine zone, Func<Combatant, bool> take)
+    {
+        var battle = built.Battle;
+        for (var i = 0; i < 200_000 && !battle.Over; i++)
+        {
+            if (battle.Current is { Controlled: false } c && battle.State == CombatState.Turn && !battle.Fade.Fading && battle.Lines.Hold is null)
+            {
+                if (take(c))
+                    return c;
+                Assert.True(battle.Skip());
+            }
+            battle.Tick(zone);
+        }
+        throw new InvalidOperationException("No turn came that was wanted.");
+    }
+
+    /// <summary>As <see cref="Turn"/>, until <paramref name="name"/>'s turn, and one <paramref name="when"/> wants if given.</summary>
+    public static Combatant TurnOf(Built built, ZoneEngine zone, string name, Func<Combatant, bool>? when = null) =>
+        Turn(built, zone, c => c.Sheet.Name == name && (when?.Invoke(c) ?? true));
+
+    /// <summary>Whether an enemy of <paramref name="c"/>'s on the field is within its reach, a blow's (<see cref="Combatant.IsWithinReach"/>).</summary>
+    public static bool EnemyInReach(Built built, Combatant c) =>
+        built.Battle.Combatants.Any(o => o.Hostile != c.Hostile && !o.Sheet.IsDead && !o.Gone && c.IsWithinReach(built.Battle, o));
+
+    /// <summary>Opens a held menu, the items' (C-up) or the spells' (C-down), moves to the row that <paramref name="pick"/> finds, and lets go.</summary>
+    public static void Choose(Battle battle, bool items, Func<CombatMenuRow, bool> pick)
+    {
+        Assert.True(battle.OpenMenu(items));
+        Assert.Equal(items ? CombatState.MenuItems : CombatState.MenuSpells, battle.State);
+        var menu = battle.Menu!;
+        var row = menu.Rows.Select((r, i) => (r, i)).First(p => pick(p.r)).i;
+        for (var i = 0; i < row; i++)
+            battle.MoveMenu(1);
+        Assert.True(battle.CloseMenu(items));
+        Assert.Null(battle.Menu);
+    }
 
     /// <summary>Sets a property with a private setter.</summary>
     public static void Poke(object target, string property, object? value) =>

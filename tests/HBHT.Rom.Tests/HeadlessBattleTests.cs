@@ -2,12 +2,12 @@ using System.Numerics;
 using HBHT.Core.Combat;
 using HBHT.Plugins;
 using HBHT.Plugins.Records;
-using static HBHT.Rom.Tests.CombatCheckpoints;
+using static HBHT.Rom.Tests.TestBattles;
 
 namespace HBHT.Rom.Tests;
 
 /// <summary>
-/// A battle stepped from a checkpoint with no view, as Start Early's stage 1 has it (Start Early): the core's own actors for the
+/// A battle stepped with no view (<see cref="TestBattles"/>), as Start Early's stage 1 has it (Start Early): the core's own actors for the
 /// combatants and the spells' visuals, so a missile leaves the hand's locator and a spell lands at its visual's strike, as in the
 /// runtime, where headless they left the body's middle and landed at once.
 /// </summary>
@@ -18,7 +18,7 @@ public sealed class HeadlessBattleTests(Na10Import fixture)
     [Fact]
     public void EveryCombatantStepsAnActorOfItsOwnThatTheCoreMade()
     {
-        var built = At(Set, 5);
+        var built = Plain(Set);
         var zone = Zone(built);
         Assert.All(built.Battle.Combatants, c =>
         {
@@ -37,20 +37,17 @@ public sealed class HeadlessBattleTests(Na10Import fixture)
     [Fact]
     public void AlaronsFlaskLeavesHisHandsLocatorAsTheCorePosesItAtTheThrowsStrike()
     {
-        // Checkpoint 05, Alaron's turn: a Fire flask at rat 4 (Combat.StartCastCamera: from the hand's locator, +0x88).
-        var built = At(Set, 5);
+        // Alaron's turn: a Fire flask at a rat (Combat.StartCastCamera: from the hand's locator, +0x88).
+        var built = Plain(Set);
+        var zone = Zone(built);
         var battle = built.Battle;
-        var alaron = built[0];
-        Poke(battle, nameof(Battle.State), CombatState.Turn);
-        for (var i = 0; i < 120 && battle.Fade.Fading; i++)
-            battle.Fade.Step();
+        var alaron = TurnOf(built, zone, "Alaron");
         built.Game.Party.Inventory.Add(PotionId(BasePotion.FireFlask), 2);
         alaron.HoldPotion(battle.Game.Party.Inventory.Catalog[PotionId(BasePotion.FireFlask)], battle);
         Assert.True(battle.Attack());
         Assert.True(battle.Confirm());
         built.Game.Random.Combat.Seed = 1;
 
-        var zone = Zone(built);
         MissileFlight? flight = null;
         var ticks = 0;
         for (; ticks < 2000 && flight is null; ticks++)
@@ -78,19 +75,17 @@ public sealed class HeadlessBattleTests(Na10Import fixture)
     [Fact]
     public void RhedasEnduranceLandsTheTickAfterHerActorReachesItsStrike()
     {
-        // Checkpoint 07, Rheda's Endurance at herself: her caster's actor (0x1C8E) times the strike, the core's own, played headless as
-        // the runtime plays it; the battle lands the cast on the tick after the actor reaches it (Battle.SwingEnded reads it before the
+        // Rheda's Endurance, chosen from C-down in her turn: her caster's actor (0x1C8E) times the strike, the core's own, played headless
+        // as the runtime plays it; the battle lands the cast on the tick after the actor reaches it (Battle.SwingEnded reads it before the
         // visuals step), once SwingTicks have passed.
-        var built = At(Set, 7);
-        built.Game.Random.Combat.Seed = built.Cp.ReadWord(RandomState);
+        var built = Plain(Set);
+        var zone = Zone(built);
         var battle = built.Battle;
-        var rheda = built[1];
-        rheda.Spell = new SpellChoice(SpellSourceKind.Known, rheda.Sheet.Spells.Select((s, i) => (s, i)).Single(p => p.s.Spell.Name == "Endurance").i);
-        Poke(battle, nameof(Battle.State), CombatState.TargetSpell);
-        battle.TargetsB.BeginSpell(battle, rheda);
+        var rheda = TurnOf(built, zone, "Rheda");
+        Choose(battle, false, r => r.Text == "Endurance");
+        Assert.Equal(CombatState.TargetSpell, battle.State);
         Assert.True(battle.Confirm());
 
-        var zone = Zone(built);
         var strike = built.Game.Rules.Magic!.Spell(RecordId.Hex(RecordTypes.Spell, 0x0310))!.Strike;
         SpellFxVisual? caster = null;
         int started = -1, reached = -1, struck = -1, landed = -1;

@@ -4,13 +4,13 @@ using HBHT.Core.Items;
 using HBHT.Core.Ui;
 using HBHT.Plugins;
 
-using static HBHT.Rom.Tests.CombatCheckpoints;
+using static HBHT.Rom.Tests.TestBattles;
 
 namespace HBHT.Rom.Tests;
 
 /// <summary>
 /// Combat's buttons as <see cref="Battle.Press"/> dispatches them (<c>Combat.Controls</c>), headless, in the rats' battle the port
-/// sets up from checkpoint 01: A through the attack, its confirmation and the AI's walk, Start's pause, the held menus and B.
+/// sets up (<see cref="TestBattles"/>): A through the attack, its confirmation and the AI's walk, Start's pause, the held menus and B.
 /// </summary>
 public sealed class BattlePressTests(Na10Import fixture)
 {
@@ -42,7 +42,7 @@ public sealed class BattlePressTests(Na10Import fixture)
 
     private Run Start()
     {
-        var built = Plain(Set, 1);
+        var built = Plain(Set);
         return new Run(built, Zone(built));
     }
 
