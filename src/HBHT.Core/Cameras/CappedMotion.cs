@@ -177,8 +177,9 @@ public sealed class CappedMotion
     /// glides (<see cref="ShotGlide"/>), so it's followed at its own speed, which needn't be guessed from how it moved, and never stops dead.
     /// </summary>
     /// <param name="lands">
-    /// Where the goal is gliding to, if that's known: the camera goes toward it no faster than its caps can stop it there
-    /// (<c>√(2a|e|)</c>), whatever the goal's own speed. A glide slows as hard as its springs make it, which may be harder than the caps
+    /// Where the goal is gliding to, if that's known (<see cref="ShotGlide.Landing"/>): the camera goes toward it no faster than its caps
+    /// can stop it there (<c>√(2a|e|)</c>), whatever the goal's own speed; from ahead of the goal, no faster than they could stop it in the
+    /// goal's own way left, so a camera riding a little ahead isn't braked before the goal slows. A glide slows as hard as its springs make it, which may be harder than the caps
     /// allow, and a camera that had fallen behind one and was catching up went past where it landed and came back.
     /// </param>
     public void Step(Shot goal, (Vector3 Aim, float Yaw, float Pitch, float Distance) speeds, Shot? lands = null)
@@ -218,9 +219,10 @@ public sealed class CappedMotion
     {
         var e = goal - x;
         var want = goalSpeed + MathF.Sign(e) * MathF.Min(MathF.Sqrt(2 * most * MathF.Abs(e)), settle * MathF.Abs(e));
-        // Toward where the goal lands, no faster than stops there.
+        // Toward where the goal lands, no faster than stops there, or than the goal itself has room to: a camera a little ahead of its
+        // goal isn't braked on the landing ahead of the goal's own slowing onto it.
         if (lands is { } rest && want * (rest - x) > 0)
-            want = MathF.Sign(want) * MathF.Min(MathF.Abs(want), Stops(MathF.Abs(rest - x), most));
+            want = MathF.Sign(want) * MathF.Min(MathF.Abs(want), Stops(MathF.Max(MathF.Abs(rest - x), MathF.Abs(rest - goal)), most));
         v += Math.Clamp(want - v, -most * Tick, most * Tick);
         x += v * Tick;
     }
@@ -240,12 +242,13 @@ public sealed class CappedMotion
         var e = goal - x;
         var length = e.Length();
         var want = goalSpeed + (length > 1e-6f ? e / length * MathF.Min(MathF.Sqrt(2 * most * length), settle * length) : Vector3.Zero);
-        // Toward where the goal lands, no faster than stops there: only its speed that way is held back.
+        // Toward where the goal lands, no faster than stops there, or than the goal itself has room to: only its speed that way is held
+        // back.
         if (lands is { } rest && (rest - x).Length() is > 1e-6f and var room)
         {
             var way = (rest - x) / room;
             var along = Vector3.Dot(want, way);
-            var fastest = Stops(room, most);
+            var fastest = Stops(MathF.Max(room, (rest - goal).Length()), most);
             if (along > fastest)
                 want -= way * (along - fastest);
         }

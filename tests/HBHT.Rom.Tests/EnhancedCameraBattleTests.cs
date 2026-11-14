@@ -910,7 +910,8 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
         // Walking at four bandits, then round them: the goal glides (ShotGlide) and the turn carried is smoothed (TurnSmoothing), so how
         // fast the shown view's turn and its distance change changes smoothly, a new framing, target or pack member bending its course
         // rather than kicking it. Before both, the turn's acceleration jumped by 13,600°/s³ at the 99th percentile, the distance's by
-        // 810 units/s³.
+        // 810 units/s³. Braked on the shot found as the glide went a little past it, rather than on where the glide lands
+        // (ShotGlide.Landing), the distance's came to 1,500.
         var bandit = RecordId.Hex(RecordTypes.Entity, 0x025E);
         var (turnJerk, zoomJerk) = (new List<float>(), new List<float>());
         (Combatant Who, int Cuts, float Yaw, float Distance, float? YawSpeed, float? ZoomSpeed, float? YawAccel, float? ZoomAccel)? last = null;
@@ -946,9 +947,7 @@ public sealed class EnhancedCameraBattleTests(Na10Import fixture)
             $"{turnJerk.Count} ticks walking: at the 99th percentile the turn's acceleration changing by {turn:F0}°/s³, the distance's by {zoom:F0} units/s³"));
         Assert.True(turnJerk.Count > 2000, $"{turnJerk.Count} ticks");
         Assert.True(turn < 6000, $"the turn's {turn}");
-        // Under 400 on the bandits' battle of another seed; this one comes to about 1,500, where the goal's distance steps by a tenth
-        // or two a tick and back as the framing settles (Sholeh's walk at the pack about tick 3,360), which the glide doesn't smooth away.
-        Assert.True(zoom < 2000, $"the distance's {zoom}");
+        Assert.True(zoom < 400, $"the distance's {zoom}");
     }
 
     [Fact]

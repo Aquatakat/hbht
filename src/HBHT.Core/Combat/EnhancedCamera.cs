@@ -600,8 +600,9 @@ public sealed class EnhancedCamera
                 _glide.Reset(_motion.Current, (_motion.AimSpeed, yawSpeed, pitchSpeed, zoomSpeed), _motion.Rest, goal);
             }
             _glide.Step(goal);
-            // Ridden no faster than stops on the shot found, where the glide lands: a glide across the field slows harder than the caps do.
-            _motion.Step(_glide.Current, _glide.Speeds, goal);
+            // Ridden no faster than stops where the glide lands: a glide across the field slows harder than the caps do. Where it lands,
+            // not the shot found, which a glide following a shot that moves goes a little past as it slows.
+            _motion.Step(_glide.Current, _glide.Speeds, _glide.Landing);
         }
         else
         {
