@@ -21,6 +21,8 @@ public sealed class NotTheBotsTests
         Assert.Null(NotTheBots.Of(Ids.Flag(468)));
         Assert.Equal(21, NotTheBots.All.Count(n => n.Kind == NotTheBotsKind.Overestimate));
         Assert.Equal(15, NotTheBots.All.Count(n => n.Kind == NotTheBotsKind.Original));
-        Assert.Equal(2, NotTheBots.All.Count(n => n.Kind == NotTheBotsKind.SetAside));
+        Assert.Equal(6, NotTheBots.All.Count(n => n.Kind == NotTheBotsKind.SetAside));
+        // Shamsuk's Tower's trap chests are the bot's limit, filed aside by the roadmap review's decision.
+        Assert.Equal(NotTheBotsKind.SetAside, NotTheBots.Of(Ids.Flag(3224))!.Kind);
     }
 }

@@ -36,6 +36,15 @@ public sealed class Levelling(IMenuPolicy? inner = null, IReadOnlyList<Build>? b
     /// <summary>The gold kept back from training, for what else the party needs.</summary>
     public uint GoldReserve { get; set; }
 
+    /// <summary>
+    /// A pick held back for now, by the member and the pick: the run's (<see cref="Playthrough"/> holds a Mechanic raise while it still
+    /// means to let a trap go off that the raise could make the party always disarm).
+    /// </summary>
+    public Func<Character, BuildPick, bool>? Hold { get; set; }
+
+    /// <summary>Whether a member's pick is held back (<see cref="Hold"/>).</summary>
+    public bool Holds(Character member, BuildPick pick) => Hold?.Invoke(member, pick) == true;
+
     /// <summary>Everything bought, in order.</summary>
     public IReadOnlyList<Purchase> Bought => _bought;
 
@@ -177,7 +186,7 @@ public sealed class Levelling(IMenuPolicy? inner = null, IReadOnlyList<Build>? b
         {
             if (party.Slots[slot] is not { IsDead: false } member)
                 continue;
-            if (HBHT.Core.Playthrough.Builds.Next(member, Builds, trainer, gold, p => _refused.Contains((member.Entity, Name(p)))) is { } pick)
+            if (HBHT.Core.Playthrough.Builds.Next(member, Builds, trainer, gold, p => _refused.Contains((member.Entity, Name(p))) || Holds(member, p)) is { } pick)
                 return (slot, pick, HBHT.Core.Playthrough.Builds.For(member, Builds)!.Name);
         }
         return null;

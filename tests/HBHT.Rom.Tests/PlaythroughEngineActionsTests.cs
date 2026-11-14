@@ -189,6 +189,69 @@ public sealed class PlaythroughEngineActionsTests(Na10Import fixture, ITestOutpu
     }
 
     [Fact]
+    public void TheTriesAtATrapSpendNoneOfThePilotsReplans()
+    {
+        // Each try backs out of the trap's menu and saves and loads, and the route is asked for again; stage 10's jobs at 2076's chest
+        // failed stuck after 40 tries for the replans those spent. With one replan allowed, the tries still go on until the trap goes off.
+        var (_, graph) = Built;
+        var place = Ids.MapObject(0, "I12", 41);
+        var chest = Assert.IsType<ContainerObject>(Data.Objects[place]);
+        var host = Near(place, g => Assert.True(g.AddMember(Ids.Entity(0x0243))), off: 1.5f);
+        var step = new PilotStep(place, UseKind.Press, Expect: [ExpectedEffect.FlagSet(chest.Exploded!.Value)]) { Disarms = false };
+
+        var outcome = new Pilot(graph, PilotOptions.Default with { MaxReplans = 1 }).Run(host, step, 60 * 60 * 5);
+        output.WriteLine($"{outcome.Failure} {outcome.Reason}; tried {outcome.TrapTries + 1} times, {outcome.Replans} replans");
+
+        Assert.True(outcome.Done, outcome.Reason);
+        Assert.InRange(outcome.TrapTries, 2, Pilot.MostTrapTries);
+        Assert.True(host.Game.Flags.IsSet(chest.Exploded!.Value));
+    }
+
+    [Fact]
+    public void MechanicWaitsWhileAJobStillMeansToLetATrapGoOffThePartyCanLetGoOff()
+    {
+        // Brenna as she joins (Mechanic 1) disarms I12/41's trap of 2 some of the time. While a cover job means to let it go off, a
+        // Mechanic raise waits, since the Rogue's tiers would take her to where she always disarms it (stage 10's 2076); other picks don't.
+        var place = Ids.MapObject(0, "I12", 41);
+        var chest = Assert.IsType<ContainerObject>(Data.Objects[place]);
+        var host = Near(place, g => Assert.True(g.AddMember(Ids.Entity(0x0243))), off: 1.5f);
+        var run = Run(host, new CoverGoal([chest.Exploded!.Value]), RunOptions.Default with { WriteSaves = false });
+        run.StartCover((CoverGoal)run.Goal);
+        var brenna = host.Game.Party.Members.Single(m => m.Entity == Ids.Entity(0x0243));
+        BuildPick Raise(Core.Characters.Skill skill) => new(null!, null, (Core.Characters.SkillId)skill, null, default);
+
+        Assert.True(run.HoldsMechanic(brenna, Raise(Core.Characters.Skill.Mechanic)));
+        Assert.False(run.HoldsMechanic(brenna, Raise(Core.Characters.Skill.Thief)));
+        // A run whose own goal is the trap's flag holds it too.
+        Assert.True(Run(host, new FlagGoal(chest.Exploded!.Value)).HoldsMechanic(brenna, Raise(Core.Characters.Skill.Mechanic)));
+        // Once the target's covered, or the party always disarms the trap, nothing waits.
+        brenna.Skills.Train(Core.Characters.Skill.Mechanic, 9);
+        Assert.Equal(1, CodeGates.DisarmChance(host.Game.Party, chest.TrapLevel));
+        Assert.False(run.HoldsMechanic(brenna, Raise(Core.Characters.Skill.Mechanic)));
+    }
+
+    [Fact]
+    public void APartyHurtWhereItCantCampGoesOutToCamp()
+    {
+        // A house in map set 6 (E07), where no ground lets a party camp, whose door (E07/0) leads out to Overworld L08, where it can. Damage
+        // comes off Stamina first, so a battle can leave a thief with none to pick a lock, as stage 10's left Brenna in Maxxen, where no
+        // chunk lets a party camp; a party hurt so walks out through the nearest door whose far side lets it camp, and camps.
+        var host = Near(Ids.MapObject(6, "E07", 0));
+        var alaron = host.Game.Party.Members.Single();
+        alaron.Stats.ChangeCurrent(Core.Characters.Stat.Stamina, -alaron.Stats.Modified(Core.Characters.Stat.Stamina));
+        var run = Run(host, new FlagGoal(Ids.Flag(1110)), RunOptions.Default with { WriteSaves = false });
+        Assert.True(run.Resting.Hurt(host.Game.Party));
+
+        run.GoRest();
+        output.WriteLine($"camps {run.Resting.Camps}, Alaron {alaron.Hp}/{alaron.MaxHp}, Stamina {alaron.Stats.Modified(Core.Characters.Stat.Stamina)}");
+
+        Assert.Equal(1, run.RestTrips);
+        Assert.InRange(run.Resting.Camps, 1, 4);
+        Assert.True(alaron.Stats.Modified(Core.Characters.Stat.Stamina) > 0);
+        Assert.Equal(RecordId.Decimal(RecordTypes.MapSet, 0), host.Session.Trek.Chunks.MapSet.Id);
+    }
+
+    [Fact]
     public void SavingAndLoadingWhereThePlayerStandsMovesTheWorldsRandomStream()
     {
         // The chunks load again and he's set down afresh, each drawing on it: the roll a trap's menu holds next isn't the one before.

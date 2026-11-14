@@ -143,7 +143,7 @@ public sealed partial class Playthrough
         _planner = new QuestPlanner(model) { Triggers = Triggers };
         Battles = new BattlePilot();
         Outfitting = new Outfitting();
-        Levelling = new Levelling(Outfitting) { GoldReserve = Options.GoldReserve };
+        Levelling = new Levelling(Outfitting) { GoldReserve = Options.GoldReserve, Hold = HoldsMechanic };
         host.Battles = Battles;
         Resting = new Resting(Levelling);
         host.Menus = Resting;
@@ -255,6 +255,7 @@ public sealed partial class Playthrough
                     continue;
                 }
                 noControl = 0;
+                GoRest();
 
                 var state = Now();
                 var reach = MakeReach(state);
@@ -882,7 +883,7 @@ public sealed partial class Playthrough
             // One with no sheet teaches from the one it trains as; with neither, as Fyrsil (0x140D at Overworld Q27/9), it's no trainer.
             if (Model.Plugins.TryGet<EntityRecord>(entity) is not { } record || Trainer.Of(record, Game.Rules, Model.Plugins) is not { } trainer)
                 continue;
-            if (!party.Members.Any(m => Builds.Next(m, Levelling.Builds, trainer, gold) is not null))
+            if (!party.Members.Any(m => Builds.Next(m, Levelling.Builds, trainer, gold, p => Levelling.Holds(m, p)) is not null))
                 continue;
             if (Graph.Route(Game, here, id) is not { Route: { } route } || route.Length > Options.TrainerReach * 1.5f)
                 continue;
@@ -960,6 +961,52 @@ public sealed partial class Playthrough
 
     /// <summary>How many times a trainer was visited.</summary>
     public int Trainings { get; private set; }
+
+    /// <summary>How many times the party went out to camp from ground it can't camp on (<see cref="GoRest"/>).</summary>
+    public int RestTrips { get; private set; }
+
+    /// <summary>The step a rest trip was last tried at: one a step at most.</summary>
+    private int _restTripAt = -1;
+
+    /// <summary>
+    /// The party hurt (<see cref="Resting.Hurt"/>) where the ground won't let it camp is walked out through the nearest door of the map set
+    /// it's in whose far side lets it and has a way back to the door, and camps there, until it isn't hurt (at most <see cref="MostRestCamps"/> camps), as a player whose
+    /// party is worn takes it out to rest. The pilot camps by the way only on ground that lets it, so a party worn in Maxxen, where no
+    /// chunk does, went on worn: damage comes off Stamina first, and the thief at 0 couldn't pick a lock again (stage 10's 1110).
+    /// </summary>
+    internal void GoRest()
+    {
+        if (_restTripAt == _step || !Host.PlayerHasControl || !Resting.Hurt(Game.Party) || Here() is not { } here
+            || Host.Session.Trek is not { } trek || Camps(trek.Chunks.ChunkAt(trek.Player.Sphere.Position)?.Terrain))
+            return;
+        _restTripAt = _step;
+        // Only a door with a way back to it from its far side: a party isn't rested out of where it was going, as the tower's way out.
+        var best = Graph.Portals.Where(p => p.FromSet == here.MapSet && ArrivesWhereCamps(p))
+            .Select(p => (Portal: p, Route: Graph.Route(Game, here, p.Id).Route)).Where(p => p.Route is not null)
+            .OrderBy(p => p.Route!.Length).Select(p => p.Portal)
+            .FirstOrDefault(p => Graph.Route(Game, new Place(p.ToSet, p.Arrives), p.Id).Found);
+        if (best is null)
+            return;
+        var walk = new Pilot(Graph, PilotOptions.Default with { Rest = Resting, Triggers = Triggers, Dress = Outfitting, Waits = WaitsForTheHour, Shun = (Goal as CoverGoal)?.Shun })
+            .Run(Host, new PilotStep(best.Id), Options.StepTicks);
+        var camps = 0;
+        while (walk.Done && camps < MostRestCamps && Resting.Hurt(Game.Party) && Host.PlayerHasControl && Resting.CampNow(Host))
+        {
+            camps++;
+            Host.RunUntilControl(Options.StepTicks);
+        }
+        RestTrips++;
+        Progress?.Invoke($"     went out through {best.Id} to rest, hurt where the party can't camp: {(walk.Done ? $"camped {camps} times" : walk.Failure.ToString())}");
+    }
+
+    /// <summary>How many camps a rest trip makes at most.</summary>
+    private const int MostRestCamps = 4;
+
+    private bool Camps(RecordId? terrain) => terrain is { } t && Model.Plugins.TryGet<TerrainRecord>(t) is { Camp: > 0 };
+
+    private bool ArrivesWhereCamps(Portal portal) =>
+        Model.Plugins.TryGet<ChunkRecord>(ChunkRecord.ChunkOf(portal.Id)) is { } chunk && chunk.Object(ChunkRecord.IndexOf(portal.Id)) is TeleporterObject { Arrival: { } arrival }
+        && Model.Plugins.TryGet<ChunkRecord>(ChunkRecord.ChunkOf(arrival)) is { } there && Camps(there.Terrain);
 
     // Saves and the report.
 

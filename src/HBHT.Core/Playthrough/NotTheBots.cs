@@ -56,6 +56,9 @@ public sealed record NotTheBots(RecordId Flag, NotTheBotsKind Kind, string Why)
 
         new(F(3143), NotTheBotsKind.SetAside, "Tamberlain's way that wants 9 gold or less, which no party holds by then (the user's review)"),
         new(F(3150), NotTheBotsKind.SetAside, "Tamberlain's way that wants 9 gold or less, which no party holds by then (the user's review)"),
+        .. new[] { 2292, 3218, 3221, 3224 }.Select(f => new NotTheBots(F(f), NotTheBotsKind.SetAside,
+            "a Shamsuk's Tower chest's trap of 4 let go off: the bot's limit, not the game's. Niesen (Mechanic 6, Intelligence 30) always disarms it while he has the 4 Stamina it costs, "
+            + "and only damage spends his, which battles the bot plays don't land on him: 16 fights in the tower left him at 40 to 64; after his death the chests are out of reach (stage 10)")),
     ];
 
     private static readonly Dictionary<RecordId, NotTheBots> ByFlag = All.ToDictionary(n => n.Flag);

@@ -41,7 +41,7 @@ public sealed partial class Playthrough
     /// <summary>The plans tried in one look, found or not.</summary>
     private const int MostPlanTries = 12;
 
-    private void StartCover(CoverGoal goal)
+    internal void StartCover(CoverGoal goal)
     {
         Host.Ledger ??= new FlagLedger(Model.Flags.Count);
         var targets = new List<CoverTarget>();
@@ -796,6 +796,30 @@ public sealed partial class Playthrough
         .DistinctBy(s => s.Place).ToDictionary(s => s.Place, s => s.Handle);
 
     private Dictionary<RecordId, int>? _springs;
+
+    /// <summary>
+    /// Whether the build's pick waits (<see cref="Levelling.Hold"/>): a Mechanic raise, while a target the job still means to set (or the
+    /// run's own flag goal) is set only by a trap going off that the party now can let go off (<see cref="CodeGates.DisarmChance"/> below 1). The Rogue's second tier takes
+    /// Mechanic to 5, with which Brenna disarms every trap of 1 and 2: stage 10's jobs for 2076 (Overworld J17/28, a trap of 1) trained it
+    /// on the way there and gave the target up at the chest. Who disarms is the game's choice, so a mechanic who always can is the end of it.
+    /// </summary>
+    internal bool HoldsMechanic(Characters.Character member, BuildPick pick)
+    {
+        if (pick.Skill is not { } skill || skill.Slot != (int)Characters.Skill.Mechanic)
+            return false;
+        bool Pending(int handle) => SpringLevels.TryGetValue(handle, out var level) && !Game.Flags.Get(handle) && CodeGates.DisarmChance(Game.Party, level) < 1;
+        return _cover is { } cover
+            ? cover.Targets.Any(t => t.State is TargetState.Live or TargetState.Waits && Pending(t.Handle))
+            : Goal is FlagGoal { Flag: var flag } && Model.Flags.TryHandle(flag, out var h) && Pending(h);
+    }
+
+    /// <summary>Each trap's exploded flag, by its handle, and the trap's level: what a <see cref="ActionKind.Spring"/> action sets, and at what.</summary>
+    private Dictionary<int, int> SpringLevels => _springLevels ??= Model.Actions.Where(a => a.Kind == ActionKind.Spring)
+        .SelectMany(a => a.Effects.OfType<SetFlag>().Where(s => s.Value && Model.Flags.TryHandle(s.Flag, out _))
+            .Select(s => (Handle: Model.Flags.Handle(s.Flag), Level: a.Gates.First(g => g.Check?.Kind == CodeCheckKind.Spring).Check!.Lo)))
+        .GroupBy(x => x.Handle).ToDictionary(g => g.Key, g => g.Min(x => x.Level));
+
+    private Dictionary<int, int>? _springLevels;
 
     /// <summary>The first of a step's code gates the party doesn't meet now (<see cref="CodeGates.Meets"/>), which keeps it from being played.</summary>
     private CodeGate? Unmet(PlayerAction action) => action.Gates.Distinct().FirstOrDefault(g => CodeGates.Meets(g, Game) == false);
