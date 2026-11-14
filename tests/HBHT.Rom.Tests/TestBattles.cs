@@ -40,6 +40,25 @@ internal static class TestBattles
         return new Built(Battle.Begin(game, setup, arena, streamer.World, host), game, streamer);
     }
 
+    /// <summary>
+    /// A battle against <paramref name="enemies"/> in arena <paramref name="arena"/> (<see cref="Battlefield"/>'s numbers), from story save
+    /// <paramref name="slot"/>'s party, as <see cref="Plain"/> builds the rats' in arena 3.
+    /// </summary>
+    public static Built InArena(PluginSet set, int arena, IReadOnlyList<PartyEnemy> enemies, ICombatHost? host = null, char slot = 'A',
+        uint seed = Seed, bool canFlee = true)
+    {
+        var game = StorySaves.Game(set, slot);
+        var chunk = Battlefield.Chunk(arena);
+        var at = Arena.For(set, chunk)!;
+        Assert.NotNull(at);
+        var streamer = new ChunkStreamer(set, game, new CollisionWorld(), set.Get<MapSetRecord>(Arena.MapSet));
+        streamer.Update(at.Origin + Battle.ZonePoint);
+        var setup = new BattleSetup(BattleSource.Wanderer, null, null, null, [.. enemies], Arena: chunk, Ambush: true, CanFlee: canFlee,
+            EncounterFlag: null, CollisionByte: 0, AniByte: 2);
+        game.Random.Combat.Seed = seed;
+        return new Built(Battle.Begin(game, setup, at, streamer.World, host), game, streamer);
+    }
+
     public static ZoneEngine Zone(Built built) => new(built.Game, built.Streamer) { Camera = built.Battle.Camera };
 
     /// <summary>
