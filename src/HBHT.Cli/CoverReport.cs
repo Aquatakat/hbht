@@ -397,6 +397,20 @@ internal static partial class CoverReport
             if (every[target].Skip(MostPartyStarts).FirstOrDefault(s => chosen.ContainsValue(s) && Takes(target, s)) is { } along)
                 chosen[target] = along;
         }
+        // One still with none takes, further down its own list, the first of the next few starts whose party already stands at its save
+        // (its members in, those it keeps out out) and whose look keeps it: no plan to the party to fail, only the save being further
+        // off. Rheda's talk in Port Saiid (262, 1001) is nearest the saves there, from which every way to take her out is after Shamsuk;
+        // stage 6 to 8 had it ride along with 5245 from before she joins, and once a job had covered 5245 nothing started there.
+        var party = looks.ToDictionary(l => l.Step, l => l.Party);
+        bool Stands(PartyStart s) => party.TryGetValue(s.Step, out var p) && s.Members.All(p.Contains) && !s.Out.Any(p.Contains);
+        var further = needing.Where(t => !chosen.ContainsKey(t))
+            .ToDictionary(t => t, t => every[t].Skip(MostPartyStarts).Where(Stands).Take(MostPartyStarts).ToList());
+        PlanAll(further.Values.SelectMany(s => s).Distinct().Where(s => !verdicts.ContainsKey(s)));
+        foreach (var (target, list) in further)
+        {
+            if (list.FirstOrDefault(s => Takes(target, s)) is { } standing)
+                chosen[target] = standing;
+        }
         // One that needs, from a save, the members a start chosen there keeps and others besides rides along with it too, if its plan keeps
         // the target: the others join as the job gets to it. Godric and Becan's camp after Shamsuk (468, 5150) goes with Becan's job, which
         // rides the story past Shamsuk; Godric, who leaves on the way, comes back at Overworld H13 (0x0529) before the camp.
@@ -417,6 +431,7 @@ internal static partial class CoverReport
             // The starts planned and found wanting are tried too: they'd be found wanting again.
             var upTo = Math.Max(at[target] + (chosen.ContainsKey(target) ? 1 : 0), Math.Min(starts[target].Count, at2[target] + (second.ContainsKey(target) ? 1 : 0)));
             tried.AddRange(starts[target].Take(upTo).Select(s => s.Key).Where(k => !tried.Contains(k)));
+            tried.AddRange(further.GetValueOrDefault(target, []).Select(s => s.Key).Where(k => !tried.Contains(k)));
         }
         File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(file with { Rounds = round }, json));
         if (chosen.Count == 0)

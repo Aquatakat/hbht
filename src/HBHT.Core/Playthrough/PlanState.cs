@@ -19,7 +19,7 @@ public sealed class PlanState : IEquatable<PlanState>
     private int? _hash;
 
     private PlanState(QuestModel model, ulong[] bits, RecordId[] party, RecordId[] items, bool credits, bool over, bool opening,
-        RecordId? forced)
+        RecordId? forced, RecordId? lingering = null)
     {
         _model = model;
         _bits = bits;
@@ -29,6 +29,7 @@ public sealed class PlanState : IEquatable<PlanState>
         Over = over;
         Opening = opening;
         Forced = forced;
+        Lingering = lingering;
     }
 
     /// <summary>A game's state as the planner sees it. A new game that hasn't played its opening has <see cref="Opening"/>.</summary>
@@ -69,6 +70,16 @@ public sealed class PlanState : IEquatable<PlanState>
     /// <summary>A script object whose cut-scene a trigger has started: the next step is one of its ways, and nothing else.</summary>
     public RecordId? Forced { get; }
 
+    /// <summary>
+    /// The npc just talked to, whose body still stands where the conversation left it (<see cref="QuestModel.Lingers"/>): talking to
+    /// them again needs none of their own gates, only until anything else is done.
+    /// </summary>
+    public RecordId? Lingering { get; }
+
+    /// <summary>A copy with an npc standing to be talked to again whatever their gates (<see cref="Lingering"/>), or none.</summary>
+    public PlanState Lingered(RecordId? npc) =>
+        npc == Lingering ? this : new(_model, _bits, _party, _items, Credits, Over, Opening, Forced, npc);
+
     /// <summary>What each flag can be, by handle (<see cref="FlagModel.CanBeClear"/>, <see cref="FlagModel.CanBeSet"/>).</summary>
     public byte Value(int handle) => Values[handle];
 
@@ -104,7 +115,10 @@ public sealed class PlanState : IEquatable<PlanState>
         if (!Ready(action))
             return new CodeGate(Opening ? "the opening plays first" : $"{Forced} plays first");
         var forced = Forced is not null;
-        foreach (var literal in forced ? action.Requires : action.Presence.Concat(action.Requires))
+        // The npc just talked to is still there to talk to again, whatever their own gates say now: only the way to them counts.
+        var presence = action.Kind == ActionKind.Talk && Lingering is { } npc && action.Place == npc
+            ? action.Presence.Where(l => l is Reaches) : action.Presence;
+        foreach (var literal in forced ? action.Requires : presence.Concat(action.Requires))
         {
             if (!Holds(literal))
                 return literal;
@@ -197,7 +211,7 @@ public sealed class PlanState : IEquatable<PlanState>
             }
         }
         return new PlanState(_model, bits, [.. party], [.. items.OrderBy(i => i.ToString(), StringComparer.Ordinal)], credits, over,
-            Opening && action.Kind != ActionKind.Event, forced);
+            Opening && action.Kind != ActionKind.Event, forced, forced is null && _model.Lingers(action.Index) ? action.Place : null);
     }
 
     /// <summary>A copy with a flag written, for tests and tools.</summary>
@@ -209,12 +223,12 @@ public sealed class PlanState : IEquatable<PlanState>
             bits[h >> 6] |= 1UL << (h & 63);
         else
             bits[h >> 6] &= ~(1UL << (h & 63));
-        return new PlanState(_model, bits, _party, _items, Credits, Over, Opening, Forced);
+        return new PlanState(_model, bits, _party, _items, Credits, Over, Opening, Forced, Lingering);
     }
 
     /// <summary>A copy with someone out of the party and their flags as they were, for tools (<see cref="PartyNeeds"/>).</summary>
     public PlanState Without(RecordId entity) =>
-        new(_model, _bits, [.. _party.Where(p => p != entity)], _items, Credits, Over, Opening, Forced);
+        new(_model, _bits, [.. _party.Where(p => p != entity)], _items, Credits, Over, Opening, Forced, Lingering);
 
     /// <summary>
     /// A copy with someone in the party, their joined flag set and their left flag clear as a join writes them, for tools
@@ -243,15 +257,15 @@ public sealed class PlanState : IEquatable<PlanState>
             Write(flags.Left, !joined);
         }
         RecordId[] party = joined ? InParty(entity) ? _party : [.. _party, entity] : [.. _party.Where(p => p != entity)];
-        return new PlanState(_model, bits, party, _items, Credits, Over, Opening, Forced);
+        return new PlanState(_model, bits, party, _items, Credits, Over, Opening, Forced, Lingering);
     }
 
-    private PlanState With(bool opening) => new(_model, _bits, _party, _items, Credits, Over, opening, Forced);
+    private PlanState With(bool opening) => new(_model, _bits, _party, _items, Credits, Over, opening, Forced, Lingering);
 
     public bool Equals(PlanState? other) => other is not null && (ReferenceEquals(this, other) ||
         GetHashCode() == other.GetHashCode() && _bits.AsSpan().SequenceEqual(other._bits) && _party.AsSpan().SequenceEqual(other._party)
         && _items.AsSpan().SequenceEqual(other._items) && Credits == other.Credits && Over == other.Over && Opening == other.Opening
-        && Forced == other.Forced);
+        && Forced == other.Forced && Lingering == other.Lingering);
 
     public override bool Equals(object? obj) => Equals(obj as PlanState);
 
@@ -270,6 +284,7 @@ public sealed class PlanState : IEquatable<PlanState>
         hash.Add(Over);
         hash.Add(Opening);
         hash.Add(Forced);
+        hash.Add(Lingering);
         _hash = hash.ToHashCode();
         return _hash.Value;
     }

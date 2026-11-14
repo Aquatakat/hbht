@@ -20,7 +20,7 @@ public sealed class NotTheBotsTests
         Assert.Null(NotTheBots.Of(Ids.Flag(486)));
         Assert.Null(NotTheBots.Of(Ids.Flag(468)));
         Assert.Equal(21, NotTheBots.All.Count(n => n.Kind == NotTheBotsKind.Overestimate));
-        Assert.Equal(13, NotTheBots.All.Count(n => n.Kind == NotTheBotsKind.Original));
+        Assert.Equal(15, NotTheBots.All.Count(n => n.Kind == NotTheBotsKind.Original));
         Assert.Equal(2, NotTheBots.All.Count(n => n.Kind == NotTheBotsKind.SetAside));
     }
 }

@@ -83,6 +83,36 @@ public sealed class PlaythroughRunTests(Na10Import fixture, ITestOutputHelper ou
     }
 
     [Fact]
+    public void TheSecondStormNeverFindsTheShipWithoutYerazasBranch()
+    {
+        // 4271 (the second storm turned back without Yeraza's branch) wants 192 clear as the ship sails through it (0x0429 at Overworld
+        // E22/4), and 4282 (Amann refusing to sail again) wants 4271. 192 is set only by Yeraza's feast in Erromon (0x03E1 at 7/A11/3)
+        // and cleared by nothing, and the voyage starts in Port Saiid, whose gate (Overworld C14/0) wants Ardra's ritual (238), which
+        // wants the guard's leave (0x03F3's 217), which he gives only to one with the branch. With the world graph's places, the
+        // relaxation from a new game without the feast reaches neither: the relaxation's, keeping no order, not the bot's.
+        var (shared, graph) = Built;
+        var model = shared.ForRun();
+        var game = GameState.NewGame(Data.Set);
+        var state = PlanState.From(model, game);
+        WorldReach.Layered(model, graph, game, state, graph.PlaceOf(game));
+        Assert.All(model.Actions.Where(a => a.Effects.Contains(new SetFlag(Ids.Flag(4271), true))),
+            a => Assert.Contains(new FlagIs(Ids.Flag(192), false), a.Requires));
+        var branch = model.Actions.Where(a => a.Effects.Contains(new SetFlag(Ids.Flag(192), true))).ToList();
+        Assert.All(branch, a => Assert.Equal(Ids.Script(0x03E1), a.Script));
+        Assert.DoesNotContain(model.Actions, a => a.Effects.Contains(new SetFlag(Ids.Flag(192), false)));
+        var all = Enumerable.Range(0, model.Actions.Count).ToList();
+        var full = new Relaxation(model, all).Run(state);
+        var without = new Relaxation(model, all.Except(branch.Select(a => a.Index))).Run(state);
+        foreach (var flag in new[] { 4271, 4282 })
+        {
+            var fact = model.FlagFact(model.Flags.Handle(Ids.Flag(flag)), true);
+            Assert.True(full.Reached(fact));
+            Assert.False(without.Reached(fact));
+            Assert.Equal(NotTheBotsKind.Original, NotTheBots.Of(Ids.Flag(flag))!.Kind);
+        }
+    }
+
+    [Fact]
     public void InRoundsNoGateIsOpenedFromBeyondIt()
     {
         // From a new game, the Cradawgh's scene at Overworld A22/6 sets 320, which unlocks the door 11/A01/8 on the shortest way to
