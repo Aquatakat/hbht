@@ -366,7 +366,7 @@ public static class N64Material
         // Atomically, as scenery is built off the main thread too.
         return FadedCopies.GetValue(material, m =>
         {
-            var copy = (ShaderMaterial)m.Duplicate();
+            var copy = Duplicate((ShaderMaterial)m);
             copy.Shader = (spec with { Blend = spec.Blend == Blend.Mask ? Blend.Blend : Blend.Fade }).Shader();
             return copy;
         });
@@ -434,7 +434,7 @@ public static class N64Material
         // Atomically, as scenery is built off the main thread too.
         return MirroredCopies.GetValue(material, m =>
         {
-            var copy = (ShaderMaterial)m.Duplicate();
+            var copy = Duplicate((ShaderMaterial)m);
             var mirrored = spec with { Mirrored = true };
             copy.Shader = mirrored.Shader();
             // It fades as the material does.
@@ -460,11 +460,42 @@ public static class N64Material
     /// <summary>A copy of a material for a copy of a scene, which fades and mirrors as the original does.</summary>
     public static ShaderMaterial Copy(ShaderMaterial material)
     {
-        var copy = (ShaderMaterial)material.Duplicate();
+        var copy = Duplicate(material);
         if (Specs.TryGetValue(material, out var spec))
             Specs.AddOrUpdate(copy, spec);
         return copy;
     }
+
+    /// <summary>
+    /// A copy of a material: its shader, its uniforms' values and its metadata. Not <c>Resource.Duplicate</c>, which reads the
+    /// material's property list, which asks the renderer for its shader's uniforms, a call that waits on the main thread from
+    /// another: one each time a chunk's scenery built off the main thread copied a scrolling texture's material, a frame each
+    /// (runtime.md#loading-chunks). Here they're asked once a shader (<see cref="UniformsOf"/>), and a uniform's value is the
+    /// material's own, which waits on nothing.
+    /// </summary>
+    private static ShaderMaterial Duplicate(ShaderMaterial material)
+    {
+        var copy = new ShaderMaterial { Shader = material.Shader, RenderPriority = material.RenderPriority, NextPass = material.NextPass };
+        if (material.Shader is { } shader)
+        {
+            foreach (var name in UniformsOf(shader))
+            {
+                var value = material.GetShaderParameter(name);
+                if (value.VariantType != Variant.Type.Nil)
+                    copy.SetShaderParameter(name, value);
+            }
+        }
+        foreach (var meta in material.GetMetaList())
+            copy.SetMeta(meta, material.GetMeta(meta));
+        return copy;
+    }
+
+    /// <summary>A shader's uniforms' names, asked of the renderer the first time on any thread.</summary>
+    private static StringName[] UniformsOf(Shader shader) =>
+        // The table calls this outside its lock, which matters as another thread asking the renderer waits on the main thread.
+        Uniforms.GetValue(shader, s => [.. s.GetShaderUniformList().Select(u => (StringName)u.AsGodotDictionary()["name"].AsString())]);
+
+    private static readonly ConditionalWeakTable<Shader, StringName[]> Uniforms = [];
 
     /// <summary>Sets how every mesh under <paramref name="root"/> is lit.</summary>
     public static void SetLighting(Node root, Lighting lighting) => SetOnMeshes(root, LightingParameter, (int)lighting);
