@@ -578,6 +578,10 @@ public sealed partial class Playthrough
             var boughtBefore = Outfitting.Bought.Count;
             if (action.Buys is { } buys)
                 (Outfitting.Shopping, Outfitting.Buy) = (true, buys);
+            // An opening that gives an item up: the loot policy leaves it on the pile.
+            var loot = Outfitting.Inner as TakeLootLeaveTheRest;
+            if (loot is not null)
+                loot.Leave = action.Leaves;
             try
             {
                 outcome = pilot.Run(Host, pilotStep, Math.Min(Options.StepTicks, Math.Max(1, Options.MostTicks - (Host.Clock.Ticks - _startTicks))));
@@ -586,6 +590,8 @@ public sealed partial class Playthrough
             {
                 if (action.Buys is not null)
                     (Outfitting.Shopping, Outfitting.Buy) = (false, null);
+                if (loot is not null)
+                    loot.Leave = null;
             }
             foreach (var b in Outfitting.Bought.Skip(boughtBefore))
                 Report.Purchases.Add($"bought {b}");

@@ -178,7 +178,14 @@ internal static partial class CoverReport
         queue.WriteResult(Trunk.Result(manifest, assignment, root.Trunk!, jobs));
 
         // The assignment, for whoever asks why a target went where it did.
-        var windows = targets.ToDictionary(t => t, t => looks.Skip(1).Where(l => l.Live.ContainsKey(t)).Select(l => new { l.Step, Far = Math.Round(l.Live[t], 1) }).ToList());
+        var windows = targets.ToDictionary(t => t, t => looks.Skip(1).Where(l => l.Live.ContainsKey(t))
+            .Select(l => new
+            {
+                l.Step,
+                Far = Math.Round(l.Live[t], 1),
+                Start = l.Starts.TryGetValue(t, out var s) ? Math.Round(s, 1) : (double?)null,
+                Layer = l.Layers.TryGetValue(t, out var layer) ? layer : (int?)null,
+            }).ToList());
         File.WriteAllText(Path.Combine(folder, "assignment.json"), System.Text.Json.JsonSerializer.Serialize(new
         {
             Slack = Trunk.Slack,
@@ -207,7 +214,9 @@ internal static partial class CoverReport
         return 0;
     }
 
-    private sealed record AssignedWindow(int Step, float Far);
+    /// <param name="Start">How near the target's relaxed plan starts (<see cref="TrunkLook.Starts"/>); null in a tree from before stage 10.</param>
+    /// <param name="Layer">The target's layer in the relaxation (<see cref="TrunkLook.Layers"/>); null in a tree from before stage 10.</param>
+    private sealed record AssignedWindow(int Step, float Far, float? Start = null, int? Layer = null);
 
     private sealed record AssignedTarget(string Flag, string? Job, List<AssignedWindow> Window);
 
@@ -249,7 +258,8 @@ internal static partial class CoverReport
                 if (target.Job.StartsWith('t') && int.TryParse(target.Job.AsSpan(1), NumberStyles.None, CultureInfo.InvariantCulture, out var first))
                     tried.Add(first);
             }
-            if (Trunk.Retry(target.Window.Select(w => (w.Step, w.Far)), tried.ToHashSet(), round) is { } step)
+            var starts = target.Window.Where(w => w is { Start: not null, Layer: not null }).ToDictionary(w => w.Step, w => (w.Start!.Value, w.Layer!.Value));
+            if (Trunk.Retry(target.Window.Select(w => (w.Step, w.Far)), tried.ToHashSet(), round, starts) is { } step)
             {
                 chosen[RecordId.Parse(target.Flag)] = step;
                 tried.Add(step);

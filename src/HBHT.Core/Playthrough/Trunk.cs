@@ -40,6 +40,16 @@ public sealed record TrunkLook(int Step, IReadOnlyDictionary<RecordId, float> Li
     public IReadOnlyList<RecordId> Party { get; init; } = [];
 
     /// <summary>
+    /// How near each live target's relaxed plan starts: from the player to the nearest of its first steps (<see cref="Relaxation.Extract"/>'s
+    /// helpful actions, or a setter that can be done now), by <see cref="Playthrough.Distance"/>. Within
+    /// <see cref="Playthrough.NearHelpfulFar"/>, a cover run takes it as its near step (<see cref="Trunk.Retry"/>).
+    /// </summary>
+    public IReadOnlyDictionary<RecordId, float> Starts { get; init; } = new Dictionary<RecordId, float>();
+
+    /// <summary>Each live target's layer in the relaxation (<see cref="Relaxation.Result.FactLayer"/>): the rounds of steps it's from here.</summary>
+    public IReadOnlyDictionary<RecordId, int> Layers { get; init; } = new Dictionary<RecordId, int>();
+
+    /// <summary>
     /// The members each of the party targets asked about needs from there (<see cref="PartyNeeds.Needs"/>): out of the party and never
     /// joining, the relaxation no longer sets it. Only targets that need someone are listed.
     /// </summary>
@@ -204,16 +214,19 @@ public static class Trunk
         var relaxation = new Relaxation(model, Enumerable.Range(0, model.Actions.Count));
         var result = relaxation.Run(state);
         var live = new Dictionary<RecordId, float>();
+        var starts = new Dictionary<RecordId, float>();
+        var layers = new Dictionary<RecordId, int>();
         foreach (var (id, h) in targets)
         {
             var fact = model.FlagFact(h, true);
             if (!result.Reached(fact) || LossCheck.SetFor(state, h) || game.Flags.Get(h))
                 continue;
             IEnumerable<int> by;
+            var relaxed = relaxation.Extract(result, [fact]);
             if (model.Flags.Kind(h) == FlagKind.Derived)
             {
                 var inputs = PlainInputs(model.Flags, h);
-                var plan = relaxation.Extract(result, [fact])?.Plan ?? [];
+                var plan = relaxed?.Plan ?? [];
                 by = plan.Where(a => model.Adds(a).Any(f => f < 2 * model.Flags.Count && inputs.Contains(f / 2)));
             }
             else
@@ -230,9 +243,15 @@ public static class Trunk
                 far = Math.Min(far, Playthrough.Distance(positions[a], here));
             // None that the relaxation gets to has a place (the opening, a battle the story starts): no distance to tell them by.
             live[id] = far == float.MaxValue ? 0 : far;
+            var start = float.MaxValue;
+            foreach (var a in (relaxed?.Helpful ?? []).Concat(reached.Where(a => result.ActionLayer[a] == 0)))
+                start = Math.Min(start, Playthrough.Distance(positions[a], here));
+            if (start < float.MaxValue)
+                starts[id] = start;
+            layers[id] = result.FactLayer[fact];
         }
         if (party is null)
-            return new TrunkLook(step, live, reach.Rounds, clock.Elapsed.TotalSeconds) { Party = state.Party };
+            return new TrunkLook(step, live, reach.Rounds, clock.Elapsed.TotalSeconds) { Party = state.Party, Starts = starts, Layers = layers };
 
         // The members the party targets live from here need, and how far each member's nearest joining action is.
         var asked = party.Where(live.ContainsKey).Select(model.Flags.Handle).ToList();
@@ -267,7 +286,7 @@ public static class Trunk
                 joins[member] = far;
         }
         return new TrunkLook(step, live, reach.Rounds, clock.Elapsed.TotalSeconds)
-            { Party = state.Party, Needs = needs, Joins = joins, Out = outs, Leaves = leaves };
+            { Party = state.Party, Starts = starts, Layers = layers, Needs = needs, Joins = joins, Out = outs, Leaves = leaves };
     }
 
     /// <summary>The plain flags a derived one is made from, through any derived flags between.</summary>
@@ -358,16 +377,31 @@ public static class Trunk
     }
 
     /// <summary>
-    /// The trunk save to try a given-up target from again, of those in its window not tried yet: in odd rounds the latest, where the
-    /// party is furthest on; in even rounds the nearest, the latest of equals. Another start brings another party, place and story, which
-    /// gets past most of what gave a target up where it was first tried: a branch that had no plan from its save, a fight lost again, a
-    /// loss on the way. Null when every save in its window has been tried.
+    /// The trunk save to try a given-up target from again, of those in its window not tried yet. First, the latest of the near starts: a
+    /// save whose relaxed plan for it starts within <see cref="Playthrough.NearHelpfulFar"/> (<see cref="TrunkLook.Starts"/>), which a
+    /// cover run takes as its near step, and reaches it in no more layers (<see cref="TrunkLook.Layers"/>) than from any save it was tried
+    /// from. Then in odd rounds the latest, where the party is furthest on; in even rounds the nearest, the latest of equals. Another start brings another party, place and story, which gets past most of what gave a target up where it was
+    /// first tried: a branch that had no plan from its save, a fight lost again, a loss on the way. Null when every save in its window has
+    /// been tried.
     /// </summary>
-    public static int? Retry(IEnumerable<(int Step, float Far)> window, IReadOnlySet<int> tried, int round)
+    /// <remarks>
+    /// The near start is for what the relaxation can't see: an order the story closes. Sheridan's goodbye in Gwernia castle's barracks
+    /// (82, 1523) is nearest the castle's saves, but its plan goes back out to Oriana's hut's door (6/E03/1) and the road's farewell
+    /// (Overworld M07/17, <c>0x03B2</c>) shuts it on the way; from her hut (<c>t003</c>) the door is the first step, 6 away, and the
+    /// goodbye 4 layers on against the castle's 5. A save earlier in the story is usually more layers from a target the story leads to,
+    /// so the layers keep the near start from every save whose next story step happens to be at hand: a relaxed plan's first steps are
+    /// mostly that, and without them nearly every target had a near start.
+    /// </remarks>
+    public static int? Retry(IEnumerable<(int Step, float Far)> window, IReadOnlySet<int> tried, int round,
+        IReadOnlyDictionary<int, (float Start, int Layer)>? starts = null)
     {
-        var left = window.Where(w => !tried.Contains(w.Step)).ToList();
+        var all = window.ToList();
+        var left = all.Where(w => !tried.Contains(w.Step)).ToList();
         if (left.Count == 0)
             return null;
+        if (starts is not null && all.Where(w => tried.Contains(w.Step) && starts.ContainsKey(w.Step)).Select(w => starts[w.Step].Layer).DefaultIfEmpty(-1).Min() is var most and >= 0
+            && left.Where(w => starts.TryGetValue(w.Step, out var s) && s.Start <= Playthrough.NearHelpfulFar && s.Layer <= most).ToList() is { Count: > 0 } near)
+            return near.Max(w => w.Step);
         return round % 2 == 1 ? left.Max(w => w.Step) : left.OrderBy(w => w.Far).ThenByDescending(w => w.Step).First().Step;
     }
 

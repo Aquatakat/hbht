@@ -626,7 +626,7 @@ public sealed partial class Playthrough
     private bool Rides => _cover!.Goal.Party.Count > 0 && _cover.PartyAt is not null && _rodeTo is null;
 
     /// <summary>How near (as <see cref="Far"/> measures) a step of a target's relaxed plan must be to be taken first (<see cref="NearHelpful"/>).</summary>
-    private const float NearHelpfulFar = 30;
+    public const float NearHelpfulFar = 30;
 
     /// <summary>The targets whose relaxed plans are looked at for a near step, the first in the relaxation first.</summary>
     private const int MostHelpfulTargets = 8;
