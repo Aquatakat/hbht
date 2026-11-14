@@ -206,6 +206,11 @@ public sealed class BattleComposer
     /// </summary>
     public bool Free(Combatant body)
     {
+        // Drawn at the battle's present, it has nothing left to draw, whatever its episodes say: one whose action retired, the drawing
+        // done with it, can still be lengthened by the recording (a tail carried on while the battle waits on the player), and was
+        // never drawn again, so the aim stayed held with the drawing caught up.
+        if (_tracks.TryGetValue(body, out var track) && track.Cursor >= _actions.Last)
+            return true;
         foreach (var e in _actions.EpisodesOf(body))
         {
             if (!e.Action.Closed)
@@ -219,9 +224,14 @@ public sealed class BattleComposer
     /// <summary>How many times an action has been fast-forwarded on its own (<see cref="Release"/>, <see cref="SkipWalks"/>, <see cref="SkipHold"/>).</summary>
     public int Forwarded { get; private set; }
 
-    /// <summary>Whether an episode has been drawn to its end: its action is past its last tick.</summary>
+    /// <summary>
+    /// Whether an episode has been drawn to its end: its action is past its last tick, or at the battle's present, where there's nothing
+    /// more of it to draw. An episode still being recorded ends on the present tick, so tested against its end alone, it never counted as
+    /// drawn while the drawing kept up with the battle, and the aim was held with the drawing caught up.
+    /// </summary>
     private bool Played(Episode e) =>
-        e.Action.Start is { } s && s <= _drawn && e.Action.Decided(e.Part) && e.Action.TickAt(_drawn, e.Part) > e.To;
+        e.Action.Start is { } s && s <= _drawn && e.Action.Decided(e.Part)
+        && e.Action.TickAt(_drawn, e.Part) is var at && (at > e.To || at >= _actions.Last);
 
     /// <summary>
     /// What the player's turn touches is drawn where it is (Start Early): each action still drawing one of these bodies, before the
@@ -238,7 +248,11 @@ public sealed class BattleComposer
     /// Brings a body on: the actions holding its earlier parts to their ends, then, idling, as far as its next part or the newest action.
     /// Whether it moved.
     /// </summary>
-    private bool Release(Combatant body)
+    /// <param name="reached">
+    /// Whether only the parts its actions' timelines have reached hold it, as the last word has it (<see cref="Resolve"/>): one an
+    /// action drawing hasn't come to yet is its next part, not one to finish. Else every part in an action before the turn being played.
+    /// </param>
+    private bool Release(Combatant body, bool reached = false)
     {
         if (!_tracks.TryGetValue(body, out var track) || track.Gone)
             return false;
@@ -246,7 +260,7 @@ public sealed class BattleComposer
         Episode? next = null;
         foreach (var e in _actions.EpisodesOf(body))
         {
-            if (!e.Action.Closed)
+            if (!e.Action.Closed || reached && !ComeTo(e))
             {
                 next = e;
                 break;
@@ -262,6 +276,10 @@ public sealed class BattleComposer
             Go(body, track, cap, _skipped);
         return track.Cursor > was;
     }
+
+    /// <summary>Whether an episode's action has started and its timeline has come to the episode.</summary>
+    private bool ComeTo(Episode e) =>
+        e.Action.Start is { } s && s <= _drawn && e.Action.Decided(e.Part) && e.Action.TickAt(_drawn, e.Part) >= e.From;
 
     /// <summary>
     /// A in an AI's walk under Start Early: each action drawing that's in its walk is fast-forwarded to its walk's last tick, as Original's
@@ -1465,7 +1483,10 @@ public sealed class BattleComposer
         Schedule(played);
         var live = Live;
         if (live is not null)
+        {
+            Hold(live);
             Bring(live);
+        }
         var last = _actions.Last;
         var newest = Newest();
         var newestTick = newest is null ? last : Math.Min(newest.TickAt(_drawn), last);
@@ -1492,6 +1513,22 @@ public sealed class BattleComposer
     }
 
     /// <summary>
+    /// The player's turn is drawn no further than the battle's present (Start Early): its clock is held there while the battle isn't
+    /// stepped, which, with the turn drawn on the present, is while its aim is held (<see cref="BattleDrawing.AimHeld"/>).
+    /// </summary>
+    /// <remarks>
+    /// Its timeline went on with the drawn ticks through the hold, so it ran ahead of the recording by as long as the aim was held, and
+    /// once the cast was chosen and the battle ran ahead, the turn caught up by as many recorded ticks a drawn tick as the battle ran:
+    /// a Fireball's aim held 421 drawn ticks had its cast drawn through some 400 recorded ticks in five, a rat taken from its death
+    /// straight into its fade.
+    /// </remarks>
+    private void Hold(DrawnAction live)
+    {
+        if (live.TickAt(_drawn) > _actions.Last)
+            live.Start = _drawn - live.Offset(_actions.Last, DrawnAction.OwnPart);
+    }
+
+    /// <summary>
     /// What the player's turn reaches on the present is drawn where it is first (Start Early): a body it involves (a target hit, one
     /// pushed) that still has an earlier part to draw has the actions holding it fast-forwarded to their ends. The turn opens only
     /// once no body walking in the drawing is within its reach, and its aim is held while what it could pick still draws behind
@@ -1512,7 +1549,9 @@ public sealed class BattleComposer
     /// <summary>
     /// The last word on a drawn tick (Start Early): two bodies drawn from different ticks that touch nearer than either tick
     /// recorded them, as a fast-forward of one action can leave them (a walk skipped to its end where a body drawn behind still stands),
-    /// have the one drawn behind brought on (<see cref="Release"/>) till none do.
+    /// have the one drawn behind brought on (<see cref="Release"/>) till none do: through the actions it's drawn in, as far as its next
+    /// part, which isn't finished. Finished, it took the rest of the action with it: a bandit drawn behind in its walk, too near the
+    /// Bandit Boss as Alaron's Dragon Flames struck him, had the cast's later part at it finished, and three flames went by unlit.
     /// </summary>
     private void Resolve()
     {
@@ -1543,7 +1582,7 @@ public sealed class BattleComposer
                     }
                 }
             }
-            if (behind is null || !Release(behind))
+            if (behind is null || !Release(behind, reached: true))
                 return;
             Resolved++;
         }

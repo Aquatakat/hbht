@@ -73,8 +73,9 @@ public sealed partial class StartEarlyTests(Na10Import fixture)
         // The user's fight with Alaron taught Dragon Flames, cast at every bandit he can each turn (their Nov 11 play). A turn the player
         // plays has its later casts decided as they're recorded, while its first already draws; the watch holds the drawing to no body
         // in two actions' episodes at once, which a cast drawn ahead over its target's own action, still drawing, broke. And every
-        // cast's flame is drawn: one visual a target, each started once with its emitters, all showing together. Alaron waits in his turn
-        // till the field has drawn out (Settled), the bandits as the user fought them in arena 3.
+        // cast's flame is drawn: one visual a target, each started once with its emitters, all showing together, though his turn opens
+        // while bandits it casts at still draw their own (the last word, bringing one on, finished the cast's later parts with it, and
+        // three flames went by unlit), the bandits as the user fought them in arena 3.
         var plan = BattlePlan.Parse("Alaron=spell:Dragon Flames/accept/accept/accept/accept/accept/accept;*=skip");
         var flames = Set.All<SpellRecord>(RecordTypes.Spell).Single(s => s.Name == "Dragon Flames");
         PartyEnemy Bandit() => new(RecordId.Hex(RecordTypes.Entity, 0x021B), 1, 1);
@@ -85,7 +86,7 @@ public sealed partial class StartEarlyTests(Na10Import fixture)
             var built = Plain(Set, host, [Bandit(), Bandit(), Bandit(), boss, Bandit(), Bandit(), Bandit(), Bandit()]);
             built.Battle.Combatants.First(c => c.Sheet.Name.StartsWith("Alaron", StringComparison.Ordinal)).Sheet.LearnSpell(flames, 10);
             return built;
-        }, CombatTurns.StartEarly, run => run.Input = Settled(run, "Alaron") && plan.Tick(run.Drawing) is { } input ? () => input : null, begun: run => run.Each = r =>
+        }, CombatTurns.StartEarly, run => run.Input = plan.Tick(run.Drawing) is { } input ? () => input : null, begun: run => run.Each = r =>
         {
             var f = r.Drawing.Frame;
             foreach (var cue in f.Cues.OfType<SpellVisualStarted>())
@@ -375,19 +376,6 @@ public sealed partial class StartEarlyTests(Na10Import fixture)
         Assert.Fail($"The battle didn't end in {Most} ticks ({turns}).");
         return run;
     }
-
-    /// <summary>
-    /// Whether the player acts now: but in the turn of a member whose name starts with <paramref name="who"/>, it waits at the turn's
-    /// start till every body on the field has drawn out its earlier actions, as the aim's hold would make it wait once it aimed.
-    /// </summary>
-    /// <remarks>
-    /// Waiting here rather than in the aim keeps clear of what the hold does to the turn's own drawing: while the aim is held the
-    /// battle isn't stepped, but the turn's timeline (<see cref="DrawnAction.Base"/>) goes on with the drawn ticks, so once the cast is
-    /// chosen and the battle runs ahead, the turn is drawn catching up, as many recorded ticks a drawn tick as the battle runs ahead.
-    /// </remarks>
-    private static bool Settled(Run run, string who) =>
-        run.Battle.State != CombatState.Turn || run.Battle.Current?.Sheet.Name.StartsWith(who, StringComparison.Ordinal) != true
-        || run.Drawing.CaughtUp || run.Battle.Slots.OfType<Combatant>().All(run.Drawing.Composer.Free);
 
     /// <summary>The player skips every turn (Z).</summary>
     private static void Skipping(Run run)
@@ -684,6 +672,10 @@ public sealed partial class StartEarlyTests(Na10Import fixture)
                     }
                 }
             }
+            // The player's turn is drawn no further than the battle's present: its clock is held with the aim, so the cast isn't drawn
+            // catching up once it's chosen.
+            if (composer.Live is { } played)
+                Assert.True(played.TickAt(d) <= drawing.Actions.Last, $"the player's turn was drawn at {played.TickAt(d)} at drawn tick {d}, past the present, {drawing.Actions.Last}");
             // What a turn the player plays could pick as it aims is drawn where it is whenever the battle takes its presses; while it
             // isn't, the aim is held and the battle steps no further.
             var battle = drawing.Battle;
@@ -691,14 +683,7 @@ public sealed partial class StartEarlyTests(Na10Import fixture)
                 or CombatState.PlaceArea)
             {
                 Aimed++;
-                if (drawing.CaughtUp)
-                {
-                    // Caught up, every body is drawn at the battle's present, where it is, and the battle takes presses. (The drawing's
-                    // own AimHeld can still be set here, where a body's episode ends on the present tick: the composer counts it
-                    // drawn only once the drawing is past it.)
-                    _heldTick = -1;
-                }
-                else if (drawing.AimHeld)
+                if (drawing.AimHeld)
                 {
                     AimHeld++;
                     Assert.False(drawing.TakesPresses);
