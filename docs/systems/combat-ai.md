@@ -1,6 +1,6 @@
 # Combat: the AI (2.5, 2.6)
 
-The enemies' turns in a [battle](combat.md), and Sholeh's: what an enemy chooses, how it walks, why it rests, its morale and its flight. Read from 1.0's code (`0x80056E10`–`0x8005C0C0`, `aiInfo.cpp` and `aiscores.cpp`), checked by running the original's own functions on the checkpoints' RAM (`tools/aivectors`, [rig](../reference-rig.md#replaying-the-originals-ai-toolsaivectors)) and by the replay of the user's logged battles ([combat-parity](combat-parity.md)). Names are in the symbol map, prefixed `EnemyAI.`, `AiScores.` and `ArenaGrid.`. A spell's worth to the AI and what it may cast are [magic](magic.md#the-ais-values)'s.
+The enemies' turns in a [battle](combat.md), and Sholeh's: what an enemy chooses, how it walks, why it rests, its morale and its flight. Read from 1.0's code (`0x80056E10`–`0x8005C0C0`, `aiInfo.cpp` and `aiscores.cpp`), checked by combat parity: the original's own functions run on its RAM (`tools/aivectors`, [rig](../reference-rig.md#replaying-the-originals-ai-toolsaivectors)) and the replay of the user's logged battles ([combat-parity](combat-parity.md)). Names are in the symbol map, prefixed `EnemyAI.`, `AiScores.` and `ArenaGrid.`. A spell's worth to the AI and what it may cast are [magic](magic.md#the-ais-values)'s.
 
 ## The record
 
@@ -118,7 +118,7 @@ The leader's morale (`Combat+0x11`) is worked out only while it lives and isn't 
 | `Battle.Casters.cs` | styles 5–10's spells: `ChooseSpellOrAttack`, `ScoreSpellCells`, `AreaCentre`, `AimAreaSpell`, the area danger (`PartyDanger`) |
 | `Battle.Morale.cs` | morale, fleeing, `Leave`, `ReserveFleesOnArrival` with the hold (`CombatLog.HoldOn`) |
 
-`CasterCheckpointTests` checks the casters and bosses against `CasterVectors.cs`, which `tools/aivectors` writes from 1.0's own functions; `AiCheckpointTests` the rats; `AiVectorTests` morale, the check to flee, the reserves' flight on arriving, a turn of styles 0–4 and of a flight, and `FleeAdvance` ([combat-parity](combat-parity.md#the-formula-vectors)).
+Combat parity checked the casters and bosses, the rats, morale, the check to flee, the reserves' flight on arriving, a turn of styles 0–4 and of a flight, and `FleeAdvance` against 1.0's own functions ([combat-parity](combat-parity.md#the-formula-vectors)); those tests are retired.
 
 ### Traps
 

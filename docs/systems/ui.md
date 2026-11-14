@@ -2,7 +2,7 @@
 
 How the port lays out and draws the original's UI. The pause menu and its windows, the Party, System and World tabs, the loot window, shops, training and the post-battle windows, are in [pause menu](pause-menu.md). The fonts and string tables are in [text](../formats/text.md) and the menus' sounds in [audio](audio.md#sound-effects). Positions are in the original's 320 × 240 frame, and addresses are 1.0's.
 
-The menus' layouts come from the machine code and the user's captures from the emulator (`roms/menu-*.png`, `hud-*.png`, `pause-*.png`; see the [reference rig](../reference-rig.md#emulator-captures)), mostly from the "Before final encounter" checkpoint. Compare against those captures in the console's own pixels (`--ui-screenshot`), where the port's classic layouts match within the noise of the console's 16-bit dither, about 6 a channel.
+The menus' layouts come from the machine code and the user's captures from the emulator (`roms/menu-*.png`, `hud-*.png`, `pause-*.png`; see the [reference rig](../reference-rig.md#emulator-captures); the captures that lived in `roms/` were lost on 2026-11-13, so recapture to compare), mostly from the "Before final encounter" checkpoint. Compare against those captures in the console's own pixels (`--ui-screenshot`), where the port's classic layouts match within the noise of the console's 16-bit dither, about 6 a channel.
 
 ## The screen
 
@@ -237,7 +237,7 @@ A `TextBand` (`CombatGui.LogBoxCreate`, `0x80087A78`), the cinematics' caption b
 - **The dots** are 2 × 2, alpha 164, one for each body in use, by slot: the camera's owner yellow (150, 150, 0) at (274, 199), the party green (0, 150, 0) and the rest red (150, 0, 0), under the frames.
 - **It's centred on the camera's owner** (`0x800D8448`): the current combatant, or while an attack is aimed the target cursor's body (`Battle.CameraOwner`). A body gone from the field has no dot. **It turns with the camera**: with (a, b) the camera's look in X and Z (`rotationXZ`), a body (dx, dz) from the owner goes (dx × −b + dz × a) × 0.5 right and (dx × a + dz × b) × 0.5 up, truncated, so the way the camera looks is up. Half a pixel a unit. A body more than 20 pixels out is held at 20, its colour halved.
 - **While a spell, its area or a flask is aimed** (states 10, 11 and 18), the dots of set B's selected throb, each channel that isn't 0 plus the pulse, and the rest are halved. The pulse (`CombatRadar.Step`, `0x8008DE44`) goes from 0 to −150 and back, 4 a frame, 76 frames a cycle. A flask aims with set A, which the radar doesn't read, so in state 18 every dot is halved.
-- **Checkpoint 02** (Rheda's turn) pins it: every dot where the original's arithmetic puts it (`BattleCheckpointTests`).
+- **Checkpoint 02** (Rheda's turn) pinned it: every dot where the original's arithmetic puts it.
 
 ### On other screens
 

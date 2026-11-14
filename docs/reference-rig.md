@@ -69,7 +69,7 @@ tools/ghidra.ps1 run us Decompile.java 0x80078d14   # a script from tools/ghidra
 
 ## Existing saves
 
-Mupen64Plus saves are in `%APPDATA%\Mupen64Plus\save`. Only `AIDYN_CHRONICLES (unknown rom).mpk` holds Aidyn data. Its four slots, all named "Alaron", are at the four story checkpoints' positions (below), and load on the debug ROM too. The playthrough used a hacked ROM with low-level enemies, so the party's stats, equipment and spells are below par for the story: good for flag, map and quest state, not for combat parity. `<1.0 rom basename> - story saves.pak` keeps the four as they were, for the tests, since the pak ares uses for 1.0 has saves written into it for checks ([below](#setting-up-a-check)). The pak's layout is in [saves](systems/saves.md#the-originals-save).
+Mupen64Plus saves are in `%APPDATA%\Mupen64Plus\save`. Only `AIDYN_CHRONICLES (unknown rom).mpk` holds Aidyn data. Its four slots, all named "Alaron", are at the four story checkpoints' positions (below), and load on the debug ROM too. The playthrough used a hacked ROM with low-level enemies, so the party's stats, equipment and spells are below par for the story: good for flag, map and quest state, not for combat parity. `<1.0 rom basename> - story saves.pak` keeps the four as they were, for the tests, since the pak ares uses for 1.0 has saves written into it for checks ([below](#setting-up-a-check)). The pak's layout is in [saves](systems/saves.md#the-originals-save). The pak ares used for 1.0 (`<1.0 rom basename>.pak`), with the saves written into it for the user's checks, was lost on 2026-11-13; rewrite those from the story pak ([below](#setting-up-a-check)).
 
 A Mupen `.mpk` is four 32 KB paks back to back. ares keeps one 32 KB Controller Pak beside the ROM as `<rom basename>.pak`, in the same raw layout, so converting means taking the first 32 KB:
 
@@ -89,7 +89,7 @@ A check far into the story needn't be played to. A save of the port's is edited 
    - `sheet.cs <in> <out> --gold <n> --hour <h[:mm]> --days <n> --member <name> --stats <stat>=<n>,… --current <stat>=<n>,… --skills <skill>=<n>,… --spells <spell>=<level>,… --forget <spell,…|all> --weapon|--armor|--shield <item|none> --gear <item,…|none> --exp <total>[/<spendable>]` edits the party's sheets, the gold and the clock, each `--member`'s options until the next. Items and spells go by name or ID. It refuses what the pak's sheet can't hold (Stamina to 255, Endurance and Level to 63, the other stats to 31, skills to 14, spell levels 1–15) and a spell the original's load would drop: only unschooled ones and the member's school's (Star for Chaos), and Alaron's Elemental, Naming and Necromancy too. It prints the party as the save loads.
    - `flags.cs <save> <n,…>` prints flags, derived ones included, as the save loads: check the object's enabling flag holds, and that what should be hidden is.
 4. **Write it:** `hbht save to-pak <rom> <save> <slot>`. Close ares first, since it writes its pak back as it closes. The command keeps the pak as it was (`<pak>.<time>.bak`), and the story saves stay untouched in `- story saves.pak`, which the tests read. Tell the user which slot holds which save.
-5. **For the runtime,** the same JSON loads with `tools/godot.ps1 --path src/HBHT.Game --save <path>`. Keep it in the gitignored `out/` (the checks' saves are in `out/user-checks/`, combat parity's in `out/parity/saves/`) and give the user the path: what Claude writes under `%LOCALAPPDATA%` lands in the Claude app's private copy, not the data folder the user's runtime reads.
+5. **For the runtime,** the same JSON loads with `tools/godot.ps1 --path src/HBHT.Game --save <path>`. Keep it in the gitignored `out/` (the checks' saves are in `out/user-checks/`; combat parity's, in `out/parity/saves/`, were lost on 2026-11-13) and give the user the path: what Claude writes under `%LOCALAPPDATA%` lands in the Claude app's private copy, not the data folder the user's runtime reads.
 
 When the user reports back, the finding goes in the system's doc and the item comes off [user-checks](user-checks.md). The port's fixes follow [ADR 0018](adr/0018-the-port-fixes-bugs-and-sets-enhancements.md) and, for the game's data, [ADR 0029](adr/0029-content-fixes-wait-for-a-bugfix-mod.md).
 
@@ -124,30 +124,18 @@ Entries 1 and 4–13 are null in the function table.
 
 ## Checkpoint library
 
-Save states are captured by the user playing, not scripted. They live in `roms/` and are named `<rom basename> - <label>.bsN`, made with ares v148. Each of the four story labels exists for 1.0 and for the debug build, with the [existing save](#existing-saves)'s slot at the same position:
+Save states are captured by the user playing, not scripted. They live in `roms/` and are named `<rom basename> - <label>.bsN`, made with ares v148. What exists now:
 
-| Label | Pak slot | Chunk |
-| --- | --- | --- |
-| Before Shamsuk's Tower | B | P17 |
-| Before Rooughah | C | B01 |
-| Before final encounter | A | M06 |
-| Before Rooughah, in Terminor | D | G01 |
+- **1.0's "Before final encounter"** (slot A's position, chunk M06). Load it by label: `tools/ares.ps1 debug -Checkpoint "Before final encounter"`.
+- **The story pak**, `<1.0 rom basename> - story saves.pak`, the four story saves (A before the final encounter, B before Shamsuk's Tower in P17, C before Rooughah in B01, D in Terminor at G01), which the playthrough's tests start from (`StorySaves`).
 
-Load a checkpoint by label:
-
-```powershell
-tools/ares.ps1 debug -Checkpoint "Before final encounter"
-```
-
-**One battle, for combat** (1.0 only, labels `Combat 01, …` to `Combat 14, …`), against ten rats with Alaron, Brenna, Rheda and Sholeh: 01 on the field before it; 02–04 the first turns (Rheda's, Sholeh's, Alaron's); 05 Alaron choosing a melee target; 06 the attack, a rat's death; 07 Rheda choosing a spell's target; 08 her Endurance cast on herself; 09 reserves joining and moving; 10 a rat's attack on Brenna; 11 a rat fleeing; 12 victory; 13 the post-battle training; 14 the loot. [Combat](systems/combat.md) reads them.
-
-**Wanderers around H13** (1.0 only): a new game's Alaron, loaded from a save written to the pak, standing in Overworld H13 at noon, with 27 wanderers in the six chunks its byte 0x1A leaves loaded ([wanderers](systems/wanderers.md#bodies-as-their-chunk-loads)).
+On 2026-11-13 a worktree cleanup emptied `roms/` of the rest, which are gone: the other three story checkpoints for 1.0 and all four for the debug build, the 14 "Combat 01 … 14" states of one battle against ten rats (the checkpoints combat was read and checked from), and "Wanderers around H13" (a new game's Alaron standing in Overworld H13 at noon with 27 wanderers loaded, [wanderers](systems/wanderers.md#bodies-as-their-chunk-loads)). They can only come back by the user playing and capturing them again, so read the docs' findings from them as settled rather than checkable until then. The findings stand in [combat](systems/combat.md) and the rest.
 
 This copies the named state to the ROM's `.bs9` slot and passes `--save-state 9`. Slot 9 is scratch, and the named files are never written. The ares slot convention is `<rom basename>.bsN`.
 
 ### Emulator captures
 
-The user's screenshots of the original, for matching UI against. They live in `roms/` with the checkpoints, named for what they show, such as `menu-party-inventory-info.png` (the pause menu's Party tab with an item's details open). ares saves them at 2560 × 960, four times the 640 × 240 its video output gives (see [ui](systems/ui.md#the-screen)), so taking every fourth pixel both ways recovers that exactly; doubling its lines then shows it at 4:3.
+The user's screenshots of the original, for matching UI against. They live in `roms/` with the checkpoints, named for what they show (lost on 2026-11-13; the user can retake them), such as `menu-party-inventory-info.png` (the pause menu's Party tab with an item's details open). ares saves them at 2560 × 960, four times the 640 × 240 its video output gives (see [ui](systems/ui.md#the-screen)), so taking every fourth pixel both ways recovers that exactly; doubling its lines then shows it at 4:3.
 
 ### Reading the original's code: `tools/n64dis.py`
 
@@ -263,7 +251,7 @@ What did a battle draw, and where? `tools/parity.ps1` boots 1.0 cold (the Contro
 
 ```powershell
 tools/parity.ps1 -Label rats                                   # boot, load the pak's save, fight
-tools/parity.ps1 -Label test -Checkpoint "Combat 09, rat newcomer joins and moves" -Hours 0.02
+tools/parity.ps1 -Label test -Checkpoint "<a checkpoint label>" -Hours 0.02
 python tools/gdb/parity.py --summary out/parity/<run>/battle-01   # the entry points, and the draws by caller, named
 ```
 
@@ -273,11 +261,11 @@ python tools/gdb/parity.py --summary out/parity/<run>/battle-01   # the entry po
 - **Where a draw stops:** `Rng.Next` and `Float0To1` store the seed in their return's delay slot, so gdb stops with `$pc` already back in the caller, and `$ra` equal to it. `Rng.Below` stores it in the delay slot of its jump to `__udivdi3`, so a draw through `RandomExtensions.Range`, as every rule's is, stops at `__udivdi3`'s first instruction. The chain above it is unwound by each function's prologue: its start from the code index, then its `addiu sp, sp, -N` and `sw ra, off(sp)`, through the generator's own functions to the third caller outside them. gdb's own unwinder can't do this without symbols.
 - **A watchpoint's old and new values** don't come back in the text `gdb.execute(..., to_string=True)` returns. So the script reads the seed after each stop, and steps the generator back once for the old value.
 - **`Combat.Exit` runs every frame** and tears down only when `Combat.ExitRequested` is set. The script breaks at `0x80023090`, past that check.
-- **Entering mid-battle**, from a checkpoint or a state loaded during a battle, logs from there. The Combat checkpoints 06, 10 and 11 soon wait on a player's turn, so trying the script on them shows the AI's turns and the cosmetic draws, not an action's.
+- **Entering mid-battle**, from a checkpoint or a state loaded during a battle, logs from there. A checkpoint that soon waits on a player's turn (the lost Combat 06, 10 and 11 did) shows the AI's turns and the cosmetic draws, not an action's.
 
 ### Replaying the original's AI: `tools/aivectors/`
 
-`tools/aivectors/aivectors.py` writes `tests/HBHT.Rom.Tests/CasterVectors.cs`, the table `CasterCheckpointTests` checks the port's casters and bosses against. It runs 1.0's own `ChooseSpellOrAttack`, `RunStyle` and `EnemyAI.Step` in a MIPS interpreter (`cpu.py`) over the RAM of the Combat 02 and 08–11 checkpoints, with each enemy caster built by the original's entity builder in a rat's place (`ovl.py`, `vec.py`, `vec2.py`). The cases are in `cases.py`, the one-off vectors (`ScoreSpellCells` by action slot, `SpellValue` by kind, `AICanCast`, the area danger, the morale spells) in `extras.py`, and `emit.py` writes the C# and a `vectors.json` with every case's full state. `emit_extra.py` writes the one-off vectors as `CasterExtraVectors.cs`, which `CasterCheckpointTests.Extras.cs` checks (`aivectors.py --extras` reruns just those, about half a minute); the five `itemspell` cases, which wear a weapon as the armor or shield, are laid on the port by putting the item in the slot by reflection.
+`tools/aivectors/aivectors.py` wrote `tests/HBHT.Rom.Tests/CasterVectors.cs`, the table the casters' tests checked the port's casters and bosses against. **The tables it and `formulas.py` wrote (`CasterVectors.cs`, `CasterExtraVectors.cs`, the `Formulas/` tables) and the tests that read them were retired on 2026-11-13, when the checkpoints and parity logs they run on were lost; the tooling stays as tooling, and a rerun would need new captures and new tests.** It runs 1.0's own `ChooseSpellOrAttack`, `RunStyle` and `EnemyAI.Step` in a MIPS interpreter (`cpu.py`) over the RAM of the (lost) Combat 02 and 08–11 checkpoints, with each enemy caster built by the original's entity builder in a rat's place (`ovl.py`, `vec.py`, `vec2.py`). The cases are in `cases.py`, the one-off vectors (`ScoreSpellCells` by action slot, `SpellValue` by kind, `AICanCast`, the area danger, the morale spells) in `extras.py`, and `emit.py` writes the C# and a `vectors.json` with every case's full state. `emit_extra.py` wrote the one-off vectors (`aivectors.py --extras` reruns just those, about half a minute); the five `itemspell` cases wear a weapon as the armor or shield.
 
 ```bash
 pip install capstone numpy
@@ -286,10 +274,10 @@ python tools/aivectors/aivectors.py --only Lugash    # a few cases, to out/aivec
 ```
 
 - **Inputs:** the 1.0 ROM in `roms/` (or `HBHT_ROMS`, or `--roms`), whose code is disassembled with capstone and cached in the gitignored `out/aivectors/insns.pkl`, and the checkpoints' RDRAM through `bst.py`'s `load_rdram`.
-- **The output is checked in,** the inputs aren't. It is deterministic: running it again gives the same file. Run it only when the cases change or a port-side finding needs a new vector, and commit the new table with the change.
+- **The output was checked in,** the inputs aren't. It is deterministic: running it again gives the same file.
 - **The interpreter** covers the integer and single/double float instructions these functions use, runs a function with `cpu.run(address, args)` and can replace one with a Python stub (`cpu.hooks`, in `sim.py`) for drawing, message queues and sounds. A case that hits an instruction it lacks stops with `unimpl`.
 
-**The formula vectors** (combat parity's, [combat-parity](systems/combat-parity.md#the-formula-vectors)) are the same interpreter made general: `formulas.py` runs a family of 1.0's combat functions (`families/<name>.py`) on a Combat checkpoint's or a parity log's RAM, with typed pokes (`state.py`) and the main stream's draws recorded by function and scripted by index (`draws.py`), and writes `tests/HBHT.Rom.Tests/Formulas/<Family>Vectors.cs`, which `<Family>VectorTests` checks the port against through `FormulaState`.
+**The formula vectors** (combat parity's, [combat-parity](systems/combat-parity.md#the-formula-vectors)) are the same interpreter made general: `formulas.py` runs a family of 1.0's combat functions (`families/<name>.py`) on a Combat checkpoint's or a parity log's RAM, with typed pokes (`state.py`) and the main stream's draws recorded by function and scripted by index (`draws.py`), and wrote `tests/HBHT.Rom.Tests/Formulas/<Family>Vectors.cs` for the retired `<Family>VectorTests`.
 
 ```bash
 python tools/aivectors/formulas.py --list                # the families
@@ -297,9 +285,9 @@ python tools/aivectors/formulas.py melee                 # every melee vector, a
 python tools/aivectors/formulas.py melee --only behind   # the vectors whose id has the text, printed, nothing written
 ```
 
-- **Inputs:** as above, and for the vectors on a log's state, the parity logs in `out/parity/` (or `HBHT_PARITY`); the tests skip those without them. In a worktree, `roms/` and `out/parity/` can be junctions to the main checkout's. Remove the junctions (`cmd /c rmdir <path>`, which deletes only the link) before the worktree goes: `git worktree remove` follows a junction and empties the folder it points to, which on 2026-11-13 took the main checkout's ROMs, checkpoints, parity logs and Ghidra output.
+- **Inputs:** as above, and for the vectors on a log's state, the parity logs in `out/parity/` (or `HBHT_PARITY`), lost. In a worktree, `roms/` and `out/parity/` can be junctions to the main checkout's. Remove the junctions (`cmd /c rmdir <path>`, which deletes only the link) before the worktree goes: `git worktree remove` follows a junction and empties the folder it points to, which on 2026-11-13 took the main checkout's ROMs, checkpoints, parity logs and Ghidra output.
 - **A source** is `cp05`, or `log:<session>/<battle>:<dump>` for a dump beside a log, read gzipped as `AresCheckpoint.FromRdram` reads it. A poke is `name:arg,…`, several joined by `|`: `mod`, `base` and `cur` for a stat's parts, `skill`, `place`, `face`, `height`, `daypart`, `troubadour`, `weapon`, `noshield`, `resist`, `aspect`, `effect` and `acted`, listed in `state.py`'s docstring.
-- **Draws:** `draws.d100(r)` is the raw value of a d100 that comes up `r`; a script sets the stream to the seed before the value (`draws.seed_before`) at that draw's index, and the port's `FormulaState.Draws` does the same through `Lcg.BeforeDraw`.
+- **Draws:** `draws.d100(r)` is the raw value of a d100 that comes up `r`; a script sets the stream to the seed before the value (`draws.seed_before`) at that draw's index, and the port's `Lcg.BeforeDraw` can do the same.
 
 ## Finding the original's code
 
