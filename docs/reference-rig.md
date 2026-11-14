@@ -297,7 +297,7 @@ python tools/aivectors/formulas.py melee                 # every melee vector, a
 python tools/aivectors/formulas.py melee --only behind   # the vectors whose id has the text, printed, nothing written
 ```
 
-- **Inputs:** as above, and for the vectors on a log's state, the parity logs in `out/parity/` (or `HBHT_PARITY`); the tests skip those without them. In a worktree, `roms/` and `out/parity/` can be junctions to the main checkout's.
+- **Inputs:** as above, and for the vectors on a log's state, the parity logs in `out/parity/` (or `HBHT_PARITY`); the tests skip those without them. In a worktree, `roms/` and `out/parity/` can be junctions to the main checkout's. Remove the junctions (`cmd /c rmdir <path>`, which deletes only the link) before the worktree goes: `git worktree remove` follows a junction and empties the folder it points to, which on 2026-11-13 took the main checkout's ROMs, checkpoints, parity logs and Ghidra output.
 - **A source** is `cp05`, or `log:<session>/<battle>:<dump>` for a dump beside a log, read gzipped as `AresCheckpoint.FromRdram` reads it. A poke is `name:arg,…`, several joined by `|`: `mod`, `base` and `cur` for a stat's parts, `skill`, `place`, `face`, `height`, `daypart`, `troubadour`, `weapon`, `noshield`, `resist`, `aspect`, `effect` and `acted`, listed in `state.py`'s docstring.
 - **Draws:** `draws.d100(r)` is the raw value of a d100 that comes up `r`; a script sets the stream to the seed before the value (`draws.seed_before`) at that draw's index, and the port's `FormulaState.Draws` does the same through `Lcg.BeforeDraw`.
 
