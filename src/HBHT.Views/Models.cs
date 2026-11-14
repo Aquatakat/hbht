@@ -10,19 +10,21 @@ namespace HBHT.Views;
 /// Godot, for its nodes), and every use gets a copy, so a forest of one tree costs one parse.
 /// </summary>
 /// <remarks>
-/// Any thread may use it, as the runtime builds chunks' scenery off the main thread and parses what's coming ahead of time
+/// <para>Any thread may use it, as the runtime builds chunks' scenery off the main thread and parses what's coming ahead of time
 /// (<see cref="Warm"/>; docs/adr/0025-chunks-load-off-the-main-thread.md). Each asset is parsed once, by whichever thread asks
 /// first, but the main thread never waits for another to finish one: Godot's renderer serves other threads' calls on the main
 /// thread, between frames, so a thread parsing a scene can be waiting on the main thread, and the main thread waiting on it
 /// would never go on. It parses a copy of its own instead, which happens only when both want the same asset at once. Its nodes
-/// are made outside the tree, which only the main thread may add them to.
+/// are made outside the tree, which only the main thread may add them to.</para>
+/// <para>A parsed scene is kept packed, and each copy is instantiated from it. Copying its nodes (<c>Node.Duplicate</c>) read every
+/// node's property list, and a mesh's asks the renderer for its instance shader parameters and their defaults, each a call that
+/// waits on the main thread from another thread: a chunk's scenery built off the main thread took as many frames as it made
+/// copies of meshes (runtime.md#loading-chunks). An instantiation only sets the properties packed, which waits on nothing.</para>
 /// </remarks>
 public sealed class Models(PluginSet plugins) : IDisposable
 {
     private readonly Dictionary<RecordId, Template> _templates = [];
     private readonly Dictionary<RecordId, Lazy<GlbScene?>> _files = [];
-    /// <summary>The main thread's own copies of templates another thread was parsing, freed with the rest.</summary>
-    private readonly List<Node3D> _ownCopies = [];
     private readonly int _mainThread = System.Environment.CurrentManagedThreadId;
 
     /// <summary>The particles actors' emitters start in, if any are drawn.</summary>
@@ -41,7 +43,7 @@ public sealed class Models(PluginSet plugins) : IDisposable
     public Node3D? Instantiate(RecordId scene)
     {
         // Copies of one template may be made on several threads at once: making one only reads it.
-        return Parsed(scene)?.Duplicate() as Node3D;
+        return Parsed(scene)?.Instantiate<Node3D>();
     }
 
     /// <summary>
@@ -62,8 +64,8 @@ public sealed class Models(PluginSet plugins) : IDisposable
         Parsed(scene);
     }
 
-    /// <summary>The scene's parsed nodes, which are never in the tree and are only ever copied, or null without an asset.</summary>
-    private Node3D? Parsed(RecordId scene)
+    /// <summary>The scene's parsed nodes, packed to be copied, or null without an asset.</summary>
+    private PackedScene? Parsed(RecordId scene)
     {
         Template? template;
         bool parses;
@@ -75,57 +77,71 @@ public sealed class Models(PluginSet plugins) : IDisposable
         }
         if (parses)
         {
-            Node3D? node = null;
+            PackedScene? packed = null;
             try
             {
-                node = Load(scene);
+                packed = Pack(Load(scene));
             }
             finally
             {
-                template!.Finish(node);
+                template!.Finish(packed);
             }
-            return node;
+            return packed;
         }
         if (template!.Done)
-            return template.Node;
+            return template.Scene;
         if (System.Environment.CurrentManagedThreadId != _mainThread)
             return template.Wait();
         // Another thread is parsing it, and may be waiting on the main thread's renderer: parse a copy rather than wait.
-        var own = Load(scene);
-        if (own is not null)
-        {
-            lock (_ownCopies)
-                _ownCopies.Add(own);
-        }
-        return own;
+        return Pack(Load(scene));
     }
 
-    /// <summary>A scene's parsed nodes, once whichever thread parses them has.</summary>
+    /// <summary>Packs a scene's parsed nodes, every one of them, and frees them, as only the packed scene is copied.</summary>
+    private static PackedScene? Pack(Node3D? node)
+    {
+        if (node is null)
+            return null;
+        foreach (var n in Nodes.FindAll<Node>(node))
+        {
+            if (n != node)
+                n.Owner = node;
+        }
+        var packed = new PackedScene();
+        var error = packed.Pack(node);
+        var name = node.Name;
+        node.Free();
+        if (error == Error.Ok)
+            return packed;
+        GD.PushWarning($"Godot couldn't pack {name}: {error}.");
+        return null;
+    }
+
+    /// <summary>A scene's packed nodes, once whichever thread parses them has.</summary>
     private sealed class Template
     {
         private volatile bool _done;
 
         public bool Done => _done;
 
-        public Node3D? Node { get; private set; }
+        public PackedScene? Scene { get; private set; }
 
-        public void Finish(Node3D? node)
+        public void Finish(PackedScene? scene)
         {
             lock (this)
             {
-                Node = node;
+                Scene = scene;
                 _done = true;
                 Monitor.PulseAll(this);
             }
         }
 
-        public Node3D? Wait()
+        public PackedScene? Wait()
         {
             lock (this)
             {
                 while (!_done)
                     Monitor.Wait(this);
-                return Node;
+                return Scene;
             }
         }
     }
@@ -186,20 +202,14 @@ public sealed class Models(PluginSet plugins) : IDisposable
         return file.Value;
     }
 
-    /// <summary>Frees the parsed templates, which are never in the tree. Nothing may be building from them.</summary>
+    /// <summary>Lets go of the packed templates. Nothing may be building from them.</summary>
     public void Dispose()
     {
         lock (_templates)
         {
             foreach (var template in _templates.Values.Where(t => t.Done))
-                template.Node?.Free();
+                template.Scene?.Dispose();
             _templates.Clear();
-        }
-        lock (_ownCopies)
-        {
-            foreach (var own in _ownCopies)
-                own.Free();
-            _ownCopies.Clear();
         }
         lock (_files)
         {
