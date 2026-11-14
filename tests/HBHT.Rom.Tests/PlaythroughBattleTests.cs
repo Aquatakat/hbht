@@ -330,6 +330,24 @@ public sealed class PlaythroughBattleTests(Na10Import fixture, ITestOutputHelper
     }
 
     [Fact]
+    public void TheRogueRaisesThiefToPickTheTowersLocksBeforeTheThirdTier()
+    {
+        // Before Shamsuk's Tower, Brenna is the party's thief, by the Rogue build. Its second tier raises Thief to 8, which picks a lock of
+        // 7 (a lock is picked below the thief's Thief), and Mechanic to 5, before the third tier's weapon and Stamina: the tower's chests
+        // have locks of 6 and 7 (EhudUnder K01/12, K03/10, G03/7, G03/9), and the base game's containers' locks go to 8.
+        var party = AtStorySave('B').Party;
+        var brenna = party.Members.Single(m => m.Name == "Brenna");
+        Assert.Equal(Builds.Rogue, Builds.For(brenna, Builds.Default));
+        Assert.Same(brenna, party.MostSkilled(Skill.Thief));
+        int? TierOf(Skill skill, int level) => Builds.Rogue.Steps.FirstOrDefault(s => s.Skill == skill && s.Level >= level)?.Tier;
+        Assert.Equal(2, TierOf(Skill.Thief, 8));
+        Assert.Equal(2, TierOf(Skill.Mechanic, 5));
+        Assert.True(Builds.Rogue.Steps.Where(s => s.Tier == 3).All(s => s.Skill is not Skill.Thief || s.Level > 8));
+        Assert.True(WorldReach.CanPick(party, brenna.Skills.Modified(Skill.Thief) - 1));
+        Assert.False(WorldReach.CanPick(party, brenna.Skills.Modified(Skill.Thief)));
+    }
+
+    [Fact]
     public void AtARealTrainerTheBuildsBuyWhatTheyWantWithinTheGold()
     {
         // Before Rooughah, in Terminor: the party at two of Terminor's trainers, the fighters' (STTE02, entity 0x02B5, in A07: Warrior 8,

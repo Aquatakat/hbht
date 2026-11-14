@@ -11,6 +11,13 @@ namespace HBHT.Core.Playthrough;
 /// one the base game has: the Chaos party at EhudUnder O03 is there only once Shamsuk is defeated (458), which only his battle at
 /// Overworld I08/13 sets (<c>0x0494</c>), and the one way into the tower, the climb at Overworld P17/4, is enabled only while 458 is
 /// clear; the portal into the tower from the cave on Cradawgh's Isle (MiscInteriors A05/5) is enabled by 4300, which nothing sets.
+/// <para>
+/// A way (a teleporter or a collision toggle) whose gate wants such a flag set is closed for good the same way, while its gate is shut:
+/// once the flag is set, nothing leads back to it. The base game has three, all in the tower and all wanting 458: the chamber's way back
+/// into the tower (EhudUnder G17/3), G13/2, and the door out at the bottom (C09/2, locked at level 10 until 458). The world graph's
+/// reach takes such a way as a wall (<see cref="WorldGraph.ClosedForGood"/>), where its rounds would open it once a relaxation had set
+/// 458 beyond it, at Overworld I08.
+/// </para>
 /// </summary>
 /// <remarks>
 /// Sound as far as the world graph is: only teleporters move the player in trek, and a script never does. A flag counts only if
@@ -21,10 +28,16 @@ namespace HBHT.Core.Playthrough;
 /// </remarks>
 public sealed class Closings
 {
-    private Closings(Dictionary<int, RecordId> closed) => Why = closed;
+    private Closings(Dictionary<int, RecordId> closed, Dictionary<RecordId, RecordId> ways) => (Why, Ways) = (closed, ways);
 
     /// <summary>The actions closed for good, each with the flag whose setting closes its place.</summary>
     public IReadOnlyDictionary<int, RecordId> Why { get; }
+
+    /// <summary>
+    /// The ways (teleporters and collision toggles, by their map objects) closed for good while their gates are shut, each with the flag
+    /// their gate wants set: once it's set, none of its setters' places leads back to them.
+    /// </summary>
+    public IReadOnlyDictionary<RecordId, RecordId> Ways { get; }
 
     /// <summary>Whether an action is closed for good.</summary>
     public bool Closed(int action) => Why.ContainsKey(action);
@@ -73,11 +86,24 @@ public sealed class Closings
             }
         }
 
+        // The ways whose gates want each such flag set.
+        var ways = new Dictionary<int, List<IGatedWay>>();
+        foreach (var way in graph.Portals.Cast<IGatedWay>().Concat(graph.Toggles))
+        {
+            foreach (var gate in way.Gates)
+            {
+                if (gate is { Blocking: true, Invert: false, Flag: { } flag } && flags.TryHandle(flag, out var h) && Counts(h))
+                    (ways.TryGetValue(h, out var list) ? list : ways[h] = []).Add(way);
+            }
+        }
+
         // For each flag, its setters' floods: with the gates wanting it clear shut, and with every gate open. A setter whose flood doesn't
         // start (its place is off the graphs) leaves the flag alone. The floods are given up flag by flag: the Overworld's are 8 MB each.
         var closed = new Dictionary<int, RecordId>();
-        foreach (var (h, actions) in needing.OrderBy(p => p.Key))
+        var closedWays = new Dictionary<RecordId, RecordId>();
+        foreach (var h in needing.Keys.Union(ways.Keys).Order())
         {
+            var actions = needing.GetValueOrDefault(h) ?? [];
             var id = flags.Id(h);
             int? Toll(IGatedWay way)
             {
@@ -115,6 +141,11 @@ public sealed class Closings
                     if (!closed.ContainsKey(action.Index) && !floods.Any(f => Reached(f.Shut, place)) && floods.Any(f => Reached(f.Open, place)))
                         closed[action.Index] = id;
                 }
+                foreach (var way in ways.GetValueOrDefault(h) ?? [])
+                {
+                    if (!closedWays.ContainsKey(way.Id) && !floods.Any(f => Reached(f.Shut, way.Id)) && floods.Any(f => Reached(f.Open, way.Id)))
+                        closedWays[way.Id] = id;
+                }
             }
             foreach (var (shut, open) in floods)
             {
@@ -122,7 +153,7 @@ public sealed class Closings
                 open.Release();
             }
         }
-        return new Closings(closed);
+        return new Closings(closed, closedWays);
 
         static bool Reached(GateFlood flood, RecordId place) =>
             (place.Type == RecordTypes.Chunk ? flood.ToChunk(place) : flood.To(place)) is not null;

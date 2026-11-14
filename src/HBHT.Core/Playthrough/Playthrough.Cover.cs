@@ -164,7 +164,12 @@ public sealed partial class Playthrough
             var save = SaveBefore();
             // A loss the check didn't foresee may be a story trigger the step crossed on the way: the branch shuns those it crossed.
             var crossed = !predicted && Played.Count > 0 && Played[^1].Number == step ? Played[^1].Outcome?.Crossed ?? [] : [];
-            _cover.Branches.Add(new CoverBranch(step, action, save, [.. lost.Select(t => t.Flag)], predicted) { ActionIndex = index, Crossed = crossed });
+            // A step meant to set one of what it lost, that crossed a story trigger on its way, lost it to the trigger: the branch shuns
+            // the trigger and takes the step again. Lugash's talk in the caves under the Barrows (9/G03/12, 0x04D6, 1011) crossed G03/10 on
+            // the way, whose battle with him shut the talk; a branch avoiding the talk had no other way to 1011.
+            var own = crossed.Count > 0 && lost.Any(t => Model.Adds(index).Contains(Model.FlagFact(t.Handle, true)));
+            _cover.Branches.Add(new CoverBranch(step, action, save, [.. lost.Select(t => t.Flag)], predicted)
+                { ActionIndex = index, Crossed = crossed, AvoidStep = !own });
             // Lost by the places alone: the relaxation with every place reached still sets them, so where the step left the player walls
             // them off (a way down with none back up, or the world graph's reach from there).
             var stranded = StrandedOf(state, lost);

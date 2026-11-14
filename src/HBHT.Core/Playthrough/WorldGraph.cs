@@ -198,6 +198,14 @@ public sealed partial class WorldGraph
         _toggleIndex.Value.TryGetValue(graph.Toggles[local], out var t) ? t
             : throw new InvalidDataException($"{graph.MapSet}'s walk graph names {graph.Toggles[local]}, which isn't a toggle.");
 
+    /// <summary>
+    /// The ways closed for good while their gate wanting a flag set is shut (<see cref="Closings.Ways"/>), each with that flag: once the
+    /// flag is set, nothing leads back to them, so the reach takes them as walls (<see cref="WorldReach"/>). Set once, before any reach is
+    /// made; none by default.
+    /// </summary>
+    public IReadOnlyDictionary<RecordId, RecordId> ClosedForGood { get; set; } = new Dictionary<RecordId, RecordId>();
+
+
     /// <summary>A way's gates: a portal's below <see cref="Portals"/>' count, a toggle's above it.</summary>
     internal IGatedWay Way(int way) => way < Portals.Count ? Portals[way] : Toggles[way - Portals.Count];
 

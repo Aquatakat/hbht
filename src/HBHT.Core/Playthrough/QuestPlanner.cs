@@ -247,7 +247,7 @@ public sealed class QuestPlanner
             foreach (var a in adders.Take(3))
             {
                 var action = _model.Actions[a];
-                var blocker = _model.Needs(a).FirstOrDefault(p => !result.Reached(p), -1);
+                var blocker = _model.Needs(a).FirstOrDefault(p => !result.Holds(p), -1);
                 if (blocker >= 0)
                 {
                     lines.Add($"{indent}  {action.Describe()} needs {_model.DescribeFact(blocker)}");

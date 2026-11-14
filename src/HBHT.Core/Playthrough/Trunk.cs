@@ -220,12 +220,14 @@ public static class Trunk
             {
                 by = setters[h] ?? [];
             }
+            // A trap the party here always disarms never goes off: its exploded flag isn't live from here, but from a save whose party
+            // has a worse mechanic, or none. A Rogue with Mechanic 5 always disarms traps of 1 and 2.
+            var reached = by.Where(a => result.ActionLayer[a] >= 0).ToList();
+            if (reached.Count > 0 && reached.All(a => model.Actions[a].Gates.Any(g => g.Check?.Kind == CodeCheckKind.Spring && CodeGates.Meets(g, game) == false)))
+                continue;
             var far = float.MaxValue;
-            foreach (var a in by)
-            {
-                if (result.ActionLayer[a] >= 0)
-                    far = Math.Min(far, Playthrough.Distance(positions[a], here));
-            }
+            foreach (var a in reached)
+                far = Math.Min(far, Playthrough.Distance(positions[a], here));
             // None that the relaxation gets to has a place (the opening, a battle the story starts): no distance to tell them by.
             live[id] = far == float.MaxValue ? 0 : far;
         }

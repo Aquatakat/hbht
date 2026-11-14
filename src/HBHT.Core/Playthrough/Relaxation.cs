@@ -40,6 +40,7 @@ public sealed class Relaxation
         {
             FactLayer = new int[facts];
             Achiever = new int[facts];
+            FlashOnly = new bool[facts];
             ActionLayer = new int[actions];
             Array.Fill(FactLayer, -1);
             Array.Fill(Achiever, int.MinValue);
@@ -57,7 +58,17 @@ public sealed class Relaxation
 
         internal Dictionary<int, bool[]> Witnesses { get; } = [];
 
+        /// <summary>
+        /// Whether each fact came true only for a moment (<see cref="QuestModel.Flashes"/>), as yet: reached, but meeting nothing that
+        /// needs it.
+        /// </summary>
+        public bool[] FlashOnly { get; }
+
+        /// <summary>Whether a fact comes true, if only for a moment: what a target needs.</summary>
         public bool Reached(int fact) => FactLayer[fact] >= 0;
+
+        /// <summary>Whether a fact comes true and stays so: what a gate or a precondition needs.</summary>
+        public bool Holds(int fact) => FactLayer[fact] >= 0 && !FlashOnly[fact];
     }
 
     /// <summary>
@@ -99,6 +110,8 @@ public sealed class Relaxation
             if (counts[a] == 0 && !excluded[a])
                 ready.Add(a);
         }
+        // What the flags can be, counting what's true only for a moment: made once something flashes.
+        byte[]? flashValues = null;
         for (var layer = 0; ; layer++)
         {
             foreach (var f in current)
@@ -114,13 +127,33 @@ public sealed class Relaxation
             if (stop?.Invoke(result) == true)
                 return result;
             var next = new List<int>();
+            var flashed = new List<int>();
             foreach (var a in ready)
             {
                 result.ActionLayer[a] = layer;
+                var flashes = model.Flashes(a);
                 foreach (var f in model.Adds(a))
                 {
+                    // A fact the action makes true only for a moment is reached, as a target is, but meets nothing that needs it.
+                    var flash = flashes.Count > 0 && flashes.Contains(f);
                     if (result.FactLayer[f] < 0)
                     {
+                        result.FactLayer[f] = layer + 1;
+                        result.Achiever[f] = a;
+                        if (flash)
+                        {
+                            result.FlashOnly[f] = true;
+                            flashed.Add(f);
+                        }
+                        else
+                        {
+                            next.Add(f);
+                        }
+                    }
+                    else if (!flash && result.FlashOnly[f])
+                    {
+                        // Now for good: the relaxed plan takes this achiever, which what needs it can use.
+                        result.FlashOnly[f] = false;
                         result.FactLayer[f] = layer + 1;
                         result.Achiever[f] = a;
                         next.Add(f);
@@ -129,20 +162,11 @@ public sealed class Relaxation
             }
             ready.Clear();
 
-            // Derived flags their inputs can now make set or clear.
-            var changed = false;
-            foreach (var f in next)
-            {
-                if (f < 2 * flags.Count)
-                {
-                    var bit = f % 2 == 0 ? FlagModel.CanBeSet : FlagModel.CanBeClear;
-                    if ((values[f / 2] & bit) == 0)
-                    {
-                        values[f / 2] |= bit;
-                        changed = true;
-                    }
-                }
-            }
+            // Derived flags their inputs can now make set or clear: for good over what stays so, and for a moment over what flashes too.
+            var changed = Mark(values, next, flags.Count);
+            if (flashValues is null && flashed.Count > 0)
+                flashValues = (byte[])values.Clone();
+            var flashing = flashValues is not null && (Mark(flashValues, next, flags.Count) | Mark(flashValues, flashed, flags.Count) | changed);
             for (var pass = 0; changed && pass < 16; pass++)
             {
                 changed = false;
@@ -164,15 +188,68 @@ public sealed class Relaxation
                             result.Witnesses[fact] = flags.Witness(d, values, want) ?? [];
                             next.Add(fact);
                         }
+                        else if (result.FlashOnly[fact])
+                        {
+                            result.FlashOnly[fact] = false;
+                            result.FactLayer[fact] = layer + 1;
+                            result.Witnesses[fact] = flags.Witness(d, values, want) ?? [];
+                            next.Add(fact);
+                        }
                     }
                     values[d] = value;
+                    if (flashValues is not null)
+                    {
+                        flashValues[d] |= value;
+                        flashing = true;
+                    }
                     changed = true;
+                }
+            }
+            for (var pass = 0; flashing && pass < 16; pass++)
+            {
+                flashing = false;
+                foreach (var d in flags.Derived)
+                {
+                    var value = (byte)(flags.Possible(d, flashValues!) | flashValues![d]);
+                    if (value == flashValues[d])
+                        continue;
+                    foreach (var want in new[] { true, false })
+                    {
+                        var bit = want ? FlagModel.CanBeSet : FlagModel.CanBeClear;
+                        var fact = model.FlagFact(d, want);
+                        if ((value & bit) == 0 || (flashValues[d] & bit) != 0 || result.FactLayer[fact] >= 0)
+                            continue;
+                        result.FactLayer[fact] = layer + 1;
+                        result.Achiever[fact] = -2 - d;
+                        result.Witnesses[fact] = flags.Witness(d, flashValues, want) ?? [];
+                        result.FlashOnly[fact] = true;
+                    }
+                    flashValues[d] = value;
+                    flashing = true;
                 }
             }
 
             if (next.Count == 0)
                 return result;
             current = next;
+        }
+
+        // Marks the facts' values as able to be so: whether any is new.
+        static bool Mark(byte[] values, List<int> facts, int count)
+        {
+            var changed = false;
+            foreach (var f in facts)
+            {
+                if (f >= 2 * count)
+                    continue;
+                var bit = f % 2 == 0 ? FlagModel.CanBeSet : FlagModel.CanBeClear;
+                if ((values[f / 2] & bit) == 0)
+                {
+                    values[f / 2] |= bit;
+                    changed = true;
+                }
+            }
+            return changed;
         }
     }
 

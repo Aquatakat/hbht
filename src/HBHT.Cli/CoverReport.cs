@@ -115,21 +115,20 @@ internal static partial class CoverReport
             game = GameState.NewGame(plugins);
         }
         var model = QuestModel.Build(plugins);
-        List<RecordId> targets;
-        if (options.TryGetValue("--targets", out var which) && which != "all")
-        {
-            targets = ReadTargets(which, model);
-        }
-        else
-        {
-            // What the story's order closes for good is no target: Shamsuk's Tower once he's defeated.
-            var closings = Closings.Find(model, new WorldGraph(plugins), game);
-            foreach (var (action, flag) in closings.Why.OrderBy(c => c.Key))
-                Console.WriteLine($"Closed for good once {flag} is set: {model.Actions[action].Describe()}");
-            targets = CoverGoal.StaticTargets(model, PlanState.From(model, game), game, closings);
-        }
+        // What the story's order closes for good is no target, and its ways are walls: Shamsuk's Tower once he's defeated.
+        var closings = Closings.Find(model, new WorldGraph(plugins), game);
+        foreach (var (action, flag) in closings.Why.OrderBy(c => c.Key))
+            Console.WriteLine($"Closed for good once {flag} is set: {model.Actions[action].Describe()}");
+        foreach (var (way, flag) in closings.Ways.OrderBy(w => w.Key.ToString(), StringComparer.Ordinal))
+            Console.WriteLine($"A way closed for good while {flag} is clear: {way}");
+        var targets = options.TryGetValue("--targets", out var which) && which != "all"
+            ? ReadTargets(which, model)
+            : CoverGoal.StaticTargets(model, PlanState.From(model, game), game, closings);
         var root = new CoverRoot([.. targets.Select(t => t.ToString())], save, Number(options, "--job-minutes", 120),
-            (int)Number(options, "--most-failures", 3), DateTimeOffset.UtcNow);
+            (int)Number(options, "--most-failures", 3), DateTimeOffset.UtcNow)
+        {
+            ClosedWays = closings.Ways.ToDictionary(w => w.Key.ToString(), w => w.Value.ToString()),
+        };
         if (trunk)
             return InitTrunk(plugins, queue, root with { Trunk = "trunk" }, model, targets, trunkFrom, (int)Number(options, "--threads", 20));
         queue.Init(root);
@@ -144,7 +143,7 @@ internal static partial class CoverReport
     /// </summary>
     private static int InitTrunk(PluginSet plugins, CoverQueue queue, CoverRoot root, QuestModel model, List<RecordId> targets, string? from, int threads)
     {
-        var graph = new WorldGraph(plugins);
+        var graph = root.Graph(plugins);
         var folder = Path.Combine(queue.Root, root.Trunk!);
         GameState Start() => root.Save is { } s ? GameState.Load(plugins, SaveFile.Read(queue.Resolve(s), plugins)) : GameState.NewGame(plugins);
 
@@ -311,15 +310,18 @@ internal static partial class CoverReport
         var round = file.Rounds + 1;
 
         var model = QuestModel.Build(plugins);
-        var graph = new WorldGraph(plugins);
+        var graph = queue.ReadRoot().Graph(plugins);
         GameState Load(int step) => GameState.Load(plugins, SaveFile.Read(Path.Combine(folder, manifest.Saves.First(s => s.Step == step).Save), plugins));
         var looks = Trunk.Look(model, graph, [.. manifest.Saves.Select(s => (s.Step, (Func<GameState>)(() => Load(s.Step))))], open, threads, party: open);
         Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"Looked at {looks.Count} trunk saves for {open.Count} uncovered targets in {clock.Elapsed.TotalSeconds:0.0} s"));
 
         var brought = PartyJobs.Brought(manifest);
+        var crowds = PartyJobs.Crowds(model, manifest);
+        foreach (var crowd in crowds)
+            Console.WriteLine($"  t{crowd.Step:000}'s join asks only {string.Join(", ", crowd.Leavers.Select(m => m.Key))} to leave");
         var every = open.ToDictionary(t => t, t => PartyJobs.Starts(t, looks,
-            file.Tried.TryGetValue(t.ToString(), out var tried) ? tried.ToHashSet() : null, brought));
+            file.Tried.TryGetValue(t.ToString(), out var tried) ? tried.ToHashSet() : null, brought, crowds));
         var starts = every.ToDictionary(s => s.Key, s => s.Value.Take(MostPartyStarts).ToList());
         var needing = starts.Where(s => s.Value.Count > 0).Select(s => s.Key).ToList();
         Console.WriteLine($"{needing.Count} of them need a party the trunk doesn't make from a trunk save they're live from, " +
@@ -456,7 +458,7 @@ internal static partial class CoverReport
         // One model and one world graph, shared by every worker (QuestModel.ForRun gives each run its own reach).
         var built = Stopwatch.StartNew();
         var model = QuestModel.Build(plugins);
-        var graph = new WorldGraph(plugins);
+        var graph = queue.ReadRoot().Graph(plugins);
         Console.WriteLine($"{model.Actions.Count} actions over {model.Ways.Count} scripts, in {built.Elapsed.TotalSeconds:F1} s; {threads} worker(s)");
 
         var gate = new object();

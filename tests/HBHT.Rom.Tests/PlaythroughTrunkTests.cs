@@ -22,6 +22,23 @@ public sealed class PlaythroughTrunkTests(Na10Import fixture, ITestOutputHelper 
     }
 
     [Fact]
+    public void ATrapsExplodedFlagIsntLiveFromASaveWhosePartyAlwaysDisarmsIt()
+    {
+        // Shamsuk's Tower's chest at EhudUnder O05/115 has a trap of 4. From a new game, Alaron has no Mechanic and lets any trap go off;
+        // before the tower, in the story pak's slot B, Niesen's Mechanic 6 and Intelligence 30 disarm it every time.
+        var model = QuestModel.Build(Data.Set);
+        var graph = new WorldGraph(Data.Set, Path.Combine(Path.GetTempPath(), "hbht-playthrough-cache"));
+        var exploded = Ids.Flag(3224);
+        var tower = StorySaves.Game(Data.Set, 'B');
+        Assert.Equal(1, CodeGates.DisarmChance(tower.Party, 4));
+        var looks = Trunk.Look(model, graph, [(0, () => GameState.NewGame(Data.Set)), (1, () => StorySaves.Game(Data.Set, 'B'))], [exploded, Ids.Flag(2297)], threads: 2);
+        Assert.True(looks[0].Live.ContainsKey(exploded));
+        Assert.False(looks[1].Live.ContainsKey(exploded));
+        // The tower's chest at G03/9, opened, is live from there.
+        Assert.True(looks[1].Live.ContainsKey(Ids.Flag(2297)));
+    }
+
+    [Fact]
     [Trait("Category", "Slow")]
     public void AShortTrunkSavesBeforeEveryStepCoversWhatItSetsAndGivesEveryLiveTargetOneSaveInItsWindow()
     {

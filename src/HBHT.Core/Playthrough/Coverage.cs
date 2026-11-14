@@ -66,6 +66,12 @@ public sealed record CoverBranch(int Step, string Action, string? Save, IReadOnl
     /// <summary>The story triggers the step crossed, other than its own, which the branch shuns (<see cref="CoverGoal.Shun"/>).</summary>
     public IReadOnlyList<RecordId> Crossed { get; init; } = [];
 
+    /// <summary>
+    /// Whether the branch avoids the step (<see cref="Avoid"/>). Not when the step was meant to set what it lost and crossed a story
+    /// trigger on its way: the trigger lost it, and the branch, shunning the trigger, takes the step again.
+    /// </summary>
+    public bool AvoidStep { get; init; } = true;
+
     /// <summary>How the branch's job names the step it avoids (<see cref="CoverGoal.Avoid"/>).</summary>
     public string Avoid => ActionIndex is { } i ? $"#{i} {Action}" : Action;
 }
