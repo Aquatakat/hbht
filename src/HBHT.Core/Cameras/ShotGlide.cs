@@ -135,6 +135,62 @@ public sealed class ShotGlide
         }
     }
 
+    /// <summary>
+    /// Where it comes to rest, or turns round, if the ideal it was last given (<see cref="Step"/>) holds still from here: each of its aim,
+    /// yaw, pitch and distance run on with the ideal still till it stops going the way it's going. That's the ideal itself from a glide
+    /// that's landing on it; one that followed an ideal's own speed and is going past it as that slows or turns round goes on a little,
+    /// and that's where it turns. So a camera riding the glide is held to it (<see cref="CappedMotion.Step(Shot, ValueTuple{Vector3, float, float, float}, Shot?)"/>'s
+    /// <c>lands</c>) without being braked on the ideal as the glide passes it and let go on the far side, its acceleration kicked twice.
+    /// </summary>
+    public Shot Landing
+    {
+        get
+        {
+            if (_last is not { } ideal)
+                return Current;
+            var w = Omega;
+            var ticks = (int)MathF.Ceiling(2.5f * MathF.Max(Time, 1e-3f) * 60);
+            var aim = Run(_aim1, _aimSpeed1, _aim2, _aimSpeed2, ideal.Aim, w, ticks);
+            var yaw = Run(_yaw1, _yawSpeed1, _yaw2, _yawSpeed2, _yaw1 + Shot.Wrap(ideal.Yaw - _yaw1), w, ticks);
+            var pitch = Run(_pitch1, _pitchSpeed1, _pitch2, _pitchSpeed2, ideal.Pitch, w, ticks);
+            var log = Run(_log1, _logSpeed1, _log2, _logSpeed2, MathF.Log(MathF.Max(ideal.Distance, 1e-3f)), w, ticks);
+            return new Shot(aim, Shot.Wrap(yaw), pitch, MathF.Exp(log));
+        }
+    }
+
+    /// <summary>The pair of springs run on toward a still <paramref name="goal"/> until the second stops going the way its first step went.</summary>
+    private static float Run(float x1, float v1, float x2, float v2, float goal, float w, int ticks)
+    {
+        var way = 0f;
+        for (var i = 0; i < ticks; i++)
+        {
+            var was = x2;
+            Spring(ref x1, ref v1, goal, 0, w);
+            Spring(ref x2, ref v2, x1, 0, w);
+            if (way == 0)
+                way = MathF.Sign(x2 - was);
+            else if ((x2 - was) * way <= 0)
+                return was;
+        }
+        return x2;
+    }
+
+    private static Vector3 Run(Vector3 x1, Vector3 v1, Vector3 x2, Vector3 v2, Vector3 goal, float w, int ticks)
+    {
+        var way = Vector3.Zero;
+        for (var i = 0; i < ticks; i++)
+        {
+            var was = x2;
+            Spring(ref x1, ref v1, goal, Vector3.Zero, w);
+            Spring(ref x2, ref v2, x1, Vector3.Zero, w);
+            if (way == Vector3.Zero)
+                way = x2 - was;
+            else if (Vector3.Dot(x2 - was, way) <= 0)
+                return was;
+        }
+        return x2;
+    }
+
     private float Omega => 7.75f / MathF.Max(Time, 1e-3f);
 
     /// <summary>
