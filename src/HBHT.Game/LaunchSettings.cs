@@ -25,6 +25,7 @@ public sealed class LaunchSettings
     private Core.Cameras.CameraStyle? _camera;
     private CameraTuning? _cameraTuning;
     private Core.Cameras.CameraStyle? _dialogueCamera;
+    private Core.Cameras.DialogueTuning? _dialogueTuning;
     private float? _pace;
     private Core.Movement.MovementMode? _movement;
 
@@ -45,6 +46,7 @@ public sealed class LaunchSettings
         _camera = options.BattleCamera;
         _cameraTuning = options.CameraTuning;
         _dialogueCamera = options.DialogueCamera;
+        _dialogueTuning = options.DialogueTuning;
         _pace = options.Pace;
         _movement = options.Movement;
         _seen = player.Copy();
@@ -80,7 +82,7 @@ public sealed class LaunchSettings
     /// <summary>What the core plays by: the player's settings with this run's over them, and <c>--pace</c>'s pace.</summary>
     public SessionSettings Session(Settings player)
     {
-        var settings = SessionSettings.From(Over(player)) with { CameraTuning = _cameraTuning, DialogueCamera = _dialogueCamera };
+        var settings = SessionSettings.From(Over(player)) with { CameraTuning = _cameraTuning, DialogueCamera = _dialogueCamera, DialogueTuning = _dialogueTuning };
         return _pace is { } pace ? settings with { Pace = pace } : settings;
     }
 

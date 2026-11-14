@@ -45,7 +45,10 @@ public class DialoguePlannerTests
         pages[2] = pages[2] with { Choices = 2 };
         pages[1] = pages[1];
         Assert.Equal(Ots(Talker.Npc), DialoguePlanner.Plan(script, pages)[2]);
-        // Even when Alaron's portrait is on the menu's line.
+        // Shouted by the npc, it punches in on him.
+        pages[2] = pages[2] with { Text = "Choose, FOOL!" };
+        Assert.Equal(new DialogueShot(DialogueShotKind.Punch, Talker.Npc), DialoguePlanner.Plan(script, pages)[2]);
+        // Even when Alaron's portrait is on the menu's line, and he shouts, it looks at the npc.
         pages[2] = pages[2] with { Speaker = Talker.Player };
         Assert.Equal(Ots(Talker.Npc), DialoguePlanner.Plan(script, pages)[2]);
     }
@@ -78,6 +81,26 @@ public class DialoguePlannerTests
         // Past the listener it turns between the single and over the shoulder.
         Assert.Contains(new DialogueShot(DialogueShotKind.Single, Talker.Npc), shots.Skip(6));
         Assert.Contains(Ots(Talker.Npc), shots.Skip(6));
+    }
+
+    [Fact]
+    public void ALongRunsCycleBringsTheWideAndTheListenerBackButNeverOnItsLastLine()
+    {
+        var script = Lines(Enumerable.Range(0, 17).Select(i => ((RecordId?)Npc, $"Line {i}.")).Prepend((Alaron, "Tell me.")).ToArray());
+        var shots = DialoguePlanner.Plan(script, Pages(script));
+        // Run lines 1 to 17 are pages 1 to 17: wide at 3 and 13, Alaron at 5, and the cycle's listener at 17 is the last line.
+        Assert.Equal([3, 13], shots.Select((s, i) => (s, i)).Where(x => x.s == DialogueShot.Wide).Select(x => x.i));
+        Assert.Equal([5], shots.Select((s, i) => (s, i)).Where(x => x.s == new DialogueShot(DialogueShotKind.Single, Talker.Player)).Select(x => x.i));
+        Assert.Equal(Ots(Talker.Npc), shots[17]);
+    }
+
+    [Fact]
+    public void TheTuningIsSetByName()
+    {
+        var t = DialogueTuning.Default.Parse("singledistance=3.5,RunPattern=SOWL,AcrossYaws=0;30,MinShotTicks=60");
+        Assert.Equal((3.5f, "SOWL", 60), (t.SingleDistance, t.RunPattern, t.MinShotTicks));
+        Assert.Equal([0f, 30f], t.AcrossYaws);
+        Assert.Throws<FormatException>(() => DialogueTuning.Default.Parse("Nope=1"));
     }
 
     [Fact]

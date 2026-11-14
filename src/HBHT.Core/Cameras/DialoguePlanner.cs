@@ -105,7 +105,7 @@ public sealed partial class DialoguePlanner(ScriptRecord script, DialogueTuning?
         if (beat is { } b)
             return b;
         if (page.Choices > 0)
-            return new DialogueShot(DialogueShotKind.OverShoulder, Talker.Npc);
+            return new DialogueShot(speaker == Talker.Npc && Shouted(page.Text) ? DialogueShotKind.Punch : DialogueShotKind.OverShoulder, Talker.Npc);
         if (Shouted(page.Text))
             return new DialogueShot(DialogueShotKind.Punch, speaker);
         var listener = speaker == Talker.Player ? Talker.Npc : Talker.Player;
@@ -114,12 +114,17 @@ public sealed partial class DialoguePlanner(ScriptRecord script, DialogueTuning?
         {
             if (_runIndex == _tuning.RunWideAt)
                 return DialogueShot.Wide;
-            if (_runIndex == _tuning.RunListenerAt && run > _runIndex)
+            var last = _runIndex >= run;
+            if (_runIndex == _tuning.RunListenerAt && !last)
                 return new DialogueShot(DialogueShotKind.Single, listener);
-            if (_runIndex > _tuning.RunListenerAt)
-                return (_runIndex - _tuning.RunListenerAt - 1) / _tuning.RunCycle % 2 == 0
-                    ? new DialogueShot(DialogueShotKind.Single, speaker)
-                    : new DialogueShot(DialogueShotKind.OverShoulder, speaker);
+            if (_runIndex > _tuning.RunListenerAt && _tuning.RunPattern.Length > 0)
+                return char.ToUpperInvariant(_tuning.RunPattern[(_runIndex - _tuning.RunListenerAt - 1) % _tuning.RunPattern.Length]) switch
+                {
+                    'S' => new DialogueShot(DialogueShotKind.Single, speaker),
+                    'W' => DialogueShot.Wide,
+                    'L' when !last => new DialogueShot(DialogueShotKind.Single, listener),
+                    _ => new DialogueShot(DialogueShotKind.OverShoulder, speaker),
+                };
         }
         return new DialogueShot(DialogueShotKind.OverShoulder, speaker);
     }

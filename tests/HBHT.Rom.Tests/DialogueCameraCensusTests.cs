@@ -25,8 +25,9 @@ public sealed class DialogueCameraCensusTests(Na10Import fixture, ITestOutputHel
         Assert.All(pages.Take(35), p => Assert.NotEqual(Talker.None, p.Speaker));
         var tale = shots.Skip(5).Take(30).ToList();
         Assert.Equal(DialogueShot.Wide, tale[2]);
-        Assert.Single(tale, s => s == DialogueShot.Wide);
-        Assert.Single(tale, s => s == new DialogueShot(DialogueShotKind.Single, Talker.Player));
+        // The cycle brings the wide and Alaron back every 12 lines: wide at lines 3, 13 and 25, Alaron at 5, 17 and 29, not the last.
+        Assert.Equal([2, 12, 24], tale.Select((s, i) => (s, i)).Where(x => x.s == DialogueShot.Wide).Select(x => x.i));
+        Assert.Equal([4, 16, 28], tale.Select((s, i) => (s, i)).Where(x => x.s == new DialogueShot(DialogueShotKind.Single, Talker.Player)).Select(x => x.i));
         Assert.Contains(new DialogueShot(DialogueShotKind.Single, Talker.Npc), tale);
     }
 
@@ -36,6 +37,8 @@ public sealed class DialogueCameraCensusTests(Na10Import fixture, ITestOutputHel
         var (pages, shots) = Plan(0x03CD, 2, 0);
         Assert.StartsWith("SAY!!!!", pages[^1].Text);
         Assert.Equal(DialogueShot.Wide, shots[^1]);
+        // His shouted menu punches in on him.
+        Assert.Equal(new DialogueShot(DialogueShotKind.Punch, Talker.Npc), shots[1]);
     }
 
     [Fact]

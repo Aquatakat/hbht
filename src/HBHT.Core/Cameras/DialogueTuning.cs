@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace HBHT.Core.Cameras;
 
 /// <summary>
@@ -41,7 +43,7 @@ public float WideNearest { get; init; } = 6;
 public float WideScale { get; init; } = 1.5f;
 
     /// <summary>The ways round from straight across the line a two-shot or a wide may be tried, on its side.</summary>
-    public IReadOnlyList<float> AcrossYaws { get; init; } = [0, 20, -20, 40, -40];
+    public float[] AcrossYaws { get; init; } = [0, 20, -20, 40, -40];
 
     /// <summary>Over the shoulder: behind the listener's eyes by this much, out to the side by this, and up by this.</summary>
 public float ShoulderBack { get; init; } = 1.3f;
@@ -70,9 +72,12 @@ public int RunLong { get; init; } = 5;
 public int RunWideAt { get; init; } = 3;
 public int RunListenerAt { get; init; } = 5;
 
-    /// <summary>Past the listener, a long run turns between the single and over the shoulder every this many lines.</summary>
-    public int RunCycle { get; init; } = 4;
-
+    /// <summary>
+    /// Past the listener, a long run repeats this cycle, a letter a line: S the speaker's single, O over the listener's shoulder at the
+    /// speaker, W the wide, L the listener's single. So the wide and the listener come back every 12 lines. The listener never takes a
+    /// run's last line, which goes over the shoulder instead.
+    /// </summary>
+    public string RunPattern { get; init; } = "SSSSOOOWOOOL";
     // Fitting.
 
     /// <summary>How far each side of the line is looked along for room as the conversation starts, and how much more room the other side needs to be taken.</summary>
@@ -83,4 +88,29 @@ public float SideMargin { get; init; } = 1.5f;
     public float EyeRadius { get; init; } = 0.2f;
 
     public Lens Lens => new(FieldOfView, 4f / 3, Margin) { Floor = Floor };
+
+    /// <summary>
+    /// These numbers with some set by name, as <c>--dialogue-camera enhanced,SingleDistance=3,RunPattern=SSOOWL</c>: any above, its
+    /// name's case ignored; <see cref="AcrossYaws"/> takes values joined with <c>;</c>.
+    /// </summary>
+    public DialogueTuning Parse(string settings)
+    {
+        var tuning = this with { };
+        foreach (var part in settings.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var eq = part.IndexOf('=');
+            if (eq < 0)
+                throw new FormatException($"'{part}' isn't Name=value.");
+            var (name, value) = (part[..eq].Trim(), part[(eq + 1)..].Trim());
+            var property = typeof(DialogueTuning).GetProperties().FirstOrDefault(p => p.CanWrite && string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase))
+                ?? throw new FormatException($"The conversation camera has no setting '{name}'.");
+            object parsed = property.PropertyType == typeof(int) ? int.Parse(value, CultureInfo.InvariantCulture)
+                : property.PropertyType == typeof(float) ? float.Parse(value, CultureInfo.InvariantCulture)
+                : property.PropertyType == typeof(float[]) ? value.Split(';').Select(v => float.Parse(v, CultureInfo.InvariantCulture)).ToArray()
+                : property.PropertyType == typeof(string) ? value
+                : throw new FormatException($"'{name}' can't be set.");
+            property.SetValue(tuning, parsed);
+        }
+        return tuning;
+    }
 }

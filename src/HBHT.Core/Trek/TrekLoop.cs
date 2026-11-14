@@ -160,6 +160,9 @@ public sealed partial class TrekLoop : IMapObjectHost
     /// <summary>A conversation's camera: the original's framing, or the enhanced conversation camera (<see cref="Conversation.Direct"/>).</summary>
     public CameraStyle DialogueCamera { get; set; }
 
+    /// <summary>The conversation camera's numbers, or null for its defaults.</summary>
+    public DialogueTuning? DialogueTuning { get; set; }
+
     /// <summary>The player's animation, which moves him by its root motion.</summary>
     public IRootMotion PlayerAnimation { get; set; } = IActorMotion.Still;
 
@@ -1091,7 +1094,7 @@ public sealed partial class TrekLoop : IMapObjectHost
         }
         Conversation = Conversation.TalkTo(Game, wanderer, _host, Player);
         if (DialogueCamera == CameraStyle.Enhanced)
-            Conversation?.Direct();
+            Conversation?.Direct(DialogueTuning);
         Refresh();
     }
 

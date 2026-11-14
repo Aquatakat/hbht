@@ -166,8 +166,12 @@ public sealed class Conversation
             if (w != With && w.Body.Sphere.Position is var at && Vector3.DistanceSquared(at, With.Body.Sphere.Position) < 400)
                 others.Add(new ShotSubject(at, w.Body.ScaledRadius));
         }
-        var scene = new DialogueScene(world, visible, TalkingBody.Of(_player.Body, _plugins.TryGet<EntityRecord>(GameState.Alaron)?.Body),
-            TalkingBody.Of(With.Body, With.Look), others);
+        // Each placed facing the other, as they will once they've turned, so the first shot is right while they turn.
+        var (p, n) = (_player.Sphere.Position, With.Body.Sphere.Position);
+        var toNpc = SafeNormalize.Of(new Vector2(n.X - p.X, n.Z - p.Z), _player.Heading);
+        var scene = new DialogueScene(world, visible,
+            TalkingBody.At(p, _player.Body.ScaledRadius, toNpc, _plugins.TryGet<EntityRecord>(GameState.Alaron)?.Body),
+            TalkingBody.At(n, With.Body.ScaledRadius, -toNpc, With.Look), others);
         var page = Runner.Page is { } shown
             ? new DialoguePage(shown.Line.Node, DialoguePlanner.TalkerOf(shown.Line.Speaker), shown.Line.Text, shown.Choices.Count)
             : (DialoguePage?)null;
