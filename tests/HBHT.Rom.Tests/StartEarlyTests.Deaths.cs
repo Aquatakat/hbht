@@ -1,7 +1,8 @@
 using HBHT.Core.Combat;
+using HBHT.Core.Trek;
 using HBHT.Plugins;
 using HBHT.Plugins.Records;
-using static HBHT.Rom.Tests.CombatCheckpoints;
+using static HBHT.Rom.Tests.TestBattles;
 
 namespace HBHT.Rom.Tests;
 
@@ -18,17 +19,22 @@ public sealed partial class StartEarlyTests
         // a second and fades over the next (Body.FadeOut). Under Start Early a cast's earlier target, still where it fell, had its fade
         // recorded into the next target's part, drawn ahead, so it read as already played; a caster its own Fireball killed was drawn
         // from its fall to its going at once; and a reserve coming on where a dead rat lay had the last word take the rat away. Alaron
-        // casts at every rat he can, Fireball taking the party too; every body freed is drawn through its whole fade, but where the
-        // screen's own fade, as the battle ends, has begun (1.0 waits for no fade).
-        var plan = BattlePlan.Parse($"Alaron=spell:{spellName}/accept/accept/accept/accept/accept/accept/accept;*=accept/accept/accept");
+        // casts at every rat he can, a Fireball steered for two seconds to halfway between him and the rat nearest him, so it takes the
+        // party too; every body freed is drawn through its whole fade, but where the screen's own fade, as the battle ends, has begun
+        // (1.0 waits for no fade). He waits in his turn till the field has drawn out (Settled).
         var spell = Set.All<SpellRecord>(RecordTypes.Spell).Single(s => s.Name == spellName);
+        var plan = BattlePlan.Parse($"Alaron=spell:{spellName}/{(spell.Targeting.Placed ? "wait:120/" : "")}accept/accept/accept/accept/accept/accept/accept;*=accept/accept/accept");
         var seen = new Dictionary<Combatant, Fade>();
         var run = Play(host =>
         {
-            var built = Plain(Set, 1, host);
+            var built = Plain(Set, host);
             built.Battle.Combatants.First(c => c.Sheet.Name.StartsWith("Alaron", StringComparison.Ordinal)).Sheet.LearnSpell(spell, 10);
             return built;
-        }, turns, run => run.Input = plan.Tick(run.Drawing) is { } input ? () => input : null, begun: run => run.Each = r =>
+        }, turns, run =>
+        {
+            var input = Settled(run, "Alaron") ? plan.Tick(run.Drawing) : null;
+            run.Input = input is null ? null : run.Battle.State == CombatState.PlaceArea ? () => Steer(run.Battle) : () => input.Value;
+        }, begun: run => run.Each = r =>
         {
             var f = r.Drawing.Frame;
             foreach (var b in f.Bodies)
@@ -57,6 +63,29 @@ public sealed partial class StartEarlyTests
                 Assert.True(fade.Screen < 1, $"{c} drawn freed {fade.Drawn} ticks, {fade.Fading} fading, to alpha {fade.Least}, the screen not fading");
         }
         Assert.True(whole >= (spellName == "Fireball" ? 4 : 8), $"{whole} fades drawn whole");
+    }
+
+    /// <summary>
+    /// The stick that moves a placed area's centre to halfway between the caster and the living enemy nearest it, as the player would
+    /// steer it, so the area takes enemies and the caster's own side.
+    /// </summary>
+    private static PlayerInput Steer(Battle battle)
+    {
+        if (battle.Current is not { } caster)
+            return default;
+        var at = caster.Body.Sphere.Position;
+        var nearest = battle.Slots.OfType<Combatant>().Where(c => !c.Party && !c.Freed)
+            .OrderBy(c => System.Numerics.Vector3.DistanceSquared(c.Body.Sphere.Position, at)).FirstOrDefault();
+        if (nearest is null)
+            return default;
+        var there = (nearest.Body.Sphere.Position + at) / 2 - battle.Origin;
+        var way = new System.Numerics.Vector2(there.X, there.Z) - battle.AreaAim;
+        if (way.Length() < 0.5f)
+            return default;
+        // The battle turns the stick by the camera's look (Battle.MoveArea); turned back, it points the way to go.
+        var look = battle.Camera.LookXZ;
+        var stick = HBHT.Core.Facing.Rotate(way, -look.X, look.Y);
+        return new PlayerInput(System.Numerics.Vector2.Normalize(new System.Numerics.Vector2(-stick.X, stick.Y)));
     }
 
     private sealed class Fade

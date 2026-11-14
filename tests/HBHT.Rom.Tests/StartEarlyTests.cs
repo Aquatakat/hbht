@@ -8,13 +8,14 @@ using HBHT.Core.Trek;
 using HBHT.Core.Ui;
 using HBHT.Plugins;
 using HBHT.Plugins.Records;
-using static HBHT.Rom.Tests.CombatCheckpoints;
+using static HBHT.Rom.Tests.TestBattles;
 
 namespace HBHT.Rom.Tests;
 
 /// <summary>
-/// Combat Turns' Start Early: a battle drawn from its recording plays the same whether its turns are drawn as the
-/// original's or started early. Each battle is built twice from the same checkpoint or parity log, and both are stepped a tick of the
+/// Combat Turns' Start Early: a battle drawn from its recording plays the same whether its turns are drawn as the original's or
+/// started early. Each battle is built twice the same way (<see cref="TestBattles"/>: story save A's party, the enemies and arena a
+/// test names, a fixed seed), and both are stepped a tick of the
 /// drawing at a time through <see cref="BattleDrawing"/>, one under Original and one under Start Early, with the player's turns played
 /// the same way (pressed as the drawing reaches them, never A in a walk). The drawn frames, tick for tick, are the same (their cues, the
 /// bodies and their actors, the visuals, numbers, missile, fade, camera and battle screen), and so are the log, every combatant's health,
@@ -35,8 +36,8 @@ public sealed partial class StartEarlyTests(Na10Import fixture)
     [Fact]
     public void TheRatsBattleWithItsReservesJoiningIsDrawnTheSameEitherWay()
     {
-        // Checkpoint 01's ten rats, four on the field and six reserves, the party attacking every turn it can.
-        var (original, early) = Both(host => Plain(Set, 1, host), Attacking);
+        // The ten rats, four on the field and six reserves, the party attacking every turn it can.
+        var (original, early) = Both(host => Plain(Set, host), Attacking);
         Same(original, early);
         Directed(early);
         Assert.True(early.Watch!.Handed > 0, "the director's camera was never handed to the battle");
@@ -47,10 +48,11 @@ public sealed partial class StartEarlyTests(Na10Import fixture)
     [Fact]
     public void TheBanditsWithTheirBossAndReservesAreDrawnTheSameEitherWay()
     {
-        // The user's fight of Nov 10: Human Bandits and their Boss in C03, four on the field and four reserves, the party attacking.
+        // The user's fight of Nov 10, Human Bandits and their Boss in arena 3, four on the field and four reserves, against story save
+        // A's party attacking.
         PartyEnemy Bandit() => new(RecordId.Hex(RecordTypes.Entity, 0x021B), 1, 1);
         var boss = new PartyEnemy(RecordId.Hex(RecordTypes.Entity, 0x021C), 1, 1);
-        var (original, early) = Both(host => Plain(Set, 1, host, [Bandit(), Bandit(), Bandit(), boss, Bandit(), Bandit(), Bandit(), Bandit()]), Attacking);
+        var (original, early) = Both(host => Plain(Set, host, [Bandit(), Bandit(), Bandit(), boss, Bandit(), Bandit(), Bandit(), Bandit()]), Attacking);
         Same(original, early);
         Directed(early);
     }
@@ -58,7 +60,8 @@ public sealed partial class StartEarlyTests(Na10Import fixture)
     [Fact]
     public void TheChaosCastersBattleIsDrawnTheSameEitherWay()
     {
-        var (_, early) = Logged("20261031-123809-setup2/battle-01", Skipping);
+        // Two Chaos Spellweavers and two Chaos Sorcerors in arena 17, as the user's setup 2 had them, the player skipping every turn.
+        var (_, early) = Compared(host => InArena(Set, 17, [Spellweaver(), Spellweaver(), Sorceror(), Sorceror()], host), Skipping);
         // Its spells cast at several targets: each caster drawn facing the middle of them, or as it stood with them all round it.
         var (middle, round) = early.Watch!.CastsFacedCount;
         Assert.True(middle + round > 0, $"casters faced the middle of their targets {middle} times and stayed as they stood {round}");
@@ -70,7 +73,8 @@ public sealed partial class StartEarlyTests(Na10Import fixture)
         // The user's fight with Alaron taught Dragon Flames, cast at every bandit he can each turn (their Nov 11 play). A turn the player
         // plays has its later casts decided as they're recorded, while its first already draws; the watch holds the drawing to no body
         // in two actions' episodes at once, which a cast drawn ahead over its target's own action, still drawing, broke. And every
-        // cast's flame is drawn: one visual a target, each started once with its emitters, all showing together.
+        // cast's flame is drawn: one visual a target, each started once with its emitters, all showing together. Alaron waits in his turn
+        // till the field has drawn out (Settled), the bandits as the user fought them in arena 3.
         var plan = BattlePlan.Parse("Alaron=spell:Dragon Flames/accept/accept/accept/accept/accept/accept;*=skip");
         var flames = Set.All<SpellRecord>(RecordTypes.Spell).Single(s => s.Name == "Dragon Flames");
         PartyEnemy Bandit() => new(RecordId.Hex(RecordTypes.Entity, 0x021B), 1, 1);
@@ -78,10 +82,10 @@ public sealed partial class StartEarlyTests(Na10Import fixture)
         var (most, started, lit) = (0, new HashSet<SpellFxVisual>(), new HashSet<SpellFxVisual>());
         var early = Play(host =>
         {
-            var built = Plain(Set, 1, host, [Bandit(), Bandit(), Bandit(), boss, Bandit(), Bandit(), Bandit(), Bandit()]);
+            var built = Plain(Set, host, [Bandit(), Bandit(), Bandit(), boss, Bandit(), Bandit(), Bandit(), Bandit()]);
             built.Battle.Combatants.First(c => c.Sheet.Name.StartsWith("Alaron", StringComparison.Ordinal)).Sheet.LearnSpell(flames, 10);
             return built;
-        }, CombatTurns.StartEarly, run => run.Input = plan.Tick(run.Drawing) is { } input ? () => input : null, begun: run => run.Each = r =>
+        }, CombatTurns.StartEarly, run => run.Input = Settled(run, "Alaron") && plan.Tick(run.Drawing) is { } input ? () => input : null, begun: run => run.Each = r =>
         {
             var f = r.Drawing.Frame;
             foreach (var cue in f.Cues.OfType<SpellVisualStarted>())
@@ -102,32 +106,50 @@ public sealed partial class StartEarlyTests(Na10Import fixture)
         var (casts, parts, _, apart) = early.Watch!.Volleys();
         TestContext.Current.TestOutputHelper?.WriteLine($"{casts} casts at several targets in {parts} parts; {started.Count} flames started, {lit.Count} lit, {most} at once");
         Assert.True(casts > 0 && parts >= 2 * casts, $"{casts} casts in {parts} parts");
-        Assert.True(started.Count >= parts && lit.SetEquals(started), $"{started.Count} flames started for {parts} parts, {lit.Count} lit");
+        // The Bandit Boss casts at several targets too (Spirit Shield), so the flames are counted against Alaron's parts.
+        var flameParts = early.Drawing.Actions.Actions.Where(a => a.Parts.Count >= 2 && a.Current?.Sheet.Name.StartsWith("Alaron", StringComparison.Ordinal) == true)
+            .Sum(a => a.Parts.Count);
+        Assert.True(flameParts > 0 && started.Count >= flameParts && lit.SetEquals(started), $"{started.Count} flames started for {flameParts} parts, {lit.Count} lit");
         Assert.True(most >= 3, $"{most} flames drawn at once");
         Assert.True(apart.Count == 0, string.Join("\n", apart.Take(10)));
     }
 
     [Fact]
-    public void TheSkeletonArchersBattleIsDrawnTheSameEitherWay() => Logged("20261031-230020-setup8/battle-01", Skipping);
+    public void TheSkeletonArchersBattleIsDrawnTheSameEitherWay()
+    {
+        // Skeletons and Skeleton Archers in arena 24, as the user's setup 8 had them, the party attacking: the archers' shots.
+        var (original, _) = Compared(host => InArena(Set, 24, [Skeleton(), Archer(), Skeleton(), Archer()], host), Attacking);
+        Assert.Contains(original.Recorded, f => f.Contains("| missile ", StringComparison.Ordinal));
+    }
 
     [Fact]
     public void TheTrollsDefeatIsDrawnTheSameEitherWay()
     {
-        var (original, _) = Logged("20261031-235130-setup10/battle-01", Skipping);
+        // Twelve Trolls in arena 4, as the user's setup 10 had them, the player skipping every turn till the party falls.
+        var (original, _) = Compared(host => InArena(Set, 4, [.. Enumerable.Range(0, 12).Select(_ => Troll())], host), Skipping);
         Assert.Contains(original.Battle.Outcome, (BattleOutcome[])[BattleOutcome.Lost, BattleOutcome.Spared]);
     }
 
     [Fact]
     public void FleeingFromTheBanditsIsDrawnTheSameEitherWay()
     {
-        var (original, _) = Logged("20261031-190448-setup4/battle-01", Fleeing);
+        // Four Bandit Woodsmen in arena 6, as the user's setup 4 had them, the player fleeing by the pause at the first turn.
+        var (original, _) = Compared(host => InArena(Set, 6, [.. Enumerable.Range(0, 4).Select(_ => Woodsman())], host), Fleeing);
         Assert.Equal(BattleOutcome.Fled, original.Battle.Outcome);
     }
+
+    private static PartyEnemy Enemy(int entity) => new(RecordId.Hex(RecordTypes.Entity, entity), 1, 1);
+    private static PartyEnemy Spellweaver() => Enemy(0x027C);
+    private static PartyEnemy Sorceror() => Enemy(0x024B);
+    private static PartyEnemy Skeleton() => Enemy(0x0254);
+    private static PartyEnemy Archer() => Enemy(0x0253);
+    private static PartyEnemy Troll() => Enemy(0x0227);
+    private static PartyEnemy Woodsman() => Enemy(0x024F);
 
     [Fact]
     public void UnderStartEarlyTheBattleRunsAheadOfTheDrawingAndWaitsForItAtThePlayersTurn()
     {
-        var early = Play(host => Plain(Set, 1, host), CombatTurns.StartEarly, Skipping, stopAtFirstTurn: true);
+        var early = Play(host => Plain(Set, host), CombatTurns.StartEarly, Skipping, stopAtFirstTurn: true);
         Assert.True(early.MostAhead > 10, $"it ran {early.MostAhead} ticks ahead");
         // The player's turn opened once its combatant was free in the drawing, and the battle waits there for the press.
         Assert.True(early.Drawing.TakesPresses);
@@ -139,7 +161,7 @@ public sealed partial class StartEarlyTests(Na10Import fixture)
     [Fact]
     public void UnderStartEarlyAInAnAisWalkOnlyFastForwardsTheDrawing()
     {
-        var early = Play(host => Plain(Set, 1, host), CombatTurns.StartEarly, Skipping, stopAtWalk: true);
+        var early = Play(host => Plain(Set, host), CombatTurns.StartEarly, Skipping, stopAtWalk: true);
         var drawing = early.Drawing;
         Assert.False(drawing.CaughtUp);
         Assert.True(drawing.Walking);
@@ -177,8 +199,8 @@ public sealed partial class StartEarlyTests(Na10Import fixture)
     {
         // The rats, the party attacking, A pressed in every AI walk drawn under Start Early: the battle plays tick for tick as Original's,
         // and the drawing still never draws a body back, in two actions at once, through another, or a one-off twice.
-        var original = Play(host => Plain(Set, 1, host), CombatTurns.Original, Attacking);
-        var early = Play(host => Plain(Set, 1, host), CombatTurns.StartEarly, Attacking, meanwhile: SkippingWalks);
+        var original = Play(host => Plain(Set, host), CombatTurns.Original, Attacking);
+        var early = Play(host => Plain(Set, host), CombatTurns.StartEarly, Attacking, meanwhile: SkippingWalks);
         Same(original, early);
         TestContext.Current.TestOutputHelper?.WriteLine($"{early.Drawing.Composer.Forwarded} actions fast-forwarded on their own");
     }
@@ -190,8 +212,8 @@ public sealed partial class StartEarlyTests(Na10Import fixture)
         // Early no body drawn through another (the watch checks every drawn tick). The stick reads the camera the player sees, which
         // under Start Early is the director's, so the same stick walks elsewhere, the player's own input: here both read the original's,
         // so their walks compare tick for tick.
-        var original = Play(host => Plain(Set, 1, host), CombatTurns.Original, Walking);
-        var early = Play(host => Plain(Set, 1, host), CombatTurns.StartEarly, Walking, hand: false);
+        var original = Play(host => Plain(Set, host), CombatTurns.Original, Walking);
+        var early = Play(host => Plain(Set, host), CombatTurns.StartEarly, Walking, hand: false);
         Same(original, early);
         Assert.True(early.Watch!.OpenedEarly > 0);
         TestContext.Current.TestOutputHelper?.WriteLine($"{early.Drawing.Composer.Forwarded} actions fast-forwarded on their own");
@@ -202,7 +224,7 @@ public sealed partial class StartEarlyTests(Na10Import fixture)
     {
         // The rats, the party attacking: wherever the battle takes a press in an aim of a turn opened early, all it could pick is drawn
         // where it is, and while it isn't the battle is stepped no further (the watch checks).
-        var early = Play(host => Plain(Set, 1, host), CombatTurns.StartEarly, Attacking);
+        var early = Play(host => Plain(Set, host), CombatTurns.StartEarly, Attacking);
         Assert.True(early.Watch!.OpenedEarly > 10, $"{early.Watch.OpenedEarly} player's turns opened early");
         Assert.True(early.Watch.Aimed > 0, $"{early.Watch.Aimed} drawn ticks aimed");
         TestContext.Current.TestOutputHelper?.WriteLine($"{early.Watch.Aimed} drawn ticks aimed in turns opened early, " +
@@ -215,8 +237,8 @@ public sealed partial class StartEarlyTests(Na10Import fixture)
         // The rats, the party attacking, A pressed whenever the player's turn waits to open or its aim is held: the battle plays tick
         // for tick as Original's, and the drawing still never draws a body back, in two actions at once, through another, or a one-off
         // twice.
-        var original = Play(host => Plain(Set, 1, host), CombatTurns.Original, Attacking);
-        var early = Play(host => Plain(Set, 1, host), CombatTurns.StartEarly, Attacking, meanwhile: SkippingHolds);
+        var original = Play(host => Plain(Set, host), CombatTurns.Original, Attacking);
+        var early = Play(host => Plain(Set, host), CombatTurns.StartEarly, Attacking, meanwhile: SkippingHolds);
         Same(original, early);
         Assert.True(early.Watch!.Skipped > 0, "A never skipped a hold");
         TestContext.Current.TestOutputHelper?.WriteLine($"A skipped {early.Watch.Skipped} holds");
@@ -225,13 +247,10 @@ public sealed partial class StartEarlyTests(Na10Import fixture)
     // ---------------------------------------------------------------------------------------------------------------------------
     // Playing a battle both ways
 
-    private (Run Original, Run Early) Logged(string folder, Action<Run> player)
+    /// <summary>A battle played both ways, compared, and its director checked.</summary>
+    private (Run Original, Run Early) Compared(Func<ICombatHost, Built> build, Action<Run> player)
     {
-        var path = Path.Combine(Environment.GetEnvironmentVariable("HBHT_PARITY") ?? Path.Combine(TestRoms.RepoRoot(), "out", "parity"), folder);
-        if (!Directory.Exists(path))
-            Assert.Skip($"No parity log {folder}.");
-        var log = Log(path);
-        var both = Both(host => FromSetup(Set, log, folder, host: host), player);
+        var both = Both(build, player);
         Same(both.Original, both.Early);
         Directed(both.Early);
         return both;
@@ -357,6 +376,19 @@ public sealed partial class StartEarlyTests(Na10Import fixture)
         return run;
     }
 
+    /// <summary>
+    /// Whether the player acts now: but in the turn of a member whose name starts with <paramref name="who"/>, it waits at the turn's
+    /// start till every body on the field has drawn out its earlier actions, as the aim's hold would make it wait once it aimed.
+    /// </summary>
+    /// <remarks>
+    /// Waiting here rather than in the aim keeps clear of what the hold does to the turn's own drawing: while the aim is held the
+    /// battle isn't stepped, but the turn's timeline (<see cref="DrawnAction.Base"/>) goes on with the drawn ticks, so once the cast is
+    /// chosen and the battle runs ahead, the turn is drawn catching up, as many recorded ticks a drawn tick as the battle runs ahead.
+    /// </remarks>
+    private static bool Settled(Run run, string who) =>
+        run.Battle.State != CombatState.Turn || run.Battle.Current?.Sheet.Name.StartsWith(who, StringComparison.Ordinal) != true
+        || run.Drawing.CaughtUp || run.Battle.Slots.OfType<Combatant>().All(run.Drawing.Composer.Free);
+
     /// <summary>The player skips every turn (Z).</summary>
     private static void Skipping(Run run)
     {
@@ -449,6 +481,7 @@ public sealed partial class StartEarlyTests(Na10Import fixture)
 
         /// <summary>Drawn ticks on which two actions drew their own ticks at once.</summary>
         public int Overlapping { get; private set; }
+
 
         /// <summary>Actions that started while an earlier one they share a body with still drew its own ticks.</summary>
         public int SharedEarly { get; private set; }
@@ -658,7 +691,14 @@ public sealed partial class StartEarlyTests(Na10Import fixture)
                 or CombatState.PlaceArea)
             {
                 Aimed++;
-                if (drawing.AimHeld)
+                if (drawing.CaughtUp)
+                {
+                    // Caught up, every body is drawn at the battle's present, where it is, and the battle takes presses. (The drawing's
+                    // own AimHeld can still be set here, where a body's episode ends on the present tick: the composer counts it
+                    // drawn only once the drawing is past it.)
+                    _heldTick = -1;
+                }
+                else if (drawing.AimHeld)
                 {
                     AimHeld++;
                     Assert.False(drawing.TakesPresses);
@@ -707,11 +747,13 @@ public sealed partial class StartEarlyTests(Na10Import fixture)
                         $"the player's turn opened at drawn tick {d} while {string.Join(", ", playing.Select(p => p.Beat))} played");
                 }
             }
-            // A turn the player plays opens only once its combatant has drawn its earlier parts (Start Early).
+            // A turn the player plays opens only once its combatant has drawn its earlier parts (Start Early): the actions before the
+            // turn's own, which is the newest unless the turn was played (a skip) and the battle went on before its frame was drawn.
             if (f.State == CombatState.Turn && _state != CombatState.Turn)
             {
                 var c = f.Current!;
-                var held = drawing.Actions.Actions.Where(a => a.Index < drawing.Actions.Actions.Count - 1 && a.Episodes.Any(e =>
+                var turn = drawing.Actions.Actions.Last(a => a.First <= f.Tick);
+                var held = drawing.Actions.Actions.Where(a => a.Index < turn.Index && a.Episodes.Any(e =>
                     e.Body == c && (a.Start is not { } s || s > d || a.TickAt(d, e.Part) <= e.To))).ToList();
                 Assert.True(held.Count == 0, $"the player's turn opened at drawn tick {d} while {c} was still drawn in {string.Join(", ", held)}");
                 if (!drawing.CaughtUp)

@@ -2,7 +2,7 @@ using HBHT.Core.Combat;
 using HBHT.Core.Ui;
 using HBHT.Plugins;
 using HBHT.Plugins.Records;
-using static HBHT.Rom.Tests.CombatCheckpoints;
+using static HBHT.Rom.Tests.TestBattles;
 
 namespace HBHT.Rom.Tests;
 
@@ -28,7 +28,7 @@ public sealed partial class StartEarlyTests
         var problems = new List<string>();
         var early = Play(host =>
         {
-            var built = Plain(Set, 1, host);
+            var built = Plain(Set, host);
             var sholeh = built.Battle.Combatants.First(c => c.Sheet.Name == "Sholeh");
             var catalog = built.Game.Party.Inventory.Catalog;
             sholeh.Sheet.Equipment.RemoveWeapon();

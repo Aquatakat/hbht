@@ -6,13 +6,13 @@ using HBHT.Core.Trek;
 using HBHT.Core.Ui;
 using HBHT.Plugins;
 using HBHT.Plugins.Records;
-using static HBHT.Rom.Tests.CombatCheckpoints;
+using static HBHT.Rom.Tests.TestBattles;
 
 namespace HBHT.Rom.Tests;
 
 /// <summary>
-/// How Start Early's director's camera moves, through the user's bandits' fight played as a player plays it (docs/systems/cameras.md,
-/// "Start Early's director", the user's second play).
+/// How Start Early's director's camera moves, through the user's bandits' fight against story save A's party, played as a player plays
+/// it (docs/systems/cameras.md, "Start Early's director", the user's second play).
 /// </summary>
 public sealed partial class StartEarlyTests
 {
@@ -40,12 +40,12 @@ public sealed partial class StartEarlyTests
         Attacking(run);
     }
 
-    /// <summary>The user's fight (Human Bandits and their Boss in C03, four on the field and four reserves) under Start Early.</summary>
+    /// <summary>The user's fight (Human Bandits and their Boss in arena 3, four on the field and four reserves) under Start Early.</summary>
     private Run Bandits(Action<Run> player, Action<Run>? begun = null)
     {
         PartyEnemy Bandit() => new(RecordId.Hex(RecordTypes.Entity, 0x021B), 1, 1);
         var boss = new PartyEnemy(RecordId.Hex(RecordTypes.Entity, 0x021C), 1, 1);
-        return Play(host => Plain(Set, 1, host, [Bandit(), Bandit(), Bandit(), boss, Bandit(), Bandit(), Bandit(), Bandit()]), CombatTurns.StartEarly,
+        return Play(host => Plain(Set, host, [Bandit(), Bandit(), Bandit(), boss, Bandit(), Bandit(), Bandit(), Bandit()]), CombatTurns.StartEarly,
             player, begun: begun);
     }
 
