@@ -256,15 +256,23 @@ public static class CodeGates
     /// Whether the party's check of a skill can come out in a range at all: some of many rolls does. A Troubadour check with no one who
     /// has the skill is always 0, so a way that wants 2 or more never comes.
     /// </summary>
-    public static bool CanRoll(GameState game, int skill, int lo, int hi)
+    public static bool CanRoll(GameState game, int skill, int lo, int hi) => RollChance(game, skill, lo, hi) > 0;
+
+    /// <summary>
+    /// How often the party's check of a skill comes out in a range, over 400 rolls of a fixed stream: Pandara's Troubadour check at
+    /// Overworld G12/16 (<c>0x03FB</c>), which wants 2 or more, passes 8% of the time for Alaron with Troubadour 1 and Dexterity 11.
+    /// </summary>
+    public static double RollChance(GameState game, int skill, int lo, int hi)
     {
+        const int rolls = 400;
         var random = new Rng.Lcg(0x5EED);
-        for (var i = 0; i < 400; i++)
+        var passes = 0;
+        for (var i = 0; i < rolls; i++)
         {
             var step = ((Scripts.IScriptWorld)game).SkillCheck(skill, random) & 0xFF;
             if (step >= lo && step <= hi)
-                return true;
+                passes++;
         }
-        return false;
+        return passes / (double)rolls;
     }
 }

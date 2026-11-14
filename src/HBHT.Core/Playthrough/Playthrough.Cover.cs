@@ -641,7 +641,9 @@ public sealed partial class Playthrough
     /// </summary>
     private (PlayerAction Action, int Target)? NearHelpful(PlanState state, Relaxation relaxation, Relaxation.Result result, HashSet<int> live, HashSet<int> banned, Place? here)
     {
-        if (_helpfulLast is { } last && last.State.Equals(state))
+        // One played again for a roll that went against it changed nothing by the roll, not by the step: Pandara's Troubadour check at
+        // Overworld G12/16 (0x03FB) was banned so after its first miss, and the run stranded without her amulet (234).
+        if (_helpfulLast is { } last && last.State.Equals(state) && Played.LastOrDefault() is not { Again: true })
         {
             Ban(last.Action, state);
             banned.Add(last.Action.Index);
