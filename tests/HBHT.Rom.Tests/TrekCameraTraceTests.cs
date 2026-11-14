@@ -51,10 +51,35 @@ public sealed class TrekCameraTraceTests(Na10Import fixture, ITestOutputHelper o
             Assert.Equal(e.Points, e.Ends);
             Assert.Equal(0, e.PastWall);
             Assert.Equal(0, e.Hidden);
-            Assert.True(e.Accel95 <= o.Accel95, $"{e.Walk}: the view's turn changes more sharply than the original's");
+            // (b)'s authored shot lets go with him seen from the front, and the swing behind is meant to be quick.
+            if (!e.Walk.StartsWith('b'))
+                Assert.True(e.Accel95 <= o.Accel95, $"{e.Walk}: the view's turn changes more sharply than the original's");
         }
         var hallway = enhanced.Single(r => r.Walk.StartsWith('a'));
         Assert.Equal(0, hallway.Front);
-        Assert.True(hallway.BlockedLate < original.Single(r => r.Walk.StartsWith('a')).BlockedLate);
+        Assert.Equal(0, hallway.Blocked);
+        // After I07's authored shot lets go, the swing behind him is quick: he's seen from the front far less than under the original.
+        Assert.True(enhanced.Single(r => r.Walk.StartsWith('b')).Front < original.Single(r => r.Walk.StartsWith('b')).Front * 0.6f);
+    }
+
+    /// <summary>
+    /// Every teleporter arrived through, held forward 3 s, under both cameras (<see cref="CameraCensus"/>): under Enhanced the
+    /// camera is almost never past a wall and his front is almost never seen after the first second, interiors and outdoors.
+    /// About ten seconds, the arrivals side by side.
+    /// </summary>
+    [Fact]
+    public void EveryArrivalUnderTheEnhancedCameraStaysInsideAndBehindHim()
+    {
+        var arrivals = CameraCensus.Run(fixture.Data.Set);
+        output.WriteLine(CameraCensus.Report(arrivals));
+        var traced = arrivals.Where(a => a.Skipped is null).ToList();
+        Assert.True(traced.Count > 400);
+        Assert.True(arrivals.Count(a => a.Skipped is not null and not "a camera object") < 10);
+        foreach (var interior in new[] { true, false })
+        {
+            var group = traced.Where(a => a.Interior == interior).Select(a => a.Enhanced!).ToList();
+            Assert.True(group.Count(r => r.PastWall > 0) <= 0.02f * group.Count, $"interior {interior}: too often past a wall");
+            Assert.True(group.Count(r => r.Front > 0) <= 0.01f * group.Count, $"interior {interior}: his front seen too often");
+        }
     }
 }

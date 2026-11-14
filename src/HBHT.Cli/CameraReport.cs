@@ -15,7 +15,17 @@ internal static class CameraReport
                                                under both cameras or the one given: the share of ticks the view ahead
                                                is blocked close by, the camera is past a wall, the player is hidden and
                                                he's seen from the front while moving, and how sharply the view turns
+          hbht camera census                   every teleporter arrived through, held forward 3 s, under both cameras:
+                                               the shares ever past a wall and showing his front, interiors and outdoors
         """;
+
+    public static int Census(PluginSet plugins)
+    {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        Console.Write(CameraCensus.Report(CameraCensus.Run(plugins)));
+        Console.WriteLine($"{watch.Elapsed.TotalSeconds:F0} s");
+        return 0;
+    }
 
     public static int Run(PluginSet plugins, string[] args)
     {
