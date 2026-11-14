@@ -212,14 +212,19 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
     /// The npc or encounter whose body A reaches (see <see cref="Trek.Wanderers.Reaches"/>), where its body is in
     /// the chunk's coordinates, and how far across the ground, which it's weighed by.
     /// </param>
-    public MapObject? Reach(LoadedMap map, Vector3 at, Vector2 heading, float radius, (PartyObject Party, Vector3 At, float Distance)? body = null)
+    /// <param name="farther">
+    /// Not A's: every object of the chunk within this distance that A would use if it reached that far (its kind's test
+    /// passing but for the distance), weighed alike. The enhanced trek camera's nudge asks it, so it and A agree.
+    /// </param>
+    public MapObject? Reach(LoadedMap map, Vector3 at, Vector2 heading, float radius, (PartyObject Party, Vector3 At, float Distance)? body = null,
+        float? farther = null)
     {
-        // A map without a grid, which only a mod's could be, weighs all its objects.
-        var listed = map.Record.Grid is { } grid ? grid.At(at).Select(i => map[i]).OfType<MapObject>() : map.Objects;
+        // A map without a grid, which only a mod's could be, weighs all its objects; so does a reach past the grid's.
+        var listed = map.Record.Grid is { } grid && farther is null ? grid.At(at).Select(i => map[i]).OfType<MapObject>() : map.Objects;
         var candidates = new List<(MapObject Object, Vector3 At, float Distance)>();
         if (body is var (party, bodyAt, bodyDistance))
             candidates.Add((party, bodyAt, bodyDistance));
-        candidates.AddRange(listed.Where(o => !o.Tangible && map.IsActive(o.Index) && InReach(map, o, at, radius))
+        candidates.AddRange(listed.Where(o => !o.Tangible && map.IsActive(o.Index) && InReach(map, o, at, radius, farther))
             .Take(MaxCandidates - candidates.Count).Select(o => (o, o.Position, Vector3.Distance(o.Position, at))));
         if (candidates.Count <= 1)
             return candidates.Count == 0 ? null : candidates[0].Object;
@@ -240,14 +245,15 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
     }
 
     // gVoxelProxFuncs.
-    private bool InReach(LoadedMap map, MapObject o, Vector3 at, float radius)
+    private bool InReach(LoadedMap map, MapObject o, Vector3 at, float radius, float? farther)
     {
         var distance = Vector3.Distance(o.Position, at);
+        bool Within(float reach) => distance <= (farther ?? reach);
         return o switch
         {
-            ContainerObject c => distance <= c.Reach + radius && map.Container(o.Index)!.Usable(Flags),
-            TeleporterObject or TripwireObject or ScriptObject => distance <= o.Radius && Holds(o.Enabled),
-            SavePointObject => distance <= o.Radius,
+            ContainerObject c => Within(c.Reach + radius) && map.Container(o.Index)!.Usable(Flags),
+            TeleporterObject or TripwireObject or ScriptObject => Within(o.Radius) && Holds(o.Enabled),
+            SavePointObject => Within(o.Radius),
             _ => false,
         };
     }

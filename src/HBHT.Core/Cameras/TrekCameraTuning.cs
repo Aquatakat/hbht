@@ -33,6 +33,31 @@ namespace HBHT.Core.Cameras;
 /// <param name="ArrivalSwing">How long after an arrival it may swing round as quickly as in a tight space.</param>
 /// <param name="ArrivalHold">How long a teleporter's own camera point is held, standing, before it swings round behind him.</param>
 /// <param name="LeanBound">The most all the yaw's leans together add to its goal (slices 2 and 3: the path's bend, the nudges).</param>
+/// <param name="BendRays">How many level sweeps the path's bend fans ahead of his travel (<see cref="PathBendLean"/>).</param>
+/// <param name="BendSpread">How far either side of his travel the fan reaches.</param>
+/// <param name="BendReach">How long each sweep is.</param>
+/// <param name="BendRadius">The sweeps' sphere.</param>
+/// <param name="BendNear">How free straight ahead may be for the bend's lean to be whole; open to the full reach, it's none.</param>
+/// <param name="BendGain">The lean's share of the open heading's angle off his travel.</param>
+/// <param name="BendBound">The most the bend leans the yaw's goal.</param>
+/// <param name="BendEase">How long the bend's lean takes to ease most of the way (63%) to a new value.</param>
+/// <param name="BendRate">The fastest the bend's lean changes.</param>
+/// <param name="SlopeShare">The share of the ground's slope ahead the pitch follows: down a little going downhill.</param>
+/// <param name="SlopeAhead">How far ahead of him the ground's slope is measured.</param>
+/// <param name="SlopeBound">The most the slope moves the pitch's goal.</param>
+/// <param name="SlopeEase">How long that takes to ease most of the way.</param>
+/// <param name="NudgeBound">The most the nudges lean the yaw's goal (<see cref="NudgeLean"/>).</param>
+/// <param name="NudgeReach">How far the use button's choice is asked for, and where its nudge fades to nothing.</param>
+/// <param name="HunterReach">Where a hunter's nudge fades to nothing.</param>
+/// <param name="NudgeEase">How long a nudge takes to ease most of the way.</param>
+/// <param name="NudgeRate">The fastest a nudge changes.</param>
+/// <param name="SneakLength">How much longer the boom is, sneaking past a hunter (<see cref="SneakFraming"/>).</param>
+/// <param name="SneakPitch">How much higher its pitch is.</param>
+/// <param name="SneakTurn">The fastest the yaw swings to the hunter's far side.</param>
+/// <param name="SneakTurnAccel">How fast that swing may change.</param>
+/// <param name="SneakIn">How long sneaking's framing takes to take hold.</param>
+/// <param name="SneakOut">How long it takes to let go.</param>
+/// <param name="SneakSwitch">The share of the held hunter's distance another must be within to be framed instead.</param>
 public sealed record TrekCameraTuning(
     float OutdoorLength = 5,
     float OutdoorPitch = 15,
@@ -62,7 +87,32 @@ public sealed record TrekCameraTuning(
     float PivotSpeed = 8,
     float ArrivalSwing = 1.5f,
     float ArrivalHold = 0.5f,
-    float LeanBound = 20)
+    float LeanBound = 40,
+    float BendRays = 13,
+    float BendSpread = 75,
+    float BendReach = 12,
+    float BendRadius = 0.2f,
+    float BendNear = 4,
+    float BendGain = 1,
+    float BendBound = 35,
+    float BendEase = 0.7f,
+    float BendRate = 20,
+    float SlopeShare = 0.5f,
+    float SlopeAhead = 2.5f,
+    float SlopeBound = 5,
+    float SlopeEase = 0.6f,
+    float NudgeBound = 12,
+    float NudgeReach = 8,
+    float HunterReach = 15,
+    float NudgeEase = 0.5f,
+    float NudgeRate = 12,
+    float SneakLength = 1,
+    float SneakPitch = 5,
+    float SneakTurn = 240,
+    float SneakTurnAccel = 720,
+    float SneakIn = 0.4f,
+    float SneakOut = 0.8f,
+    float SneakSwitch = 0.8f)
 {
     public static TrekCameraTuning Default { get; } = new();
 }

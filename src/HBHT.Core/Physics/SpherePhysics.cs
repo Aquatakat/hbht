@@ -155,6 +155,27 @@ public static class SpherePhysics
     }
 
     /// <summary>
+    /// <see cref="SweepEitherSide"/> over walls alone: triangles whose normal is less than <paramref name="maxUp"/> upward or
+    /// downward, so ground rising or falling ahead isn't counted. The enhanced trek camera's path's bend uses it.
+    /// </summary>
+    public static float? SweepWalls(CollisionWorld world, Vector3 from, Vector3 to, float radius, float maxUp)
+    {
+        var delta = to - from;
+        var best = float.MaxValue;
+        var near = _near ??= [];
+        world.Along(new Vector2(from.X, from.Z), new Vector2(to.X, to.Z), radius + 1, near);
+        foreach (var t in near)
+        {
+            if (t.Has(CollisionFlags.Passable) || t.Has(CollisionFlags.SeeThrough) || MathF.Abs(t.Normal.Y) >= maxUp)
+                continue;
+            var facing = Vector3.Dot(delta, t.Normal) <= 0 ? t : t with { Normal = -t.Normal };
+            if (SweepPlane(from, delta, radius, facing, out _, out var share) && share < best)
+                best = share;
+        }
+        return best == float.MaxValue ? null : best;
+    }
+
+    /// <summary>
     /// Whether there's ground within <paramref name="depth"/> below a sphere, other than plain
     /// collision surfaces 1 and 2 (<c>processPlayers_sub</c>).
     /// </summary>

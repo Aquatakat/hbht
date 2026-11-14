@@ -129,6 +129,7 @@ public sealed partial class TrekLoop : IMapObjectHost
         // Each chunk's wanderers load before its sounds and lights.
         zone.Loaded += (_, map) => Wanderers.Load(map, Chunks.MapSet.CellSize, Chunks.World, Game.Memory, Game.Random.Wander);
         zone.Unloading += (_, map) => Wanderers.Unload(map);
+        WireEnhancedCamera();
     }
 
     public GameState Game { get; }
@@ -371,6 +372,7 @@ public sealed partial class TrekLoop : IMapObjectHost
         if (!input.Locked && input.Pushed)
             Hud.Raise(false);
         var before = motion.Sphere.Position;
+        _sneaking = input.Sneak;
         if (Conversation is { With: not null } framing)
             framing.Frame(Camera, world, Chunks.Visible, Wanderers.All);
         else if (CameraStyle == CameraStyle.Enhanced && !Camera.Held)

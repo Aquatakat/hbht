@@ -47,7 +47,7 @@ public interface ITrekCameraLean
 /// the pivot rises above his head and the pitch rises (close quarters), so he sits low in the frame.
 /// </para>
 /// </remarks>
-public sealed class EnhancedTrekCamera
+public sealed partial class EnhancedTrekCamera
 {
     private const float Tick = 1f / 60;
     private const float Degree = MathF.PI / 180;
@@ -68,8 +68,19 @@ public sealed class EnhancedTrekCamera
 
     public TrekCameraTuning Tuning { get; set; } = TrekCameraTuning.Default;
 
-    /// <summary>What leans the yaw's goal as he travels, summed (slices 2 and 3 add theirs). None yet.</summary>
+    /// <summary>What leans the yaw's goal as he travels, summed: trek adds the path's bend and the nudges.</summary>
     public List<ITrekCameraLean> Leans { get; } = [];
+
+    /// <summary>Sneaking's framing, which replaces the trailing yaw while it holds.</summary>
+    public SneakFraming Sneak { get; } = new();
+
+    /// <summary>The ticks it has stepped, which the leans tell a pause by.</summary>
+    public int Ticks { get; private set; }
+
+    /// <summary>What the ground's slope ahead adds to the pitch's goal now, in degrees.</summary>
+    public float SlopePitch => _slope;
+
+    private float _slope;
 
     /// <summary>The arm's length now.</summary>
     public float Arm => _arm;
@@ -143,9 +154,14 @@ public sealed class EnhancedTrekCamera
         if (moved.Length() > 1)
             moved = Vector2.Zero;
         _travel += (moved / Tick - _travel) * 0.2f;
+        Ticks++;
+        Sneak.Step(player, t);
+        StepSlope(world, player);
 
-        // The length and pitch of where he is, eased.
+        // The length and pitch of where he is, eased; sneaking past a hunter, longer and higher.
         var (length, pitch) = Place(interior);
+        length += Sneak.Weight * t.SneakLength;
+        pitch += Sneak.Weight * t.SneakPitch;
         var ease = 1 - MathF.Exp(-Tick / t.PlaceEase);
         _length += (length - _length) * ease;
         _basePitch += (pitch - _basePitch) * ease;
@@ -178,7 +194,7 @@ public sealed class EnhancedTrekCamera
         StepPivot(visible, player, shortened);
         Room = _arrival > 0 ? 0 : JudgeRoom(world, visible);
         StepYaw(world, visible, player, heading, auto);
-        var pitchGoal = _basePitch + _userPitch + t.ClosePitch * shortened;
+        var pitchGoal = _basePitch + _userPitch + t.ClosePitch * shortened + _slope;
         // A ceiling over the raised boom, nearer than the walls: it comes down to the place's pitch instead.
         if (_free < _freeLevel - 0.1f && _pitch > _basePitch + _userPitch)
             pitchGoal = _basePitch + _userPitch;
@@ -236,6 +252,10 @@ public sealed class EnhancedTrekCamera
             // Arrived at a teleporter's own camera point and standing: once it has been seen, round behind the way he faces.
             goal = MathF.Atan2(-heading.Y, -heading.X);
         }
+        // Sneaking past a hunter: toward his far side from it, as quickly as its weight allows.
+        var sneak = auto ? Sneak.Weight : 0;
+        if (sneak > 0)
+            goal += sneak * Wrap(Sneak.Yaw(player) - goal);
         var e = Wrap(goal - _yaw);
         // Walking at the lens, the way round is chosen once, by the way it's turning or else the side with more room, and kept.
         if (MathF.Abs(e) > 150 * Degree)
@@ -267,8 +287,10 @@ public sealed class EnhancedTrekCamera
         var tight = (1 - Room) * Math.Clamp((MathF.Abs(e) / Degree - 20) / 70, 0, 1);
         var most = (t.OpenTurn + (t.TightTurn - t.OpenTurn) * tight) * Degree;
         var accel = (t.OpenTurnAccel + (t.TightTurnAccel - t.OpenTurnAccel) * tight) * Degree;
+        most = MathF.Max(most, sneak * t.SneakTurn * Degree);
+        accel = MathF.Max(accel, sneak * t.SneakTurnAccel * Degree);
         var yaw = _yaw;
-        Channel(ref yaw, ref _yawSpeed, yaw + e, most, accel, t.TurnSettle);
+        Channel(ref yaw, ref _yawSpeed, yaw + e, most, accel, t.TurnSettle + sneak * 4);
         _yaw = Wrap(yaw);
     }
 
