@@ -177,7 +177,7 @@ public sealed class PlaythroughEngineActionsTests(Na10Import fixture, ITestOutpu
 
         // Before Rooughah, in Terminor, at the fighters' shop (STTE02, 8/A07/2): the item a step is to buy comes first, though it gains
         // the party least of the stock; then what's better.
-        var host = PlaythroughHost.From(AtCheckpoint("Before Rooughah, in Terminor"));
+        var host = PlaythroughHost.From(AtStorySave('D'));
         Assert.Equal(HostRun.Done, host.RunUntilControl(10_000));
         var outfitting = new Outfitting();
         host.Menus = new Levelling(outfitting);
@@ -200,14 +200,8 @@ public sealed class PlaythroughEngineActionsTests(Na10Import fixture, ITestOutpu
         Assert.Contains($" {catalog[wanted.Value].Name} for ", outfitting.Bought[0]);
     }
 
-    private GameState AtCheckpoint(string label)
-    {
-        var name = TestRoms.Checkpoints().Select(row => row.Data).FirstOrDefault(n => n.Length > 0 && n[..^4].EndsWith($" - {label}", StringComparison.Ordinal))
-            ?? "";
-        var game = GameState.Load(Data.Set, Rig.CheckpointSave.Convert(TestRoms.Checkpoint(name), Data.Set, label));
-        Assert.Empty(game.Problems);
-        return game;
-    }
+    /// <summary>The game at one of the story pak's saves (<see cref="StorySaves"/>), loaded as the runtime loads a save.</summary>
+    private GameState AtStorySave(char slot) => StorySaves.Game(Data.Set, slot);
 
     [Fact]
     public void ACoverRunWithOnlyTheClockLeftWaitsForIt()

@@ -11,7 +11,7 @@ using HBHT.Rom.Rig;
 namespace HBHT.Rom.Tests;
 
 /// <summary>
-/// The playthrough bot's battles (docs/systems/playthrough.md, layer 5) on NA 1.0's data and the user's checkpoints: the party played
+/// The playthrough bot's battles (docs/systems/playthrough.md, layer 5) on NA 1.0's data and the story pak's saves: the party played
 /// by the combat AI, a lost battle played again and won outright, a companion's death, and experience spent by the builds after a win
 /// and at a trainer.
 /// </summary>
@@ -21,15 +21,8 @@ public sealed class PlaythroughBattleTests(Na10Import fixture, ITestOutputHelper
 
     private PluginSet Set => Data.Set;
 
-    /// <summary>The game at a story checkpoint, made into a save and loaded as the runtime loads one.</summary>
-    private GameState AtCheckpoint(string label)
-    {
-        var name = TestRoms.Checkpoints().Select(row => row.Data).FirstOrDefault(n => n.Length > 0 && n[..^4].EndsWith($" - {label}", StringComparison.Ordinal))
-            ?? "";
-        var game = GameState.Load(Set, CheckpointSave.Convert(TestRoms.Checkpoint(name), Set, label));
-        Assert.Empty(game.Problems);
-        return game;
-    }
+    /// <summary>The game at one of the story pak's saves (<see cref="StorySaves"/>), loaded as the runtime loads a save.</summary>
+    private GameState AtStorySave(char slot) => StorySaves.Game(Set, slot);
 
     /// <summary>A host on the game, played to trek with the player at the controls.</summary>
     private static PlaythroughHost Host(GameState game, IBattlePolicy battles, Levelling? levelling = null, GameStart? start = null)
@@ -84,7 +77,7 @@ public sealed class PlaythroughBattleTests(Na10Import fixture, ITestOutputHelper
         // Before Rooughah: Alaron, Rheda, Brenna and Sholeh, every one's turns the AI's, against the four Chaos Scouts of Overworld O17
         // (object 4), whose win sets flag 3576. All four come through.
         var pilot = new BattlePilot();
-        var host = Host(AtCheckpoint("Before Rooughah"), pilot);
+        var host = Host(AtStorySave('C'), pilot);
         var flag = Flag(3576);
         Assert.False(host.Game.Flags.IsSet(flag));
         var fought = Fight(host, Encounter(host, "aidyn:mapobject/0/O17/4"));
@@ -205,7 +198,7 @@ public sealed class PlaythroughBattleTests(Na10Import fixture, ITestOutputHelper
         // flag kept, so the run sees a slot to fill. Without RewindDeaths the battle isn't played again: only Alaron's death or the whole
         // party's loses it.
         var pilot = new BattlePilot { RewindDeaths = false };
-        var host = Host(AtCheckpoint("Before Rooughah"), pilot);
+        var host = Host(AtStorySave('C'), pilot);
         Assert.False(host.Game.Party.HasEmptySlot());
         var fought = Fight(host, Encounter(host, "aidyn:mapobject/0/O16/6"));
         Report(host, pilot);
@@ -229,7 +222,7 @@ public sealed class PlaythroughBattleTests(Na10Import fixture, ITestOutputHelper
         // The same battle, with RewindDeaths as the run has it: the win with a companion dead is undone, as a player reloads, and the
         // battle played again from its start and won outright. Nobody died that stands, and the party is whole.
         var pilot = new BattlePilot();
-        var host = Host(AtCheckpoint("Before Rooughah"), pilot);
+        var host = Host(AtStorySave('C'), pilot);
         var before = host.BattlesFought.Count;
         host.Session.CueBattle(Encounter(host, "aidyn:mapobject/0/O16/6"));
         Assert.Equal(HostRun.Done, host.RunUntil(h => h.BattlesFought.Count > before + 1 && h.BattlesFought[^1].Ended is not null && h.PlayerHasControl, 300_000));
@@ -250,7 +243,7 @@ public sealed class PlaythroughBattleTests(Na10Import fixture, ITestOutputHelper
         // Before Shamsuk's Tower Alaron wears a Short Sword, Enchanted Hide and a Small Shield, with better in the party's inventory: the
         // Party tab's presses put on him what gains him most of each kind, each for more than what it replaced, which goes back in the
         // inventory. The game's own equip does it.
-        var game = AtCheckpoint("Before Shamsuk's Tower");
+        var game = AtStorySave('B');
         var alaron = game.Party.Members.Single(m => m.Entity == Entity(0x023F));
         var before = (alaron.Equipment.Weapon!.Item, alaron.Equipment.Armor!.Item, alaron.Equipment.Shield!.Item);
         var outfitting = new Outfitting();
@@ -277,7 +270,7 @@ public sealed class PlaythroughBattleTests(Na10Import fixture, ITestOutputHelper
         // lists (attributes, skills above 0, spells known), at the prices it asks, in experience alone.
         var levelling = new Levelling();
         var pilot = new BattlePilot();
-        var host = Host(AtCheckpoint("Before Shamsuk's Tower"), pilot, levelling);
+        var host = Host(AtStorySave('B'), pilot, levelling);
         var party = host.Game.Party;
         var gold = party.Gold;
         var spent = party.Members.ToDictionary(m => m.Entity, m => m.SpendableExp);
@@ -344,7 +337,7 @@ public sealed class PlaythroughBattleTests(Na10Import fixture, ITestOutputHelper
         // 1,500, by the training window's own presses. Each pick is the trainer's to teach, below the trainer's level, at the experience
         // and gold the window asks; the gold runs out before the experience does.
         var levelling = new Levelling();
-        var host = Host(AtCheckpoint("Before Rooughah, in Terminor"), new BattlePilot(), levelling);
+        var host = Host(AtStorySave('D'), new BattlePilot(), levelling);
         var party = host.Game.Party;
         party.Gold = 1500;
         var exp = party.Members.ToDictionary(m => m.Entity, m => m.SpendableExp);

@@ -153,21 +153,14 @@ public sealed class PlaythroughRunTests(Na10Import fixture, ITestOutputHelper ou
         Assert.Equal(2, last.Party.Count);
     }
 
-    /// <summary>The game at a story checkpoint, made into a save and loaded as the runtime loads one.</summary>
-    private GameState AtCheckpoint(string label)
-    {
-        var name = TestRoms.Checkpoints().Select(row => row.Data).FirstOrDefault(n => n.Length > 0 && n[..^4].EndsWith($" - {label}", StringComparison.Ordinal))
-            ?? "";
-        var game = GameState.Load(Data.Set, CheckpointSave.Convert(TestRoms.Checkpoint(name), Data.Set, label));
-        Assert.Empty(game.Problems);
-        return game;
-    }
+    /// <summary>The game at one of the story pak's saves (<see cref="StorySaves"/>), loaded as the runtime loads a save.</summary>
+    private GameState AtStorySave(char slot) => StorySaves.Game(Data.Set, slot);
 
     [Fact]
     public void AMemberGoneBringsTheMemberGoalBack()
     {
         // Before Rooughah the party is full: the run's goal comes first.
-        var game = AtCheckpoint("Before Rooughah");
+        var game = AtStorySave('C');
         Assert.False(game.Party.HasEmptySlot());
         var options = new RunOptions(MostTicks: 1, StepTicks: 30_000, PlanBudget: 300, WriteSaves: false);
         var full = Run(PlaythroughHost.From(game), new EndingGoal(), options);
@@ -177,7 +170,7 @@ public sealed class PlaythroughRunTests(Na10Import fixture, ITestOutputHelper ou
         Assert.DoesNotContain(before.Entries, e => e.Expected == "a member joins");
 
         // A companion dies, as a battle leaves them: their died flag set, gone from the party, which has a slot again.
-        game = AtCheckpoint("Before Rooughah");
+        game = AtStorySave('C');
         var dead = game.Party.Members.Last(m => m.Entity != GameState.Alaron);
         game.Flags.Set(Data.Set.Get<EntityRecord>(dead.Entity).Member!.Died, true);
         game.Party.Strip(dead);
@@ -200,7 +193,7 @@ public sealed class PlaythroughRunTests(Na10Import fixture, ITestOutputHelper ou
         // shop is talked through, and with Shopping set the barter window buys from the stock what gains the party most over what it has, with the
         // party's gold, by its presses; then the shop is left.
         var (model, graph) = Built;
-        var host = PlaythroughHost.From(AtCheckpoint("Before Rooughah, in Terminor"));
+        var host = PlaythroughHost.From(AtStorySave('D'));
         Assert.Equal(HostRun.Done, host.RunUntilControl(10_000));
         var outfitting = new Outfitting { GoldReserve = 0 };
         host.Menus = new Levelling(outfitting);
