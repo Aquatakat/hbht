@@ -5,13 +5,13 @@ using HBHT.Core.Ui;
 using HBHT.Plugins;
 using HBHT.Plugins.Records;
 
-using static HBHT.Rom.Tests.CombatCheckpoints;
+using static HBHT.Rom.Tests.TestBattles;
 
 namespace HBHT.Rom.Tests;
 
 /// <summary>
-/// A member's turn played through the menus and the states, headless, in the rats' battle the port sets up from checkpoint 01: a spell
-/// from C-down, a potion from C-up, a performance, healing and a thrown flask, each ending the turn as an attack does.
+/// A member's turn played through the menus and the states, headless, in the rats' battle the port sets up (<see cref="TestBattles"/>):
+/// a spell from C-down, a potion from C-up, a performance, healing and a thrown flask, each ending the turn as an attack does.
 /// </summary>
 public sealed class BattleActionTests(Na10Import fixture)
 {
@@ -51,21 +51,8 @@ public sealed class BattleActionTests(Na10Import fixture)
 
     private Run Start()
     {
-        var built = Plain(Set, 1);
+        var built = Plain(Set);
         return new Run(built, Zone(built));
-    }
-
-    /// <summary>Opens a held menu, moves to the row that <paramref name="pick"/> finds, and lets go.</summary>
-    private static void Choose(Battle battle, bool items, Func<CombatMenuRow, bool> pick)
-    {
-        Assert.True(battle.OpenMenu(items));
-        Assert.Equal(items ? CombatState.MenuItems : CombatState.MenuSpells, battle.State);
-        var menu = battle.Menu!;
-        var row = menu.Rows.Select((r, i) => (r, i)).First(p => pick(p.r)).i;
-        for (var i = 0; i < row; i++)
-            battle.MoveMenu(1);
-        Assert.True(battle.CloseMenu(items));
-        Assert.Null(battle.Menu);
     }
 
     [Fact]
@@ -129,7 +116,7 @@ public sealed class BattleActionTests(Na10Import fixture)
         // the original works the flag out from the weapon each time the hands are filled (Combatant.UpdateDrawnFlag, 0x80066A2C).
         var run = Start();
         var sholeh = run.TurnOf("Sholeh");
-        // Checkpoint 01's Sholeh carries no bow: the first she can wield, in hand as the battle would have made her with it.
+        // The story save's Sholeh carries no bow: the first she can wield, in hand as the battle would have made her with it.
         var catalog = run.Built.Game.Party.Inventory.Catalog;
         var held = sholeh.Sheet.Equipment.RemoveWeapon();
         var bow = Set.All<ItemRecord>(RecordTypes.Item).Where(i => i.Weapon?.Missile?.Scene is not null).Select(i => new HBHT.Core.Items.ItemInstance(catalog[i.Id]))
@@ -314,25 +301,22 @@ public sealed class BattleActionTests(Na10Import fixture)
         var rheda = run.TurnOf("Rheda");
         var escape = run.Built.Game.Rules.Magic!.Spell(RecordId.Hex(RecordTypes.Spell, 0x033C))!;
         rheda.Sheet.LearnSpell(escape);
+        // At level 1 it takes some of the party but not all, so the battle goes on without them.
         var learned = rheda.Sheet.Spells[^1];
-        learned.Level = 10;
+        learned.Level = 1;
         rheda.Sheet.Skills.Train(HBHT.Core.Characters.Skill.Wizard, 10);
         Choose(run.Battle, false, r => r.Text == "Escape");
         Assert.Equal(CombatState.TargetSpell, run.Battle.State);
         var targets = run.Battle.TargetsB.SelectedSlots.Select(s => run.Battle.Slots[s]!).ToList();
-        Assert.NotEmpty(targets);
+        Assert.InRange(targets.Count, 1, run.Battle.Combatants.Count(c => !c.Hostile) - 1);
         Assert.All(targets, t => Assert.False(t.Hostile));
         Assert.True(run.Battle.Confirm());
         for (var i = 0; i < 3000 && run.Battle.Current == rheda && !run.Battle.Over; i++)
             run.Tick();
 
-        if (run.Battle.Log.Any(l => l.Contains("fails to cast", StringComparison.Ordinal)))
-            return;
+        Assert.DoesNotContain(run.Battle.Log, l => l.Contains("fails to cast", StringComparison.Ordinal));
         Assert.All(targets, t => Assert.True(t.Gone && !t.Sheet.IsDead));
-        var everyone = run.Battle.Combatants.Where(c => !c.Hostile).All(targets.Contains);
-        Assert.Equal(everyone, run.Battle.Fled);
-        if (everyone)
-            return;
+        Assert.False(run.Battle.Fled);
         // The battle goes on with whoever's left; once the last of the party is gone too, it has fled at the next turn's change.
         Assert.NotSame(rheda, run.Battle.Current);
         Assert.False(run.Battle.Current!.Gone);
