@@ -287,6 +287,54 @@ Piece C of Start Early's plan, done Nov 9, 2026, reshaped from the user's first 
   - A walker hidden from the player's turn's shot (the Boss fleeing behind a hill) isn't shown: the turn could wait for walkers its shot can't hold, as it waits for beats, at the pace's cost.
   - The shot question costs: a drawn tick that asks many new questions took up to 17 ms in the casters' battle, where the composer's search budget is 2 ms; each is answered once.
 
+## The enhanced trek camera (Camera: Enhanced)
+
+The design, as the user asked for it on Nov 14, 2026; being built, and nothing here is in until its slice says so under **Built** below. Under Camera: Original nothing changes. The aim is a camera nobody notices: calm, always moving a little, never stepped (the battle camera's cuts and swoops aren't its style).
+
+**How it fits.** `FollowCamera` is left as it is, since the battle camera shares its insides. The enhanced camera is a class of its own, stepped where `TrekLoop` steps `FollowCamera.Step`, and it writes the follow camera's position, aim and look, so the sky, the steering, the wanderers and the runtime read what they always did. A camera object that holds the camera still has it (the authored shots stay), and when it lets go the enhanced camera glides from where the camera was left. `--trek-camera original|enhanced` overrides the setting for trek alone, to compare.
+
+**The boom.** A pivot above the player, and a yaw, a pitch and a length, each easing toward a goal that changes continuously, with capped speeds (`CappedMotion`). Nothing picks among a few angles.
+
+- **Trailing.** While he moves, the yaw's goal is behind his direction of travel; standing, it holds. The stick turning with the camera is expected and left alone. R, the right stick and the mouse add to the yaw and pitch directly, and the automatic yaw waits 2 seconds after the last input before easing back in.
+- **Walking at the lens.** Outdoors it backs off and drifts round. It swings round behind faster the less room there is to back off into, so in a corridor he's never walking blind for more than a moment.
+- **The spring arm.** The length is the goal's or the first wall's less a margin, whichever is shorter: in fast, out slowly. A wall is tested from both sides, because the collision's triangles are one-sided (a sweep out from the pivot and one back from the camera), and against the drawn world where the host supplies it (`VisibleWorld.Raycast`), since interiors' collision has no ceilings (93% of upward casts over interior floors hit nothing). The camera is never outside the room. Outdoors too: the original's follow camera has no wall avoidance.
+- **Close quarters.** As the arm shortens the pitch rises and the pivot lifts above his head, so he sits low in the frame instead of filling it. Interiors are tight: GwerniaCastle M05 is a median 3.7 wide, and 57% of interior floor is within 1 of a wall.
+- **Arriving.** Behind him, looking along the heading the teleporter gave him, fitted by the arm. A teleporter's own camera point is kept.
+- **Where it is.** The goal's length and pitch come from the chunk under him each tick (interior where the sky isn't drawn), eased, rather than from the last door.
+- **The path's bend** (slice 2). A fan of sweeps ahead of his travel finds how far each direction is open. The yaw leans toward the open heading, by a bounded amount, smoothed, and only as far as straight ahead is blocked. In Overworld C15 the tree walls are vertical surface-1 triangles and the path is flat grass, so short sweeps at knee height tell them apart. Holding forward then follows the path.
+- **Slopes** (slice 2). The pitch follows the ground ahead by part of its slope.
+- **Nudges** (slice 3). A lean of at most about 12° toward what the use button would pick (`MapObjectUse.Reach`'s score, at a longer reach) and toward a hunter nearby, fading with distance, off while the player steers the camera. It never wraps round.
+- **Sneaking** (slice 3). With a hunter within twice its perception, the camera goes to Alaron's far side from it, a little longer and higher, so the hunter is in the frame beyond him: quickly, but as a swing. It changes hunter only for one clearly nearer.
+
+**Checking it.** A headless trace of trek's camera over fixed walks (arriving in GwerniaCastle M05 and running its length, I07's entrance, C15's bend), printing under each style: the share of ticks the view ahead is blocked close by, the camera is past a wall, the player is hidden, and how sharply the view turns. Real-data tests hold the invariants.
+
+**Built.** Nothing yet.
+
+## The enhanced conversation camera (Camera: Enhanced)
+
+The design, with the trek camera's; being built. It runs for a conversation with a body (`ScriptMode.Conversation`, `Conversation.With`), in place of `FollowCamera.Frame`. No conversation script has a camera op (0 of 596), so it never meets an authored shot in a script. It does take the camera from a room's camera object for the conversation, and gives it back at the end, as the user chose: every shot must then be in bounds, since those rooms were only ever seen from one side. `--dialogue-camera original|enhanced` overrides the setting for it alone.
+
+**What it has.** Two talkers, always: no conversation has three speakers, and a third entity's line in a shared script (116 lines of 5,260) is the talked-to npc's body speaking. Other party members have no body in trek. The talkers stand where they were, facing each other. Eyes are `CutSceneActor.Eyes`' formula over the body's height, scale and radius; there's no head bone. The box covers the bottom quarter (`Lens.Floor` keeps subjects above it). Lines advance only on A.
+
+**The line of action.** The side of the line between the two is chosen once, as the conversation starts: the side the camera is already on, unless the other is clearly more open. No shot crosses it.
+
+**The shots.** A two-shot of both; over the listener's shoulder at the speaker, and its mirror; a medium single of the speaker; a wide; the listener. Medium, not close: the art was made to be seen from 5 away. Each drifts slowly, and a change of shot is a cut.
+
+**Choosing, a page at a time, from the script itself.**
+
+- The first page is the two-shot. A line goes over the shoulder to its speaker; a page of choices looks at the npc.
+- A run of lines by one speaker (37 scripts have a run of 5 or more, the longest 30) goes wide around its third or fourth line, and once to the listener. The run's length is read ahead in the script's nodes.
+- A shouted line (an upper-case word of 3 letters or more, or "!!") punches in to the single along the same axis. No shake, the user's choice.
+- Ops are beats: the last page before `battle.start` goes wide, a `check.skill` goes to Alaron, `party.addMember` to the two-shot.
+- A speaker with no body holds the two-shot.
+- A shot lasts at least 1.5 seconds: a page that comes sooner keeps the shot if it shows the speaker, and otherwise goes to the two-shot, so pressing A quickly doesn't strobe.
+
+**Fitting.** Each shot is tested before it's used: the camera's point is reached from the focus without crossing collision (from both sides) or the drawn world, both talkers' eyes are in sight, and no other body is in the way. A shot that fails falls to the next, over the shoulder to single to two-shot to wide, and last to the original's framing.
+
+**Checking it.** A census over every npc with a conversation, standing where it's placed with Alaron at talking distance from several sides: which shots fit, as shares.
+
+**Built.** Nothing yet.
+
 ## Camera objects (`processVoxelCamera`)
 
 Ported as `CameraMove`. A camera object takes the camera while the player is in its reach ([map-objects](map-objects.md#camera-objects) has how he reaches it). While it moves the camera or its aim, the follow camera does nothing the next tick (`camera_mode` 2, then `RevertMode`), and when it lets go, the follow camera carries on from where the camera is, in its own mode.
