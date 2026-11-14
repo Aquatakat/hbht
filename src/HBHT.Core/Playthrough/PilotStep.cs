@@ -102,6 +102,14 @@ public sealed record PilotStep(RecordId MapObject, UseKind How = UseKind.Auto, I
     /// wins her trust opens her scene (0x03FC, Overworld G12/4) about her, which then plays at once.
     /// </summary>
     public IReadOnlyList<ChoiceWanted> Consequences { get; init; } = [];
+
+    /// <summary>
+    /// How the trap of the step's own object should come out when its menu's Disarm is tried: disarmed (an Open, or a door's Disarm),
+    /// gone off (a <see cref="ActionKind.Spring"/>), or as the roll falls (null). The pilot chooses Disarm only when the roll the menu
+    /// holds still comes out so (<see cref="Items.Containers.WouldDisarm"/>), and otherwise backs out and saves and loads where the
+    /// player stands, which moves the world's random stream, before trying again.
+    /// </summary>
+    public bool? Disarms { get; init; }
 }
 
 /// <summary>Why a step failed.</summary>
@@ -182,6 +190,9 @@ public sealed record StepOutcome(
 
     /// <summary>The story triggers other than the step's own cued on the step, as the player walked into them.</summary>
     public IReadOnlyList<RecordId> Crossed { get; init; } = [];
+
+    /// <summary>How many times the step's trap was backed out of, its roll not the one the step wanted, before Disarm was chosen.</summary>
+    public int TrapTries { get; init; }
 
     /// <summary>The object was used, its consequences played out, and nothing stopped it. Expectation misses don't count: they're the report's.</summary>
     public bool Done => Failure == StepFailure.None;

@@ -163,6 +163,45 @@ public sealed class PlaythroughEngineActionsTests(Na10Import fixture, ITestOutpu
         Assert.All(model.Actions.Where(a => a.Place == place), a => Assert.False(state.CanDo(a)));
     }
 
+    [Theory]
+    [InlineData(ActionKind.Spring)]
+    [InlineData(ActionKind.Open)]
+    public void ATrapTheMechanicSometimesDisarmsComesOutAsTheStepWantsOnItsFirstPlay(ActionKind kind)
+    {
+        // Brenna as she joins (Mechanic 1) disarms I12/41's trap of 2 some of the time. The pilot chooses Disarm only when the roll the
+        // trap's menu holds still comes out as the step wants, and otherwise backs out and saves and loads: the step is done on its
+        // first play, never played again from the save before it. Stage 9 stood 17 ticks between tries, which moved nothing.
+        var (model, _) = Built;
+        var place = Ids.MapObject(0, "I12", 41);
+        var chest = Assert.IsType<ContainerObject>(Data.Objects[place]);
+        var host = Near(place, g => Assert.True(g.AddMember(Ids.Entity(0x0243))), off: 1.5f);
+        var chance = CodeGates.DisarmChance(host.Game.Party, chest.TrapLevel);
+        Assert.InRange(chance, 0.01, 0.99);
+        var action = model.Actions.Single(a => a.Place == place && a.Kind == kind);
+        var run = Run(host, new FlagGoal(kind == ActionKind.Spring ? chest.Exploded!.Value : chest.Opened!.Value));
+        var step = run.Play(action, run.Goal);
+        output.WriteLine($"disarms {chance:P0}; {step.Summary}");
+
+        Assert.True(step.Done, step.Summary);
+        Assert.False(step.Again);
+        Assert.Equal(kind == ActionKind.Spring, host.Game.Flags.IsSet(chest.Exploded!.Value));
+        Assert.Equal(kind == ActionKind.Open, host.Game.Flags.IsSet(chest.Opened!.Value));
+    }
+
+    [Fact]
+    public void SavingAndLoadingWhereThePlayerStandsMovesTheWorldsRandomStream()
+    {
+        // The chunks load again and he's set down afresh, each drawing on it: the roll a trap's menu holds next isn't the one before.
+        var host = Near(Ids.MapObject(0, "I12", 41));
+        for (var i = 0; i < 3; i++)
+        {
+            var seed = host.Game.Random.World.Seed;
+            Assert.True(host.SaveAndLoad());
+            Assert.Equal(HostRun.Done, host.RunUntilControl(600));
+            Assert.NotEqual(seed, host.Game.Random.World.Seed);
+        }
+    }
+
     [Fact]
     public void TheHelpMenuIsReadFromTheSystemTab()
     {

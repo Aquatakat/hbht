@@ -87,6 +87,12 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
     /// </summary>
     public TrekPopup? Leaving { get; private set; }
 
+    /// <summary>
+    /// The map object whose trap's menu is <see cref="Popup"/>, and the trap's level, while it's up: what its Disarm would try, which the
+    /// playthrough bot weighs against the roll the menu holds still (<see cref="Items.Containers.WouldDisarm"/>).
+    /// </summary>
+    public (RecordId Object, int Level)? Trap { get; private set; }
+
     /// <summary>Steps the popup up and the one fading out by a 60 Hz tick, dropping the second once it's gone.</summary>
     public void Step()
     {
@@ -177,6 +183,7 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
             Leaving = popup;
         }
         Popup = null;
+        Trap = null;
         _onClose = null;
         _onChoose = null;
     }
@@ -184,6 +191,7 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
     private void Show(TrekPopup popup, Action? then = null)
     {
         Popup = popup;
+        Trap = null;
         _onClose = then;
         _onChoose = null;
     }
@@ -490,6 +498,7 @@ public sealed partial class MapObjectUse(GameState game, MenuText text, IMapObje
         var danger = text[level < 3 ? MenuText.TrapSlightly : level < 6 ? MenuText.TrapModerately : MenuText.TrapVery];
         Popup = TrekPopup.Choice(MenuText.Fill(text[MenuText.TrapDanger], danger), 180, 10, TrekPopup.PaleGreen,
             [text[MenuText.TrapDisarm], text[MenuText.TrapExit]]);
+        Trap = (ChunkRecord.ObjectId(map.Record.Id, o.Index), level);
         _onClose = null;
         _onChoose = choice =>
         {

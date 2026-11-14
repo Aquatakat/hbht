@@ -69,6 +69,12 @@ public static class StepTranslation
             // 13 before flag 229 is set, and no choice after.
             Ways = action.Script is { } script && (action.Choices.Count > 0 || action.OtherChoices.Count > 0)
                 ? (script, [action.Choices, .. action.OtherChoices]) : null,
+            Disarms = action.Kind switch
+            {
+                ActionKind.Spring => false,
+                ActionKind.Open or ActionKind.Disarm => true,
+                _ => null,
+            },
         };
         return new TranslatedStep(action, step, picks, unmet, rolls, notes);
     }
