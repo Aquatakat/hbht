@@ -22,6 +22,9 @@ window/size/viewport_height=960
 
 [physics]
 
+2d/physics_engine="Dummy"
+3d/physics_engine="Dummy"
+
 common/physics_interpolation=true
 
 [rendering]

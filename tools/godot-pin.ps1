@@ -3,7 +3,9 @@
 # (SHA512-SUMS.txt on the release page). Dot-sourced by tools/godot.ps1 and
 # tools/package.ps1, so the editor the developer runs and the one that exports
 # the packages are the same. Change the version here and the Godot.NET.Sdk
-# version in the Godot projects' .csproj together, with every hash below.
+# version in the Godot projects' .csproj (and the bind check's,
+# tools/godot-template/bindcheck) together, with every hash below; HBHT's own
+# template (tools/godot-template.ps1) is built from this version's source.
 #
 # Runs on Windows, Linux and macOS (PowerShell 7).
 
@@ -33,6 +35,12 @@ $GodotEditors = @{
 $GodotTemplates = @{
     Tpz    = "Godot_v${GodotVersion}_mono_export_templates.tpz"
     Sha512 = 'bb5c41d72370ed743660361f6228006f808ab04ca33abdc545d740b044f3fe057f32ae8cb7873a1bc86ddcd82ae683b9f6dfdfe4179852f2c0f1acde2ff6bd5a'
+}
+
+# The source, which HBHT's own export template is built from (tools/godot-template.ps1).
+$GodotSource = @{
+    Tar    = "godot-$GodotVersion.tar.xz"
+    Sha512 = '15e23f8423003f5d32da07c34a8651e43af23b050cc0dea2d4fba6944ca445d079edb52b66fdf82b6d5739bba1fe707b9e27b8836b19f09f64f313966160f8fc'
 }
 
 $GodotToolsRoot = Join-Path $PSScriptRoot "../.tools/godot/$GodotVersion"

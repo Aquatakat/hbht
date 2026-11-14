@@ -1,4 +1,5 @@
-# Builds the packages on Windows, Linux and macOS and publishes them as a release,
+# Builds HBHT's Godot template (godot-template.yml) and the packages on Windows, Linux and macOS,
+# and publishes them as a release,
 # "HBHT beta N", tagged vN, where N is one more than the highest v<number> tag
 # (docs/systems/releases.md). Run by hand from the Actions tab.
 name: Release
@@ -43,9 +44,14 @@ jobs:
       # The real-data tests skip: CI has no ROMs.
       - run: dotnet test
 
+  # HBHT's own Godot export template for each platform, built only when the cache lacks it.
+  template:
+    name: Godot template
+    uses: ./.github/workflows/godot-template.yml
+
   package:
     name: Package (${{ matrix.os }})
-    needs: [number, test]
+    needs: [number, test, template]
     strategy:
       fail-fast: true
       matrix:
@@ -63,6 +69,12 @@ jobs:
         with:
           path: .tools/godot
           key: godot-${{ runner.os }}-${{ hashFiles('tools/godot-pin.ps1') }}
+      # The template the template job built or found, by the same key.
+      - uses: actions/cache/restore@v6
+        with:
+          path: .tools/godot-template
+          key: godot-template-${{ runner.os }}-${{ hashFiles('tools/godot-pin.ps1', 'tools/godot-template.ps1', 'tools/godot-template/hbht.py', 'tools/godot-template/hbht.gdbuild') }}
+          fail-on-cache-miss: true
       - name: Build the packages
         shell: pwsh
         run: ./tools/package.ps1 -Version ${{ needs.number.outputs.version }}

@@ -5,8 +5,9 @@
 #   Linux:   HBHT-beta-<n>-linux-x86_64.tar.gz
 #   macOS:   HBHT-beta-<n>-macos.dmg
 #
-# It fetches the pinned Godot and its export templates into .tools/ (tools/godot-pin.ps1),
-# exports both Godot projects with release templates, lays them out side by side and
+# It fetches the pinned Godot into .tools/ (tools/godot-pin.ps1), builds HBHT's own export
+# template from the pinned source on first use (tools/godot-template.ps1), exports both Godot
+# projects with it, lays them out side by side and
 # writes the packages into out/packages/ (gitignored). -Version is the release number,
 # which the release workflow passes; a local build without one is 0. The working tree is
 # left as it was: the version written into project.godot and the files the export needs
@@ -18,12 +19,18 @@
 param(
     [ValidateRange(0, 255)] # an MSI's major version is at most 255
     [int]$Version = 0,
-    [string]$OutDir
+    [string]$OutDir,
+    # Export with Godot's stock release template, as downloaded, rather than HBHT's own
+    # (which needs a C++ toolchain to build the first time).
+    [switch]$StockTemplate,
+    # Export with this template rather than building HBHT's own.
+    [string]$Template
 )
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
 . (Join-Path $PSScriptRoot 'godot-pin.ps1')
+. (Join-Path $PSScriptRoot 'godot-template.ps1')
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 if (-not $OutDir) { $OutDir = Join-Path $repo 'out/packages' }
 $OutDir = [IO.Path]::GetFullPath($OutDir)
@@ -40,52 +47,6 @@ $apps = @(
 function Invoke-Native([string]$exe, [string[]]$arguments) {
     & $exe @arguments
     if ($LASTEXITCODE -ne 0) { throw "$exe $($arguments -join ' ') exited with $LASTEXITCODE" }
-}
-
-# A .NET export's build leaves MSBuild's worker nodes and the compiler server running
-# after Godot exits, holding the handles they inherited. Without them nothing outlives
-# the export, and the build is the same from a clean machine as from a warm one.
-$env:MSBUILDDISABLENODEREUSE = '1'
-$env:DOTNET_CLI_USE_MSBUILD_SERVER = '0'
-$env:UseSharedCompilation = 'false'
-
-# How long one Godot run may take before it's taken as stuck.
-$godotTimeout = [TimeSpan]::FromMinutes(20)
-
-# Quotes an argument for a Windows command line, as Start-Process doesn't.
-function ConvertTo-Argument([string]$value) {
-    if ($value -and $value -notmatch '[\s"]') { return $value }
-    return '"' + ($value -replace '(\\*)"', '$1$1\"' -replace '(\\+)$', '$1$1') + '"'
-}
-
-# Godot's output goes to files rather than a pipe: a process the export leaves behind
-# that holds the pipe keeps it from ending, and the step waits forever (it did on
-# GitHub's Windows runners, the export finished). Godot exits 0 from a failed .NET
-# export, with the failure only in its output, so any ERROR line fails the step.
-function Invoke-Godot([string]$projectDir, [string[]]$arguments, [string]$log) {
-    Write-Host "godot --path $projectDir $($arguments -join ' ')"
-    $all = @('--headless', '--path', $projectDir) + $arguments
-    $errLog = "$log.stderr"
-    $process = Start-Process -FilePath $script:godot -ArgumentList (($all | ForEach-Object { ConvertTo-Argument $_ }) -join ' ') `
-        -RedirectStandardOutput $log -RedirectStandardError $errLog -NoNewWindow -PassThru
-    # The handle, so the exit code is still there once it has exited.
-    $null = $process.Handle
-    $stuck = $false
-    if (-not $process.WaitForExit([int]$godotTimeout.TotalMilliseconds)) {
-        $process.Kill($true)
-        $stuck = $true
-    }
-    foreach ($file in @($log, $errLog)) {
-        Get-Content -LiteralPath $file -ErrorAction SilentlyContinue |
-            Where-Object { $_.Trim() -and $_ -notmatch '^\[ *(\d+%|DONE) *\]' } |
-            ForEach-Object { Write-Host "  $_" }
-    }
-    if ($stuck) { throw "Godot was still running after $($godotTimeout.TotalMinutes) minutes; its output is in $log" }
-    $code = $process.ExitCode
-    $errors = @(Select-String -LiteralPath $log, $errLog -Pattern '^(ERROR|SCRIPT ERROR):')
-    if ($code -ne 0 -or $errors.Count -gt 0) {
-        throw "Godot failed (exit $code, $($errors.Count) errors); its output is in $log"
-    }
 }
 
 function Copy-IfChanged([string]$from, [string]$to) {
@@ -105,6 +66,8 @@ function Export-App($app, [string]$preset, [string]$target) {
     $dir = Join-Path $repo "src/$($app.Project)"
     $projectFile = Join-Path $dir 'project.godot'
     $original = [IO.File]::ReadAllBytes($projectFile)
+    $presetsFile = Join-Path $dir 'export_presets.cfg'
+    $originalPresets = [IO.File]::ReadAllBytes($presetsFile)
     $created = @()
     try {
         # The icons the presets name. The PNG is committed (it's the project's icon);
@@ -132,15 +95,21 @@ function Export-App($app, [string]$preset, [string]$target) {
             throw "$projectFile has no config/version line"
         }
         [IO.File]::WriteAllText($projectFile, $versioned)
+        # The template, which the preset names for the run (custom_template/release).
+        if ($script:template) {
+            $presets = [IO.File]::ReadAllText($presetsFile)
+            [IO.File]::WriteAllText($presetsFile, (Set-PresetTemplate $presets $preset $script:template))
+        }
 
         $logs = Join-Path $work 'logs'
         New-Item -ItemType Directory -Force $logs | Out-Null
         # A fresh checkout has no .godot/ cache: import first, or the export sees no resources.
-        Invoke-Godot $dir @('--import') (Join-Path $logs "$($app.Exe)-import.log")
+        Invoke-Godot $script:godot $dir @('--import') (Join-Path $logs "$($app.Exe)-import.log")
         New-Item -ItemType Directory -Force (Split-Path $target) | Out-Null
-        Invoke-Godot $dir @('--export-release', $preset, $target) (Join-Path $logs "$($app.Exe)-export.log")
+        Invoke-Godot $script:godot $dir @('--export-release', $preset, $target) (Join-Path $logs "$($app.Exe)-export.log")
     } finally {
         [IO.File]::WriteAllBytes($projectFile, $original)
+        [IO.File]::WriteAllBytes($presetsFile, $originalPresets)
         foreach ($file in $created) { Remove-Item -LiteralPath $file -Force -ErrorAction SilentlyContinue }
     }
 }
@@ -149,6 +118,17 @@ function Assert-Exists([string[]]$paths) {
     foreach ($path in $paths) {
         if (-not (Test-Path -LiteralPath $path)) { throw "The export is missing $path" }
     }
+}
+
+# Fails if the export uses a Godot class HBHT's template lacks, which the bind check that
+# built it listed (tools/godot-template.ps1). Godot's stock template has them all.
+function Assert-TemplateClasses([string]$dataFolder) {
+    if (-not $script:template) { return }
+    if (-not (Test-Path -LiteralPath (Get-GodotMissingClassesPath $script:template))) {
+        Write-Warning "No list of the classes $script:template lacks beside it; not checking the export's use of them"
+        return
+    }
+    Assert-GodotClassesInTemplate $dataFolder $script:template
 }
 
 # The MIT license as the RTF the installer's license page shows.
@@ -178,6 +158,7 @@ function New-WindowsPackages {
             (Join-Path $stage "$($app.Exe).exe"),
             (Join-Path $stage "$($app.Exe).pck"),
             (Join-Path $stage "data_$($app.Project)_windows_x86_64"))
+        Assert-TemplateClasses (Join-Path $stage "data_$($app.Project)_windows_x86_64")
     }
     Copy-Item (Join-Path $repo 'LICENSE'), (Join-Path $repo 'README.md') $stage
 
@@ -254,6 +235,7 @@ function New-LinuxPackage {
             (Join-Path $stage $app.Exe),
             (Join-Path $stage "$($app.Exe).pck"),
             (Join-Path $stage "data_$($app.Project)_linuxbsd_x86_64"))
+        Assert-TemplateClasses (Join-Path $stage "data_$($app.Project)_linuxbsd_x86_64")
         Invoke-Native chmod @('+x', (Join-Path $stage $app.Exe))
     }
     Copy-Item (Join-Path $repo 'LICENSE'), (Join-Path $repo 'README.md') $stage
@@ -287,6 +269,7 @@ function New-MacPackage {
         Assert-Exists @($pck,
             (Join-Path $contents "Resources/data_$($app.Project)_macos_arm64"),
             (Join-Path $contents "Resources/data_$($app.Project)_macos_x86_64"))
+        Assert-TemplateClasses (Join-Path $contents "Resources/data_$($app.Project)_macos_arm64")
         if ($binary[0].Name -cne $app.Exe) {
             Move-Item -LiteralPath $binary[0].FullName -Destination (Join-Path $contents "MacOS/$($app.Exe).tmp")
             Move-Item -LiteralPath (Join-Path $contents "MacOS/$($app.Exe).tmp") -Destination (Join-Path $contents "MacOS/$($app.Exe)")
@@ -321,6 +304,9 @@ Reset-Folder $work
 $script:godot = Install-Godot
 $templates = Install-GodotTemplates
 Write-Host "Godot $GodotVersion at $script:godot, templates in $templates"
+$script:template = if ($Template) { (Resolve-Path -LiteralPath $Template).Path }
+    elseif (-not $StockTemplate) { Install-GodotTemplate }
+Write-Host "Exporting with $(if ($script:template) { $script:template } else { "Godot's stock template" })"
 
 switch ($platform) {
     'windows' { New-WindowsPackages }

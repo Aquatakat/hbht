@@ -19,6 +19,11 @@ project/assembly_name="HBHT.Editor"
 window/size/viewport_width=1600
 window/size/viewport_height=900
 
+[physics]
+
+2d/physics_engine="Dummy"
+3d/physics_engine="Dummy"
+
 [rendering]
 
 textures/vram_compression/import_etc2_astc=true

@@ -1,0 +1,17 @@
+; Engine configuration file.
+
+config_version=5
+
+[application]
+
+config/name="BindCheck"
+run/main_scene="res://Main.tscn"
+config/features=PackedStringArray("4.7", "C#")
+
+[dotnet]
+
+project/assembly_name="BindCheck"
+
+[rendering]
+
+textures/vram_compression/import_etc2_astc=true

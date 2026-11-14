@@ -1,0 +1,58 @@
+# Builds HBHT's own Godot export template on Windows, Linux and macOS (tools/godot-template.ps1,
+# docs/systems/releases.md#the-engine) and keeps it in the Actions cache, keyed by the files it's
+# built from, where the release's package jobs find it. The release workflow calls this first,
+# and a run whose template is already cached does nothing. Run it by hand to build ahead of a
+# release after changing the pin or the template's profiles.
+name: Godot template
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  template:
+    name: Template (${{ matrix.os }})
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    # Building Godot takes the better part of an hour on a hosted runner, two builds on macOS.
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v7
+      - id: cache
+        uses: actions/cache@v6
+        with:
+          path: .tools/godot-template
+          key: godot-template-${{ runner.os }}-${{ hashFiles('tools/godot-pin.ps1', 'tools/godot-template.ps1', 'tools/godot-template/hbht.py', 'tools/godot-template/hbht.gdbuild') }}
+      # The bind check exports a small .NET project with the template and the pinned Godot.
+      - if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache@v6
+        with:
+          path: .tools/godot
+          key: godot-${{ runner.os }}-${{ hashFiles('tools/godot-pin.ps1') }}
+      - name: Build and check the template
+        if: steps.cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $env:MSBUILDDISABLENODEREUSE = '1'
+          . ./tools/godot-pin.ps1
+          . ./tools/godot-template.ps1
+          $template = Install-GodotTemplate
+          Get-Item $template | Format-Table Name, Length
+      - name: Keep the build's logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: godot-template-logs-${{ runner.os }}
+          path: .tools/godot-build/bindcheck-*/*.log*
+          if-no-files-found: ignore
