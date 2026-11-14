@@ -15,12 +15,13 @@ public readonly record struct TalkingBody(Vector3 Centre, float Radius, Vector3 
     /// A body's sphere and eyes: <c>CutSceneActor.Eyes</c>' formula, the sphere's centre raised by its height × scale less 0.2 and its
     /// scaled radius, and 0.15 forward along its heading. With no look, <see cref="DefaultEyeHeight"/> above its feet.
     /// </summary>
-    public static TalkingBody Of(Body body, EntityBody? look)
+    public static TalkingBody Of(Body body, EntityBody? look) => At(body.Sphere.Position, body.ScaledRadius, body.Heading, look);
+
+    /// <summary>A body whose sphere's centre is <paramref name="at"/>, its scaled radius <paramref name="radius"/>, facing <paramref name="heading"/>.</summary>
+    public static TalkingBody At(Vector3 at, float radius, Vector2 heading, EntityBody? look)
     {
-        var at = body.Sphere.Position;
-        var radius = body.ScaledRadius;
         var height = look is { } l ? l.Height * l.Scale - Scripts.CutSceneActor.EyeBelowTop - radius : DefaultEyeHeight - radius;
-        var forward = body.Heading * Scripts.CutSceneActor.EyeForward;
+        var forward = heading * Scripts.CutSceneActor.EyeForward;
         return new TalkingBody(at, radius, new Vector3(at.X + forward.X, at.Y + height, at.Z + forward.Y));
     }
 }
@@ -64,7 +65,7 @@ public sealed class DialogueCamera(DialoguePlanner planner, DialogueTuning? tuni
     private bool _started;
 
     /// <summary>
-    /// One tick: a new page (told by <paramref name="key"/>, the runner's page object) is planned, and a new shot fitted and cut to;
+    /// One tick: a new page (told by <paramref name="key"/> changing, the line shown, by value) is planned, and a new shot fitted and cut to;
     /// then the shot is drifted and written into <paramref name="camera"/>.
     /// </summary>
     public void Step(FollowCamera camera, DialogueScene scene, DialoguePage? page, object? key)
@@ -73,7 +74,7 @@ public sealed class DialogueCamera(DialoguePlanner planner, DialogueTuning? tuni
         if (Side == 0)
             Side = ChooseSide(scene, camera.Position, _t);
         var wanted = Wanted;
-        if (page is { } p && !ReferenceEquals(key, _page))
+        if (page is { } p && !Equals(key, _page))
         {
             _page = key;
             wanted = Planner.Next(p, _tick);

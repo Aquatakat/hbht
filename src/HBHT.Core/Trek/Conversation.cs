@@ -37,6 +37,7 @@ public sealed class Conversation
     private readonly PluginSet _plugins;
     private readonly Watch _host;
 
+
     private Conversation(GameState game, ScriptRecord script, ScriptStart start, IScriptHost host, PlayerMotion player, Wanderer? with)
     {
         _player = player;
@@ -168,9 +169,9 @@ public sealed class Conversation
         var scene = new DialogueScene(world, visible, TalkingBody.Of(_player.Body, _plugins.TryGet<EntityRecord>(GameState.Alaron)?.Body),
             TalkingBody.Of(With.Body, With.Look), others);
         var page = Runner.Page is { } shown
-            ? new DialoguePage(shown.Line.Node, DialoguePlanner.TalkerOf(_plugins, shown.Line.Speaker), shown.Line.Text, shown.Choices.Count)
+            ? new DialoguePage(shown.Line.Node, DialoguePlanner.TalkerOf(shown.Line.Speaker), shown.Line.Text, shown.Choices.Count)
             : (DialoguePage?)null;
-        director.Step(camera, scene, page, Runner.Page);
+        director.Step(camera, scene, page, Runner.Page?.Line);
     }
 
     /// <summary>
@@ -184,7 +185,7 @@ public sealed class Conversation
     public void Direct(DialogueTuning? tuning = null)
     {
         if (With is not null && Runner.Script.Mode == ScriptMode.Conversation)
-            Director = new DialogueCamera(DialoguePlanner.For(Runner.Script, _plugins, tuning), tuning);
+            Director = new DialogueCamera(new DialoguePlanner(Runner.Script, tuning), tuning);
     }
 
     /// <summary>

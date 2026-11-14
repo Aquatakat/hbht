@@ -559,6 +559,54 @@ public sealed class ConversationTests(Na10Import fixture)
         Assert.Equal(aim, camera.Aim);
     }
 
+    [Fact]
+    public void UnderCameraOriginalEveryTickIsTheOriginalsFraming()
+    {
+        var s = Make(ConversationPlugins.Talk);
+        var conversation = s.Talk();
+        Assert.Null(conversation.Director);
+        var original = new FollowCamera(s.Player.Sphere.Position, new Vector2(0, 1));
+        for (var i = 0; i < 200; i++)
+        {
+            conversation.Frame(s.Camera, s.World);
+            original.Frame(s.World, s.Player.Sphere.Position, s.Body.Sphere.Position);
+            Assert.Equal((original.Position, original.Aim), (s.Camera.Position, s.Camera.Aim));
+        }
+    }
+
+    [Fact]
+    public void UnderCameraEnhancedTheConversationCutsToItsShotsAndTakesTheCameraFromACameraObject()
+    {
+        var s = Make(ConversationPlugins.Talk);
+        var conversation = s.Talk();
+        conversation.Direct();
+        var director = Assert.IsType<DialogueCamera>(conversation.Director);
+        // A camera object holding the camera doesn't keep it.
+        s.Camera.Hold();
+        conversation.Frame(s.Camera, s.World);
+        Assert.True(s.Camera.TakeCut());
+        Assert.Equal(DialogueShot.TwoShot, director.Shown);
+        Assert.Equal(director.Base!.Value.Eye, s.Camera.Position);
+        for (var i = 0; i < 100; i++)
+            conversation.Frame(s.Camera, s.World);
+        Assert.False(s.Camera.TakeCut());
+
+        // Alaron's line: over the npc's shoulder at him, on the same side of the line.
+        conversation.Press(conversation.Runner.Continue);
+        conversation.Frame(s.Camera, s.World);
+        Assert.True(s.Camera.TakeCut());
+        Assert.Equal(new DialogueShot(DialogueShotKind.OverShoulder, Talker.Player), director.Shown);
+        var mid = (s.Player.Sphere.Position + s.Body.Sphere.Position) / 2;
+        var line = s.Body.Sphere.Position - s.Player.Sphere.Position;
+        var across = new Vector3(-line.Z, 0, line.X);
+        Assert.Equal(director.Side, MathF.Sign(Vector3.Dot(s.Camera.Position - mid, across)));
+
+        // A sign has no director.
+        var sign = Conversation.Show(s.Game, Plugins.Get<ScriptRecord>(ConversationPlugins.Talk), new ScriptStart(), s.Cues, s.Player);
+        sign.Direct();
+        Assert.Null(sign.Director);
+    }
+
     // Ending.
 
     private static void Finish(Conversation conversation)

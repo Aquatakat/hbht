@@ -69,12 +69,12 @@ public sealed partial class DialoguePlanner(ScriptRecord script, DialogueTuning?
     private Talker _runSpeaker;
     private int _runIndex;
 
-    /// <summary>Who a script's speaker is in the conversation: Alaron, any other entity with a sheet (the npc's body), or no body.</summary>
-    public static Talker TalkerOf(PluginSet plugins, RecordId? speaker) =>
-        speaker is not { Type: RecordTypes.Entity } entity ? Talker.None
-        : entity == GameState.Alaron ? Talker.Player
-        : plugins.TryGet<EntityRecord>(entity)?.Sheet is not null ? Talker.Npc
-        : Talker.None;
+    /// <summary>
+    /// Who a script's speaker is to the camera: Alaron, or any other entity, which is the npc talked to (a shared script's generic
+    /// Goblin or Commoner, or a dialogue entity such as Baldric's, is the npc's body speaking), or no one, the narrator.
+    /// </summary>
+    public static Talker TalkerOf(RecordId? speaker) =>
+        speaker is not { Type: RecordTypes.Entity } entity ? Talker.None : entity == GameState.Alaron ? Talker.Player : Talker.Npc;
 
     /// <summary>The shot for a new page, shown from <paramref name="tick"/>.</summary>
     public DialogueShot Next(DialoguePage page, long tick)
@@ -172,7 +172,7 @@ public sealed partial class DialoguePlanner(ScriptRecord script, DialogueTuning?
         {
             if (!Shows(n))
                 continue;
-            if (n.Kind != ScriptNodeKind.Line || _talker(n.Speaker) != speaker)
+            if (n.Kind != ScriptNodeKind.Line || TalkerOf(n.Speaker) != speaker)
                 break;
             count++;
         }
@@ -181,14 +181,6 @@ public sealed partial class DialoguePlanner(ScriptRecord script, DialogueTuning?
 
     private static bool Shows(ScriptNode n) => n.Text.Length > 0;
 
-    /// <summary>How the planner reads a node's speaker; set by <see cref="For"/>, else Alaron as the player and any other entity as the npc.</summary>
-    private Func<RecordId?, Talker> _talker = s =>
-        s is not { Type: RecordTypes.Entity } e ? Talker.None : e == GameState.Alaron ? Talker.Player : Talker.Npc;
-
-    /// <summary>A planner for <paramref name="script"/> that reads its speakers by <paramref name="plugins"/>' sheets.</summary>
-    public static DialoguePlanner For(ScriptRecord script, PluginSet plugins, DialogueTuning? tuning = null) =>
-        new(script, tuning) { _talker = s => TalkerOf(plugins, s) };
-
     /// <summary>A shouted line: a word of three capitals or more, or "!!". No shake: a punch-in along the same axis.</summary>
     public static bool Shouted(string text) => text.Contains("!!") || Capitals().IsMatch(text);
 
@@ -196,12 +188,54 @@ public sealed partial class DialoguePlanner(ScriptRecord script, DialogueTuning?
     private static partial Regex Capitals();
 
     /// <summary>
+    /// The pages along a script's first path, as a new game's state runs it (the first choice taken at every menu), to at most
+    /// <paramref name="most"/>: what <see cref="Plan"/> reads to ask what a real script gets.
+    /// </summary>
+    /// <param name="choices">The choice taken at each menu in turn, past which the first is taken.</param>
+    public static List<DialoguePage> FirstPath(GameState game, ScriptRecord script, int most = 80, IReadOnlyList<int>? choices = null) =>
+        Walk(game, script, most, choices).Pages;
+
+    /// <summary>The pages along a path through a script as <see cref="FirstPath"/> walks it, how many menus it met, and whether it ended in a battle.</summary>
+    public static (List<DialoguePage> Pages, int Menus, bool Battle) Walk(GameState game, ScriptRecord script, int most = 80, IReadOnlyList<int>? choices = null)
+    {
+        var runner = game.RunScript(script, new NoHost());
+        var menus = 0;
+        runner.Start();
+        var pages = new List<DialoguePage>();
+        for (var guard = 0; pages.Count < most && guard < most * 4 && runner.Status != Scripts.ScriptStatus.Ended; guard++)
+        {
+            if (runner.Wait == Scripts.ScriptWait.Timer)
+            {
+                runner.Step(1);
+                continue;
+            }
+            if (runner.Page is not { } page)
+                break;
+            pages.Add(new DialoguePage(page.Line.Node, TalkerOf(page.Line.Speaker), page.Line.Text, page.Choices.Count));
+            if (page.Choices.Count > 0)
+            {
+                var choice = choices is not null && menus < choices.Count ? choices[menus] : 0;
+                menus++;
+                runner.Choose(Math.Min(choice, page.Choices.Count - 1));
+            }
+            else
+                runner.Continue();
+        }
+        return (pages, menus, runner.Ending?.Battle is not null);
+    }
+
+    private sealed class NoHost : Scripts.IScriptHost
+    {
+        public void Cue(Scripts.ScriptCue cue) { }
+    }
+
+    /// <summary>
     /// The shots along a run of pages, each shown <paramref name="ticksPerPage"/> after the last: what a script gets, with no world.
     /// </summary>
-    public static IReadOnlyList<DialogueShot> Plan(ScriptRecord script, IEnumerable<DialoguePage> pages, PluginSet? plugins = null,
+    public static IReadOnlyList<DialogueShot> Plan(ScriptRecord script, IEnumerable<DialoguePage> pages,
         DialogueTuning? tuning = null, int ticksPerPage = 180)
     {
-        var planner = plugins is null ? new DialoguePlanner(script, tuning) : For(script, plugins, tuning);
+        var planner = new DialoguePlanner(script, tuning);
         var tick = 0L;
         var shots = new List<DialogueShot>();
         foreach (var page in pages)
