@@ -39,6 +39,7 @@ public sealed record NotTheBots(RecordId Flag, NotTheBotsKind Kind, string Why)
         new(F(1310), NotTheBotsKind.Overestimate, "Txomin at 7/K09/6 stands inside K09/2's radius (25), which plays 0x03CA on arrival and sets 140, his gate (the data; after stage 9)"),
         new(F(1311), NotTheBotsKind.Overestimate, "Txomin at 7/K09/7 stands inside K09/3's radius (25), which plays 0x03D8 on his gate 5059 and shuts it (the data; after stage 9)"),
         new(F(1515), NotTheBotsKind.Overestimate, "Brenna outside the castle (M06/9) stands inside M06/4's radius (10), which plays 0x03AD on her gate 5359 and shuts it (the data; after stage 9)"),
+        new(F(3193), NotTheBotsKind.Overestimate, "Zaratas (13/O03/8): every way up to his floor ends inside O03/2's radius (5), whose scene sets 518 and shuts his gate (the user; after stage 9)"),
         new(F(3151), NotTheBotsKind.Overestimate, "Farris outside Terminor (I19/4) wanders inside I19/2's radius (20), which plays 0x044E on his gate 5110 and sets 360, shutting it (the data; after stage 9)"),
 
         .. new[] { 600, 602, 603, 606, 609 }.Select(f => new NotTheBots(F(f), NotTheBotsKind.Original,

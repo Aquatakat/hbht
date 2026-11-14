@@ -220,7 +220,7 @@ So the flag, the gold, the experience, the post-battle windows and trek where th
 
 **A death is played again too** (`BattlePilot.RewindDeaths`, on by default), the bot's choice: a battle won with a member dead in it goes back to its start the same way and is won outright, as a player who loses a companion reloads. The replay is marked `DiedFirst`, and the battle undone (`BattleFought.Undone`) counts no deaths. The save keeps the game's random streams, so playing it again by the AI would go the same way. Deaths cost the run more than anything else: a party of four that loses two in one dungeon is left with Alaron alone, whose every battle is then lost first, until one is lost before the party's first turn and the game ends, as it did at the Lighthouse.
 
-**Hit points kept on going back** (stage 9, `BattlePilot.KeepHitPoints`). The cue's save keeps each stat's trained and current values, and loading puts what's worn back on them, so a raise a spell left at a battle's end isn't kept: Brenna, held up by Rheda's Endurance in Shamsuk's Tower (EhudUnder O05/84), ended it at 1 of 96, and the next battle's save (O05/83) loaded her at 0 of 88, dead, so its replay took her out of the party. Going back gives each member at least the hit points they had as the battle was cued, through their current Endurance, and says so in the run's problems. ([Saves](saves.md) has the round trip.)
+**Hit points checked on going back** (`BattlePilot.CheckHitPoints`). A member the cue's save loads with fewer hit points than they had as the battle was cued is a problem in the report: what the sheet held that a save doesn't. Stage 9 found Brenna, held up by Rheda's Endurance in Shamsuk's Tower (EhudUnder O05/84) and left at 1 of 96, loaded dead (0 of 88), as 1.0's rule left the rest of the raise in her base; the port now takes a raise off whole and leaves the member at 1 ([magic](magic.md#where-the-port-differs)), and stage 9's giving the hit points back is gone.
 
 **Stalemates.** The AI walks by the original's greedy path (`ArenaGrid.FindPath`), which any pocket stops. Against a player that rarely matters, but two AIs who both find no way rest turn after turn: a new game's Alaron and B06's Ogre do, in arena 16/E03. A battle is routed and won outright, marked `Stalemate`, when either holds:
 
@@ -768,13 +768,13 @@ So of the 2,353, play reaches 2,302, 13 are the relaxation's overestimates, 13 a
 | 1515 | Brenna outside the castle, Overworld M06/9 | M06/4 (`Ab_Sher`), `0x03AD`, radius 10, the same gate 5359, the nearest a player in reach stands about 9.1 from it |
 | 3151 | Farris outside Terminor, I19/4, home node I19/55, scatter 3.4 | I19/2 (`farris_3056`), `0x044E`, radius 20, the same gate 5110 (360 clear, 351 set), within 6.7; its end sets 360. Every point within 20 of it lists it in its grid cell |
 
-**Zaratas** (3193, Ugarit palace 13/O03/8, standing still at (1538.3, 309.3)) is enabled while 518 is clear, and the scene at O03/2 (`0x04C1`, radius 5, enabled by 5166, also 518 clear) sets 518. He's 13.6 from it, but every way from the palace's arrival (O03/77, on the floor below) up to his floor ends within about 4.7 of it, 0.3 inside its radius, and the bot's jobs set it off there each time. It stays the bot's: the margin is the walk graph's cell, and whether a player can pass the stair's top outside it is a question for the user.
+**Zaratas** (3193, Ugarit palace 13/O03/8, standing still at (1538.3, 309.3)) is enabled while 518 is clear, and the scene at O03/2 (`0x04C1`, radius 5, enabled by 5166, also 518 clear) sets 518. He's 13.6 from it, but every way from the palace's arrival (O03/77, on the floor below) up to his floor ends within about 4.7 of it, 0.3 inside its radius, and the bot's jobs set it off there each time. The user files it with the others whose scene's radius covers the target (Nov 14, 2026): an overestimate, not the bot's.
 
 **Trahern's sword** (3516) wants Trahern's talk (4/E07/2, `0x03A8`) with the sword taken from its chest (4/K05/12: 3230 set) and not held (item 0x073A). The planner has no action that drops or sells an item, so no state meets it; with the item taken out by hand, a plan of one step is found from `t006`. 1.0 lets it be dropped in the loot window or sold. A discard action (the Party tab's drop, by its presses) is what's left.
 
 **Arturo's bridge scene** (`0x0404`: 4271, 4282, 3462) wasn't worked on: its ways want a party of one to three with particular members, and they're cut at 50,000 runs.
 
-**Keelin's in the desert** (486, 558, 5162, 5185) want her and Brenna in the party past the Jundar Gate, which opens only after Shamsuk (its riddle's scene at Overworld P24/6, `0x04A3`, is enabled by 5157: 458 set). She joins in Port Saiid (2/A07/5, `0x0410`) only before the party reaches Terminor's gate (5077: 263 talked to, 250 set, 363 clear), and waits at Terminor's C05 after (5413), so her job from Port Saiid has to carry her past Niesen's join, which can send only her away, and bring her back after Shamsuk: let go at the join and brought back by a free slot ([party jobs](#party-jobs)). On the way, Brenna died twice over in Shamsuk's Tower, loaded dead from a battle's save (hit points kept on going back, [battles](#battles)), and the talk at R27/3 was walked up to and never trodden on (triangle-only objects, [the world graph](#the-world-graph)). Her job from `t028` covers all four: she rejoins at Terminor's C05 after Shamsuk, with Brenna, Abrecan and Alaron.
+**Keelin's in the desert** (486, 558, 5162, 5185) want her and Brenna in the party past the Jundar Gate, which opens only after Shamsuk (its riddle's scene at Overworld P24/6, `0x04A3`, is enabled by 5157: 458 set). She joins in Port Saiid (2/A07/5, `0x0410`) only before the party reaches Terminor's gate (5077: 263 talked to, 250 set, 363 clear), and waits at Terminor's C05 after (5413), so her job from Port Saiid has to carry her past Niesen's join, which can send only her away, and bring her back after Shamsuk: let go at the join and brought back by a free slot ([party jobs](#party-jobs)). On the way, Brenna died twice over in Shamsuk's Tower, loaded dead from a battle's save (a raise's rest left in her base, which the port now takes off whole, [battles](#battles)), and the talk at R27/3 was walked up to and never trodden on (triangle-only objects, [the world graph](#the-world-graph)). Her job from `t028` covers all four: she rejoins at Terminor's C05 after Shamsuk, with Brenna, Abrecan and Alaron.
 
 **The run.** A fresh trunk tree from the stage's last code (`tools/cover.ps1 -Threads 20 -Retries 2 -PartyRounds 1`, about 30 minutes: the trunk 87 steps in about 2 minutes, then 23 minutes of jobs): 396 jobs, 270 of them branches, at most 6 deep; the trunk covered 685 itself. **2,303 are covered**, 35 aren't the bot's (20 the relaxation's overestimates, 13 1.0's, 2 set aside), and **15 are the bot's**. Against stage 8's 2,302, 9 gained and 8 lost.
 
@@ -783,7 +783,7 @@ So of the 2,353, play reaches 2,302, 13 are the relaxation's overestimates, 13 a
 
 A tree before the second start and the members left to the story covered 2,286: its castle-window job started from after Phelan's talk and stranded, 15 of the castle's lost; the same tree's party round, made again with them, covered 2,303.
 
-What's left, 15:
+What's left, 14 (Zaratas filed with the overestimates after the run, 36 not the bot's):
 
 | Class | Targets | Examples |
 | --- | --- | --- |
@@ -792,7 +792,6 @@ What's left, 15:
 | Rheda's talk in Port Saiid | 2 | 262, 1001 |
 | Tamberlain's inn | 3 | 392, 1535, 3594: the pilot stalls at his body |
 | Traps let go off | 3 | 2007, 2076, 3389 |
-| Zaratas | 1 | 3193, the stair's top within 4.7 of O03/2's radius of 5 (a question for the user) |
 | Trahern's sword | 1 | 3516, wanting a discard action |
 
 ### What the planner doesn't model

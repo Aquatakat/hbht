@@ -42,6 +42,26 @@ public sealed class MagicTests
     }
 
     [Fact]
+    public void AnEnduranceRaiseEndingOnTheBadlyHurtTakesItAllOffAndLeavesThemAlive()
+    {
+        // The port's: the raise comes off whole and the member is left at 1 hit point, where 1.0 leaves the rest in the base as
+        // maximum hit points a save doesn't hold, so loading it killed them.
+        var alaron = Alaron();
+        var endurance = alaron.Stats.Base(Stat.Endurance);
+        var maxHp = alaron.MaxHp;
+        Cast(alaron, MagicData.Endurance, 4);
+        Assert.Equal(maxHp + 8, alaron.MaxHp);
+        alaron.TakeDamage(alaron.Hp - 1);
+        Assert.Equal(1, alaron.Hp);
+
+        alaron.EndBattleEffects();
+        Assert.False(alaron.IsDead);
+        Assert.Equal(1, alaron.Hp);
+        Assert.Equal(endurance, alaron.Stats.Base(Stat.Endurance));
+        Assert.Equal(maxHp, alaron.MaxHp);
+    }
+
+    [Fact]
     public void ASpellAlreadyOnDoesntGoOnAgainOrRefresh()
     {
         var alaron = Alaron();

@@ -225,11 +225,23 @@ public sealed partial class Character
         Stats.ChangeBase(stat, BoundedChange(stat, (sbyte)amount, adding: true));
     }
 
-    /// <summary>The same taken back (<c>Entity.SubStat</c>, <c>0x80072450</c>), bounded the other way.</summary>
+    /// <summary>
+    /// The same taken back (<c>Entity.SubStat</c>, <c>0x80072450</c>), bounded the other way. Endurance's raise comes off whole, and a
+    /// member it was holding up is left at 1 of the modified value rather than killed, out of the damage taken: the port's, the user's
+    /// choice. 1.0 takes off only what leaves Endurance at 1, so a hurt member keeps the rest in the base as maximum hit points, which a
+    /// save doesn't hold, and loading that save dropped them dead (Brenna in Shamsuk's Tower, docs/systems/magic.md).
+    /// </summary>
     internal void SubStat(Stat stat, int amount)
     {
         if (IsDead)
             return;
+        if (stat == Stat.Endurance && (sbyte)amount > 0)
+        {
+            Stats.ChangeBase(stat, -(sbyte)amount);
+            if (Stats.RawModified(stat) < 1)
+                Stats.ChangeCurrent(stat, 1 - Stats.RawModified(stat));
+            return;
+        }
         Stats.ChangeBase(stat, -BoundedChange(stat, (sbyte)amount, adding: false));
     }
 
