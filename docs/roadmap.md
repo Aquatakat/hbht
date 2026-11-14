@@ -1,6 +1,6 @@
 # Aidyn Chronicles Reimplementation: Roadmap
 
-Sep 26, 2026 · Updated Nov 12, 2026
+Sep 26, 2026 · Updated Nov 13, 2026
 
 ## Summary
 
@@ -23,83 +23,7 @@ This is the one list of what's open. A task's status is in its phase's table bel
 - **The menus' mouse:** the mouse choosing a row, and on the World tab ([pause menu](systems/pause-menu.md)); the user has set it aside for now. The menus' motion is otherwise 1.0's: their slides, fades and scroll, a battle's pause on a wide screen and the details' edge.
 - **Content still in code:** the [hardcoded content](hardcoded-content.md) log, planned in [Phase 5](#phase-5-mod-system-and-tools). Among it, a mod's own skills, stats and weapon skills load and validate, but the core holds the original's 24 skill slots and 7 stats, so a mod's isn't played (ADR 0032).
 - **2.10:** what else could move onto triggers, each with its event ([events](systems/events.md#what-else-could-move-onto-triggers)): the camp scenes (`camp.started`), the Shadow's cinematic and the Goblin Ambush's end (`battle.ended` with its outcome), and a conversation's end as `script.ended`. The editor has no view of the triggers of its own, and the quest atlas doesn't show what they read and set.
-
-### Planned
-
-- **Combat Turns: Start Early,** a setting that starts the next combatant while the last action is still being drawn ([combat](systems/combat.md#drawn-from-a-recording)). The core plays the AI's turns ahead in Original's order, and only the drawing overlaps. Four stages were done on Nov 7, 2026:
-  - the battle asks the view nothing that changes its ticks;
-  - it's drawn from a recording (`BattleRecorder`, `BattleFrame`, `BattleDrawing`);
-  - the AI's turns overlap where they share no bodies or paths (`BattleActions`, `BattleComposer`);
-  - the player's turns open early.
-
-  The five `StartEarlyTests` battles draw up to 59% shorter than Original, and their rules and random numbers stay Original's tick for tick. The user played it: no one walks through anyone, the sounds and health bars are right, and it's faster than expected, perhaps too fast, which piece A slows a little. The rest is in three pieces. A and B touch different code and can run side by side; C needs both.
-  - **A. Start Early's pacing**, in the composer. Done Nov 7, 2026 ([combat](systems/combat.md#pacing-beats-and-the-players-wait)): the five battles now draw 22–56% shorter than Original. The user played it with C's director and found it right (Nov 11).
-    - **Beats.** A result is a beat: damage, a miss or dodge, a defeat, or an effect added (a buff or debuff, such as Mirror, Weakness or Haste). It runs from its strike to the end of its reaction.
-      - Beats may play at once as long as one shot can hold them all. The user expects that's usually possible with shots the original never takes: a low shot across the field from one end, or a top-down one.
-      - Where no shot can hold them, the later action starts later, so its beat lands once the camera is free. Its walk still starts early where it can.
-      - Whether beats share a shot is C's question to answer. Until C, a stand-in answers it.
-    - **A player's turn waits for the results before it.** It opens once every beat before it has played, or can stay in shot alongside the player's camera. An enemy's turn may still start early, especially its walk.
-    - **Holding the player's control.** Control comes at the first tick from which the party member can't touch any enemy still walking. Work out how far the party member could have got by each tick, at its greatest travel a tick, kept inside its movement ring. That reach must never come within the enemy's radius plus a buffer scaled by the enemy's size, over the whole of the enemy's drawn walk.
-      - The enemy's places are the recording's, so its speed never comes into it.
-      - Aiming is held the same way. A skips the wait by fast-forwarding whatever holds it.
-      - This replaces stage 4's fast-forwarding of the bodies the player's walk comes near.
-  - **B. Camera: Enhanced**, a setting of its own on the Enhancements page (Original or Enhanced; it may carry trek's camera features later). It's for turns played the Original way. **Done on Nov 7, 2026**, awaiting the user's play: [cameras](systems/cameras.md#the-enhanced-battle-camera-camera-enhanced) has how each of the below is done, its numbers and what C can ask of it. Under Original its movie is pixel-identical, and with the same presses the rules play the same tick for tick under either camera. Under Start Early the row reads Enhanced, as C's director is. It's a camera in the core, not just in the drawing, because a turn's stick and its area placement are read against the camera's look (`Battle.Turns.cs:107`, `Battle.Spells.cs:420`).
-    - **Reshaped from the user's first play, Nov 7, 2026.** The first version targeted party members too, framed from high and far, moved wildly fast, switched about through enemies' turns, and zoomed far out to aim with the reticle under the UI. What the user asked for instead is below, and done the same day, awaiting their play again.
-    - **Reshaped again from the user's second play, Nov 8, 2026:** the walk's motion halved, the cone 20° either side, the target held a while after it leaves the cone or the range, never a cut while the player walks, the target's pack framed whole, a spell aimed at targets showing them all and some of its ring, no overshoot, and the player's own actions planned like the AI's.
-    - **Reshaped a third time from the user's third play, Nov 8, 2026:**
-      - no one framed under the conversation box;
-      - the view quicker as the character nears its edge, and carried with them as they walk;
-      - the player's turn low and near the character, never from high above, holding the pack only while it's near;
-      - the target held while the character runs round its pack;
-      - one vantage for the battle setting every shot's side, in place of each party member's own;
-      - a spell's aim low at its targets, without the caster;
-      - an arrow, a throw or a spell at someone further off shown as the loosing and then a cut to the hit.
-    - **Reshaped a fourth time from the user's fourth play, Nov 8, 2026,** done the same day and awaiting their play:
-      - the turn twice as quick, and turned with the character as they walk round the target, so a new shot's angle arrives with its place;
-      - an area's ring framed down to the conversation box;
-      - a turn opening on the enemy ahead or the nearest, held till the character moves;
-      - with no enemy ahead, the view trailing the character on a leash as a third person's camera does, its aim leading them (the user's correction: a view kept still felt stiff);
-      - the orbit round a pack continuous, a new framing eased onto rather than stepped to.
-    - **Reshaped a fifth time from the user's fifth play, Nov 8, 2026,** done the same day and awaiting their play:
-      - the camera following a point drawn smoothly after the character, so their stride doesn't jolt it;
-      - turned over the shoulder at the target, not its pack's middle, within 45° of straight behind, and never turning itself round to a walker's front;
-      - a fast pan into, about and back from an aim rather than a cut;
-      - a spell at an ally shown landing on them however near;
-      - an aim at a blow keeping the shot that already holds both;
-      - an AI's walk followed.
-    - **Reshaped a sixth time from the user's sixth play, Nov 8, 2026,** done the same day and awaiting their play:
-      - each target of a spell that takes many shown close in its turn, the caster among them;
-      - an AI's walk, and its flight, shown from near where it ends, the eye moving a little and the view turning after the walker;
-      - over the shoulder, no hard turn to a new target in the pack or after one let go: the view's turn speeds up and slows under the cap, and a framing is eased onto the same way, the shot turned with it.
-    - **Reshaped a seventh time from the user's seventh play, Nov 8, 2026,** done the same day and awaiting their play:
-      - what the camera is trying to do drawn under F3: the bodies it holds ringed, the lens's frame, and a map from above of its eye, its goal's and the vantage;
-      - in the player's turn, the goal glides after the shot found, its place, speed and acceleration continuous, and the camera rides it, rather than its caps halved for the walk and doubled near the screen's edge; the turn carried smoothed, a pack faded in, the shot coming in slowly, a target let go held half a second, and one lead from the character;
-      - with no enemy ahead, the aim leading the character by how fast they go, on them standing;
-      - an AI's walk's shot riding a rail laid along its way, by how far along it the walker is, smoothed, so their stride and a wander don't shake it.
-    - **Reshaped an eighth time from the user's eighth play, Nov 8, 2026,** done the same day and awaiting their play:
-      - over the shoulder, a view that shows the character and the target kept however far off the middle, a new framing found only once one leaves the frame or has been hidden three quarters of a second, and swung onto over two seconds along a minimum-jerk curve; the trailing shot's clearing of a hidden character swung onto too, and F3 saying why it swung;
-      - among a pack within 5, the target the nearest, and the shot not orbiting it; a new target taken in a quarter of a second within 10, and in up to a second and a half across the field;
-      - a turn opening more than 30° round from the shot shown cut to rather than glided onto.
-    - **The player's turns:** only enemies are targets: the nearest one the character is heading for, in a narrow cone, held stickily and while the character is near it, with its pack. The shot is low over the shoulder and near the character, the character never under the conversation box. A body counts as seen while its upper half is. Among a pack within reach the target is the nearest. The shot moves and turns with the character, a view that shows both kept however off the middle, a new framing swung onto in about two seconds, and never cuts. A turn opens on one shot, held till the character moves. With no enemy ahead it trails them as a third person's camera does, its aim leading them by how fast they go; round a pack it orbits with them, never stepping, never turning hard and never round to their front, following a point drawn smoothly after them.
-    - **Actions, the AI's and the player's:** never switching about. The walk and target are known once it acts, so one shot holds all of it, chosen to disrupt least from the last player turn's shot and toward the next one's. An AI's walk or flight is shown from near where it ends, turning after the walker; the player's character walking is carried along with.
-    - **Sides:** one vantage for the battle, off to one side of the line between the party and the enemies, and every shot frames each party member and their enemy the way round it sees them: film's line of action. A reserve coming on, or the fight turning round, places it again.
-    - **Ranged actions:** an arrow, a throw or a spell at someone further off is two shots, the loosing over the shoulder and a hard cut to the hit.
-    - **Aiming:** from above as before, but tighter, with the reticle in the middle of the screen and the camera following it. A spell aimed at targets low from the caster's way, its targets all in view and some of its ring where it fits. An area spell (Fireball, which hits the party too) from straight above, its ring down to the conversation box.
-    - **The player's hand on the camera:** once the player turns the camera themselves in their turn, the director lets go, and Original's camera goes on until they aim or the turn ends.
-    - **Motion:** cap the camera's acceleration rather than its speed, much lower than the first version's, trail a moving goal rather than overshoot it, and cut a long way rather than swoop.
-    - **Where it may go:** the arenas are ordinary world chunks; the indoor ones have no ceilings and draw a black sky. So the camera may go anywhere on the field, but not beyond it: the walls and cliffs round it are scenery without collision.
-  - **C. Start Early's director.** Under Start Early the camera is always B's Enhanced camera, whatever the Camera setting says. It builds on B. **Done Nov 9, 2026**, awaiting the user's play ([cameras](systems/cameras.md#start-earlys-director)): B's camera reads a scene, the live battle's or the drawing's, and the director films the drawing with it, beats held besides, planned toward early and cut to if need be; its answer to A's shot question lets the casters and the archers overlap more (31.8% and 32.2% shorter than Original); and in the player's turn its camera is handed to the battle, so the stick reads what's drawn. The user's first play (Nov 10) brought the outcome hold (a result held a second, results of different actions a second apart), steady planning (two shots had alternated every tick), walkers kept in frame, the lead resting as a character stops, and a spell's hits on all its targets at once, in one shot (the casters 40.2% shorter than Original); done Nov 10. Their second play (Nov 11, recorded with F3 on) found the view going past its shots and coming back, which was three faults of its motion (a shot kept where the camera was while it moved, a turn's cut dropped in a hold, a glide ridden faster than the caps stop), a far walk's wide shot given up early for the walker's own result, a notch of a zoom, and a wobble as enemies walked; fixed that day, with the caster of a spell at several targets facing the middle of them. Their third play (Nov 11) found it right throughout, its numbers as they stand ([cameras](systems/cameras.md#the-users-third-play)).
-    - **Beats come first.** Damage taken or an attack missed is never off camera. It frames beats that play at once, as A asks, and answers A's question of whether a shot can hold them.
-    - **It plans ahead from the recording.** The beats to come are already recorded, so under the acceleration cap it can start moving early and arrive as a hit lands.
-    - **The player's turn** shows the character, their targets, and any beats still playing.
-    - **Aiming** works as in B, zoomed out to hold whatever is happening.
-  - **The stage 5 draft** (branch `claude/start-early-s5-19a03d`) isn't to be merged as it is. B and C took its useful parts:
-    - its occlusion scoring, by the arena's collision and by bodies;
-    - the tuning record and `--battle-camera`;
-    - F3's camera line;
-    - the sounds' volume and pan by the drawn camera.
-  - **The log** is hard to follow under Start Early; the user is thinking about what could replace it.
-  - **After the pieces: throws and missiles feel late.** The user played stage 1 and found the ambient sounds, the music and the casting sounds right, but a throw's or a shot's timing late. Whether stage 1 moved it, or it was already late against 1.0, isn't checked. To tighten afterwards, the user's choice.
+- **Start Early's log:** the battle log is hard to follow under Combat Turns: Start Early; the user is thinking about what could replace it ([combat](systems/combat.md#drawn-from-a-recording)).
 
 ## Phases
 
