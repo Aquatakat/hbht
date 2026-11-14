@@ -446,7 +446,7 @@ A goal is a flag to set (`flag:<n>`), someone joining (`member`), some members i
 
 ## Flag coverage
 
-`hbht playthrough cover` sets every flag the static pass can set, over a tree of saves, so that a flag no play sets is a finding rather than a guess. It's the run with a goal of many flags (`CoverGoal`), and a queue of jobs on disk that several processes work at once. The code is `Playthrough.Cover.cs`, `Coverage.cs`, `CoverQueue.cs`, `CoverWorker.cs`, `Trunk.cs`, `PartyNeeds.cs` and `PartyJobs.cs`, the CLI's `CoverReport`, and the ledger in the core ([flags](flags.md#the-ledger)). The roadmap's [playthrough bot](../roadmap.md#the-playthrough-bot) table has its stages; this is stage 0, the machinery, stage 1, the trunk the jobs start from, stage 3, the party jobs, stage 4, what's left uncovered, stage 5, what the planner didn't model, and stage 6, the parties kept small or without someone.
+`hbht playthrough cover` sets every flag the static pass can set, over a tree of saves, so that a flag no play sets is a finding rather than a guess. It's the run with a goal of many flags (`CoverGoal`), and a queue of jobs on disk that several processes work at once. The code is `Playthrough.Cover.cs`, `Coverage.cs`, `CoverQueue.cs`, `CoverWorker.cs`, `Trunk.cs`, `PartyNeeds.cs` and `PartyJobs.cs`, the CLI's `CoverReport`, and the ledger in the core ([flags](flags.md#the-ledger)). The roadmap's [playthrough bot](../roadmap.md#the-playthrough-bot) table has its stages; this is stage 0, the machinery, stage 1, the trunk the jobs start from, stage 3, the party jobs, stage 4, what's left uncovered, stage 5, what the planner didn't model, stage 6, the parties kept small or without someone, and stage 7, what the story's order closes and the jobs that ride it.
 
 ```
 hbht playthrough cover init --root <dir> [--save <save>] [--targets all|<file>] [--job-minutes <n>] [--most-failures <n>]
@@ -644,6 +644,38 @@ A fresh trunk tree over stage 5's 2,354 targets (`tools/cover.ps1 -Threads 20 -R
 | The seasons | 2 | 2311 and 2312, seasons 2 to 5, which no job waits months for |
 
 The kept-out parties and the consequence's choices cover 28 of stage 5's 124: the castle's window (18, 29, 32, 39, 41, 73, 83, 1520, 1521, 1522, 1527, 3124, 3125, 3130, 3131, 5362, 5366, 5367, 5371, 5391, 5392), Rheda's talk in Port Saiid (262, 1001, 5245), and Pandara's amulet and the riddle that wants it (234, 479, 4239, 5158). None that stage 5's tree covered is lost. Keelin's 5162 is covered in some runs and not others: its job from `t028` runs out of ticks on the way to the Lighthouse (`0x04F1` at 3/A05/4).
+
+#### After stage 7
+
+**Shamsuk's Tower.** Stage 6 filed 10 targets under a battle the planner gave up on, Shamsuk's at Overworld I08/13 (`0x0494`). The tower (EhudUnder, map set 12) has one way in, the climb at Overworld P17/4 (`climbtop`, to 12/C09), enabled only while 458 (Shamsuk defeated) is clear and locked at level 10 until 412. Its door out at the bottom (12/C09/2) is locked at level 10 until 458, so once in, the way out is the chamber at its top: 12/G13/1 leads into 12/G17, whose way back (G17/3) is enabled only by 458; walking in sets 2133 (G17/0), and G17/4 leads to Overworld I08/443, inside the radius of Shamsuk's scene (I08/13, tangible, radius 20, enabled by derived 5142: 2133 set, 457 and 458 clear), whose battle sets 458 by his boss flag. From there I08/2 (enabled by 458) leads to P17, and nothing leads into the tower again: the portal from the cave on Cradawgh's Isle (MiscInteriors A05/5, to 12/G17) is enabled by 4300, which nothing sets. So:
+
+- **1425 needs the battle, and is unreachable in 1.0:** the Chaos party at 12/O03/3, /5, /6 and /7 is there only with 458 set. `Closings` sees it, and it's no target ([flag coverage](#flag-coverage)).
+- **The other 9 don't need it.** They're the tower's chests, open before the battle: K01/12 (a trap of 6 and a lock of 7: 2285 opened, 2286 gone off), G03/9 and G03/7 (traps of 4, locks of 6: 2297, 2298, 3218; 3219, 3220, 3221) and O05/115's trap of 4 (3224). A job loses them by walking into the chamber, which the relaxation doesn't see: it takes G17/3 as opening once the battle sets 458, but the battle leaves the player at I08. Seeing it soundly would take the arrival at I08/443 as forced through the scene's radius. What's left of them is the party's thief and mechanic in the tower's window (the table below).
+
+**Amann's ship** (987, Amann at MiscInteriors E01/3) is 1.0's: no teleporter in any chunk leads into E01, and only teleporters move the player in trek, so the ship's interior is never entered. It's counted with the castle's farewells.
+
+**The run.** A fresh trunk tree over the 2,353 targets (`tools/cover.ps1 -Threads 20 -Retries 2 -PartyRounds 1`, about 27 minutes): the trunk, 84 steps in 3 minutes (the set-down npcs route it another way), covered 678 itself; 385 jobs, 256 of them branches, at most 6 deep. **2,278 are covered**, 75 given up; against stage 6's 2,258 of 2,354, 29 gained and 9 lost. The tree with the tripwires noted as crossed covered the same 2,278.
+
+- **Gained, 29.** By the set-down npcs and encounters, 10: Batrin's task (244, 289, 1007, 1008, 5246) and the encounters at C14/10, Q16/3, Q16/4, Q25/2 and R16/2 (1279, 1287, 1288, 1473, 3049). By the nearer avoid, 5: MiscInteriors A05's portal room and chest (2132, 2180, 1690) and their derived 5273 and 5542. By keeping only the members the trunk doesn't bring, 3 of Keelin's (557, 5162, 5185), from `t028` and `t035` with Keelin alone. By another party at another time, as the trunk went another way, 11: traps let go off and chests whose traps the party now disarms (2034, 2192, 2193, 2198, 2199; the tower's 2286, 2292, 3218, 3221) and Tamberlain's ways that want little gold (3143, 3150).
+- **Lost, 9,** the same way about: traps and locks the party at the time doesn't meet (2201, 3243, 3244), traps let go off with no plan (2007, 3352), and 199, 476, 525 and 5141, given up for no plan or a strand on a branch's first step.
+- **Becan** joins in his job (`p1-t003-0242`, from Oriana's hut) at step 6, covers 2 of its 7 targets (328, 355) on the way through the story, and at Terminor (8/C05/7, step 42) finds no plan to the ending with him kept, so it stops riding there, short of the Barrows.
+
+What's left, 75:
+
+| Class | Targets | Examples |
+| --- | --- | --- |
+| The relaxation's overestimates | 6 | the Barrows' dragons (5509–5513), Edur (1349) |
+| 1.0's, never reached | 6 | Gwernia castle's farewells (600, 602, 603, 606, 609); Amann on his ship (987). 1425, the tower's Chaos party, is no target now |
+| Members the story doesn't bring together | 12 | Becan with Abrecan or Godric (416, 468, 5141, 5150, 5409, 5410), his campfires at the Barrows (528, 553, 5180), Keelin's in the desert (486, 558), Farris's staff (565) |
+| Shamsuk's Tower's chests | 8 | locks of 7 (2285, 2287, 2288) and 6 (2297, 2298, 3219, 3220) beyond the party's thief in the tower's window, and O05/115's trap of 4, which the party always disarms (3224) |
+| Other traps, locks and gold | 8 | traps of 6 and 4 the party doesn't meet (2126, 2127, 2201, 5381, 3243, 3244), traps let go off with no plan (2007, 3352) |
+| Conversations a branch had no plan to | 9 | 3151, 3193, 3209, 3516, 3728, the Chaos Mauler (1221), 199, 476, 525 |
+| The pilot stuck, or a step that strands the run | 7 | Jundar's library stair (346, 349, 350), Arturo's bridge scene `0x0404` (4271, 4282), Lugash (1011), M06/8 (1513) |
+| StageH at P17 | 5 | 422, 423, 424, 5134, 5135: the tower's tripwire P17/3 closes them, eight from StageH's object with radii of 25 |
+| Other windows | 5 | 948, 1339, 1507, 1310, 1311 |
+| Gwernia castle's window | 4 | 82, 1523, 1515, 5431 |
+| Places | 3 | Batrin's pay (3462, no plan through `0x0404`), the Dust Devil at O26/0 (3626), placed over no floor, and the Sand Worm at P26/2 (1479), stuck at its body |
+| The seasons | 2 | 2311, 2312 |
 
 ### What the planner doesn't model
 
