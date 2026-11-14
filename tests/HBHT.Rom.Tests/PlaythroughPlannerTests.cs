@@ -50,7 +50,7 @@ public sealed class PlaythroughPlannerTests(Na10Import fixture)
     [Fact]
     public void ATripwireThatSetsItsFlagAndClearsItAsItsUsedFlagOnlyFlashesIt()
     {
-        // Jundar's library tripwire (JundarInteriors A01/4) sets 238 and clears it as its Used flag, as 96 tripwires do theirs: the ledger
+        // The Wizard's School library's tripwire (JundarInteriors A01/4) sets 238 and clears it as its Used flag, as 96 tripwires do theirs: the ledger
         // sees it set, but nothing after finds it so. 238 enables Port Saiid's gate (Overworld C14/0), and Ardra's ritual (0x03FE, at
         // K01/2) is what sets it for good.
         var tripwire = Ids.MapObject(11, "A01", 4);

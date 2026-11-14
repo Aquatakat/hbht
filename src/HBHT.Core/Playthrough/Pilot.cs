@@ -655,7 +655,7 @@ public sealed class Pilot : IInputPolicy
     private const long MostWait = Calendar.GameClock.Day / Calendar.GameClock.DaySpeed;
 
     /// <summary>
-    /// The turns, in degrees, from the way along a stair's step that each push up it takes, in turn. From the landing of Jundar's library
+    /// The turns, in degrees, from the way along a stair's step that each push up it takes, in turn. From the landing of the Wizard's School library's
     /// stair (JundarInteriors A01, 118.5, 7.45, 107.4), of 36 ways held only 310° climbs to the library, where the step up is at 299°.
     /// </summary>
     private static readonly float[] PushAngles = [0, 10, -10, 20, -20, 30, -30];

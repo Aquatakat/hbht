@@ -651,7 +651,7 @@ public sealed class QuestModel
     /// The facts an action makes true only for a moment (<see cref="Adds"/> has them too): a plain flag its effects write and then write
     /// the other way, as 96 tripwires set their flag and then clear it as their Used flag (<see cref="MapObjects.MapObjectUse.Trip"/>,
     /// 1.0's <c>trigger_vobject_func</c>). The ledger sees the flag set, so it can be a target; but nothing after the action finds it set,
-    /// so it opens no gate and meets no precondition (<see cref="Relaxation"/>). Jundar's library tripwire (JundarInteriors A01/4) flashes
+    /// so it opens no gate and meets no precondition (<see cref="Relaxation"/>). The Wizard's School library's tripwire (JundarInteriors A01/4) flashes
     /// 238, which enables Port Saiid's gate (Overworld C14/0); taken as set, it hid that Ardra's ritual (<c>0x03FE</c>) is 238's only lasting
     /// setter.
     /// </summary>
