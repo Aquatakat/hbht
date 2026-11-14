@@ -163,6 +163,7 @@ public sealed class Pilot : IInputPolicy
         {
             Blocker = walk.Blocker,
             Crossed = [.. walk.Crossed],
+            WalledBy = walk.Failure is StepFailure.Stuck ? walk.WalledBy : [],
         };
     }
 
@@ -430,6 +431,10 @@ public sealed class Pilot : IInputPolicy
             walk.Fail(StepFailure.Stuck, $"{Options.MaxReplans} replans spent, {walk.Stalls} of them for stalls, at {from.Feet} in {from.MapSet}");
             return false;
         }
+        // Bodies that stand where they are are walls a route goes round: the player's push never moves them (Crowd.Push moves only the one
+        // that moved), and the walk graph was made without them.
+        walk.Bodies = host.Session.Trek is { } trek && trek.Chunks.MapSet.Id == from.MapSet ? Standing(trek, walk) : [];
+        walk.WalledBy = [];
         var result = Route(host.Game, walk, from);
         // Avoiding where it stuck can cut the only way: try once more avoiding only the cells nearest where it stuck, which in a room's
         // doorway or on a stair leaves the way round (MiscInteriors A05's door into the portal room, 6/A05/1, beside the step across its
@@ -439,7 +444,21 @@ public sealed class Pilot : IInputPolicy
         if (!result.Found && walk.Avoid.Count > 0 && result.Refusal!.Kind is RefusalKind.NotOnFoot or RefusalKind.StartOffGraph or RefusalKind.Gated)
         {
             walk.Avoid.Clear();
-            result = _graph.Route(host.Game, from, walk.Step.MapObject, new RouteOptions(Options.PickLocks, IgnoreOwnGates: walk.How == UseKind.Camp || walk.BodyThere));
+            result = _graph.Route(host.Game, from, walk.Step.MapObject,
+                new RouteOptions(Options.PickLocks, KeepClear: [.. walk.Bodies.Select(b => b.Zone)], IgnoreOwnGates: walk.How == UseKind.Camp || walk.BodyThere));
+        }
+        // The standing bodies cut every way: the way without them is walked all the same, since the walk graph's cells are a unit across
+        // and a gap the player fits through may have none left, and they're named, so that if he sticks the run bans every way at the object
+        // where he stands rather than trying each (StepOutcome.WalledBy).
+        if (!result.Found && walk.Bodies.Count > 0
+            && _graph.Route(host.Game, from, walk.Step.MapObject,
+                new RouteOptions(Options.PickLocks, KeepClear: Shunned(walk, from), IgnoreOwnGates: walk.How == UseKind.Camp || walk.BodyThere))
+                is { Found: true, Route: { } through } without)
+        {
+            var walling = walk.Bodies.Where(b => through.Legs.Any(l => l.MapSet == b.Zone.Centre.MapSet
+                && l.Waypoints.Any(w => Vector3.Distance(w, b.Zone.Centre.Feet) <= b.Zone.Radius + WallSlack))).ToList();
+            walk.WalledBy = [.. (walling.Count > 0 ? walling : walk.Bodies).Select(b => b.Id)];
+            result = without;
         }
         // Shut only by gates the hour opens (the Burial Chamber's door in Ugarit2 A05 opens at night), on the way or on the object itself
         // (the Troll west of Darkling Bog, Overworld K16/2, is out only at night): he waits, up to a day.
@@ -474,10 +493,11 @@ public sealed class Pilot : IInputPolicy
     {
         var shun = Shunned(walk, from);
         // A camp scene's object holds only as the party camps: the way is to its chunk, whatever its own gates.
-        var plain = new RouteOptions(Options.PickLocks, [.. walk.Avoid], avoidRadius, KeepClear: shun, IgnoreOwnGates: walk.How == UseKind.Camp || walk.BodyThere);
+        var plain = new RouteOptions(Options.PickLocks, [.. walk.Avoid], avoidRadius, KeepClear: [.. shun, .. walk.Bodies.Select(b => b.Zone)],
+            IgnoreOwnGates: walk.How == UseKind.Camp || walk.BodyThere);
         if (!Options.KeepClear || Triggers(game, walk, from) is not { Count: > 0 } zones)
             return _graph.Route(game, from, walk.Step.MapObject, plain);
-        var clear = _graph.Route(game, from, walk.Step.MapObject, plain with { KeepClear = [.. shun, .. zones] });
+        var clear = _graph.Route(game, from, walk.Step.MapObject, plain with { KeepClear = [.. plain.KeepClear!, .. zones] });
         if (clear.Found)
             return clear;
         var through = _graph.Route(game, from, walk.Step.MapObject, plain);
@@ -487,7 +507,7 @@ public sealed class Pilot : IInputPolicy
             && l.Waypoints.Any(w => Vector3.Distance(w, z.Centre.Feet) <= z.Radius))).ToHashSet();
         if (crossed.Count == 0 || crossed.Count == zones.Count)
             return through;
-        var fewer = _graph.Route(game, from, walk.Step.MapObject, plain with { KeepClear = [.. shun, .. zones.Where(z => !crossed.Contains(z))] });
+        var fewer = _graph.Route(game, from, walk.Step.MapObject, plain with { KeepClear = [.. plain.KeepClear!, .. zones.Where(z => !crossed.Contains(z))] });
         return fewer.Found ? fewer : through;
     }
 
@@ -539,6 +559,54 @@ public sealed class Pilot : IInputPolicy
         }
         return zones;
     }
+
+    /// <summary>
+    /// The bodies loaded about the player that stand where they are, but the step's own: npcs (an encounter hunts) whose every wander node
+    /// that's walked to is within its radius of where the body stands now, less its scatter, so it never sets off; the rest only turn. Each
+    /// is ground no route may cross: where the player's centre would be within the two radii of the body's.
+    /// </summary>
+    private static List<(RecordId Id, RouteZone Zone)> Standing(TrekLoop trek, Walk walk)
+    {
+        var set = trek.Chunks.MapSet.Id;
+        var radius = trek.Player.Sphere.Radius;
+        var bodies = new List<(RecordId, RouteZone)>();
+        foreach (var w in trek.Wanderers.All)
+        {
+            var id = ChunkRecord.ObjectId(w.Map.Record.Id, w.Party.Index);
+            if (id == walk.Step.MapObject || !Stands(w))
+                continue;
+            var feet = w.Body.Sphere.Position - new Vector3(0, w.Body.ScaledRadius, 0);
+            bodies.Add((id, new RouteZone(new Place(set, feet), w.Body.ScaledRadius + radius)));
+        }
+        return bodies;
+    }
+
+    /// <summary>Whether a wanderer never sets off from where its body stands (<see cref="Wanderer.Resume"/> walks only to a node it's further from than its radius).</summary>
+    internal static bool Stands(Wanderer w)
+    {
+        if (w.Hunts || w.Chasing || w.Node is not { } first)
+            return !w.Hunts && !w.Chasing;
+        var at = new Vector2(w.Body.Sphere.Position.X, w.Body.Sphere.Position.Z);
+        var seen = new HashSet<int>();
+        var nodes = new Stack<WanderNodeObject>([first]);
+        while (nodes.TryPop(out var node))
+        {
+            if (!seen.Add(node.Index))
+                continue;
+            if ((node.Flags & WanderFlags.Move) != 0
+                && Vector2.Distance(new Vector2(node.Position.X + w.Map.Origin.X, node.Position.Z + w.Map.Origin.Z), at) + node.Scatter > node.WanderRadius)
+                return false;
+            foreach (var next in node.Next)
+            {
+                if (w.Map[ChunkRecord.IndexOf(next)] is WanderNodeObject n)
+                    nodes.Push(n);
+            }
+        }
+        return true;
+    }
+
+    /// <summary>How far past a standing body's zone a waypoint of the way without the bodies counts as crossing it, the walk graph's cells being a unit across.</summary>
+    private const float WallSlack = 0.75f;
 
     private readonly Dictionary<RecordId, HashSet<int>> _listed = [];
 
@@ -745,6 +813,12 @@ public sealed class Pilot : IInputPolicy
         public StepFailure? Failure;
         public string? Reason;
         public RouteRefusal? Refusal;
+
+        /// <summary>The bodies that stand about the player, which routes go round, as of the last route asked for.</summary>
+        public List<(RecordId Id, RouteZone Zone)> Bodies = [];
+
+        /// <summary>The standing bodies that cut every way to the object, the last time a route was asked for with any.</summary>
+        public IReadOnlyList<RecordId> WalledBy = [];
 
         public void Fail(StepFailure failure, string reason) => (Failure, Reason) = (failure, reason);
     }

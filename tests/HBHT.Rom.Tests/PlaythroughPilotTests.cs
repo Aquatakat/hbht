@@ -336,4 +336,37 @@ public sealed class PlaythroughPilotTests(Na10Import fixture, ITestOutputHelper 
         Assert.True(host.PlayerHasControl);
         Assert.Empty(host.Warnings);
     }
+    // Tamberlain behind the counter of Terminor's inn (8/C05/19, 0x0459), and Arturo waiting there while he's out of the party (8/C05/16,
+    // enabled by derived 5412), whose home node only turns him.
+    private static readonly RecordId Tamberlain = Ids.MapObject(8, "C05", 19), Arturo = Ids.MapObject(8, "C05", 16);
+
+    [Fact]
+    public void ThePilotGoesRoundABodyThatStandsInTheWayToTalkToTheInnkeeperBehindHisCounter()
+    {
+        // The counter is a block from (609.6, 1002.15) to (614.0, 1003.75), too deep for A to reach Tamberlain across it, and the way round
+        // its east end passes Arturo's body (radius 0.76, set down at about (615.2, 1003.0), out of the stool). The walk graph, made without
+        // bodies, took the way between him and the counter, too narrow for the player, and the pilot stalled at (615.2, 1004.25) eleven
+        // times in stage 9's runs. Routed round his body, it goes by his east side.
+        var game = GameState.NewGame(Data.Set);
+        game.Flags.Set(Ids.Flag(246), true);
+        game.Flags.Set(Ids.Flag(363), true);
+        Assert.True(game.Flags.IsSet(Ids.Flag(5412)), "Arturo waits at the inn");
+        Assert.True(game.Flags.IsSet(Ids.Flag(5397)), "Tamberlain stands behind the counter");
+        var set = Data.Set.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, 8));
+        // Where the stalls ended, facing the counter.
+        var host = PlaythroughHost.From(game, start: new GameStart(set, "C05", new Vector3(15.2f, 1, 4.25f), new Vector2(0, -1), SetDown: true),
+            opening: false);
+        Assert.Equal(HostRun.Done, host.RunUntilControl(600));
+        var arturo = Assert.Single(host.Session.Trek.Wanderers.All, w => w.Map.Record.ObjectId(w.Party.Index) == Arturo);
+        Assert.True(Pilot.Stands(arturo));
+        var flag = TalkedTo(Tamberlain);
+
+        var outcome = Run(host, new PilotStep(Tamberlain, UseKind.Talk, Expect: [ExpectedEffect.FlagSet(flag)]), 3_000);
+
+        Assert.True(outcome.Done, outcome.Reason);
+        Assert.True(outcome.Used);
+        Assert.Empty(outcome.WalledBy);
+        Assert.Contains(flag, outcome.Changes.FlagsSet);
+        Assert.True(outcome.Stalls <= 2, $"{outcome.Stalls} stalls");
+    }
 }

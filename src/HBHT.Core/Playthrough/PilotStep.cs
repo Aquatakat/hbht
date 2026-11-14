@@ -183,6 +183,12 @@ public sealed record StepOutcome(
     /// <summary>The story triggers other than the step's own cued on the step, as the player walked into them.</summary>
     public IReadOnlyList<RecordId> Crossed { get; init; } = [];
 
+    /// <summary>
+    /// For <see cref="StepFailure.Stuck"/>, the npcs whose bodies, standing where they are, cut every way to the object the walk graph has,
+    /// which was walked all the same: every way at the object fails alike while they stand.
+    /// </summary>
+    public IReadOnlyList<RecordId> WalledBy { get; init; } = [];
+
     /// <summary>The object was used, its consequences played out, and nothing stopped it. Expectation misses don't count: they're the report's.</summary>
     public bool Done => Failure == StepFailure.None;
 

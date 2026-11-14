@@ -102,6 +102,12 @@ public sealed partial class PlaythroughHost
     /// <summary>Trek's input when nothing else has the controls: nothing held by default.</summary>
     public IInputPolicy Input { get; set; } = NoInput.Instance;
 
+    /// <summary>
+    /// Called each tick trek has the controls, before <see cref="Input"/> is asked: a trace's look at the player and the bodies about him,
+    /// which a step's policies can't give while the pilot holds the input.
+    /// </summary>
+    public Action<PlaythroughHost>? Watch { get; set; }
+
     /// <summary>How pages are read and choices taken: each page at once, the first choice not yet taken there by default.</summary>
     public IConversationPolicy Conversations { get; set; } = FirstChoice.Instance;
 
