@@ -60,13 +60,14 @@ public sealed class PartyJobsTests
         Assert.Empty(brought[3]);
 
         // Rheda alone from step 1 is the story's own order: she joins there as the trunk has her. From step 3, where the trunk never
-        // brings her back, she's a party; and with Godric, whom the trunk never brings, so is the pair from step 1.
+        // brings her back, she's a party; and with Godric, whom the trunk never brings, so is the pair from step 1, whose job has Godric
+        // alone to keep: Rheda comes with the story, which the job rides on.
         List<TrunkLook> alone = [Look(1, 10, [Rheda], (Rheda, 5)), Look(3, 10, [Rheda], (Rheda, 5))];
         Assert.Equal([3], PartyJobs.Starts(Ids.Flag(10), alone, brought: brought).Select(s => s.Step));
         List<TrunkLook> pair = [Look(1, 10, [Rheda, Godric], (Rheda, 5), (Godric, 20)), Look(3, 10, [Rheda], (Rheda, 5))];
         var starts = PartyJobs.Starts(Ids.Flag(10), pair, brought: brought);
-        Assert.Equal([(3, (IReadOnlyList<RecordId>)[Rheda]), (1, [Rheda, Godric])], starts.Select(s => (s.Step, s.Members)), Comparer);
-        Assert.Equal(35, starts[1].Far);
+        Assert.Equal([(3, (IReadOnlyList<RecordId>)[Rheda]), (1, [Godric])], starts.Select(s => (s.Step, s.Members)), Comparer);
+        Assert.Equal(30, starts[1].Far);
     }
 
     private static readonly IEqualityComparer<(int, IReadOnlyList<RecordId>)> Comparer =

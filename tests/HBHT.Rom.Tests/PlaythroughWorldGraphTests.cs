@@ -150,6 +150,50 @@ public sealed class PlaythroughWorldGraphTests(Na10Import fixture)
         Assert.Equal(RefusalKind.UnknownObject, Graph.Route(state, Object("0/I08/9999")).Refusal!.Kind);
     }
 
+    [Theory]
+    [InlineData("0/D14/6")]   // Batrin on the bridge, placed 1.8 above it
+    [InlineData("0/Q16/4")]   // Damek in the bog, placed 2.1 under it
+    [InlineData("0/C14/10")]  // the Human Bandit north of Port Saiid, 2.8 above the ground
+    public void AnNpcOrEncounterIsUsedWhereItsBodyIsSetDownNotWhereItIsPlaced(string name)
+    {
+        var id = Object(name);
+        var chunk = Plugins.Get<ChunkRecord>(ChunkRecord.ChunkOf(id));
+        var o = chunk.Object(ChunkRecord.IndexOf(id))!;
+        var placed = Plugins.Get<MapSetRecord>(chunk.MapSet).Origin(chunk) + o.Position;
+        var walk = Graph.Walk(chunk.MapSet);
+
+        // Placed, it's more than its talking range from every cell the player stood on.
+        Assert.DoesNotContain(WorldGraph.StandNear(walk, placed, WorldGraph.PartyTalkRange), c => c.Distance <= WorldGraph.PartyTalkRange - 0.5f);
+        var target = Graph.TargetOf(id, chunk, o);
+        Assert.Equal(placed.X, target.X);
+        Assert.Equal(placed.Z, target.Z);
+        Assert.NotEqual(placed.Y, target.Y);
+        Assert.NotEmpty(WorldGraph.StandNear(walk, target, WorldGraph.PartyTalkRange));
+    }
+
+    [Fact]
+    public void TheChaosPartyInShamsuksTowerIsClosedForGoodOnceHeIsDefeated()
+    {
+        var model = QuestModel.Build(Plugins);
+        var game = GameState.NewGame(Plugins);
+        var closings = Closings.Find(model, Graph, game);
+
+        // The Chaos party at EhudUnder O03 is there only once Shamsuk is defeated (458), which only his battle at Overworld I08/13 sets;
+        // the tower's one way in, the climb at Overworld P17/4, is enabled only while 458 is clear.
+        var closed = closings.Why.Select(c => (model.Actions[c.Key].Place, c.Value)).ToList();
+        Assert.Contains((Object("12/O03/3"), Ids.Flag(458)), closed);
+        Assert.All(closed, c => Assert.Equal(Ids.Flag(458), c.Value));
+        Assert.All(closed, c => Assert.StartsWith("aidyn:mapobject/12/O03/", c.Place.ToString(), StringComparison.Ordinal));
+        // The tower's chests need no order, and stay: they're open before the battle.
+        Assert.DoesNotContain(closed, c => c.Place == Object("12/G03/7"));
+
+        var start = PlanState.From(model, game);
+        var targets = CoverGoal.StaticTargets(model, start, game, closings);
+        Assert.DoesNotContain(Ids.Flag(1425), targets);
+        Assert.Contains(Ids.Flag(3219), targets);
+        Assert.Contains(Ids.Flag(1425), CoverGoal.StaticTargets(model, start, game));
+    }
+
     [Fact]
     public void TheWalkGraphsAreKeptInTheCacheUnderTheFingerprint()
     {

@@ -209,11 +209,10 @@ public sealed class Pilot : IInputPolicy
             walk.Fail(StepFailure.NoRoute, $"{id} is a {o.GetType().Name}, which the player doesn't use");
             return;
         }
-        var set = _graph.Plugins.Get<MapSetRecord>(chunk.MapSet);
         walk.Chunk = chunk;
         walk.Object = o;
         walk.Set = chunk.MapSet;
-        walk.At = set.Origin(chunk) + o.Position;
+        walk.At = _graph.TargetOf(id, chunk, o);
         walk.Range = range;
         walk.How = walk.Step.How != UseKind.Auto ? walk.Step.How : o switch
         {
@@ -384,7 +383,11 @@ public sealed class Pilot : IInputPolicy
             return false;
         }
         var result = Route(host.Game, walk, from);
-        // Avoiding where it stuck can cut the only way: try once more without.
+        // Avoiding where it stuck can cut the only way: try once more avoiding only the cells nearest where it stuck, which in a room's
+        // doorway or on a stair leaves the way round (MiscInteriors A05's door into the portal room, 6/A05/1, beside the step across its
+        // wall that a run made and the stick can't), and then without.
+        if (!result.Found && walk.Avoid.Count > 0 && result.Refusal!.Kind is RefusalKind.NotOnFoot or RefusalKind.StartOffGraph or RefusalKind.Gated)
+            result = Route(host.Game, walk, from, NearAvoid);
         if (!result.Found && walk.Avoid.Count > 0 && result.Refusal!.Kind is RefusalKind.NotOnFoot or RefusalKind.StartOffGraph or RefusalKind.Gated)
         {
             walk.Avoid.Clear();
@@ -418,11 +421,11 @@ public sealed class Pilot : IInputPolicy
     /// triggers the plain route walks into are let be and the rest kept clear of; failing that, the plain route. The story funnels so: a
     /// new game's only way out of where the opening leaves the player passes Edur's cut-scene.
     /// </summary>
-    private RouteResult Route(GameState game, Walk walk, Place from)
+    private RouteResult Route(GameState game, Walk walk, Place from, float avoidRadius = WideAvoid)
     {
         var shun = Shunned(walk, from);
         // A camp scene's object holds only as the party camps: the way is to its chunk, whatever its own gates.
-        var plain = new RouteOptions(Options.PickLocks, [.. walk.Avoid], KeepClear: shun, IgnoreOwnGates: walk.How == UseKind.Camp);
+        var plain = new RouteOptions(Options.PickLocks, [.. walk.Avoid], avoidRadius, KeepClear: shun, IgnoreOwnGates: walk.How == UseKind.Camp);
         if (!Options.KeepClear || Triggers(game, walk, from) is not { Count: > 0 } zones)
             return _graph.Route(game, from, walk.Step.MapObject, plain);
         var clear = _graph.Route(game, from, walk.Step.MapObject, plain with { KeepClear = [.. shun, .. zones] });
@@ -575,6 +578,9 @@ public sealed class Pilot : IInputPolicy
     private static float Across(Vector3 a, Vector3 b) => new Vector2(a.X - b.X, a.Z - b.Z).Length();
 
     private static void Avoid(Walk walk, RecordId set, Vector3 at) => walk.Avoid.Add(new Place(set, at));
+
+    /// <summary>How far about where it stuck a route keeps away (<see cref="RouteOptions.AvoidRadius"/>), and how near when that cuts every way.</summary>
+    private const float WideAvoid = 1.5f, NearAvoid = 0.5f;
 
     /// <summary>Stalled short of a teleporter or the object: the route's way in is avoided, its last waypoint, so the next comes another way.</summary>
     private static void AvoidEnd(Walk walk, RouteLeg leg, Vector3 feet) =>

@@ -308,6 +308,11 @@ public sealed partial class Playthrough
                             CoverPartyFailed();
                             failures[goal] = 0;
                         }
+                        else if (goal is EndingGoal && Goal is CoverGoal)
+                        {
+                            StopRiding($"{Options.MostFailures} steps towards the ending failed in a row");
+                            failures[goal] = 0;
+                        }
                         else
                         {
                             why = $"{Options.MostFailures} steps in a row failed";
