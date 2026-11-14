@@ -27,6 +27,7 @@ public sealed class QuestModel
     private readonly List<PlayerAction> _actions = [];
     private readonly List<string> _notes = [];
     private readonly HashSet<RecordId> _neverThere = [];
+    private readonly HashSet<RecordId> _unwanted = [];
     private int[][] _pre = [];
     private int[][] _adds = [];
     private RecordId[][] _places = [];
@@ -294,7 +295,11 @@ public sealed class QuestModel
                 if (literal is MemberIs m)
                     people.Add(m.Entity);
                 else if (literal is ItemIs i)
+                {
                     items.Add(i.Item);
+                    if (!i.Held)
+                        _unwanted.Add(i.Item);
+                }
             }
             foreach (var effect in way.Effects)
             {
@@ -421,6 +426,13 @@ public sealed class QuestModel
         }
         if (effects.Count > 0)
             Add(ActionKind.Open, id, null, [], presence, requires, effects);
+        // Opening it and leaving behind, in the loot window, an item something wants the party not to hold (Trahern's sword, 4/K05/12):
+        // its flags set, and the item not gained. Only what the loot window lets be left (not a must-take item).
+        foreach (var item in effects.OfType<Gain>().Select(g => g.Item).Distinct().Where(Leavable).ToList())
+        {
+            Add(ActionKind.Open, id, null, [], presence, [.. requires.Where(r => r is not CodeGate { Check: { Kind: CodeCheckKind.Chance } c } || c.A != item)],
+                [.. effects.Where(e => e is not Gain g || g.Item != item)], leaves: item);
+        }
         // Its trap going off as the party tries it: the container destroyed with what it held, and its exploded flag set
         // (docs/systems/map-objects.md, containers). It and opening it each rule the other out.
         if (chest && c.TrapLevel != 0 && c.Exploded is { } blown)
@@ -504,9 +516,16 @@ public sealed class QuestModel
         }
     }
 
+    /// <summary>
+    /// Whether an item is given up by leaving it in the loot window, as a twin of the opening that gives it: something wants the party not
+    /// to hold it (<see cref="ItemIs"/> not held in a way's conditions), and the loot window lets it be left (not a must-take item).
+    /// </summary>
+    private bool Leavable(RecordId item) =>
+        _unwanted.Contains(item) && Plugins.TryGet<ItemRecord>(item) is { } record && record.Traits?.MustTake != true;
+
     private PlayerAction? Add(ActionKind kind, RecordId? place, RecordId? script, IReadOnlyList<int> choices, List<Literal>? presence,
         IReadOnlyList<Literal> requires, IReadOnlyList<Effect> effects, bool wins = false, RecordId? buys = null, string? fault = null,
-        IReadOnlyList<IReadOnlyList<int>>? others = null, ScriptWay? way = null)
+        IReadOnlyList<IReadOnlyList<int>>? others = null, ScriptWay? way = null, RecordId? leaves = null)
     {
         if (presence is null || !Consistent(presence.Concat(requires)))
             return null;
@@ -514,6 +533,7 @@ public sealed class QuestModel
         {
             OtherChoices = others ?? [],
             Way = way,
+            Leaves = leaves,
         };
         _actions.Add(action);
         return action;

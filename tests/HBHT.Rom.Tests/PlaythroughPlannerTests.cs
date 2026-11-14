@@ -199,6 +199,33 @@ public sealed class PlaythroughPlannerTests(Na10Import fixture)
     }
 
     [Fact]
+    public void TrahernsSwordIsLeftInItsChestForHisTalkThatWantsItNotHeld()
+    {
+        // Trahern telling Alaron to bring the sword back (3516, 4/E07/2's 0x03A8) wants the chest opened (4/K05/12: 3230 set) and his sword
+        // (0x073A) not held. Opening the chest gives it, and nothing drops or sells it, so the search ran out of states; the chest's twin
+        // leaves it in the loot window.
+        var chest = Ids.MapObject(4, "K05", 12);
+        var sword = RecordId.Parse("aidyn:item/0x073A");
+        var opens = Model.Actions.Where(a => a.Place == chest && a.Kind == ActionKind.Open).ToList();
+        Assert.Equal(2, opens.Count);
+        var take = Assert.Single(opens, a => a.Leaves is null);
+        var leave = Assert.Single(opens, a => a.Leaves == sword);
+        Assert.Contains(new Gain(sword), take.Effects);
+        Assert.Equal(take.Effects.Where(e => e != new Gain(sword)), leave.Effects);
+        Assert.Contains(", leaving aidyn:item/0x073A", leave.Describe());
+        // Only what something wants not held is left: in the base game, the sword alone.
+        Assert.All(Model.Actions.Where(a => a.Leaves is not null), a => Assert.Equal(sword, a.Leaves));
+
+        var start = NewGame();
+        var plan = new QuestPlanner(Model).Plan(start, new FlagGoal(Flag(3516)));
+        Assert.True(plan.Found, plan.Why);
+        Assert.Contains(plan.Steps, s => s.Index == leave.Index);
+        var end = Play(start, plan.Steps);
+        Assert.True(end.IsSet(Flag(3516)));
+        Assert.False(end.Holds(sword));
+    }
+
+    [Fact]
     public void AFlagNothingSetsHasNoPlanAndSaysWhy()
     {
         // Flag 84: Trahern's conversation goes round forever once 67 and 84 are both set, but nothing sets 84 (docs/systems/scripts.md).

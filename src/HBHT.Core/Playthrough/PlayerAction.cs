@@ -70,6 +70,12 @@ public sealed record PlayerAction(
     /// <summary>The way through its script it takes, for an action that plays one.</summary>
     public ScriptWay? Way { get; init; }
 
+    /// <summary>
+    /// An item it leaves behind in the loot window rather than taking: a container's twin of its opening, for an item something wants the
+    /// party not to hold (docs/systems/playthrough.md, "Stage 10: giving an item up, and near starts").
+    /// </summary>
+    public RecordId? Leaves { get; init; }
+
     /// <summary>Its gates the game decides in code, which the planner takes to hold.</summary>
     public IEnumerable<CodeGate> Gates => Presence.Concat(Requires).OfType<CodeGate>();
 
@@ -98,6 +104,8 @@ public sealed record PlayerAction(
             what += $", choosing {string.Join(" ", Choices)}";
         if (Buys is { } item)
             what += $", buying {item}";
+        if (Leaves is { } left)
+            what += $", leaving {left}";
         if (Wins)
             what += ", winning the battle";
         return what;

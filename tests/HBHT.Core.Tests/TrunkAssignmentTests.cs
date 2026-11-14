@@ -80,4 +80,33 @@ public sealed class TrunkAssignmentTests
         Assert.Equal(30, Trunk.Retry(window, new HashSet<int> { 10 }, round: 2));
         Assert.Null(Trunk.Retry(window, new HashSet<int> { 3, 10, 20, 30 }, round: 3));
     }
+    [Fact]
+    public void ARetryTriesFirstTheLatestSaveWhosePlanStartsAtHandInNoMoreLayersThanWhereItWasTried()
+    {
+        // Sheridan's goodbye (82): nearest the castle's saves (4 to 7), given up from step 6, where it's 5 layers on; from Oriana's hut (2,
+        // 3) its plan's first step, her door, is at hand and it's 4 layers on. Step 1's plan starts at hand too, but 6 layers on.
+        (int, float)[] window = [(1, 10_010), (2, 10_010), (3, 10_010), (4, 412), (5, 457), (6, 206), (7, 400)];
+        var starts = new Dictionary<int, (float Start, int Layer)>
+        {
+            [1] = (25, 6), [2] = (3.5f, 4), [3] = (6.2f, 4), [4] = (193, 5), [5] = (456, 5), [6] = (461, 5), [7] = (10_029, 5),
+        };
+        Assert.Equal(3, Trunk.Retry(window, new HashSet<int> { 6 }, round: 1, starts));
+        Assert.Equal(2, Trunk.Retry(window, new HashSet<int> { 6, 3 }, round: 2, starts));
+        // With the near starts tried, the rounds go on as before: the latest, then the nearest.
+        Assert.Equal(7, Trunk.Retry(window, new HashSet<int> { 6, 3, 2 }, round: 3, starts));
+        Assert.Equal(4, Trunk.Retry(window, new HashSet<int> { 6, 3, 2, 7 }, round: 4, starts));
+        // Step 1 starts at hand but is more layers on than any save tried, as an earlier save mostly is: it isn't taken first.
+        Assert.Equal(7, Trunk.Retry(window, new HashSet<int> { 6, 3, 2 }, round: 1, starts));
+        // Without what the looks found of the plans' starts (a tree from before stage 10), as before.
+        Assert.Equal(7, Trunk.Retry(window, new HashSet<int> { 6 }, round: 1));
+    }
+
+    [Fact]
+    public void ANearStartNeedsALayerKnownWhereItWasTried()
+    {
+        (int, float)[] window = [(2, 10_010), (6, 206), (7, 400)];
+        // Tried from step 6, of which the look knew nothing: no near start is taken, and the round goes as before.
+        var starts = new Dictionary<int, (float Start, int Layer)> { [2] = (3.5f, 1) };
+        Assert.Equal(7, Trunk.Retry(window, new HashSet<int> { 6 }, round: 1, starts));
+    }
 }

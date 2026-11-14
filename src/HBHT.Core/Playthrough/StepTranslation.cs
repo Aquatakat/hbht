@@ -160,6 +160,9 @@ public static class StepTranslation
                     break;
             }
         }
+        // An item it leaves in the loot window isn't held after: the loot policy didn't take it.
+        if (action.Leaves is { } left)
+            expect[(EffectKind.Item, left)] = false;
         return [.. expect.Select(e => new ExpectedEffect(e.Key.Item1, e.Key.Item2, e.Value))];
     }
 }

@@ -4,6 +4,7 @@ using HBHT.Core.MapObjects;
 using HBHT.Core.Scripts;
 using HBHT.Core.Trek;
 using HBHT.Core.Ui;
+using HBHT.Plugins;
 using HBHT.Plugins.Records;
 
 namespace HBHT.Core.Playthrough;
@@ -155,10 +156,14 @@ public interface IMenuPolicy
 /// <summary>
 /// The default: the post-battle window is closed into its loot, loot is taken stack by stack until the pile is empty or a stack won't go
 /// (the inventory or the stack is full), then left; shops, training and the pause menu are left at once; any popup in them is closed or
-/// answered with its first option; and a trek popup's question takes its first option.
+/// answered with its first option; and a trek popup's question takes its first option. An item to leave (<see cref="Leave"/>) is never
+/// taken: once only it is left on the pile, B and "Yes, leave them." close the window.
 /// </summary>
 public sealed class TakeLootLeaveTheRest : IMenuPolicy
 {
+    /// <summary>An item left on the pile of every loot window while it's set: a step that gives it up (<see cref="PlayerAction.Leaves"/>).</summary>
+    public RecordId? Leave { get; set; }
+
     /// <summary>The loot window being taken from, and the pile's size when a stack was last taken from it.</summary>
     private (BarterMenu Window, int Before)? _taking;
 
@@ -178,7 +183,7 @@ public sealed class TakeLootLeaveTheRest : IMenuPolicy
         return MenuAction.Back;
     }
 
-    private MenuAction Loot(BarterMenu loot)
+    internal MenuAction Loot(BarterMenu loot)
     {
         var count = loot.Pile.Rows.Count;
         if (_taking is var (window, before) && window == loot && before == count && count > 0)
@@ -190,8 +195,19 @@ public sealed class TakeLootLeaveTheRest : IMenuPolicy
             return MenuAction.Accept;
         if (count == 0 || _gaveUp == loot)
             return MenuAction.Back;
+        // The first row not to be left; with none, the rest is left.
+        var row = -1;
+        for (var i = 0; i < count && row < 0; i++)
+        {
+            if (loot.Pile.Rows[i].Item.Id != Leave)
+                row = i;
+        }
+        if (row < 0)
+            return MenuAction.Back;
         if (!loot.OnPile)
             return MenuAction.Left;
+        if (loot.Pile.Cursor != row)
+            return loot.Pile.Cursor < row ? MenuAction.Down : MenuAction.Up;
         _taking = (loot, count);
         return MenuAction.Accept;
     }
