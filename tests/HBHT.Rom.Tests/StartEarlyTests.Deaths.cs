@@ -21,7 +21,8 @@ public sealed partial class StartEarlyTests
         // from its fall to its going at once; and a reserve coming on where a dead rat lay had the last word take the rat away. Alaron
         // casts at every rat he can, a Fireball steered for two seconds to halfway between him and the rat nearest him, so it takes the
         // party too; every body freed is drawn through its whole fade, but where the screen's own fade, as the battle ends, has begun
-        // (1.0 waits for no fade). He waits in his turn till the field has drawn out (Settled).
+        // (1.0 waits for no fade). His aim is held while a rat he could pick still draws behind, his turn's clock held with it: it ran on
+        // through the hold, and once the cast was chosen, the turn caught up a hundred ticks at a time, a rat drawn from its death into its fade.
         var spell = Set.All<SpellRecord>(RecordTypes.Spell).Single(s => s.Name == spellName);
         var plan = BattlePlan.Parse($"Alaron=spell:{spellName}/{(spell.Targeting.Placed ? "wait:120/" : "")}accept/accept/accept/accept/accept/accept/accept;*=accept/accept/accept");
         var seen = new Dictionary<Combatant, Fade>();
@@ -32,7 +33,7 @@ public sealed partial class StartEarlyTests
             return built;
         }, turns, run =>
         {
-            var input = Settled(run, "Alaron") ? plan.Tick(run.Drawing) : null;
+            var input = plan.Tick(run.Drawing);
             run.Input = input is null ? null : run.Battle.State == CombatState.PlaceArea ? () => Steer(run.Battle) : () => input.Value;
         }, begun: run => run.Each = r =>
         {
