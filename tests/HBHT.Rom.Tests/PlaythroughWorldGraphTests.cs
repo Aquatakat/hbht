@@ -192,6 +192,21 @@ public sealed class PlaythroughWorldGraphTests(Na10Import fixture)
         Assert.DoesNotContain(Ids.Flag(1425), targets);
         Assert.Contains(Ids.Flag(3219), targets);
         Assert.Contains(Ids.Flag(1425), CoverGoal.StaticTargets(model, start, game));
+
+        // The chamber at the tower's top: its way back (G17/3) is enabled only by 458, set beyond it at Overworld I08, from which nothing
+        // leads back to it; so are the tower's door out at the bottom (C09/2) and G13/2. Taken as a gate, the reach from the chamber would
+        // go back into the tower once a relaxation set 458; taken as a wall, it goes round by the Overworld and the climb at P17/4, as the
+        // player can: the chamber's way out (G17/4) arrives 85 from Shamsuk's scene (I08/13, radius 20).
+        Assert.Equal(Ids.Flag(458), Assert.Contains(Object("12/G17/3"), closings.Ways));
+        Assert.Equal(Ids.Flag(458), Assert.Contains(Object("12/C09/2"), closings.Ways));
+        Assert.All(closings.Ways, w => Assert.Equal(Ids.Flag(458), w.Value));
+        var oneWay = new WorldGraph(Plugins, Path.Combine(Path.GetTempPath(), "hbht-playthrough-cache")) { ClosedForGood = closings.Ways };
+        var chest = Object("12/G03/7");
+        var chamber = Playthrough.PositionOf(Plugins, Object("12/G17/0"))!.Value;
+        Assert.Contains(new FlagIs(Ids.Flag(458), true), new WorldReach(Graph, game, chamber).Gates(chest)!);
+        var shut = new WorldReach(oneWay, game, chamber).Gates(chest)!;
+        Assert.DoesNotContain(new FlagIs(Ids.Flag(458), true), shut);
+        Assert.Contains(new FlagIs(Ids.Flag(412), true), shut);
     }
 
     [Fact]

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using HBHT.Plugins;
 
 namespace HBHT.Core.Playthrough;
 
@@ -11,7 +12,21 @@ namespace HBHT.Core.Playthrough;
 /// <param name="JobMinutes">The wall time one job may take, after which its live targets are given up.</param>
 /// <param name="MostFailures">Steps towards one target that may fail before it's given up.</param>
 /// <param name="Trunk">The trunk's folder under the root, when the jobs start from its saves (<see cref="Trunk"/>); null for one root job.</param>
-public sealed record CoverRoot(IReadOnlyList<string> Targets, string? Save, double JobMinutes, int MostFailures, DateTimeOffset Created, string? Trunk = null);
+public sealed record CoverRoot(IReadOnlyList<string> Targets, string? Save, double JobMinutes, int MostFailures, DateTimeOffset Created, string? Trunk = null)
+{
+    /// <summary>
+    /// The ways closed for good while a flag is clear (<see cref="Closings.Ways"/>), by their map objects, each with the flag: every job's
+    /// world graph takes them as walls (<see cref="WorldGraph.ClosedForGood"/>).
+    /// </summary>
+    public IReadOnlyDictionary<string, string>? ClosedWays { get; init; }
+
+    /// <summary>The closed ways as the world graph takes them.</summary>
+    public IReadOnlyDictionary<RecordId, RecordId> ClosedForGood() =>
+        (ClosedWays ?? new Dictionary<string, string>()).ToDictionary(w => RecordId.Parse(w.Key), w => RecordId.Parse(w.Value));
+
+    /// <summary>A world graph over <paramref name="plugins"/> that takes the root's closed ways.</summary>
+    public WorldGraph Graph(PluginSet plugins) => new(plugins) { ClosedForGood = ClosedForGood() };
+}
 
 /// <summary>A job in the tree: where it starts, which flags it's after, and where it came from.</summary>
 /// <param name="Id">Its name: the root's <c>0</c>, a branch its parent's and <c>.n</c>, a job carried on its own and <c>+n</c>.</param>

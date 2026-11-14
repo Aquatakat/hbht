@@ -634,13 +634,41 @@ public sealed class QuestModel
     {
         _pre = new int[_actions.Count][];
         _adds = new int[_actions.Count][];
+        _flashes = new int[_actions.Count][];
         _places = new RecordId[_actions.Count][];
         foreach (var action in _actions)
         {
             _places[action.Index] = [.. action.Presence.OfType<Reaches>().Select(r => r.Place)];
             _pre[action.Index] = [.. action.Presence.Concat(action.Requires).Select(Fact).OfType<int>().Distinct()];
             _adds[action.Index] = [.. AddsOf(action).Distinct()];
+            _flashes[action.Index] = FlashesOf(action);
         }
+    }
+
+    private int[][] _flashes = [];
+
+    /// <summary>
+    /// The facts an action makes true only for a moment (<see cref="Adds"/> has them too): a plain flag its effects write and then write
+    /// the other way, as 96 tripwires set their flag and then clear it as their Used flag (<see cref="MapObjects.MapObjectUse.Trip"/>,
+    /// 1.0's <c>trigger_vobject_func</c>). The ledger sees the flag set, so it can be a target; but nothing after the action finds it set,
+    /// so it opens no gate and meets no precondition (<see cref="Relaxation"/>). Jundar's library tripwire (JundarInteriors A01/4) flashes
+    /// 238, which enables Port Saiid's gate (Overworld C14/0); taken as set, it hid that Ardra's ritual (<c>0x03FE</c>) is 238's only lasting
+    /// setter.
+    /// </summary>
+    public IReadOnlyList<int> Flashes(int action) => _flashes[action];
+
+    private int[] FlashesOf(PlayerAction action)
+    {
+        var last = new Dictionary<int, bool>();
+        var written = new HashSet<int>();
+        foreach (var set in action.Effects.OfType<SetFlag>())
+        {
+            if (!Flags.TryHandle(set.Flag, out var h) || Flags.Kind(h) != FlagKind.Plain)
+                continue;
+            last[h] = set.Value;
+            written.Add(FlagFact(h, set.Value));
+        }
+        return written.Count == last.Count ? [] : [.. written.Where(f => last[f / 2] != (f % 2 == 0))];
     }
 
     private IEnumerable<int> AddsOf(PlayerAction action)

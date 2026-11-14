@@ -121,7 +121,7 @@ public sealed class WorldReach : IPlaceReach
             var grew = 0;
             for (var f = 0; f < reached.Length; f++)
             {
-                if (result.FactLayer[f] >= 0 && !reached[f])
+                if (result.Holds(f) && !reached[f])
                 {
                     reached[f] = true;
                     grew++;
@@ -148,6 +148,9 @@ public sealed class WorldReach : IPlaceReach
     /// <summary>What a teleporter or toggle costs: its closed gates the plan can open, or null for a wall.</summary>
     private int? Toll(IGatedWay portal, Func<Literal, bool>? canOpen)
     {
+        // A way closed for good while its flag is clear: the flag's setters are all beyond it, with nothing leading back.
+        if (Graph.ClosedForGood.TryGetValue(portal.Id, out var flag) && !_game.Flags.IsSet(flag))
+            return null;
         var cost = 0;
         foreach (var gate in portal.Gates)
         {

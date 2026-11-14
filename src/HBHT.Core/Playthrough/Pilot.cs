@@ -354,11 +354,56 @@ public sealed class Pilot : IInputPolicy
                     passed = i;
             }
             if (passed >= 0)
+            {
                 walk.Waypoint = passed + 1;
+                walk.Push = null;
+            }
             if (walk.Waypoint >= leg.Waypoints.Count)
+            {
                 walk.Phase = leg.Teleporter is null ? Phase.Object : Phase.Teleporter;
+            }
             else
-                return Steer(walk, trek, leg.Waypoints[walk.Waypoint], Goal.Waypoint, () => Avoid(walk, leg.MapSet, leg.Waypoints[walk.Waypoint]));
+            {
+                var i = walk.Waypoint;
+                var point = leg.Waypoints[i];
+                // A step up a stair that the player stalled short of is climbed as the explorer's run that made it was: from the step below,
+                // at rest, by the stick held one way, another each time. Steered straight at, re-aimed as the sphere slides, he comes off
+                // the stair's inside.
+                var line = Along(leg, i);
+                if (line is not null && walk.StairTries.GetValueOrDefault(point) is var tried && tried > 0 && tried <= PushAngles.Length)
+                {
+                    var below = leg.Waypoints[i - 1];
+                    if (walk.Push is null && Across(below, feet) < StairReach && below.Y - feet.Y is < ClimbSlack and > -2)
+                    {
+                        var angle = PushAngles[tried - 1] * MathF.PI / 180;
+                        var way = line.Value;
+                        walk.Push = new Vector2(way.X * MathF.Cos(angle) - way.Y * MathF.Sin(angle), way.X * MathF.Sin(angle) + way.Y * MathF.Cos(angle));
+                        walk.PushRest = PushRestTicks;
+                    }
+                    // Come to rest on the step below first, as the run set off from rest.
+                    if (walk.Push is not null && walk.PushRest > 0)
+                    {
+                        walk.PushRest--;
+                        walk.Steering = null;
+                        return TickInput.None;
+                    }
+                    if (walk.Push is null)
+                        return Steer(walk, trek, below, Goal.Stair, () => Avoid(walk, leg.MapSet, below));
+                    return Steer(walk, trek, point, Goal.Waypoint, () =>
+                    {
+                        walk.StairTries[point] = walk.StairTries.GetValueOrDefault(point) + 1;
+                        walk.Push = null;
+                    }, walk.Push, sidestep: false);
+                }
+                // The first stall short of a step up a stair is its pushes' to get past; others, and once they're spent, avoid it.
+                return Steer(walk, trek, point, Goal.Waypoint, () =>
+                {
+                    if (line is not null && walk.StairTries.GetValueOrDefault(point) == 0)
+                        walk.StairTries[point] = 1;
+                    else
+                        Avoid(walk, leg.MapSet, point);
+                });
+            }
         }
         if (walk.Phase == Phase.Teleporter)
         {
@@ -412,6 +457,7 @@ public sealed class Pilot : IInputPolicy
         walk.Waypoint = 0;
         walk.Phase = Phase.Route;
         walk.Steering = null;
+        walk.Push = null;
         walk.InRange = 0;
         return true;
     }
@@ -505,10 +551,10 @@ public sealed class Pilot : IInputPolicy
     /// Pushes the stick toward a point across the ground, through the trek camera's look, and watches for a stall: no
     /// <see cref="PilotOptions.Progress"/> nearer in <see cref="PilotOptions.StallTicks"/>, after which it asks for a new route.
     /// </summary>
-    private TickInput Steer(Walk walk, TrekLoop trek, Vector3 point, Goal goal, Action stalled)
+    private TickInput Steer(Walk walk, TrekLoop trek, Vector3 point, Goal goal, Action stalled, Vector2? hold = null, bool sidestep = true)
     {
         var feet = trek.Player.Feet;
-        var key = (goal, goal == Goal.Waypoint ? walk.Waypoint : 0);
+        var key = (goal, goal is Goal.Waypoint or Goal.Stair ? walk.Waypoint : 0);
         if (walk.Steering != key)
             (walk.Steering, walk.Best, walk.Since) = (key, float.MaxValue, 0);
         var across = new Vector2(point.X - feet.X, point.Z - feet.Z);
@@ -517,7 +563,8 @@ public sealed class Pilot : IInputPolicy
             (walk.Best, walk.Since) = (distance, 0);
         else if (++walk.Since > Options.StallTicks)
         {
-            if (++walk.Stalls > Options.MaxStalls)
+            // A push up a stair that stalls is the next push's to try, and isn't counted.
+            if (sidestep && ++walk.Stalls > Options.MaxStalls)
             {
                 walk.Fail(StepFailure.Stuck, $"stalled {walk.Stalls} times, the last at {feet} in {trek.Chunks.MapSet.Id} steering for {goal} {point}");
                 return TickInput.None;
@@ -525,7 +572,7 @@ public sealed class Pilot : IInputPolicy
             stalled();
             walk.Replan = true;
             walk.Steering = null;
-            if (distance > 1e-3f)
+            if (sidestep && distance > 1e-3f)
             {
                 var angle = SidestepAngles[(walk.Stalls - 1) % SidestepAngles.Length] * MathF.PI / 180;
                 var way = across / distance;
@@ -536,7 +583,16 @@ public sealed class Pilot : IInputPolicy
         }
         if (distance < 1e-3f)
             return TickInput.None;
-        return new TickInput(new PlayerInput(StickFor(across / distance, trek.Camera.LookXZ)), []);
+        return new TickInput(new PlayerInput(StickFor(hold ?? across / distance, trek.Camera.LookXZ)), []);
+    }
+
+    /// <summary>For a waypoint that's a step up a stair from the one before, the way across the ground from that one to it.</summary>
+    private static Vector2? Along(RouteLeg leg, int i)
+    {
+        if (i < 1 || leg.Waypoints[i].Y - leg.Waypoints[i - 1].Y <= StairRise)
+            return null;
+        var way = new Vector2(leg.Waypoints[i].X - leg.Waypoints[i - 1].X, leg.Waypoints[i].Z - leg.Waypoints[i - 1].Z);
+        return way.Length() > 1e-3f ? Vector2.Normalize(way) : null;
     }
 
     /// <summary>
@@ -577,6 +633,12 @@ public sealed class Pilot : IInputPolicy
 
     private static float Across(Vector3 a, Vector3 b) => new Vector2(a.X - b.X, a.Z - b.Z).Length();
 
+    /// <summary>How far below the step below a stair's waypoint the player's feet may be, and how near across, to push up from it.</summary>
+    private const float ClimbSlack = 0.3f, StairReach = 0.4f;
+
+    /// <summary>A waypoint this much above the one before is a step up a stair.</summary>
+    private const float StairRise = 0.2f;
+
     private static void Avoid(Walk walk, RecordId set, Vector3 at) => walk.Avoid.Add(new Place(set, at));
 
     /// <summary>How far about where it stuck a route keeps away (<see cref="RouteOptions.AvoidRadius"/>), and how near when that cuts every way.</summary>
@@ -592,6 +654,15 @@ public sealed class Pilot : IInputPolicy
     /// <summary>The longest the player waits for the hour to open a way: a game day, 20 minutes of play.</summary>
     private const long MostWait = Calendar.GameClock.Day / Calendar.GameClock.DaySpeed;
 
+    /// <summary>
+    /// The turns, in degrees, from the way along a stair's step that each push up it takes, in turn. From the landing of Jundar's library
+    /// stair (JundarInteriors A01, 118.5, 7.45, 107.4), of 36 ways held only 310° climbs to the library, where the step up is at 299°.
+    /// </summary>
+    private static readonly float[] PushAngles = [0, 10, -10, 20, -20, 30, -30];
+
+    /// <summary>How long the player stands still on a stair's step before pushing up from it.</summary>
+    private const int PushRestTicks = 20;
+
     /// <summary>The turns from the way wanted that each stall's step aside takes, in turn: to the sides, back, and between.</summary>
     private static readonly float[] SidestepAngles = [90, -90, 180, 45, -45, 135, -135];
 
@@ -599,6 +670,8 @@ public sealed class Pilot : IInputPolicy
     private enum Goal
     {
         Waypoint,
+        /// <summary>The step below a stair's waypoint, to push up from.</summary>
+        Stair,
         Teleporter,
         Object,
         Body,
@@ -646,6 +719,15 @@ public sealed class Pilot : IInputPolicy
         public long Waited;
         public Vector2? Sidestep;
         public int SidestepTicks;
+
+        /// <summary>The way the stick is held up a stair's step, once the player stands on the step below; null while it isn't.</summary>
+        public Vector2? Push;
+
+        /// <summary>The ticks left to stand still on the step below before the push.</summary>
+        public int PushRest;
+
+        /// <summary>How many pushes up each stair's step, by its waypoint, have stalled: each next is held another way.</summary>
+        public readonly Dictionary<Vector3, int> StairTries = [];
         public RecordId? Cued;
         public readonly HashSet<string> Fired = [];
 

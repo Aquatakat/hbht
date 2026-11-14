@@ -125,7 +125,7 @@ public sealed class StaticPass
             var blockers = setters.Select(a =>
             {
                 var action = Model.Actions[a];
-                var blocker = Model.Pre(a).FirstOrDefault(p => !Result.Reached(p), -1);
+                var blocker = Model.Pre(a).FirstOrDefault(p => !Result.Holds(p), -1);
                 return blocker >= 0 ? Model.DescribeFact(blocker)
                     : action.Effects.Any(e => e is EndGame) ? "it ends the game"
                     : action.Kind == ActionKind.Event ? "the opening has played"

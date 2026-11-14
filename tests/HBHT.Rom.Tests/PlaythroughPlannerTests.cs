@@ -48,6 +48,30 @@ public sealed class PlaythroughPlannerTests(Na10Import fixture)
     private PlanState NewGame() => PlanState.From(Model, GameState.NewGame(Plugins));
 
     [Fact]
+    public void ATripwireThatSetsItsFlagAndClearsItAsItsUsedFlagOnlyFlashesIt()
+    {
+        // Jundar's library tripwire (JundarInteriors A01/4) sets 238 and clears it as its Used flag, as 96 tripwires do theirs: the ledger
+        // sees it set, but nothing after finds it so. 238 enables Port Saiid's gate (Overworld C14/0), and Ardra's ritual (0x03FE, at
+        // K01/2) is what sets it for good.
+        var tripwire = Ids.MapObject(11, "A01", 4);
+        var walk = Assert.Single(Model.Actions, a => a.Place == tripwire);
+        var fact = Model.FlagFact(Model.Flags.Handle(Flag(238)), true);
+        Assert.Equal([fact], Model.Flashes(walk.Index));
+        Assert.Contains(fact, Model.Adds(walk.Index));
+
+        // Without the ritual, the relaxation reaches 238, as a target, but not for good, and the gate it opens stays shut.
+        var ritual = Ids.MapObject(11, "K01", 2);
+        var result = new Relaxation(Model, Model.Actions.Where(a => a.Place != ritual).Select(a => a.Index)).Run(NewGame());
+        Assert.True(result.Reached(fact));
+        Assert.False(result.Holds(fact));
+        var portSaiid = Model.Actions.Where(a => a.Presence.OfType<FlagIs>().Contains(new FlagIs(Flag(238), true))).ToList();
+        Assert.NotEmpty(portSaiid);
+        Assert.All(portSaiid, a => Assert.Equal(-1, result.ActionLayer[a.Index]));
+        // With it, 238 holds.
+        Assert.True(new Relaxation(Model, Enumerable.Range(0, Model.Actions.Count)).Run(NewGame()).Holds(fact));
+    }
+
+    [Fact]
     public void TheShadowsBattleIsNeverWon()
     {
         // The Shadow's battle ends in its merging with Alaron or its vanishing, neither of which sets an encounter's flag: its encounter
