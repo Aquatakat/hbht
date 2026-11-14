@@ -75,6 +75,27 @@ public sealed class VisibleWorld
         return true;
     }
 
+    /// <summary>
+    /// The nearest solid surface the line from <paramref name="from"/> to <paramref name="to"/> crosses, from either side, as
+    /// the share of the way with its unit normal, or null: what <see cref="Raycast"/> finds, past those that absorb (cut-outs such as canopies,
+    /// translucent draws such as light shafts, and scrolling ones such as water). The enhanced trek camera's arm uses it.
+    /// </summary>
+    public (float Share, Vector3 Normal)? RaycastSolid(Vector3 from, Vector3 to)
+    {
+        var delta = to - from;
+        var best = float.MaxValue;
+        var normal = Vector3.Zero;
+        float minX = Math.Min(from.X, to.X), maxX = Math.Max(from.X, to.X);
+        float minZ = Math.Min(from.Z, to.Z), maxZ = Math.Max(from.Z, to.Z);
+        _grid.Near(minX, minZ, maxX, maxZ, _near);
+        foreach (var t in _near)
+        {
+            if (!t.Absorbs && Cross(from, delta, t) is { } share && share < best)
+                (best, normal) = (share, t.Normal);
+        }
+        return best == float.MaxValue ? null : (best, normal);
+    }
+
     // How far along the line it crosses the triangle, from 0 to 1, or null (Möller–Trumbore, both faces).
     private static float? Cross(Vector3 from, Vector3 delta, in Triangle t)
     {

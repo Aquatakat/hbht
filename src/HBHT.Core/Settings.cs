@@ -128,8 +128,8 @@ public sealed class Settings
     public Combat.CombatTurns CombatTurns { get; set; }
 
     /// <summary>
-    /// The Camera setting: the original's cameras, or the enhanced ones (<see cref="Cameras.CameraStyle"/>). For now it's a battle's played
-    /// turn by turn; under Start Early, Start Early chooses the camera.
+    /// The Camera setting: the original's cameras, or the enhanced ones (<see cref="Cameras.CameraStyle"/>): a battle's played turn by
+    /// turn, and trek's (<see cref="Cameras.EnhancedTrekCamera"/>); under Start Early, Start Early chooses the battle's camera.
     /// </summary>
     public Cameras.CameraStyle Camera { get; set; }
 

@@ -41,6 +41,7 @@ const string Usage = $"""
     {ReachReport.Usage}
     {CompareReport.Usage}
     {PlaythroughReport.Usage}
+    {CameraReport.Usage}
       hbht schema <dir>                      a JSON Schema per record type, for records (<type>.schema.json) and for
                                            patches to them (<type>.patch.schema.json), which editors validate mods by
       hbht strings <rom> <table>             one string table, numbered by line
@@ -82,6 +83,7 @@ try
         ["movement", "reach", .. var rest] => ReachReport.Run(InstalledPlugins(), rest),
         ["movement", "compare", .. var rest] => CompareReport.Run(InstalledPlugins(), rest),
         ["playthrough", .. var rest] => PlaythroughReport.Run(InstalledPlugins(), rest),
+        ["camera", "trace", .. var rest] => CameraReport.Run(InstalledPlugins(), rest),
         ["schema", var dir] => Schema(dir),
         ["strings", var rom, .. var rest] when OutOnly(rest, out var dir) => AllStrings(rom, dir),
         ["strings", var rom, var table] => Strings(rom, table),

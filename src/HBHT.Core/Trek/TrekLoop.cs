@@ -163,6 +163,18 @@ public sealed partial class TrekLoop : IMapObjectHost
     /// <summary>The conversation camera's numbers, or null for its defaults.</summary>
     public DialogueTuning? DialogueTuning { get; set; }
 
+    /// <summary>
+    /// Trek's camera: the original's (<see cref="FollowCamera"/>) or the enhanced one (<see cref="EnhancedCamera"/>), which writes
+    /// the follow camera's place in its stead (docs/systems/cameras.md#the-enhanced-trek-camera-camera-enhanced).
+    /// </summary>
+    public CameraStyle CameraStyle { get; set; }
+
+    /// <summary>The enhanced trek camera, which steps in the follow camera's stead under <see cref="CameraStyle.Enhanced"/>.</summary>
+    public EnhancedTrekCamera EnhancedCamera { get; } = new();
+
+    /// <summary>Whether the chunk he's in is an interior's, its sky not drawn, which the enhanced camera frames closer.</summary>
+    private bool Indoors => _chunk is not null && Game.Terrain(_chunk.Terrain) is { SkyDrawn: false };
+
     /// <summary>The player's animation, which moves him by its root motion.</summary>
     public IRootMotion PlayerAnimation { get; set; } = IActorMotion.Still;
 
@@ -361,6 +373,9 @@ public sealed partial class TrekLoop : IMapObjectHost
         var before = motion.Sphere.Position;
         if (Conversation is { With: not null } framing)
             framing.Frame(Camera, world, Chunks.Visible, Wanderers.All);
+        else if (CameraStyle == CameraStyle.Enhanced && !Camera.Held)
+            EnhancedCamera.Step(Camera, world, Chunks.Visible, motion.Sphere.Position, motion.Heading, Indoors,
+                input.Orbit ? input.OrbitStick : Vector2.Zero);
         else
             Camera.Step(world, motion.Sphere.Position, motion.Heading);
         Zone.Listen();
@@ -517,9 +532,20 @@ public sealed partial class TrekLoop : IMapObjectHost
         Enter(arrival.Chunk);
         var camera = arrival.Camera is { } local ? origin + local : (Vector3?)null;
         Camera.Arrive(from, motion.Sphere.Position, motion.Heading, FollowCamera.ModeFor(Game.Plugins, arrival.Chunk), camera);
+        ArriveEnhanced(kept: camera is not null);
         // The sky's colours are worked out again where he is, before he's shown there.
         Zone.Sky.Apply();
         _host.Arrived();
+    }
+
+    /// <summary>
+    /// The enhanced trek camera arrives with the player, under <see cref="CameraStyle.Enhanced"/>: behind him, or from a
+    /// teleporter's own camera point, <paramref name="kept"/>, where the follow camera has just been put.
+    /// </summary>
+    private void ArriveEnhanced(bool kept)
+    {
+        if (CameraStyle == CameraStyle.Enhanced)
+            EnhancedCamera.Arrive(Camera, Chunks.World, Chunks.Visible, Player.Sphere.Position, Player.Heading, Indoors, kept);
     }
 
     /// <summary>B in trek: raises or lowers the portraits, but not through a fade, a popup or a conversation (<c>Actor::Move</c>). Whether it did.</summary>

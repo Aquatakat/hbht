@@ -205,6 +205,11 @@ public sealed class LaunchOptions(Dictionary<string, string> values)
         ? Core.Cameras.DialogueTuning.Default.Parse(camera[(comma + 1)..])
         : null;
 
+    /// <summary><c>--trek-camera original|enhanced</c>: trek's camera alone, over the options' Camera, to compare the two.</summary>
+    public Core.Cameras.CameraStyle? TrekCamera => Text("trek-camera") is { } camera
+        ? camera.Trim() == "enhanced" ? Core.Cameras.CameraStyle.Enhanced : Core.Cameras.CameraStyle.Original
+        : null;
+
     /// <summary>The enhanced camera's numbers <c>--battle-camera</c> sets, after its style.</summary>
     public Core.Combat.CameraTuning? CameraTuning => Text("battle-camera") is { } camera && camera.IndexOf(',') is var comma and >= 0
         ? Core.Combat.CameraTuning.Default.Parse(camera[(comma + 1)..])

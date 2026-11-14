@@ -131,6 +131,30 @@ public static class SpherePhysics
     }
 
     /// <summary>
+    /// The nearest triangle a sphere moving from <paramref name="from"/> to <paramref name="to"/> touches from either side, as
+    /// the share of the way it moves first, or null. The collision's triangles are one-sided, so a wall met from behind is
+    /// one <see cref="Sweep"/> doesn't see; this turns each triangle to face the sweep. Passable triangles are left out, and
+    /// with <paramref name="skipSeeThrough"/> see-through ones. The original has no such query; the enhanced trek camera's
+    /// arm and its trace use it.
+    /// </summary>
+    public static float? SweepEitherSide(CollisionWorld world, Vector3 from, Vector3 to, float radius, bool skipSeeThrough)
+    {
+        var delta = to - from;
+        var best = float.MaxValue;
+        var near = _near ??= [];
+        world.Along(new Vector2(from.X, from.Z), new Vector2(to.X, to.Z), radius + 1, near);
+        foreach (var t in near)
+        {
+            if (t.Has(CollisionFlags.Passable) || (skipSeeThrough && t.Has(CollisionFlags.SeeThrough)))
+                continue;
+            var facing = Vector3.Dot(delta, t.Normal) <= 0 ? t : t with { Normal = -t.Normal };
+            if (SweepPlane(from, delta, radius, facing, out _, out var share) && share < best)
+                best = share;
+        }
+        return best == float.MaxValue ? null : best;
+    }
+
+    /// <summary>
     /// Whether there's ground within <paramref name="depth"/> below a sphere, other than plain
     /// collision surfaces 1 and 2 (<c>processPlayers_sub</c>).
     /// </summary>
