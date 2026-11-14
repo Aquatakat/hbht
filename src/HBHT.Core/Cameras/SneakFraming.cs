@@ -59,9 +59,8 @@ public sealed class SneakFraming
         Holding = best is not null;
         if (best is { } chosen)
             _hunter = chosen.At;
-        var goal = Holding ? 1 : 0;
         var rate = Tick / MathF.Max(Holding ? t.SneakIn : t.SneakOut, 1e-3f);
-        _rise = Math.Clamp(_rise + (goal > _rise ? rate : -rate), 0, 1);
+        _rise = Holding ? MathF.Min(1, _rise + rate) : MathF.Max(0, _rise - rate);
         Weight = _rise * _rise * (3 - 2 * _rise);
     }
 
