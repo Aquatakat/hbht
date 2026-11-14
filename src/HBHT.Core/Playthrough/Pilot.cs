@@ -422,6 +422,9 @@ public sealed class Pilot : IInputPolicy
     private bool Plan(PlaythroughHost host, Walk walk, Place from)
     {
         walk.Replan = false;
+        // An npc whose body trek holds is there to talk to whatever their gates now say: 1.0 gates them only as their chunk loads or trek
+        // is rebuilt, so one a conversation just shut (Batrin at Overworld D14/6, his task taken) still stands to be talked to again.
+        walk.BodyThere = walk.How == UseKind.Talk && Wanderer(host.Session.Trek, walk) is not null;
         if (++walk.Plans - 1 > Options.MaxReplans)
         {
             walk.Fail(StepFailure.Stuck, $"{Options.MaxReplans} replans spent, {walk.Stalls} of them for stalls, at {from.Feet} in {from.MapSet}");
@@ -436,7 +439,7 @@ public sealed class Pilot : IInputPolicy
         if (!result.Found && walk.Avoid.Count > 0 && result.Refusal!.Kind is RefusalKind.NotOnFoot or RefusalKind.StartOffGraph or RefusalKind.Gated)
         {
             walk.Avoid.Clear();
-            result = _graph.Route(host.Game, from, walk.Step.MapObject, new RouteOptions(Options.PickLocks, IgnoreOwnGates: walk.How == UseKind.Camp));
+            result = _graph.Route(host.Game, from, walk.Step.MapObject, new RouteOptions(Options.PickLocks, IgnoreOwnGates: walk.How == UseKind.Camp || walk.BodyThere));
         }
         // Shut only by gates the hour opens (the Burial Chamber's door in Ugarit2 A05 opens at night), on the way or on the object itself
         // (the Troll west of Darkling Bog, Overworld K16/2, is out only at night): he waits, up to a day.
@@ -471,7 +474,7 @@ public sealed class Pilot : IInputPolicy
     {
         var shun = Shunned(walk, from);
         // A camp scene's object holds only as the party camps: the way is to its chunk, whatever its own gates.
-        var plain = new RouteOptions(Options.PickLocks, [.. walk.Avoid], avoidRadius, KeepClear: shun, IgnoreOwnGates: walk.How == UseKind.Camp);
+        var plain = new RouteOptions(Options.PickLocks, [.. walk.Avoid], avoidRadius, KeepClear: shun, IgnoreOwnGates: walk.How == UseKind.Camp || walk.BodyThere);
         if (!Options.KeepClear || Triggers(game, walk, from) is not { Count: > 0 } zones)
             return _graph.Route(game, from, walk.Step.MapObject, plain);
         var clear = _graph.Route(game, from, walk.Step.MapObject, plain with { KeepClear = [.. shun, .. zones] });
@@ -695,6 +698,8 @@ public sealed class Pilot : IInputPolicy
     {
         public PilotStep Step { get; } = step;
         public UseKind How;
+        /// <summary>A talk's npc whose body trek holds, gates or none.</summary>
+        public bool BodyThere;
         public ChunkRecord? Chunk;
         public MapObject? Object;
         public RecordId Set;

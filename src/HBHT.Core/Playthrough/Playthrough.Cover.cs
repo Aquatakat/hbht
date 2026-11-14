@@ -989,7 +989,7 @@ public sealed partial class Playthrough
             TakeSeen();
             return;
         }
-        var state = PlanState.From(Model, Game);
+        var state = Now();
         MakeReach(state);
         LookAtTargets(state);
     }

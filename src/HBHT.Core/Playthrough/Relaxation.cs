@@ -95,6 +95,30 @@ public sealed class Relaxation
                 || model.Unplaced(a);
         }
 
+        // The npc just talked to stands to be talked to again (PlanState.Lingering), but only until anything else is done: a talk to them
+        // that needs nothing else first needs none of their own gates. One that needs more first (Batrin's pay, 3462, before Arturo's
+        // scenes at the bridge, which rebuild trek) still needs them.
+        HashSet<long>? waived = null;
+        if (state.Lingering is { } npc)
+        {
+            foreach (var a in _actions)
+            {
+                var action = model.Actions[a];
+                if (action.Kind != ActionKind.Talk || action.Place != npc)
+                    continue;
+                var requires = action.Requires.Select(model.Fact).OfType<int>().ToHashSet();
+                var gates = action.Presence.Where(l => l is not Reaches).Select(model.Fact).OfType<int>()
+                    .Where(f => !initial[f] && !requires.Contains(f)).ToHashSet();
+                if (gates.Count == 0 || model.Needs(a).Any(f => !initial[f] && !gates.Contains(f)))
+                    continue;
+                foreach (var f in gates)
+                {
+                    if ((waived ??= []).Add(((long)a << 32) | (uint)f))
+                        counts[a]--;
+                }
+            }
+        }
+
         var current = new List<int>();
         for (var f = 0; f < initial.Length; f++)
         {
@@ -120,6 +144,8 @@ public sealed class Relaxation
                     continue;
                 foreach (var a in readers)
                 {
+                    if (waived is not null && waived.Contains(((long)a << 32) | (uint)f))
+                        continue;
                     if (--counts[a] == 0 && !excluded[a])
                         ready.Add(a);
                 }

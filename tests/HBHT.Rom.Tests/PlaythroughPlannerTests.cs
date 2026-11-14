@@ -199,6 +199,52 @@ public sealed class PlaythroughPlannerTests(Na10Import fixture)
     }
 
     [Fact]
+    public void AnNpcJustTalkedToStandsToBeTalkedToAgainWhateverTheirGates()
+    {
+        // Batrin at the bridge (Overworld D14/6, 0x0402) is there only while his task isn't taken (5247: 244 and 247 clear), and pays for
+        // Arturo (3462) only once it is, with Arturo's scene done (246) and the bridge given up (3461). 1.0 gates an npc again only as
+        // their chunk loads or trek is rebuilt, so agreed to, he's still there to be talked to again.
+        var batrin = Ids.MapObject(0, "D14", 6);
+        var game = GameState.NewGame(Plugins);
+        foreach (var f in new[] { 3, 245, 246, 3460, 3461 })
+            game.Flags.Set(Flag(f), true);
+        var state = PlanState.From(Model, game);
+        Assert.False(state.Opening);
+        var agree = Assert.Single(Model.Actions, a => a.Place == batrin && a.Effects.Contains(new SetFlag(Flag(244), true)));
+        var pay = Model.Actions.Where(a => a.Place == batrin && a.Effects.Contains(new SetFlag(Flag(3462), true))).ToList();
+        Assert.All(pay, p => Assert.Contains(new FlagIs(Flag(244), true), p.Requires));
+        Assert.True(Model.Lingers(agree.Index));
+
+        var agreed = state.Apply(agree);
+        Assert.Equal(batrin, agreed.Lingering);
+        Assert.Contains(pay, agreed.CanDo);
+        // Without lingering, his gate shuts him out.
+        Assert.DoesNotContain(pay, agreed.Lingered(null).CanDo);
+        var plan = new QuestPlanner(Model).Plan(state, new FlagGoal(Flag(3462)));
+        Assert.True(plan.Found, plan.Why);
+        Assert.Equal(2, plan.Steps.Count);
+        Assert.Equal(agree, plan.Steps[0]);
+        Assert.Contains(plan.Steps[1], pay);
+
+        // Anything else done first ends it: Arturo's scene (0x0404 at D14/3) is a cut-scene, which rebuilds trek.
+        var scene = Model.Actions.First(a => a.Place == Ids.MapObject(0, "D14", 3) && agreed.CanDo(a));
+        Assert.False(Model.Lingers(scene.Index));
+        Assert.Null(agreed.Apply(scene).Lingering);
+        // And only a talk that needs nothing more first is weighed without the gates: agreed before the bridge is given up, the pay wants
+        // Arturo's scene first, which ends it, and the relaxation doesn't reach it.
+        var early = PlanState.From(Model, Without(game, 3461)).Apply(agree);
+        Assert.Equal(batrin, early.Lingering);
+        var relaxed = new Relaxation(Model, Enumerable.Range(0, Model.Actions.Count)).Run(early);
+        Assert.False(relaxed.Reached(Model.FlagFact(Model.Flags.Handle(Flag(3462)), true)));
+
+        static GameState Without(GameState game, int flag)
+        {
+            game.Flags.Set(Flag(flag), false);
+            return game;
+        }
+    }
+
+    [Fact]
     public void AFlagNothingSetsHasNoPlanAndSaysWhy()
     {
         // Flag 84: Trahern's conversation goes round forever once 67 and 84 are both set, but nothing sets 84 (docs/systems/scripts.md).

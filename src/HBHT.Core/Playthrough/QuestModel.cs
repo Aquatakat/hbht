@@ -70,6 +70,33 @@ public sealed class QuestModel
     /// <summary>A new game's opening (<c>game.started</c>'s triggers), as actions of their own.</summary>
     public IReadOnlyList<PlayerAction> Opening { get; private set; } = [];
 
+    private bool[]? _lingers;
+
+    /// <summary>
+    /// Whether an action leaves its npc standing to be talked to again, whatever their gates now say: a conversation (not a cut-scene,
+    /// a backdrop or the help, which rebuild trek and gate every map object again) that ends back in trek, with no shop, training,
+    /// battle or camp after it, no one joining or leaving and no script started. 1.0 gates an npc only as its chunk loads or trek is
+    /// rebuilt (docs/systems/wanderers.md, "The end"), so the body stays until then (<see cref="PlanState.Lingering"/>). Batrin at the
+    /// bridge (Overworld D14/6, <c>0x0402</c>) is there only while his task isn't taken (5247: 244 clear), and pays (3462) only when
+    /// it is: agreed to, he's still there to be talked to again.
+    /// </summary>
+    public bool Lingers(int action)
+    {
+        var lingers = _lingers;
+        if (lingers is null)
+        {
+            lingers = new bool[_actions.Count];
+            foreach (var a in _actions)
+            {
+                lingers[a.Index] = a is { Kind: ActionKind.Talk, Wins: false, Buys: null, Script: { } script, Way.End: ScriptEndKind.Ended }
+                    && Plugins.TryGet<ScriptRecord>(script) is { Mode: ScriptMode.Conversation }
+                    && !a.Effects.Any(e => e is Join or Leave or StartScript or RollCredits or EndGame);
+            }
+            _lingers = lingers;
+        }
+        return lingers[action];
+    }
+
     /// <summary>Every way through each script something starts, by script.</summary>
     public IReadOnlyDictionary<RecordId, ScriptWaysResult> Ways { get; private set; } = new Dictionary<RecordId, ScriptWaysResult>();
 

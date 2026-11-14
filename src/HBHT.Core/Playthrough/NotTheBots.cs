@@ -49,6 +49,10 @@ public sealed record NotTheBots(RecordId Flag, NotTheBotsKind Kind, string Why)
             "StageH's cut-scenes at P17: the tower's tripwire P17/3 is listed first in every cell and shuts them; cut content (the user; after stage 8)")),
         new(F(565), NotTheBotsKind.Original, "Farris's staff: only a sequence break reaches it, taken as cut (the user's review)"),
         new(F(3626), NotTheBotsKind.Original, "the Dust Devil at O26/0 is placed off the ground that has collision (the user's review)"),
+        new(F(4271), NotTheBotsKind.Original,
+            "the second storm without Yeraza's branch (0x0429 wants 192 clear): the voyage starts in Port Saiid, whose gate wants Ardra's ritual (238), which wants the guard's leave (217), given only with the branch, which nothing takes off (the data; stage 10)"),
+        new(F(4282), NotTheBotsKind.Original,
+            "Amann refusing to sail again wants 4271, which never comes: the second storm always finds Yeraza's branch (the data; stage 10)"),
 
         new(F(3143), NotTheBotsKind.SetAside, "Tamberlain's way that wants 9 gold or less, which no party holds by then (the user's review)"),
         new(F(3150), NotTheBotsKind.SetAside, "Tamberlain's way that wants 9 gold or less, which no party holds by then (the user's review)"),

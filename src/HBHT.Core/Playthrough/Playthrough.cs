@@ -80,6 +80,17 @@ public sealed partial class Playthrough
     private int _saves;
     private int _step;
     private string? _before;
+
+    /// <summary>The npc the last step talked to and the body they stand in, while it may be talked to again (<see cref="Now"/>).</summary>
+    private (RecordId Npc, Trek.Wanderer Body)? _lingering;
+
+    /// <summary>
+    /// The real state as the planner plans from it: the game's, with the npc the last step talked to still standing to be talked to
+    /// again (<see cref="PlanState.Lingering"/>) while trek holds the body the conversation left, which a chunk loading or trek rebuilt
+    /// (a cut-scene, a camp) takes away.
+    /// </summary>
+    private PlanState Now() =>
+        PlanState.From(Model, Game).Lingered(_lingering is { } l && Host.Session.Trek.Wanderers.All.Contains(l.Body) ? l.Npc : null);
     private string? _beforePath;
     private bool _memberResting;
     private PassGoal? _passing;
@@ -224,7 +235,7 @@ public sealed partial class Playthrough
                 }
                 noControl = 0;
 
-                var state = PlanState.From(Model, Game);
+                var state = Now();
                 var reach = MakeReach(state);
                 var (goal, steps, plan) = Choose(state);
                 // A cover goal with nothing to play has given up on what it couldn't plan to, or has nothing left.
@@ -239,7 +250,7 @@ public sealed partial class Playthrough
                     (goal, steps) = (Goal, [probe]);
                     var probed = Play(probe, goal, state, reach);
                     // One that changed nothing the planner knows isn't played again from here.
-                    if (probed.Done && PlanState.From(Model, Game).Equals(state))
+                    if (probed.Done && Now().Equals(state))
                         Ban(probe, state);
                     if (!probed.Done && (failures[goal] = failures.GetValueOrDefault(goal) + 1) >= Options.MostFailures)
                         why = $"{Options.MostFailures} steps in a row failed";
@@ -517,7 +528,7 @@ public sealed partial class Playthrough
     /// <param name="reach">The places' reach it was planned with, for whether its way picks locks; none if null.</param>
     public RunStep Play(PlayerAction action, Goal goal, PlanState? state = null, WorldReach? reach = null)
     {
-        state ??= PlanState.From(Model, Game);
+        state ??= Now();
         if (_visited.Count == 0 && Here() is { } first)
             _visited.Add(first.MapSet);
         TakeStepSeen();
@@ -604,6 +615,9 @@ public sealed partial class Playthrough
         else if (!done && !reroll)
             Ban(action, state);
         AfterStep(action, before, startTick);
+        // A conversation leaves its npc standing where it ended, to be talked to again whatever their gates now say.
+        _lingering = done && Model.Lingers(action.Index) && action.Place is { } npc
+            && Host.Session.Trek.Wanderers.All.FirstOrDefault(w => w.Map.Record.ObjectId(w.Party.Index) == npc) is { } body ? (npc, body) : null;
         var line = new StepLine(number, goal.Describe(), action.Describe(), summary, Host.Clock.Ticks - startTick, clock.Elapsed.TotalSeconds, startTick);
         Report.Steps.Add(line);
         Progress?.Invoke($"{number,4} {Host.Clock.Ticks,10} [{goal}] {action.Describe()}: {summary}");
