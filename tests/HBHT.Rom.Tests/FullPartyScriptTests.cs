@@ -2,14 +2,13 @@ using HBHT.Core;
 using HBHT.Core.Scripts;
 using HBHT.Plugins;
 using HBHT.Plugins.Records;
-using HBHT.Rom.Rig;
 
 namespace HBHT.Rom.Tests;
 
 /// <summary>
 /// The template eleven cut-scenes share for a recruit who finds the party full: they say there's no room, then ask each member in
 /// turn, and a member who would leave offers it in a menu: the first choice runs RemoveMember and goes back to the join node, the
-/// second stays. Here Keelin's (<c>aidyn:script/0x0382</c>), played through the runner over the 1.0 checkpoints' parties.
+/// second stays. Here Keelin's (<c>aidyn:script/0x0382</c>), played through the runner over the story saves' parties.
 /// </summary>
 public sealed class FullPartyScriptTests(Na10Import fixture)
 {
@@ -22,23 +21,8 @@ public sealed class FullPartyScriptTests(Na10Import fixture)
 
     private PluginSet Set => fixture.Data.Set;
 
-    /// <summary>A 1.0 checkpoint as a game, found by its label.</summary>
-    private GameState Game(string label)
-    {
-        var name = Directory.Exists(TestRoms.Folder)
-            ? Directory.EnumerateFiles(TestRoms.Folder).Select(Path.GetFileName).OfType<string>()
-                .FirstOrDefault(n => n.StartsWith("Aidyn Chronicles", StringComparison.Ordinal) && n.Contains(" - ") && n[^4..^1] == ".bs"
-                    && CheckpointSave.Label(n) == label)
-            : null;
-        if (name is null)
-            Assert.Skip($"No 1.0 checkpoint \"{label}\" in {TestRoms.Folder}.");
-        var problems = new List<string>();
-        var save = CheckpointSave.Convert(AresCheckpoint.Read(Path.Combine(TestRoms.Folder, name)), Set, label, problems);
-        Assert.Empty(problems);
-        var game = GameState.Load(Set, save);
-        Assert.Empty(game.Problems);
-        return game;
-    }
+    /// <summary>A story save as a game (<see cref="StorySaves"/>).</summary>
+    private GameState Game(char slot) => StorySaves.Game(Set, slot);
 
     /// <summary>
     /// Plays the script from its first node, pressing on through lines and waits, and choosing in each menu the option
@@ -88,7 +72,7 @@ public sealed class FullPartyScriptTests(Na10Import fixture)
     [Fact]
     public void SholehLeavesWhenAskedAndKeelinTakesHerPlaceWhileBrennaStays()
     {
-        var game = Game("Before Rooughah");
+        var game = Game('C');
         var party = game.Party.Members.Select(m => m.Entity).ToList();
         Assert.Equal([GameState.Alaron, Entity(0x024C), Entity(0x0243), Entity(0x024D)], party);
         Assert.True(IsSet(game, 523));
@@ -124,7 +108,7 @@ public sealed class FullPartyScriptTests(Na10Import fixture)
     [Fact]
     public void WithSholehStayingRhedaWhoMayNowLeaveIsOfferedItAndKeelinTakesHerPlace()
     {
-        var game = Game("Before Rooughah");
+        var game = Game('C');
 
         var runner = Play(game, node => node == Rheda ? 0 : null, out var menus);
 
@@ -142,7 +126,7 @@ public sealed class FullPartyScriptTests(Na10Import fixture)
     [Fact]
     public void NoOneLeavesIfEveryoneAskedStaysAndKeelinWalksOffSighing()
     {
-        var game = Game("Before Rooughah");
+        var game = Game('C');
         var party = game.Party.Members.Select(m => m.Entity).ToList();
 
         var runner = Play(game, _ => null, out var menus);
@@ -161,7 +145,7 @@ public sealed class FullPartyScriptTests(Na10Import fixture)
     [Fact]
     public void RhedaWontLeaveBeforeShamsukIsBeatenAndNiesenNeverDoesSoNoRoomIsMadeForKeelin()
     {
-        var game = Game("Before Shamsuk's Tower");
+        var game = Game('B');
         Assert.Equal([GameState.Alaron, Entity(0x024C), Entity(0x0243), Entity(0x024A)], game.Party.Members.Select(m => m.Entity));
         Assert.False(IsSet(game, 458));
 
@@ -183,7 +167,7 @@ public sealed class FullPartyScriptTests(Na10Import fixture)
     [Fact]
     public void WithRoomKeelinJoinsAtOnceAndTheNoRoomLineIsSkipped()
     {
-        var game = Game("Before Rooughah");
+        var game = Game('C');
         game.RemoveMember(Entity(0x024D));
         Assert.Equal(3, game.Party.Count);
 

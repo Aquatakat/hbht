@@ -6,7 +6,6 @@ using HBHT.Core.Magic;
 using HBHT.Plugins;
 using HBHT.Plugins.Records;
 
-using static HBHT.Rom.Tests.CombatCheckpoints;
 
 namespace HBHT.Rom.Tests;
 
@@ -91,7 +90,7 @@ public sealed class PotionRecordTests(Na10Import fixture)
     {
         var (set, temp) = Modded();
         using var _ = temp;
-        var built = Plain(set, 1);
+        var built = TestBattles.Plain(set);
         var battle = built.Battle;
         var game = built.Game;
         var alaron = battle.Combatants.First(c => c.Sheet.Name == "Alaron");
