@@ -717,6 +717,30 @@ What's left, 51:
 
 So of the 2,353 targets, play reaches 2,302, 7 are the relaxation's overestimates, 11 are 1.0's, and 33 are the bot's.
 
+#### The user's review of what's left
+
+The user went through the 33 (Nov 14, 2026), and the data settled the rest. Ten more aren't the bot's:
+
+- **Scenes that play first** (3728, 1221, 1011, 3209), overestimates as Edur's and 1513 are. Each npc shares its enabled gate with a script object listed earlier in its cells, whose radius covers where the npc wanders, and whose cut-scene shuts the gate. The Shadow between Oisin and Gwernia (Overworld K08/10) wanders 7.7 to 13.8 from the script object K08/2 (radius 15, both enabled by 5050), which plays the same `0x03B4`; its done flag, 100, removes both. The Chaos Mauler (A22/11, enabled while 319 is clear) wanders 2 to 3 from `cradawgh` (A22/8, radius 5), whose `0x042C` sets 319 at node 8 before its battle. Lugash (Barrows G03/11 and G03/12, the second enabled by 5178, the first by 5250) wanders within 4 of the script objects G03/9 and G03/10 (radius 10, gated as the two npcs are), whose cut-scenes set 532 and 550, shutting 5250 and 5178, and start his battle without writing 1011. Sheridan in Talewok (H13/23, enabled by 5099) wanders 3.8 to 11.2 from Niesen's scene (H13/11, radius 15), whose done flag 337 shuts 5099; his script, `0x0532`, is only Alaron's placeholder line, "Hey, dude, this dialog isn't BORGED yet". Reaching any of them before the scene would need the body at the far edge of its wander circle and the player at the edge of reach, which no play does.
+- **Flags that are never meaningfully true** (5409, 5410), overestimates of the relaxation, which keeps no correlation between a derived flag's inputs. As bits, the first input the lowest, 5409 is Abrecan not dead (615), left the party (685) and in it (89), and 5410 Becan left (697), not dead (618) and in (375). Joining clears the left flag and leaving clears the joined one, so the two are set together only for the instant between a rejoining member's two writes (`GameState.WriteMemberFlags`). Nothing reads either.
+- **Farris's staff** (565), cut content by the user's judgement. The intended way out of Shamsuk's Tower teleports the party to the forest, plays its cut-scenes, then spawns a teleporter that puts the party at Shamsuk's final scene and battle, after which the party stands in the tripwire's range of the scene that takes Farris out of the party. With Becan in the party and not Abrecan, the flags under the tower aren't set as meant and the teleporter never spawns. The player walks to Shamsuk instead, which plays well enough, but doesn't land in Farris's tripwire, so Farris stays; tripwires around the forest's ways in and out play the same scene, and only a party that slips past all of them leaves with Farris and can confront him holding the Staff. The user's account, from playing 1.0; the bot hasn't found that way.
+- **The Dust Devil at desert O26** (3626), 1.0's: the user's look in the game finds it placed outside the ground that has collision.
+- **Tamberlain's poor party** (3143, 3150), left aside by the user: they want 9 gold or less, where by Tamberlain's point in the story a party holds tens or hundreds of thousands, so no player is likely to meet them.
+
+Zaratas in the Ugarit palace (3193) stays the bot's: talking to him gives nothing the story needs, so no plan wants him, but he's there to talk to. The user also expects Godric and Becan's talk about the bog (468, 5150) and Keelin's (486, 558, 5162, 5185) to be reachable: Keelin's are well-worn story beats, since a Thief is strong enough that many players carry Brenna and Keelin both to the end.
+
+So of the 2,353, play reaches 2,302, 13 are the relaxation's overestimates, 13 are 1.0's (Farris's staff, the Dust Devil and StageH among them), 2 are left aside (Tamberlain's), and **23 are the bot's**:
+
+| Class | Targets | Examples |
+| --- | --- | --- |
+| Members together | 6 | Godric and Becan (468, 5150), Keelin's (486, 558, 5162, 5185) |
+| Other windows | 5 | 948, 1339, 1507, 1310, 1311 |
+| Conversations with no plan | 3 | Farris outside Terminor (3151), Zaratas (3193), Trahern's sword (3516) |
+| Arturo's bridge scene `0x0404` | 3 | 4271, 4282, 3462 |
+| Gwernia castle's window | 3 | 82, 1523, 1515 |
+| Places | 1 | the Sand Worm at P26/2 (1479) |
+| The seasons | 2 | 2311, 2312 |
+
 ### What the planner doesn't model
 
 Stage 5. The 2,229 targets above are only the flags the model's actions set. Every other flag was classified by what can set it, by a script over the plugins and stage 4's tree (`census.cs` in the stage's scratchpad, `C:\Users\aquat\AppData\Local\Temp\claude\4b1e3b4f7846419b\bdc87af7-6f2d-44c1-aadd-59996ef153eb\scratchpad\census\`, run as `dotnet run census.cs -- <stage 4 tree> [<stage 5 tree>]`). The 5,627 flags are 5,556 records and the 71 journal triggers the importer leaves out ([flags](flags.md#the-records)). Of the 3,327 records that weren't targets:
