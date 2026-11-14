@@ -100,8 +100,29 @@ public sealed partial class Playthrough
     private readonly Dictionary<RecordId, uint> _shopped = [];
     private readonly Dictionary<int, int> _rerolls = [];
 
-    /// <summary>How many times a step whose Troubadour check went against it is played again.</summary>
+    /// <summary>How many times a step whose roll went against it is played again, at least (<see cref="TroubadourTries(CodeCheck)"/>).</summary>
     private const int MostRerolls = 8;
+
+    /// <summary>The most times a step whose Troubadour check went against it is played again, however unlikely the check.</summary>
+    private const int MostTroubadourTries = 60;
+
+    /// <summary>
+    /// How many times a step whose Troubadour check went against it is played again: enough for a 95% chance of passing in all, by the
+    /// party's chance of a pass now (<see cref="CodeGates.RollChance"/>), between <see cref="MostRerolls"/> and
+    /// <see cref="MostTroubadourTries"/>.
+    /// </summary>
+    private int TroubadourTries(CodeCheck check) =>
+        TroubadourTries(CodeGates.RollChance(Game, (int)Characters.Skill.Troubadour, check.Lo, check.Hi));
+
+    /// <summary>How many times a step whose Troubadour check passes with this chance is played again (<see cref="TroubadourTries(CodeCheck)"/>).</summary>
+    public static int TroubadourTries(double chance)
+    {
+        if (chance <= 0)
+            return 0;
+        if (chance >= 1)
+            return MostRerolls;
+        return Math.Clamp((int)Math.Ceiling(Math.Log(0.05) / Math.Log(1 - chance)), MostRerolls, MostTroubadourTries);
+    }
     private readonly HashSet<RecordId> _hopeless = [];
     private int _joined;
     private long _startTicks;
@@ -612,10 +633,13 @@ public sealed partial class Playthrough
                 : byTheWay ? $"{outcome.Failure}, but what it was for came about" : $"{outcome.Failure}: {outcome.Reason}";
             Compare(action, outcome, translated, byTheWay);
         }
-        // A Troubadour check isn't kept by its map object, so a step that rolled against it is played again, a few times, before it's banned.
-        var reroll = !done && outcome is { Used: true } && translated.Rolls.Any(g => g.Check is { Kind: CodeCheckKind.Skill, A: { } skill }
-            && Characters.SkillId.TryFromRecord(skill) is { } id && id.Slot == (int)Characters.Skill.Troubadour)
-            && (_rerolls[action.Index] = _rerolls.GetValueOrDefault(action.Index) + 1) <= MostRerolls;
+        // A Troubadour check isn't kept by its map object, so a step that rolled against it is played again before it's banned: as often
+        // as gives it a 95% chance in all, at least MostRerolls times. Pandara's at Overworld G12/16 (0x03FB) passes 8% of the time for
+        // Alaron at Troubadour 1, and 8 tries left half the jobs that wanted her amulet (234) without it.
+        var troubadour = !done && outcome is { Used: true } ? translated.Rolls.Select(g => g.Check).FirstOrDefault(c => c is { Kind: CodeCheckKind.Skill, A: { } skill }
+            && Characters.SkillId.TryFromRecord(skill) is { } id && id.Slot == (int)Characters.Skill.Troubadour) : null;
+        var reroll = troubadour is not null
+            && (_rerolls[action.Index] = _rerolls.GetValueOrDefault(action.Index) + 1) <= TroubadourTries(troubadour);
         // A roll the game keeps, a trap that went off or a skill check its map object remembers, is played again from the save before the
         // step, as a player reloads: a trap's container is destroyed, and its Opened and Used flags never come.
         // So is a trap meant to go off that was disarmed, and a camp meant to play its scene that was ambushed.

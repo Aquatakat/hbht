@@ -809,8 +809,14 @@ The "party of 1–3" the reports gave for Arturo's bridge scene (`0x0404` at Ove
 
 **Rheda's talk in Port Saiid (262, 1001)** wants her never taken (5245: 91 clear). Its best four starts are the Port Saiid saves with her in, from which every way to take her out is after Shamsuk. Stages 6 to 8 had it ride along with 5245's start from the trunk's first save; in stage 9 a job had covered 5245, so no start was made there and the two had none. Now a target still with no start takes, further down its own list, the first of the next four whose party already stands at its save (its members in, those it keeps out out) and whose plan keeps it. Over stage 9's tree that's `t003` with Rheda kept out (`p1-t003-out-024C`): it rides the story from Oriana's hut without her, through Erromon, Jundar, the dryads and the bridge, and talks to her at Port Saiid A07/10 at step 26, 2 of 2 in 76 s.
 
+**Pandara's Troubadour check** (after the merged run). Pandara's amulet (234) and the Jundar Gate's riddle after it (479, 4239, 5158) want her taking Alaron to her grove (231). That needs her conversation (`0x03FB` at Overworld G12/16) to pass a Troubadour check of 2 or more. The check rolls the skill plus Dexterity × 3 against d100 and isn't remembered ([scripts](scripts.md)). With Alaron at Troubadour 1 and Dexterity 11 it passes 8% of the time (`CodeGates.RollChance`). Stage 9's `t023` passed on its first talk. The merged stage 10 tree's `t023` missed twice and stranded, and so did `r2-t012`. Lingering didn't cause it: the talks were the same with it or without.
+- **The near step banned the replays.** A missed roll leaves the state as it was. The near step bans a near step that changed nothing where it was taken, so a replay for the roll was banned after its first miss. Now a step played again for its roll (`RunStep.Again`) isn't taken for one that changed nothing.
+- **Eight tries weren't enough at 8%.** They pass about half the time. A Troubadour check is now played again as often as gives a 95% chance in all, by the party's chance of passing it (`Playthrough.TroubadourTries`): at least 8 times, at most 60. That's 35 for Pandara.
+- From the stage 10 tree's save before `t023`'s step 8, a one-job tree passes the check on the 19th talk and covers all four in 43 steps.
+
 | Target | Now |
 | --- | --- |
+| 234, 479, 4239, 5158 | Covered from the merged tree's `t023` save before step 8 (above) |
 | 3462 | Covered from `t026`: a cover job of its own, 5 steps, and the party job `p1-t026-out-0240` the same |
 | 4271, 4282 | 1.0's (`NotTheBots`) |
 | 262, 1001 | Covered by the party job `p1-t003-out-024C`, from a party round over stage 9's tree |

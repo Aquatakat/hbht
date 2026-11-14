@@ -93,6 +93,28 @@ public sealed class PlaythroughPlannerTests(Na10Import fixture)
     }
 
     [Fact]
+    public void AnUnlikelyTroubadourCheckIsTriedUntilItsAlmostSureToHavePassed()
+    {
+        // Pandara's check at Overworld G12/16 (0x03FB) wants 2 or more. Troubadour totals the skill and Dexterity × 3 against d100, so
+        // Alaron at Troubadour 1 and Dexterity 11 passes 8% of the time: 8 tries passed it about half the time, and the merged stage 10
+        // tree lost her amulet (234) and the Jundar Gate's riddle after it (479, 4239, 5158).
+        var game = GameState.NewGame(Plugins);
+        var alaron = game.Party.Members.Single();
+        var troubadour = (int)HBHT.Core.Characters.Skill.Troubadour;
+        alaron.Skills.Modify(HBHT.Core.Characters.Skill.Troubadour, 1 - alaron.Skills.Modified(HBHT.Core.Characters.Skill.Troubadour));
+        alaron.Stats.ChangeModified(HBHT.Core.Characters.Stat.Dexterity, 11 - alaron.Stats.Modified(HBHT.Core.Characters.Stat.Dexterity));
+        var chance = CodeGates.RollChance(game, troubadour, 2, 21);
+        Assert.InRange(chance, 0.05, 0.12);
+        var tries = Playthrough.TroubadourTries(chance);
+        Assert.True(1 - Math.Pow(1 - chance, tries) >= 0.95, $"{tries} tries at {chance:P1}");
+        Assert.Equal(35, Playthrough.TroubadourTries(0.083));
+        // A likely check is tried as any roll is, at least 8 times; an all but hopeless one 60 at most; one that can't pass, not again.
+        Assert.Equal(8, Playthrough.TroubadourTries(0.5));
+        Assert.Equal(60, Playthrough.TroubadourTries(0.01));
+        Assert.Equal(0, Playthrough.TroubadourTries(0));
+    }
+
+    [Fact]
     public void ATrapIsAGateTheRunMeetsByThePartysChanceOfDisarmingIt()
     {
         // A trap that goes off destroys its container, so a step to a trapped one is played only while the party has a chance: its
