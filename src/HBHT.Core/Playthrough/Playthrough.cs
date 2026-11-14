@@ -608,6 +608,7 @@ public sealed partial class Playthrough
             var byTheWay = !outcome.Done && expect.Count > 0 && outcome.Misses.Count == 0;
             done = (outcome.Done || byTheWay) && outcome.Misses.Count == 0;
             summary = outcome.Done ? (outcome.Misses.Count == 0 ? "done" : $"missed {string.Join(", ", outcome.Misses)}")
+                + (outcome.TrapTries > 0 ? $", its trap tried {outcome.TrapTries + 1} times" : "")
                 : byTheWay ? $"{outcome.Failure}, but what it was for came about" : $"{outcome.Failure}: {outcome.Reason}";
             Compare(action, outcome, translated, byTheWay);
         }
@@ -652,16 +653,20 @@ public sealed partial class Playthrough
     }
 
     /// <summary>
-    /// After a roll went against a step, the game starts again on the save from before it, and the player stands a while (17 ticks a try)
-    /// so that the world's random stream, which the weather draws on every frame, rolls anew. Whether it did.
+    /// After a roll went against a step, the game starts again on the save from before it, and is saved and loaded where the player stands
+    /// once a try (<see cref="PlaythroughHost.SaveAndLoad"/>), so that the world's random stream rolls anew. Standing doesn't move it:
+    /// stage 9's 17 ticks a try played every try's roll the same. Whether it did.
     /// </summary>
     private bool LoadBefore(string save, int tries)
     {
         Host.Restart(GameState.Load(Model.Plugins, SaveFile.Parse(save, Model.Plugins)));
         if (Host.RunUntilControl(Options.StepTicks) != HostRun.Done)
             return false;
-        var until = Host.Clock.Ticks + 17 * tries;
-        Host.RunUntil(h => h.Clock.Ticks >= until, 17 * tries + 1);
+        for (var i = 0; i < tries; i++)
+        {
+            if (!Host.SaveAndLoad() || Host.RunUntilControl(Options.StepTicks) != HostRun.Done)
+                return false;
+        }
         Progress?.Invoke($"     a roll went against it: loaded the save before the step, for try {tries + 1}");
         return true;
     }
@@ -700,10 +705,8 @@ public sealed partial class Playthrough
     /// </summary>
     private bool SaveAndLoad()
     {
-        if (!Host.PlayerHasControl || !Host.Session.NotePlace())
+        if (!Host.SaveAndLoad())
             return false;
-        var save = SaveFile.Serialize(Save());
-        Host.Restart(GameState.Load(Model.Plugins, SaveFile.Parse(save, Model.Plugins)));
         Host.RunUntilControl(Options.StepTicks);
         Progress?.Invoke("     saved and loaded where the player stood");
         return true;

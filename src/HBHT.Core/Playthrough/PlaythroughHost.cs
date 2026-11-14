@@ -10,6 +10,7 @@ using HBHT.Core.Trek;
 using HBHT.Core.Ui;
 using HBHT.Plugins;
 using HBHT.Plugins.Records;
+using HBHT.Plugins.Saves;
 
 namespace HBHT.Core.Playthrough;
 
@@ -289,6 +290,22 @@ public sealed partial class PlaythroughHost
         _menuOpen = 0;
         StartSession(game, GameStart.For(game), opening: false);
         then?.Invoke(this);
+    }
+
+    /// <summary>
+    /// Saves where the player stands and loads the save, as a player does from the System tab (<see cref="Restart"/>): the chunks load
+    /// again and he's set down afresh, which draws on the world's random stream, so the next roll on it isn't the one before. Standing
+    /// still doesn't move that stream: the weather draws on it only as the part of the day changes. Whether it could save, which wants
+    /// trek with the controls.
+    /// </summary>
+    public bool SaveAndLoad()
+    {
+        if (!PlayerHasControl || !Session.NotePlace())
+            return false;
+        Game.Label = null;
+        var save = SaveFile.Serialize(Game.Save());
+        Restart(GameState.Load(_plugins, SaveFile.Parse(save, _plugins)));
+        return true;
     }
 
     /// <summary>Steps until <paramref name="done"/> holds, the game ends, or <paramref name="most"/> ticks have been stepped. Why it stopped.</summary>

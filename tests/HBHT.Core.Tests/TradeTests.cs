@@ -975,6 +975,31 @@ public class ContainerRulesTests
     }
 
     [Fact]
+    public void WouldDisarmLooksAheadAtTheRollDisarmMakesWithoutDrawingOrPaying()
+    {
+        // The playthrough bot's look at the roll the trap's menu holds still: over a run of seeds, it says what Disarm then does, and
+        // leaves the stream and the mechanic's Stamina as they were. 18 × 4 + 2 × 10 is 92 against a trap of 3: some pass, some don't.
+        var mechanic = TradeData.Member(0, Skills(mechanic: 2));
+        var party = PartyOf(mechanic);
+        var (passed, failed) = (0, 0);
+        for (uint i = 1; i <= 60; i++)
+        {
+            var seed = unchecked(i * 0x9E3779B9u);
+            var random = new Lcg(seed);
+            var would = Containers.WouldDisarm(party, 3, random);
+            Assert.Equal(seed, random.Seed);
+            Assert.Equal(30, mechanic.Stats.Modified(Stat.Stamina));
+
+            var check = PartyOf(TradeData.Member(0, Skills(mechanic: 2)));
+            Assert.Equal(would, Containers.Disarm(check, 3, new Lcg(seed)));
+            (passed, failed) = would ? (passed + 1, failed) : (passed, failed + 1);
+        }
+        Assert.True(passed > 0 && failed > 0, $"{passed} passed, {failed} failed");
+        // With no mechanic, it never disarms.
+        Assert.False(Containers.WouldDisarm(PartyOf(TradeData.Member(0, Skills(mechanic: 0))), 1, new Lcg(5)));
+    }
+
+    [Fact]
     public void TheFirstMemberWinsATieInMechanic()
     {
         var first = TradeData.Member(0, Skills(mechanic: 3));

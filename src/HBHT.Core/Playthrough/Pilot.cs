@@ -1,4 +1,6 @@
 using System.Numerics;
+using HBHT.Core.Items;
+using HBHT.Core.MapObjects;
 using HBHT.Core.Trek;
 using HBHT.Core.Ui;
 using HBHT.Plugins;
@@ -96,13 +98,15 @@ public sealed class Pilot : IInputPolicy
     public StepOutcome Run(PlaythroughHost host, PilotStep step, long mostTicks)
     {
         var before = GameSnapshot.Take(host.Game);
-        var (input, conversations) = (host.Input, host.Conversations);
+        var (input, conversations, menus) = (host.Input, host.Conversations, host.Menus);
         var choices = new WantedChoices(step.Choices ?? [],
             step.Consequences.Count > 0 ? new WantedChoices(step.Consequences, conversations) : conversations, step.Ways);
         var (start, transitions, pages, battles) = (host.Clock.Ticks, host.Transitions.Count, host.Pages.Count, host.BattlesFought.Count);
         var walk = _walk = new Walk(step);
         host.Input = this;
         host.Conversations = choices;
+        if (step.Disarms is not null)
+            host.Menus = new TrapTiming(walk, menus);
         try
         {
             Begin(walk);
@@ -115,6 +119,16 @@ public sealed class Pilot : IInputPolicy
                 {
                     walk.Fail(StepFailure.GameOver, $"the game ended: {host.End}");
                     break;
+                }
+                // Backed out of the step's trap for its roll: saved and loaded where he stands, and the trap tried again.
+                if (walk.Reroll && host.PlayerHasControl)
+                {
+                    walk.Reroll = false;
+                    if (host.SaveAndLoad())
+                    {
+                        walk.Used = false;
+                        walk.Replan = true;
+                    }
                 }
                 var control = host.PlayerHasControl;
                 // Back from a conversation, a cut-scene, a battle, a menu or a teleport: the player may be anywhere.
@@ -150,6 +164,7 @@ public sealed class Pilot : IInputPolicy
         {
             host.Input = input;
             host.Conversations = conversations;
+            host.Menus = menus;
             _walk = null;
         }
         var after = GameSnapshot.Take(host.Game);
@@ -164,6 +179,7 @@ public sealed class Pilot : IInputPolicy
             Blocker = walk.Blocker,
             Crossed = [.. walk.Crossed],
             WalledBy = walk.Failure is StepFailure.Stuck ? walk.WalledBy : [],
+            TrapTries = walk.TrapTries,
         };
     }
 
@@ -762,6 +778,33 @@ public sealed class Pilot : IInputPolicy
     }
 
     /// <summary>A step under way.</summary>
+    /// <summary>How many times a step's trap is backed out of for its roll before Disarm is chosen however it falls.</summary>
+    public const int MostTrapTries = 64;
+
+    /// <summary>
+    /// The trap's menu at the step's own object (<see cref="PilotStep.Disarms"/>): Disarm is chosen only when the roll the menu holds
+    /// still comes out as the step wants (<see cref="Containers.WouldDisarm"/>; nothing draws on the world's stream while a popup is up,
+    /// trek's clock stopped); otherwise Exit, and the pilot saves and loads, which moves the stream, and tries again. Who disarms is the
+    /// game's choice, the member with the most Mechanic who has the Stamina, so when Disarm is chosen is all a player has. Every other
+    /// menu and popup is the host's own policy's.
+    /// </summary>
+    private sealed class TrapTiming(Walk walk, IMenuPolicy inner) : IMenuPolicy
+    {
+        public MenuAction Press(PlaythroughHost host, PauseMenu menu) => inner.Press(host, menu);
+
+        public int? Popup(PlaythroughHost host, TrekPopup popup)
+        {
+            if (host.Session.Trek.Use.Trap is not var (id, level) || id != walk.Step.MapObject || walk.Step.Disarms is not { } want
+                || walk.TrapTries >= MostTrapTries)
+                return inner.Popup(host, popup);
+            if (Containers.WouldDisarm(host.Game.Party, level, host.Game.Random.World) == want)
+                return 0;
+            walk.TrapTries++;
+            walk.Reroll = true;
+            return null;
+        }
+    }
+
     private sealed class Walk(PilotStep step)
     {
         public PilotStep Step { get; } = step;
@@ -810,6 +853,12 @@ public sealed class Pilot : IInputPolicy
 
         public bool Arrived;
         public bool Used;
+
+        /// <summary>The step's trap was backed out of for its roll, and the game is to be saved and loaded before it's tried again.</summary>
+        public bool Reroll;
+
+        /// <summary>How many times the step's trap has been backed out of.</summary>
+        public int TrapTries;
         public StepFailure? Failure;
         public string? Reason;
         public RouteRefusal? Refusal;

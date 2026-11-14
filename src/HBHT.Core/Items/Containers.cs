@@ -116,6 +116,32 @@ public static class Containers
     /// </summary>
     public static bool Disarm(Party party, int level, IRandom random)
     {
+        if (Mechanic(party) is not var (mechanic, best))
+            return false;
+        var step = CheckAndPay(mechanic, mechanic.Stats.Modified(Stat.Intelligence) * 4 + best * 10, Math.Max(10 - best, 1), random);
+        return level == 0 || step != 0 && step >= level;
+    }
+
+    /// <summary>
+    /// Whether <see cref="Disarm"/> would disarm a trap of <paramref name="level"/> with <paramref name="random"/> as it stands, drawing
+    /// from a copy of it and paying nothing: a look ahead, for the playthrough bot, at a roll the trap's menu holds still.
+    /// </summary>
+    public static bool WouldDisarm(Party party, int level, Lcg random)
+    {
+        if (Mechanic(party) is not var (mechanic, best))
+            return false;
+        var total = (ushort)(mechanic.Stats.Modified(Stat.Intelligence) * 4 + best * 10);
+        var roll = new Lcg(random.Seed).RollD(1, 100);
+        var step = roll < total ? Party.SkillCheckStep((short)(total - roll)) : 0;
+        return level == 0 || step != 0 && step >= level;
+    }
+
+    /// <summary>
+    /// Who disarms (<c>Party::DisarmSkill</c>): the member with the highest modified Mechanic above 0, the first on a tie, who has the
+    /// Stamina it costs, 10 less their level, at least 1; with their Mechanic. Null with none.
+    /// </summary>
+    public static (Character Member, int Mechanic)? Mechanic(Party party)
+    {
         Character? mechanic = null;
         var best = 0;
         foreach (var member in party.Members)
@@ -125,10 +151,7 @@ public static class Containers
             if (best < skill && cost <= member.Stats.Modified(Stat.Stamina))
                 (mechanic, best) = (member, skill);
         }
-        if (mechanic is null)
-            return false;
-        var step = CheckAndPay(mechanic, mechanic.Stats.Modified(Stat.Intelligence) * 4 + best * 10, Math.Max(10 - best, 1), random);
-        return level == 0 || step != 0 && step >= level;
+        return mechanic is null ? null : (mechanic, best);
     }
 
     /// <summary>
