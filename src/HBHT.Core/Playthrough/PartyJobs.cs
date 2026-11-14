@@ -76,7 +76,10 @@ public static class PartyJobs
             // Those the trunk brings in later come with the story, which the job rides on with the rest kept: Niesen, whose joining in
             // Terminor is the story's way on, so that every target past it seems to need him, and who dies in Shamsuk's Tower; Abrecan,
             // who leaves at Erromon and comes back at Overworld I13. Kept from the start, a job could never take the story past them.
-            if (later is not null && members.Any(m => !later.Contains(m)))
+            // With someone to keep out, members the trunk brings in later are left to the story too, though they're all it needs: Gwernia
+            // castle's conversations need Abrecan and Godric out, and in stage 9's tree Rheda in as well, and kept from the castle's save
+            // the job had her join there first and never went back out by Oriana's door (51) to the questioning (63) they wait on.
+            if (later is not null && (outs.Count > 0 || members.Any(m => !later.Contains(m))))
                 members = [.. members.Where(m => !later.Contains(m))];
             // Members the story's later joins can't send away, crowding the members kept, are kept out too, as a start of its own ahead of
             // the one without them: Becan's targets lie past Niesen's join in Terminor, and Keelin's, from saves where Rheda is in and

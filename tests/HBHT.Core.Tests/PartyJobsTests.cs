@@ -12,6 +12,7 @@ public sealed class PartyJobsTests
     private static readonly RecordId Becan = Ids.Entity(0x0242);
     private static readonly RecordId Godric = Ids.Entity(0x0248);
     private static readonly RecordId Rheda = Ids.Entity(0x024C);
+    private static readonly RecordId Keelin = Ids.Entity(0x0249);
 
     private static TrunkLook Look(int step, float far, IReadOnlyList<RecordId> needs, params (RecordId Member, float Far)[] joins) =>
         new(step, new Dictionary<RecordId, float> { [Ids.Flag(10)] = far }, 1, 0)
@@ -158,5 +159,17 @@ public sealed class PartyJobsTests
         var without = Assert.Single(PartyJobs.Jobs(manifest, new Dictionary<RecordId, PartyStart> { [Ids.Flag(10)] = start with { Out = [Rheda] } }, "trunk", 1));
         Assert.Equal([Rheda.ToString()], without.Out);
         Assert.Equal("p1-t007-0242_0248-out-024C", without.Id);
+    }
+
+    [Fact]
+    public void ABranchFromAfterThePartyWasMadeSaysSoInItsFile()
+    {
+        // A party job's branch from after its party was made starts with it made: a member kept who's out of it there was let go at a
+        // join, to be brought back, not a party to plan from nothing. A job's file without the field reads as not made.
+        var made = new CoverJob("p1-t028-0249.1", "p1-t028-0249", "saves/x.sav", [Ids.Flag(486).ToString()], 1, Party: [Keelin.ToString()], PartyMade: true);
+        var back = System.Text.Json.JsonSerializer.Deserialize<CoverJob>(System.Text.Json.JsonSerializer.Serialize(made, CoverQueue.Json), CoverQueue.Json)!;
+        Assert.True(back.PartyMade);
+        var old = System.Text.Json.JsonSerializer.Deserialize<CoverJob>("""{"Id":"0","Save":null,"Targets":[],"Depth":0}""", CoverQueue.Json)!;
+        Assert.Null(old.PartyMade);
     }
 }

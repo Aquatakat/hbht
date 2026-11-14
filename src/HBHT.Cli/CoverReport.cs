@@ -333,25 +333,8 @@ internal static partial class CoverReport
         // side by side.
         var verdicts = new System.Collections.Concurrent.ConcurrentDictionary<PartyStart, (Plan Plan, IReadOnlySet<RecordId> Keeps)>();
         bool Takes(RecordId target, PartyStart start) => verdicts.TryGetValue(start, out var v) && v.Plan.Found && v.Keeps.Contains(target);
-        var at = needing.ToDictionary(t => t, _ => 0);
-        var chosen = new Dictionary<RecordId, PartyStart>();
-        while (true)
+        void PlanAll(IEnumerable<PartyStart> asked)
         {
-            var asked = new HashSet<PartyStart>();
-            foreach (var target in needing.Where(t => !chosen.ContainsKey(t)))
-            {
-                while (at[target] < starts[target].Count && verdicts.ContainsKey(starts[target][at[target]]) && !Takes(target, starts[target][at[target]]))
-                    at[target]++;
-                if (at[target] >= starts[target].Count)
-                    continue;
-                var start = starts[target][at[target]];
-                if (verdicts.ContainsKey(start))
-                    chosen[target] = start;
-                else
-                    asked.Add(start);
-            }
-            if (asked.Count == 0)
-                break;
             var list = asked.ToList();
             var next = -1;
             void Work()
@@ -373,6 +356,39 @@ internal static partial class CoverReport
             workers.ForEach(t => t.Start());
             workers.ForEach(t => t.Join());
         }
+        // The first start of each target's from at[target] on whose party the planner reaches keeping it, but those at a step to skip.
+        Dictionary<RecordId, PartyStart> Choose(Dictionary<RecordId, int> at, Func<RecordId, PartyStart, bool> skip)
+        {
+            var chosen = new Dictionary<RecordId, PartyStart>();
+            while (true)
+            {
+                var asked = new HashSet<PartyStart>();
+                foreach (var target in needing.Where(t => !chosen.ContainsKey(t)))
+                {
+                    while (at[target] < starts[target].Count && (skip(target, starts[target][at[target]])
+                        || verdicts.ContainsKey(starts[target][at[target]]) && !Takes(target, starts[target][at[target]])))
+                        at[target]++;
+                    if (at[target] >= starts[target].Count)
+                        continue;
+                    var start = starts[target][at[target]];
+                    if (verdicts.ContainsKey(start))
+                        chosen[target] = start;
+                    else
+                        asked.Add(start);
+                }
+                if (asked.Count == 0)
+                    return chosen;
+                PlanAll(asked);
+            }
+        }
+        var at = needing.ToDictionary(t => t, _ => 0);
+        var chosen = Choose(at, (_, _) => false);
+        // And a second start, from another save, where one's party is reached too: a start the relaxation calls good may be closed by the
+        // story's order, which it can't see. Gwernia castle's conversations, from after Phelan's talk (t004), want Oriana's door and the
+        // questioning outside the castle (51, 63), which only two joined (5004) lets the party go back out to, closing them; from before it
+        // (t003), the job goes out by the door first.
+        var at2 = needing.ToDictionary(t => t, t => chosen.ContainsKey(t) ? at[t] + 1 : starts[t].Count);
+        var second = Choose(at2, (t, s) => chosen.TryGetValue(t, out var first) && first.Step == s.Step);
         // A target none of whose best starts would do rides along with a start chosen for another, further down its own list, whose
         // party the planner reaches keeping it: Rheda's talk in Port Saiid (262) is nearer the saves where she's in the party, from which
         // the only ways to take her out are after Shamsuk, and goes with 5245 from before she joins.
@@ -384,10 +400,14 @@ internal static partial class CoverReport
         // One that needs, from a save, the members a start chosen there keeps and others besides rides along with it too, if its plan keeps
         // the target: the others join as the job gets to it. Godric and Becan's camp after Shamsuk (468, 5150) goes with Becan's job, which
         // rides the story past Shamsuk; Godric, who leaves on the way, comes back at Overworld H13 (0x0529) before the camp.
-        foreach (var target in needing.Where(t => !chosen.ContainsKey(t)))
+        // It does so before a start of its own that keeps them all from the start: theirs strand where the members kept close what the
+        // story's order needs first (Phelan's talk before Oriana's door and the questioning outside the castle that Godric's joining waits on).
+        var starts0 = chosen.Values.Distinct().Where(s => s.Members.Count > 0).OrderBy(s => s.Step).ToList();
+        foreach (var target in needing)
         {
-            if (chosen.Values.Distinct().OrderBy(s => s.Step).FirstOrDefault(s => s.Members.Count > 0 && Takes(target, s)
-                && every[target].Any(o => o.Step == s.Step && s.Members.All(o.Members.Contains) && o.Members.Count > s.Members.Count)) is { } with)
+            var own = chosen.GetValueOrDefault(target);
+            if (starts0.FirstOrDefault(s => s != own && Takes(target, s) && (own is null || own.Members.Count > s.Members.Count)
+                && every[target].Concat(starts[target]).Any(o => o.Step == s.Step && s.Members.All(o.Members.Contains) && o.Members.Count > s.Members.Count)) is { } with)
                 chosen[target] = with;
         }
         foreach (var target in needing)
@@ -395,7 +415,8 @@ internal static partial class CoverReport
             if (!file.Tried.TryGetValue(target.ToString(), out var tried))
                 file.Tried[target.ToString()] = tried = [];
             // The starts planned and found wanting are tried too: they'd be found wanting again.
-            tried.AddRange(starts[target].Take(at[target] + (chosen.ContainsKey(target) ? 1 : 0)).Select(s => s.Key).Where(k => !tried.Contains(k)));
+            var upTo = Math.Max(at[target] + (chosen.ContainsKey(target) ? 1 : 0), Math.Min(starts[target].Count, at2[target] + (second.ContainsKey(target) ? 1 : 0)));
+            tried.AddRange(starts[target].Take(upTo).Select(s => s.Key).Where(k => !tried.Contains(k)));
         }
         File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(file with { Rounds = round }, json));
         if (chosen.Count == 0)
@@ -404,6 +425,11 @@ internal static partial class CoverReport
             return 4;
         }
         var jobs = PartyJobs.Jobs(manifest, chosen, trunk, round);
+        // The second starts' jobs, but where a start is a first one's: its job has its own targets already.
+        var firsts = chosen.Values.ToHashSet();
+        var ids = jobs.Select(j => j.Id).ToHashSet();
+        jobs.AddRange(PartyJobs.Jobs(manifest, second.Where(s => !firsts.Contains(s.Value) && chosen.GetValueOrDefault(s.Key) is { Members.Count: 0 } or null)
+            .ToDictionary(s => s.Key, s => s.Value), trunk, round).Where(j => ids.Add(j.Id)));
         foreach (var job in jobs)
             queue.Add(job);
         Console.WriteLine($"Party {round}: {chosen.Count} target(s) in {jobs.Count} job(s); {needing.Count - chosen.Count} with no start whose party the planner reaches keeping them; " +
