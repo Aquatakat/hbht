@@ -128,6 +128,9 @@ public sealed class Pilot : IInputPolicy
                     {
                         walk.Used = false;
                         walk.Replan = true;
+                        // The route asked for again isn't a replan spent: stage 10's jobs at 2076's chest, Brenna's trained Mechanic failing
+                        // its trap of 1 a few times in a hundred, were stuck after 40 tries for the replans the tries spent.
+                        walk.Plans--;
                     }
                 }
                 var control = host.PlayerHasControl;
@@ -779,7 +782,7 @@ public sealed class Pilot : IInputPolicy
 
     /// <summary>A step under way.</summary>
     /// <summary>How many times a step's trap is backed out of for its roll before Disarm is chosen however it falls.</summary>
-    public const int MostTrapTries = 64;
+    public const int MostTrapTries = 200;
 
     /// <summary>
     /// The trap's menu at the step's own object (<see cref="PilotStep.Disarms"/>): Disarm is chosen only when the roll the menu holds
