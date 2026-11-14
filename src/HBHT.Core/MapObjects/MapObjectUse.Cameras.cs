@@ -83,6 +83,11 @@ public sealed partial class MapObjectUse
         }
     }
 
+    /// <summary>Whether a camera object would take the camera with the player at <paramref name="at"/>, in the chunk's coordinates.</summary>
+    public bool CameraReaches(LoadedMap map, Vector3 at) =>
+        map.Record.Grid is { } grid && grid.At(at).Any(i => map[i] is CameraObject camera && map.IsActive(i)
+            && Vector3.Distance(at, camera.Position) <= camera.Radius);
+
     private void Step(LoadedMap map, CameraObject camera, Vector3 at)
     {
         if (Camera is null || !map.IsActive(camera.Index) || Vector3.Distance(at, camera.Position) > camera.Radius)

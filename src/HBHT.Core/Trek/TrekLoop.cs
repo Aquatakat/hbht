@@ -540,12 +540,16 @@ public sealed partial class TrekLoop : IMapObjectHost
 
     /// <summary>
     /// The enhanced trek camera arrives with the player, under <see cref="CameraStyle.Enhanced"/>: behind him, or from a
-    /// teleporter's own camera point, <paramref name="kept"/>, where the follow camera has just been put.
+    /// teleporter's own camera point, <paramref name="kept"/>, where the follow camera has just been put. A point is kept
+    /// whatever its side where a camera object takes the camera at the arrival, which moves on from it.
     /// </summary>
     private void ArriveEnhanced(bool kept)
     {
-        if (CameraStyle == CameraStyle.Enhanced)
-            EnhancedCamera.Arrive(Camera, Chunks.World, Chunks.Visible, Player.Sphere.Position, Player.Heading, Indoors, kept);
+        if (CameraStyle != CameraStyle.Enhanced)
+            return;
+        var at = Player.Sphere.Position;
+        var authored = kept && Chunks.MapAt(at) is { } map && Use.CameraReaches(map, at - map.Origin);
+        EnhancedCamera.Arrive(Camera, Chunks.World, Chunks.Visible, at, Player.Heading, Indoors, kept, authored);
     }
 
     /// <summary>B in trek: raises or lowers the portraits, but not through a fade, a popup or a conversation (<c>Actor::Move</c>). Whether it did.</summary>

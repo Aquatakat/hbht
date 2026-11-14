@@ -370,6 +370,7 @@ public sealed class GameSession
         Trek.Player.Movement = settings.Movement;
         Trek.Wanderers.Reach = settings.WanderReach;
         Trek.CameraStyle = settings.TrekCamera;
+        Trek.EnhancedCamera.Tuning = settings.TrekTuning ?? TrekCameraTuning.Default;
         Trek.Wanderers.Movement = settings.Movement;
         Trek.DialogueCamera = settings.DialogueCamera ?? settings.Camera;
         Trek.DialogueTuning = settings.DialogueTuning;

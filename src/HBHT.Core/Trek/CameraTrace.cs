@@ -17,10 +17,12 @@ namespace HBHT.Core.Trek;
 /// <summary>
 /// A fixed walk for <see cref="CameraTrace"/>: trek started at a chunk's point (on the ground), optionally through the
 /// teleporter of that chunk which leads to <see cref="Door"/>, then the player steered along <see cref="Route"/>, points in
-/// <see cref="RouteChunk"/>'s coordinates (X and Z), running, by the stick read along the camera's look.
+/// <see cref="RouteChunk"/>'s coordinates (X and Z), running, by the stick read along the camera's look. With no route, he
+/// runs along the way he arrived facing for <see cref="MostTicks"/>. <see cref="DoorIndex"/> names the teleporter by its
+/// index in the start's chunk, where several lead to <see cref="Door"/>.
 /// </summary>
 public sealed record CameraWalk(string Name, int MapSet, string Chunk, Vector3 Local, Vector2 Heading, string? Door, string RouteChunk,
-    Vector2[] Route, int MostTicks = 900)
+    Vector2[] Route, int MostTicks = 900, int? DoorIndex = null)
 {
     /// <summary>
     /// The walks the enhanced trek camera is checked on (docs/systems/cameras.md): (a) into GwerniaCastle's M05 from the
@@ -42,11 +44,11 @@ public sealed record CameraWalk(string Name, int MapSet, string Chunk, Vector3 L
 /// One walk's trace of trek's camera, as shares of ticks and the view's turning: the view ahead blocked close by (a level ray
 /// from the aim along the look, out to 3 past the player, crosses collision from either side or the drawn world), the camera
 /// past a wall (the segment from the aim to it does), the player hidden from it, and the camera looking at his front while
-/// he moves (within 60° of against his travel); the view ahead blocked again from the walk's second second; and how fast the view turns, its peak and 95th percentile, and how fast that
+/// he moves (within 60° of against the way his body faces); the view ahead blocked again from the walk's second second; and how fast the view turns, its peak and 95th percentile, and how fast that
 /// changes. The front and the turning are counted from the walk's second second, past the arrival.
 /// </summary>
 public sealed record CameraTraceResult(string Walk, CameraStyle Style, int Ticks, float Blocked, float BlockedLate, float PastWall, float Hidden, float Front,
-    float PeakTurn, float Turn95, float PeakAccel, float Accel95, ulong Checksum, int Ends, int Points)
+    float PeakTurn, float Turn95, float PeakAccel, float Accel95, ulong Checksum, int Ends, int Points, int Held = 0)
 {
     public static string Header =>
         $"{"walk",-16} {"style",-9} {"ticks",5} {"blocked",8} {">1s",5} {"past",6} {"hidden",7} {"front",6} {"turn pk",8} {"turn95",7} {"acc pk",8} {"acc95",7} {"route",5}";
@@ -71,13 +73,16 @@ public static class CameraTrace
     private const int TicksPerSecond = 60;
 
     /// <summary>Trek started where <paramref name="walk"/> starts, on the ground, with the drawn world.</summary>
-    public static TrekLoop Start(PluginSet plugins, CameraWalk walk)
+    public static TrekLoop Start(PluginSet plugins, CameraWalk walk) => Start(plugins, walk, out _);
+
+    private static TrekLoop Start(PluginSet plugins, CameraWalk walk, out Host host)
     {
         var game = GameState.NewGame(plugins);
         var set = plugins.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, walk.MapSet));
         var streamer = new ChunkStreamer(plugins, game, new CollisionWorld(), set, new VisibleWorld());
         var start = GameStart.OfNewGame(plugins) with { Set = set, Chunk = walk.Chunk, Local = walk.Local, Heading = walk.Heading, SetDown = false };
-        var session = GameSession.Start(game, new Host(), new ZoneEngine(game, streamer), start);
+        host = new Host();
+        var session = GameSession.Start(game, host, new ZoneEngine(game, streamer), start);
         // The player's body plays the party leader's actor, as the runtime's does, which moves him by its root motion.
         if (session.PlayerActor is { } id && plugins.TryGet<ActorRecord>(id) is { } actor)
             session.Trek.PlayerAnimation = ActorMotion.AsDrawn(plugins, actor, game.Random.Animation) ?? IActorMotion.Still;
@@ -89,7 +94,7 @@ public static class CameraTrace
     public static CameraTraceResult Run(PluginSet plugins, CameraWalk walk, CameraStyle style, Action<TrekLoop, int>? each = null,
         TrekCameraTuning? tuning = null)
     {
-        var trek = Start(plugins, walk);
+        var trek = Start(plugins, walk, out var host);
         trek.CameraStyle = style;
         trek.EnhancedCamera.Tuning = tuning ?? TrekCameraTuning.Default;
         var checksum = 14695981039346656037UL;
@@ -103,18 +108,17 @@ public static class CameraTrace
         {
             var map = trek.Chunks.MapAt(trek.Player.Sphere.Position) ?? throw new InvalidOperationException($"{walk.Name}: no chunk at the start.");
             var teleporter = map.Objects.OfType<TeleporterObject>()
-                .Where(t => t.Leads?.ToString() == door)
+                .Where(t => t.Leads?.ToString() == door && (walk.DoorIndex is not { } index || t.Index == index))
                 .MinBy(t => Vector3.Distance(map.Origin + t.Position, trek.Player.Sphere.Position))
                 ?? throw new InvalidOperationException($"{walk.Name}: {map.Record.Id} has no teleporter to {door}.");
             ((IMapObjectHost)trek).Teleport(map, teleporter);
             var arrived = false;
             for (var i = 0; i < 600 && !arrived; i++)
             {
-                var chunk = trek.Chunks.ChunkAt(trek.Player.Sphere.Position);
                 trek.Tick(() => new PlayerInput(Vector2.Zero));
                 Sum(trek.Camera.Position);
                 Sum(trek.Camera.Aim);
-                arrived = trek.Chunks.ChunkAt(trek.Player.Sphere.Position)?.Id.ToString() == door && chunk?.Id.ToString() != door;
+                arrived = host.Arrivals > 0;
             }
             if (!arrived)
                 throw new InvalidOperationException($"{walk.Name}: never arrived in {door}.");
@@ -123,6 +127,10 @@ public static class CameraTrace
         var routeChunk = trek.Chunks.Find(walk.RouteChunk) ?? throw new InvalidOperationException($"{walk.Name}: no chunk {walk.RouteChunk}.");
         var origin = trek.Chunks.Origin(routeChunk);
         var route = walk.Route.Select(p => new Vector2(origin.X + p.X, origin.Z + p.Y)).ToArray();
+        // With no route, he holds the way he arrived facing.
+        var holding = route.Length == 0;
+        var facing = trek.Player.Heading;
+        var held = 0;
         var next = 0;
         var ticks = 0;
         int blocked = 0, blockedLate = 0, past = 0, hidden = 0, front = 0, late = 0;
@@ -132,21 +140,23 @@ public static class CameraTrace
         Vector3? lastSpin = null;
         var lastPlayer = trek.Player.Sphere.Position;
         var stuck = 0;
-        for (; ticks < walk.MostTicks && next < route.Length && stuck < 60; ticks++)
+        for (; ticks < walk.MostTicks && (holding || next < route.Length) && stuck < 60; ticks++)
         {
             var at = trek.Player.Sphere.Position;
             var flatAt = new Vector2(at.X, at.Z);
             while (next < route.Length && Vector2.Distance(flatAt, route[next]) < 0.6f)
                 next++;
-            if (next >= route.Length)
+            if (!holding && next >= route.Length)
                 break;
-            var way = Vector2.Normalize(route[next] - flatAt);
+            var way = holding ? facing : Vector2.Normalize(route[next] - flatAt);
             var look = trek.Camera.LookXZ;
             trek.Tick(() => new PlayerInput(Pilot.StickFor(way, look)));
             var camera = trek.Camera;
             Sum(camera.Position);
             Sum(camera.Aim);
             each?.Invoke(trek, ticks);
+            if (trek.Use.CurrentCamera is not null)
+                held++;
 
             var player = trek.Player.Sphere.Position;
             var world = trek.Chunks.World;
@@ -174,7 +184,9 @@ public static class CameraTrace
             if (ticks >= TicksPerSecond)
             {
                 late++;
-                if (travel.Length() > Moving && Vector3.Dot(Vector3.Normalize(travel), level) < -0.5f)
+                // His front is the way his body faces, not his travel, which a bounce off a wall turns back.
+                var faces = trek.Player.Heading;
+                if (travel.Length() > Moving && Vector3.Dot(new Vector3(faces.X, 0, faces.Y), level) < -0.5f)
                     front++;
                 if (lastLook is { } before)
                 {
@@ -193,7 +205,7 @@ public static class CameraTrace
 
         float Share(int n) => ticks == 0 ? 0 : (float)n / ticks;
         return new CameraTraceResult(walk.Name, style, ticks, Share(blocked), late == 0 ? 0 : (float)blockedLate / late, Share(past), Share(hidden), late == 0 ? 0 : (float)front / late,
-            Peak(turns), Percentile(turns, 0.95f), Peak(accels), Percentile(accels, 0.95f), checksum, next, route.Length);
+            Peak(turns), Percentile(turns, 0.95f), Peak(accels), Percentile(accels, 0.95f), checksum, next, route.Length, held);
     }
 
     /// <summary>
@@ -226,9 +238,9 @@ public static class CameraTrace
     /// <summary>A host that presents nothing.</summary>
     private sealed class Host : ITrekHost
     {
-        void ITrekHost.Arrived()
-        {
-        }
+        public int Arrivals { get; private set; }
+
+        void ITrekHost.Arrived() => Arrivals++;
 
         void ITrekHost.ConversationChanged()
         {

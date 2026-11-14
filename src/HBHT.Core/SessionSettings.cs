@@ -60,6 +60,9 @@ public sealed record SessionSettings
     /// <summary>Trek's camera (<see cref="Trek.TrekLoop.CameraStyle"/>): the Camera setting's, unless <c>--trek-camera</c> says otherwise.</summary>
     public CameraStyle TrekCamera { get; init; }
 
+    /// <summary>The trek camera's numbers (<see cref="TrekCameraTuning"/>), from the command line, or null for its defaults.</summary>
+    public TrekCameraTuning? TrekTuning { get; init; }
+
     /// <summary>The enhanced camera's numbers (<see cref="CameraTuning"/>), from the command line, or null for its defaults.</summary>
     public CameraTuning? CameraTuning { get; init; }
 
