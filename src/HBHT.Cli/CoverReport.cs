@@ -317,8 +317,11 @@ internal static partial class CoverReport
             $"Looked at {looks.Count} trunk saves for {open.Count} uncovered targets in {clock.Elapsed.TotalSeconds:0.0} s"));
 
         var brought = PartyJobs.Brought(manifest);
+        var crowds = PartyJobs.Crowds(model, manifest);
+        foreach (var crowd in crowds)
+            Console.WriteLine($"  t{crowd.Step:000}'s join asks only {string.Join(", ", crowd.Leavers.Select(m => m.Key))} to leave");
         var every = open.ToDictionary(t => t, t => PartyJobs.Starts(t, looks,
-            file.Tried.TryGetValue(t.ToString(), out var tried) ? tried.ToHashSet() : null, brought));
+            file.Tried.TryGetValue(t.ToString(), out var tried) ? tried.ToHashSet() : null, brought, crowds));
         var starts = every.ToDictionary(s => s.Key, s => s.Value.Take(MostPartyStarts).ToList());
         var needing = starts.Where(s => s.Value.Count > 0).Select(s => s.Key).ToList();
         Console.WriteLine($"{needing.Count} of them need a party the trunk doesn't make from a trunk save they're live from, " +

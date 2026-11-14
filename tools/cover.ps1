@@ -32,7 +32,7 @@ $exe = Join-Path $repo 'src/HBHT.Cli/bin/Release/net10.0/hbht.exe'
 function Invoke-Round([string]$What, [string[]]$Arguments) {
     Add-Content $Log "=== $(Get-Date -Format s) cover $What"
     $ErrorActionPreference = 'Continue'
-    & $exe playthrough cover $What @Arguments 2>&1 | ForEach-Object { "$_" } | Tee-Object -FilePath $Log -Append | Out-Host
+    & $exe playthrough cover $What @Arguments 2>&1 | ForEach-Object { "$_" } | Tee-Object -FilePath $Log -Append | ForEach-Object { Write-Host $_ }
     $code = $LASTEXITCODE
     Add-Content $Log "=== $(Get-Date -Format s) cover $What exited with $code"
     return $code

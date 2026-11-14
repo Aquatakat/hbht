@@ -25,6 +25,12 @@ public sealed record PartyStart(int Step, IReadOnlyList<RecordId> Members, float
     public override int GetHashCode() => Out.Aggregate(Members.Aggregate(Step, HashCode.Combine), HashCode.Combine);
 }
 
+/// <summary>A trunk join that asks only some to leave a full party (<see cref="PartyJobs.Crowds"/>).</summary>
+/// <param name="Step">The trunk step of the join.</param>
+/// <param name="Leavers">Those its ways can send away.</param>
+/// <param name="Party">The trunk's party before it, in its order.</param>
+public sealed record Crowd(int Step, IReadOnlySet<RecordId> Leavers, IReadOnlyList<RecordId> Party);
+
 /// <summary>
 /// Party jobs (docs/systems/playthrough.md, "Party jobs"): once a trunk tree is done, the targets still uncovered that need someone in the
 /// party from a trunk save get a job from the save best for them, which first gets that party (<see cref="CoverGoal.Party"/>), then
@@ -47,8 +53,10 @@ public static class PartyJobs
     /// By each save's step, the members the trunk brings into the party after it (<see cref="Brought"/>): a target that needs only them
     /// has no start there.
     /// </param>
+    /// <param name="crowds">The trunk's joins that ask who leaves of only some (<see cref="Crowds"/>): a start's members kept, with those the
+    /// trunk has in at such a join whom it can't send away, would fill the party there, so the latest of those to join are kept out.</param>
     public static List<PartyStart> Starts(RecordId target, IEnumerable<TrunkLook> looks, IReadOnlySet<string>? tried = null,
-        IReadOnlyDictionary<int, HashSet<RecordId>>? brought = null)
+        IReadOnlyDictionary<int, HashSet<RecordId>>? brought = null, IReadOnlyList<Crowd>? crowds = null)
     {
         var options = new List<PartyStart>();
         foreach (var look in looks)
@@ -70,6 +78,9 @@ public static class PartyJobs
             // who leaves at Erromon and comes back at Overworld I13. Kept from the start, a job could never take the story past them.
             if (later is not null && members.Any(m => !later.Contains(m)))
                 members = [.. members.Where(m => !later.Contains(m))];
+            // Members the story's later joins can't send away, crowding the members kept, are kept out too.
+            if (crowds is not null && members.Count > 0)
+                outs = [.. outs, .. Crowding(look.Step, members, outs, crowds)];
             float? joins = 0;
             foreach (var m in members)
                 joins = look.Joins.TryGetValue(m, out var j) ? joins + j : null;
@@ -109,6 +120,51 @@ public static class PartyJobs
             later.UnionWith(party);
         }
         return brought;
+    }
+
+    /// <summary>
+    /// The trunk's joins whose conversation, with the party full, asks only some members to leave: each with its step, those it can send
+    /// away, and the trunk's party before it, in the order they joined. Niesen's in Terminor (<c>0x0472</c> at 8/G01/18) sends away
+    /// Abrecan, Arturo, Becan, Godric or Keelin, never Brenna or Rheda, whom the castle brings in and who leave only after Shamsuk.
+    /// </summary>
+    public static List<Crowd> Crowds(QuestModel model, TrunkManifest manifest)
+    {
+        var crowds = new List<Crowd>();
+        var byDescription = model.Actions.GroupBy(a => a.Describe()).ToDictionary(g => g.Key, g => g.First());
+        foreach (var save in manifest.Saves.OrderBy(s => s.Step))
+        {
+            if (!byDescription.TryGetValue(save.Action, out var action) || action.Place is not { } place
+                || action.Effects.OfType<Join>().FirstOrDefault() is not { } join)
+                continue;
+            var leavers = model.Actions.Where(a => a.Place == place && a.Effects.OfType<Join>().Any(j => j.Entity == join.Entity))
+                .SelectMany(a => a.Effects.OfType<Leave>().Select(l => l.Entity)).ToHashSet();
+            if (leavers.Count > 0)
+                crowds.Add(new Crowd(save.Step, leavers, [.. save.Party.Select(m => RecordId.Parse(m.Entity))]));
+        }
+        return crowds;
+    }
+
+    /// <summary>
+    /// The members to keep out of a start's party so its members, kept, leave room at the trunk's crowded joins after it: of those the
+    /// trunk has in there whom the join can't send away (and not the first, Alaron), the latest to join, until the kept and the rest are
+    /// three. Becan's job from Oriana's hut took Brenna and Rheda as the story does, and at Terminor no way took Niesen in without Becan
+    /// leaving.
+    /// </summary>
+    public static List<RecordId> Crowding(int step, IReadOnlyList<RecordId> members, IReadOnlyList<RecordId> outs, IReadOnlyList<Crowd> crowds)
+    {
+        var keep = new List<RecordId>();
+        foreach (var crowd in crowds.Where(c => c.Step > step))
+        {
+            var fixedIn = crowd.Party.Skip(1).Where(m => !crowd.Leavers.Contains(m) && !members.Contains(m) && !outs.Contains(m)).ToList();
+            // Alaron, the members kept and those fixed in leave a slot: three at most.
+            var room = HBHT.Core.Characters.Party.MaxSize - 2 - members.Count;
+            for (var i = fixedIn.Count - 1; i >= 0 && i >= room; i--)
+            {
+                if (!keep.Contains(fixedIn[i]))
+                    keep.Add(fixedIn[i]);
+            }
+        }
+        return keep;
     }
 
     /// <summary>

@@ -118,6 +118,27 @@ public sealed class PartyJobsTests
     }
 
     [Fact]
+    public void MembersAStorysJoinCantSendAwayAreKeptOutWhereTheMembersKeptWouldFillTheParty()
+    {
+        // Niesen's join in Terminor (the trunk's step 37) sends away only Abrecan, Arturo, Becan, Godric or Keelin; the trunk has Alaron,
+        // Brenna, Rheda and Arturo there. Kept from step 3, Becan with Brenna and Rheda would leave no way for Niesen: Rheda, the later to
+        // join, is kept out.
+        RecordId alaron = Ids.Entity(0x023F), abrecan = Ids.Entity(0x023E), arturo = Ids.Entity(0x0240), brenna = Ids.Entity(0x0243),
+            keelin = Ids.Entity(0x0249);
+        List<Crowd> crowds = [new(37, new HashSet<RecordId> { abrecan, arturo, Becan, Godric, keelin }, [alaron, brenna, Rheda, arturo])];
+        Assert.Equal([Rheda], PartyJobs.Crowding(3, [Becan], [], crowds));
+        // Two kept leave no room for either.
+        Assert.Equal([Rheda, brenna], PartyJobs.Crowding(3, [Becan, keelin], [], crowds));
+        // One kept out already is room enough; and after the join, nothing crowds.
+        Assert.Empty(PartyJobs.Crowding(3, [Becan], [Rheda], crowds));
+        Assert.Empty(PartyJobs.Crowding(40, [Becan], [], crowds));
+
+        // A start for Becan from step 3 keeps Rheda out.
+        var starts = PartyJobs.Starts(Ids.Flag(10), [Look(3, 10, [Becan], (Becan, 5))], crowds: crowds);
+        Assert.Equal([Rheda], Assert.Single(starts).Out);
+    }
+
+    [Fact]
     public void APartyJobIsNamedByItsRoundSaveAndMembersAndCarriesItsParty()
     {
         var start = new PartyStart(7, [Becan, Godric], 12);
