@@ -308,7 +308,32 @@ The design, as the user asked for it on Nov 14, 2026; being built, and nothing h
 
 **Checking it.** A headless trace of trek's camera over fixed walks (arriving in GwerniaCastle M05 and running its length, I07's entrance, C15's bend), printing under each style: the share of ticks the view ahead is blocked close by, the camera is past a wall, the player is hidden, and how sharply the view turns. Real-data tests hold the invariants.
 
-**Built.** Nothing yet.
+**Built.** Slice 1: everything above but the path's bend, slopes, nudges and sneaking.
+
+- **The class and the seam.** `EnhancedTrekCamera`, its numbers in one record, `TrekCameraTuning`. `TrekLoop.CameraStyle` picks it; where `TrekLoop.Tick` stepped `FollowCamera.Step` it steps `EnhancedCamera.Step` instead, unless a camera object holds the camera (`FollowCamera.Held`), when the follow camera's step runs as ever and does nothing. A teleport and a fall's rescue call `FollowCamera.Arrive` and then `EnhancedTrekCamera.Arrive` (`TrekLoop.ArriveEnhanced`). It writes `Position`, `Aim` and `LookXZ` with their goals; the orbit's and anchor's calls (`StepPlayer`) still go to the follow camera, which only its own step reads. Whenever the follow camera isn't where it left it (a camera object, a conversation, trek coming back from a cut-scene or a battle, the style switched), it takes up from there, the aim its pivot, and glides.
+- **The setting.** The options' Camera now drives trek too (`SessionSettings.TrekCamera`, from `Settings.Camera`, `GameSession.Apply`). `--trek-camera original|enhanced` overrides it for trek alone, and `--battle-camera` is now the battle's alone. The F3 overlay shows the arm, the room and whether it's waiting.
+- **The boom.** A pivot 1.05 above his sphere's centre, closing on it by 0.12 of the gap a tick, at most 8 a second. The yaw trails his travel once it's faster than 0.5 a second (eased over about five ticks); standing, it holds. Each channel is `CappedMotion`'s, with a speed cap added: the pitch at most 30°/s, changing by 120°/s². The leans (`ITrekCameraLean`, `Leans`) are summed into the yaw's goal, each within its own bound and all within 20°; there are none yet.
+- **The player's turn.** The orbit's stick moves the yaw 3° a frame and the pitch 1.5° a frame at once, and the automatic yaw and pitch wait 2 s after it; then the pitch eases back by 10°/s.
+- **Room, walking at the lens.** Room is the shorter of the arm's free length and the mean of the free lengths square to the boom on either side, over the boom's length. The yaw turns at 40°/s (90°/s²) with room, up to 270°/s (1,080°/s²) with none, by how much room it lacks times how far round it has to go, from 20° to 90° off: trailing round a bend stays calm, and only walking at the lens in a tight space swings quickly. More than 150° off, the way round is chosen once (the way it's turning, else the side with more room) and kept.
+- **The spring arm.** `SpherePhysics.SweepEitherSide` (one sweep that turns each triangle to face it, nearest hit, passable and see-through left out) in place of two one-sided sweeps, and `VisibleWorld.RaycastSolid` (the drawn world past what absorbs: M05's light shafts lie across its hallway every two units, at head height, and stopped every ray); a drawn surface met at a slant is kept the sphere's radius off square to it. The sphere is 0.25, the margin 0.05. In at once when a wall is nearer than the camera, so it's never past one; out at 1.5 a second; a camera taken up longer than the boom comes in at 1.5 a second too.
+- **Close quarters** go by the free length at the place's own pitch, so the walls about him and not a ceiling over a raised boom: the pivot rises up to 0.6 and the pitch up to 25° in proportion as that's short. A ceiling nearer than the walls brings the pitch back down. Without that, M05's low arches raised the boom into the ceiling and the arm collapsed to nothing.
+- **Arriving.** Without a camera point, behind him along his heading, the arm fitted, as a cut. With one (M05's from the courtyard is 7 in front of him), it starts there and may swing as in a tight space for 1.5 s; standing, it holds the point 0.5 s before swinging round. A shot a camera object let go of is glided from, never swung from.
+- **Where it is.** 5 and 15° outdoors (the original's), 3.5 and 20° where the chunk under him doesn't draw the sky, eased over 0.75 s.
+
+**The rig.** `CameraTrace` over `CameraWalk.Standard`, from `hbht camera trace [original|enhanced]` and in `TrekCameraTraceTests`, which hold the original's trace tick for tick by a checksum and the enhanced one never past a wall nor hiding him, never showing his front down M05's hallway, and no jerkier than the original. The walks: (a) through I07's teleporter into M05 and down its hallway, (b) from the Overworld's M06 into I07, (c) C15's forest path from (2.8, 23.9) along +X into its bend. Shares of ticks; "past" is the camera past collision (from either side) or the drawn world's solid surfaces; "front" and the turning count from the second second; turning in °/s, its change in °/s². With Alaron's actor's root motion and the original's movement:
+
+| walk | camera | blocked | after 1 s | past | hidden | front | turn peak / 95% | change peak / 95% |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| a | Original | 29% | 15% | 1% | 1% | 11% | 253 / 207 | 5,044 / 1,695 |
+| a | Enhanced | 27% | 13% | 0 | 0 | 0 | 131 / 76 | 301 / 169 |
+| b | Original | 46% | 16% | 0 | 0 | 39% | 96 / 82 | 962 / 456 |
+| b | Enhanced | 46% | 17% | 0 | 0 | 44% | 66 / 60 | 800 / 399 |
+| c | Original | 2% | 3% | 32% | 32% | 0 | 43 / 34 | 406 / 166 |
+| c | Enhanced | 4% | 5% | 0 | 0 | 0 | 42 / 34 | 102 / 91 |
+
+On (a) both look back at the door they came through until he runs, so the view ahead is blocked alike at first; the enhanced camera is round behind him in about a second (150° of the 178°) and settles over another. Swinging round in M05's 3-wide hallway it looks at the wall beside him for a moment, which is most of what's left blocked. On (b) I07's camera object holds the view for the first 80 ticks and the enhanced camera then drifts round from that shot at the open 40°/s, so he's seen from the front a little longer than under the original. On (c) the original's camera is in the tree wall a third of the time. The nearest the eye came to his chest on the walks is 2.0, so no model fade is needed there.
+
+**Left.** Slices 2 and 3. Whether a fade of his model is wanted when the arm is short in a tighter place than these walks; tuning the open drift after an authored shot or arrival; `TrekCameraTuning` from a launch flag, as battle's `CameraTuning` is.
 
 ## The enhanced conversation camera (Camera: Enhanced)
 
