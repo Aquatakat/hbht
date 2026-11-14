@@ -51,6 +51,9 @@ public sealed record SessionSettings
     /// <summary>A battle's camera (<see cref="CombatCamera.Style"/>): the original's, or the enhanced one.</summary>
     public CameraStyle Camera { get; init; }
 
+    /// <summary>A conversation's camera (<see cref="Trek.TrekLoop.DialogueCamera"/>), where <c>--dialogue-camera</c> sets it apart from <see cref="Camera"/>.</summary>
+    public CameraStyle? DialogueCamera { get; init; }
+
     /// <summary>The enhanced camera's numbers (<see cref="CameraTuning"/>), from the command line, or null for its defaults.</summary>
     public CameraTuning? CameraTuning { get; init; }
 

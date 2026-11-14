@@ -150,10 +150,41 @@ public sealed class Conversation
     /// Frames the two talking, each tick in place of the follow camera (<c>ProcessPlayers</c>). A sign
     /// leaves the camera be, so this does nothing.
     /// </summary>
-    public void Frame(FollowCamera camera, CollisionWorld world)
+    public void Frame(FollowCamera camera, CollisionWorld world, VisibleWorld? visible = null, IReadOnlyList<Wanderer>? nearby = null)
     {
-        if (With is not null)
+        if (With is null)
+            return;
+        if (Director is not { } director)
+        {
             camera.Frame(world, _player.Sphere.Position, With.Body.Sphere.Position);
+            return;
+        }
+        var others = new List<ShotSubject>();
+        foreach (var w in nearby ?? [])
+        {
+            if (w != With && w.Body.Sphere.Position is var at && Vector3.DistanceSquared(at, With.Body.Sphere.Position) < 400)
+                others.Add(new ShotSubject(at, w.Body.ScaledRadius));
+        }
+        var scene = new DialogueScene(world, visible, TalkingBody.Of(_player.Body, _plugins.TryGet<EntityRecord>(GameState.Alaron)?.Body),
+            TalkingBody.Of(With.Body, With.Look), others);
+        var page = Runner.Page is { } shown
+            ? new DialoguePage(shown.Line.Node, DialoguePlanner.TalkerOf(_plugins, shown.Line.Speaker), shown.Line.Text, shown.Choices.Count)
+            : (DialoguePage?)null;
+        director.Step(camera, scene, page, Runner.Page);
+    }
+
+    /// <summary>
+    /// The enhanced conversation camera directing this conversation (Camera: Enhanced), or null for the original's framing. Only a
+    /// conversation with a body has one. It takes the camera from a room's camera object until the end (<see cref="TrekLoop"/>
+    /// doesn't step camera objects meanwhile).
+    /// </summary>
+    public DialogueCamera? Director { get; private set; }
+
+    /// <summary>Hands the camera to the enhanced conversation camera for this conversation, if it's a conversation script with someone to talk to.</summary>
+    public void Direct(DialogueTuning? tuning = null)
+    {
+        if (With is not null && Runner.Script.Mode == ScriptMode.Conversation)
+            Director = new DialogueCamera(DialoguePlanner.For(Runner.Script, _plugins, tuning), tuning);
     }
 
     /// <summary>

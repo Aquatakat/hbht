@@ -157,6 +157,9 @@ public sealed partial class TrekLoop : IMapObjectHost
 
     public FollowCamera Camera { get; }
 
+    /// <summary>A conversation's camera: the original's framing, or the enhanced conversation camera (<see cref="Conversation.Direct"/>).</summary>
+    public CameraStyle DialogueCamera { get; set; }
+
     /// <summary>The player's animation, which moves him by its root motion.</summary>
     public IRootMotion PlayerAnimation { get; set; } = IActorMotion.Still;
 
@@ -334,12 +337,14 @@ public sealed partial class TrekLoop : IMapObjectHost
         // objects work, so the camera is where the room's puts it as the screen comes up, and in a
         // conversation too, so one holding the camera keeps it rather than the conversation's.
         var playing = !fading;
+        // The enhanced conversation camera takes the camera from camera objects until the conversation ends.
+        var directed = Conversation?.Director is not null;
         if (Chunks.MapAt(motion.Sphere.Position) is { } centre)
         {
             var at = motion.Sphere.Position - centre.Origin;
             if (touching && !talking)
                 Use.Touch(centre, at);
-            else
+            else if (!directed)
                 Use.TouchCameras(centre, at);
         }
         // The animation a use asked for holds while trek doesn't read the controls, and goes as it reads them again (Actor::Move).
@@ -352,7 +357,7 @@ public sealed partial class TrekLoop : IMapObjectHost
             Hud.Raise(false);
         var before = motion.Sphere.Position;
         if (Conversation is { With: not null } framing)
-            framing.Frame(Camera, world);
+            framing.Frame(Camera, world, Chunks.Visible, Wanderers.All);
         else
             Camera.Step(world, motion.Sphere.Position, motion.Heading);
         Zone.Listen();
@@ -387,10 +392,11 @@ public sealed partial class TrekLoop : IMapObjectHost
                 continue;
             if (touching && !talking)
                 Use.Tread(map, target, motion.Sphere.Position - map.Origin);
-            else
+            else if (!directed)
                 Use.TreadCamera(map, target);
         }
-        Use.StepCameras(motion.Sphere.Position);
+        if (!directed)
+            Use.StepCameras(motion.Sphere.Position);
         StepSounds();
         if (HudShown)
         {
@@ -1084,6 +1090,8 @@ public sealed partial class TrekLoop : IMapObjectHost
             return;
         }
         Conversation = Conversation.TalkTo(Game, wanderer, _host, Player);
+        if (DialogueCamera == CameraStyle.Enhanced)
+            Conversation?.Direct();
         Refresh();
     }
 

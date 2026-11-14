@@ -370,6 +370,7 @@ public sealed class GameSession
         Trek.Player.Movement = settings.Movement;
         Trek.Wanderers.Reach = settings.WanderReach;
         Trek.Wanderers.Movement = settings.Movement;
+        Trek.DialogueCamera = settings.DialogueCamera ?? settings.Camera;
         Scene?.Movement = settings.Movement;
         Battle?.Movement = settings.Movement;
         Battle?.Fx.Turns = settings.SpellAuras;
