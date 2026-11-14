@@ -259,9 +259,10 @@ public sealed class CombatImportTests(Na10Import fixture)
             "Bandit Woodsman", "Bandit Boss", "Becan", "Keelin" }.Order(StringComparer.Ordinal),
             Entities.Where(e => e.Body!.BowHand == BowHand.Other).Select(e => e.Name).Order(StringComparer.Ordinal));
 
-        var cp = CombatCheckpoints.Combat(1);
+        // The table at 0x800D2A0C, as the code segment loads it from the ROM.
+        var rom = TestRoms.Get(RomVersionId.Na10);
         Assert.Equal([.. CombatImporter.UndrawnWeaponPlaces, 0xFF],
-            Enumerable.Range(0, CombatImporter.UndrawnWeaponPlaces.Count + 1).Select(i => (int)cp.ReadByte(0x800D2A0Cu + (uint)i)));
+            Enumerable.Range(0, CombatImporter.UndrawnWeaponPlaces.Count + 1).Select(i => (int)rom.Data[(int)(0x800D2A0Cu - 0x80000400u + 0x1000u) + i]));
     }
 
     /// <summary>
