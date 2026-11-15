@@ -503,12 +503,8 @@ public sealed class EnhancedCamera
             _motion = new CappedMotion(goal, caps);
             Camera.Cut();
         }
-        var hand = MathF.Sqrt(t.HandAcceleration);
         // The player walking, the goal glides and the camera rides it (below), so it neither trails them nor needs to catch up.
-        _motion.Caps = Released
-            ? new MotionCaps(caps.Aim * t.HandAcceleration, caps.Turn * t.HandAcceleration, caps.Zoom * t.HandAcceleration, caps.Settle * hand,
-                caps.TurnSettle * hand, caps.ZoomSettle * hand)
-            : _aiming is not null ? caps with { Aim = caps.Aim * t.AimingAcceleration, Settle = caps.Settle * MathF.Sqrt(t.AimingAcceleration) }
+        _motion.Caps = _aiming is not null ? caps with { Aim = caps.Aim * t.AimingAcceleration, Settle = caps.Settle * MathF.Sqrt(t.AimingAcceleration) }
             : Walking ? new MotionCaps(caps.Aim * t.GlidePace, caps.Turn * t.GlidePace, caps.Zoom * t.GlidePace, caps.Settle * MathF.Sqrt(t.GlidePace),
                 caps.TurnSettle * MathF.Sqrt(t.GlidePace), caps.ZoomSettle * MathF.Sqrt(t.GlidePace))
             : caps;
@@ -517,8 +513,8 @@ public sealed class EnhancedCamera
         if (Reframe is not null && !Released && _aiming is null && goal.Distance > _motion.Current.Distance * 1.05f)
             _motion.Caps = _motion.Caps with { Zoom = _motion.Caps.Zoom * t.DrawBackPace, ZoomSettle = _motion.Caps.ZoomSettle * MathF.Sqrt(t.DrawBackPace) };
         _motion.GoalJump = t.GoalJump;
-        // Only the player's own hand is followed at its speed; the director's shots are trailed, so a goal that stops isn't overshot.
-        _motion.MostFollowed = Released ? (t.FollowSpeed, Rad(t.FollowTurn)) : (0, 0);
+        // The director's shots are trailed, so a goal that stops isn't overshot; the player's hand is the original's shot itself (below).
+        _motion.MostFollowed = (0, 0);
         _motion.NearestDistance = MathF.Min(t.NearestDistance, goal.Distance);
         // In the player's turn, and in an action whose body walks, the shot moves with the walker, as a third person's camera does: only
         // the change of framing is capped, so the view never trails one who runs, and stops as they stop. It's carried by the point that
@@ -578,6 +574,12 @@ public sealed class EnhancedCamera
             _motion.Cut(goal);
             Camera.Cut();
             Cuts++;
+        }
+        else if (Released)
+        {
+            // The player's hand on the camera: the original's shot as it is, which eases itself (its leash and its orbit's turn). Chasing
+            // it again under caps carried the view past where the player stopped turning, and it swung back.
+            _motion.Cut(goal);
         }
         else if (Walking)
         {

@@ -149,24 +149,9 @@ public sealed record CameraTuning
     /// </summary>
     public float WalkSmoothing { get; init; } = 0.3f;
 
-    /// <summary>
-    /// The caps times this while the player has the camera in their turn, so the view follows their own hand closely and still swoops,
-    /// quicker, from a wide shot.
-    /// </summary>
-    public float HandAcceleration { get; init; } = 10;
-
     /// <summary>The aim's cap times this while the player aims, so the reticle stays near the middle of the screen as it moves.</summary>
     public float AimingAcceleration { get; init; } = 6;
 
-    /// <summary>
-    /// The most of a moving goal's own speed followed at while the player has the camera in their hand, units a second: a running body's.
-    /// The director's own shots follow none of it: they trail a moving goal, by as much as it takes to stop on it, so the view never
-    /// overshoots a goal that stops and swings back.
-    /// </summary>
-    public float FollowSpeed { get; init; } = 6;
-
-    /// <summary>The same for the turn, degrees a second.</summary>
-    public float FollowTurn { get; init; } = 90;
 
     /// <summary>
     /// While its aim has far to go, the camera stands back at least this times the way left, so a move across the field is a swoop that

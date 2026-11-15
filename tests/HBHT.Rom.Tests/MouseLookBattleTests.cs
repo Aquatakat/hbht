@@ -41,7 +41,9 @@ public sealed class MouseLookBattleTests(Na10Import fixture)
         EnhancedCamera Enhanced() => early ? drawing.Director.Camera : battle.CombatCamera.Enhanced!;
 
         Combatant? turn = null;
-        var (turnTick, worstApart, worstJump, releases, attacks) = (0, 0f, 0f, 0, 0);
+        var (turnTick, worstApart, worstJump, releases, attacks, worstBack) = (0, 0f, 0f, 0, 0, 0f);
+        float? turnedTo = null;
+        var turnedWay = 0f;
         var wasReleased = false;
 
         // Walking forward for 90 ticks of each turn, the mouse turning the camera on ticks 30 to 39, then A.
@@ -85,6 +87,22 @@ public sealed class MouseLookBattleTests(Na10Import fixture)
                 }
                 wasReleased = enhanced.Released;
             }
+            // Once the mouse stops (tick 40), how far the camera drawn swings back from the furthest it turned the mouse's way.
+            if (stepTurn && Enhanced() is { Released: true })
+            {
+                var look = early ? drawing.Camera.LookXZ : battle.CombatCamera.Enhanced!.Camera.LookXZ;
+                var yaw = MathF.Atan2(look.Y, look.X) * 180 / MathF.PI;
+                if (turnTick == 40)
+                    (turnedTo, turnedWay) = (yaw, Math.Sign(Wrap(yaw - Before(before))));
+                else if (turnTick is > 40 and < 90 && turnedTo is { } furthest)
+                {
+                    var on = Wrap(yaw - furthest) * turnedWay;
+                    if (on > 0)
+                        turnedTo = yaw;
+                    else
+                        worstBack = MathF.Max(worstBack, -on);
+                }
+            }
             if (step is BattleStep.Paused)
                 battle.Unpause(flee: true);
             if (step is BattleStep.Ended)
@@ -95,5 +113,9 @@ public sealed class MouseLookBattleTests(Na10Import fixture)
         Assert.True(worstApart <= 1, $"The stick was read {worstApart:F1}° from the camera drawn.");
         Assert.True(worstJump <= 10, $"Taking the camera in hand turned it {worstJump:F0}° from the shot shown.");
         Assert.True(attacks > 0, "A never began an attack under mouse look's orbit.");
+        Assert.True(worstBack <= 1, $"The camera swung {worstBack:F1}° back past where the mouse left it.");
+
+        static float Before(Vector2 look) => MathF.Atan2(look.Y, look.X) * 180 / MathF.PI;
+        static float Wrap(float degrees) => (degrees % 360 + 540) % 360 - 180;
     }
 }

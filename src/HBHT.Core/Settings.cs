@@ -187,7 +187,7 @@ public sealed class Settings
     /// <summary>The player's bindings, on the keyboard and mouse and on a controller (the options' Controls page, ADR 0026).</summary>
     public HBHT.Core.Controls.ControlBindings Controls { get; set; } = new();
 
-    /// <summary>How far the mouse turns the camera, as a multiple of the drag the runtime always had.</summary>
+    /// <summary>How far the mouse turns the camera and moves a battle's cursors, as a multiple of the runtime's (<c>Game.DragToStick</c>): 1x is a quarter of the drag it first had.</summary>
     public float MouseSensitivity { get; set; } = 1;
 
     /// <summary>Whether the mouse's up raises the camera rather than lowering it, as moving it up looks up by default.</summary>

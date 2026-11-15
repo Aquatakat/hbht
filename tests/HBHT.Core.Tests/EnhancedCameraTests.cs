@@ -520,7 +520,7 @@ public sealed class EnhancedCameraTests
     {
         // The original's camera chasing a far aim: its aim a unit a tick for 20 ticks, its distance shrinking as fast, then still.
         var t = T;
-        var motion = new CappedMotion(new Shot(Vector3.Zero, 0, 0.5f, 22), t.Caps) { MostFollowed = (t.FollowSpeed, ShotFinder.Rad(t.FollowTurn)), NearestDistance = t.NearestDistance };
+        var motion = new CappedMotion(new Shot(Vector3.Zero, 0, 0.5f, 22), t.Caps) { MostFollowed = (6, ShotFinder.Rad(90)), NearestDistance = t.NearestDistance };
         var goal = new Shot(Vector3.Zero, 0, 0.5f, 22);
         var most = 0f;
         for (var tick = 0; tick < 600; tick++)

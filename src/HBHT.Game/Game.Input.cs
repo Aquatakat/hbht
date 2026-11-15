@@ -8,14 +8,17 @@ namespace HBHT.Game;
 
 public partial class Game
 {
-    /// <summary>Mouse drag in pixels to stick units at Mouse Sensitivity 1x: about 0.3° of orbit, and 0.02 of height, a pixel.</summary>
-    private static readonly Vector2 DragToStick = new(0.2f, 0.4f);
+    /// <summary>
+    /// Mouse drag in pixels to stick units at Mouse Sensitivity 1x: about 0.075° of orbit, and 0.005 of height, a pixel. A quarter of
+    /// what the drag first had, which the user found too fast and set 0.25x for; so with the free cursors and the targets' steps below.
+    /// </summary>
+    private static readonly Vector2 DragToStick = new(0.05f, 0.1f);
 
-    /// <summary>The mouse's movement in pixels to a free cursor's frames of the stick's step at Mouse Sensitivity 1x: 40 pixels a unit of the arena.</summary>
-    private const float AimPerPixel = 1 / 32f;
+    /// <summary>The mouse's movement in pixels to a free cursor's frames of the stick's step at Mouse Sensitivity 1x: 160 pixels a unit of the arena.</summary>
+    private const float AimPerPixel = 1 / 128f;
 
     /// <summary>Mouse movement across, in pixels at Mouse Sensitivity 1x, that steps an aim's target once.</summary>
-    private const float PixelsPerTarget = 80;
+    private const float PixelsPerTarget = 320;
 
     /// <summary>The sideways movement gathered toward the next step of an aim's target.</summary>
     private float _targetDrag;
