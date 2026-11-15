@@ -22,7 +22,12 @@ internal static class CameraMeasureReport
         var results = new List<MeasureResult>();
         foreach (var walk in MeasureWalk.Standard.Where(w => w.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
             foreach (var style in new[] { CameraStyle.Original, CameraStyle.Enhanced })
+            {
                 results.Add(CameraMeasures.Run(plugins, walk, style));
+                // A walk past a target, held forward, again with the nudges off, to compare his drift toward it.
+                if (style == CameraStyle.Enhanced && walk.Target is not null && walk.Steer == MeasureSteer.Forward)
+                    results.Add(CameraMeasures.Run(plugins, walk, style, TrekCameraTuning.Default with { NudgeBound = 0 }) with { Walk = walk.Name + " -nudge" });
+            }
         Console.Write(CameraMeasures.Table(results));
         return 0;
     }

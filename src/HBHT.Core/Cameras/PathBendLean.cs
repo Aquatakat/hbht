@@ -66,6 +66,10 @@ public sealed class PathBendLean(EnhancedTrekCamera camera, Func<CollisionWorld>
             return 0;
         var blocked = Math.Clamp((t.BendReach - ahead) / MathF.Max(t.BendReach - t.BendNear, 1e-3f), 0, 1);
         blocked = blocked * blocked * (3 - 2 * blocked);
+        // Up against the wall there's no bend to round, only a wall: leaning then would wheel him round along it, the view
+        // and the stick turning together. It fades from 2 free to nothing at 0.8.
+        var against = Math.Clamp((ahead - 0.8f) / 1.2f, 0, 1);
+        blocked *= against * against * (3 - 2 * against);
         return Math.Clamp(blocked * t.BendGain * MathF.Atan2(sum.Y, sum.X) / Degree, -t.BendBound, t.BendBound);
     }
 }

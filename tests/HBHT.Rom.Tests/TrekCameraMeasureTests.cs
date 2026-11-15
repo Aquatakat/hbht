@@ -65,10 +65,36 @@ public sealed class TrekCameraMeasureTests(Na10Import fixture, ITestOutputHelper
         Assert.True(enhanced.InFrame > 0.6f);
     }
 
+    /// <summary>
+    /// Holding forward past an npc 5 to the side and a hunter 11 to the side, the nudge turns the view but not his travel: he
+    /// drifts toward it no more than he does with the nudges off.
+    /// </summary>
+    [Theory]
+    [InlineData("npc forward")]
+    [InlineData("hunter forward")]
+    public void TheNudgeDoesNotSteerHim(string name)
+    {
+        var walk = MeasureWalk.Standard.Single(w => w.Name.StartsWith(name, StringComparison.Ordinal));
+        var on = CameraMeasures.Run(fixture.Data.Set, walk, CameraStyle.Enhanced);
+        var off = CameraMeasures.Run(fixture.Data.Set, walk, CameraStyle.Enhanced, TrekCameraTuning.Default with { NudgeBound = 0 });
+        output.WriteLine(CameraMeasures.Table([on, off]));
+        Assert.True(on.NudgePeak > 2, "the nudge never leaned");
+        Assert.True(on.Drift - off.Drift < 0.25f, $"drifted {on.Drift - off.Drift:F2} toward it");
+    }
+
+    /// <summary>Down G01's street of doors and npcs the nudge stays within its bound.</summary>
+    [Fact]
+    public void DownAStreetTheNudgeStaysBounded()
+    {
+        var (_, enhanced) = Both("street");
+        Assert.True(enhanced.Progress > 0.9f * enhanced.PathLength);
+        Assert.True(enhanced.NudgePeak <= TrekCameraTuning.Default.NudgeBound + 1e-3f);
+    }
+
     /// <summary>Walking past a container and an npc, the nudge leans toward each, within its bound, and lets go after.</summary>
     [Theory]
     [InlineData("container", 1f)]
-    [InlineData("npc", 5f)]
+    [InlineData("npc C15", 5f)]
     public void TheNudgeLeansTowardWhatAWouldUseAndLetsGo(string walk, float least)
     {
         var (_, enhanced) = Both(walk);
