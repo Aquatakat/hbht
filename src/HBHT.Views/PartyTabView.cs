@@ -207,6 +207,12 @@ public partial class PartyTabView : Control
     {
         if (@event is InputEventMouseMotion motion)
         {
+            var overTitle = TitleSide(motion.Position - _origin) is not null;
+            if (overTitle != _overTitle)
+            {
+                _overTitle = overTitle;
+                _overlay.QueueRedraw();
+            }
             if (!Hover(motion.Position))
                 return;
         }
@@ -249,9 +255,96 @@ public partial class PartyTabView : Control
             choice.Choices.Point(picked);
         }
         else if (overlay.Message is null && overlay.Help is null && !Hover(point))
-            return false;
+            return Header(point - _origin);
         UiPointer.Accept();
         return true;
+    }
+
+    /// <summary>Whether the pointer is over the list's title, which shows arrows either side of it.</summary>
+    private bool _overTitle;
+
+    /// <summary>
+    /// What a click in the frame does off the rows: a small portrait shows that member in one change; the list's title, its left
+    /// or right half, steps the list as the stick's left or right does; the red arrow under the knotwork, its left or right half,
+    /// or the tab beside, changes tab. Whether it was one of them.
+    /// </summary>
+    private bool Header(Vector2 at)
+    {
+        if (Window.HasPopup)
+            return false;
+        if (PortraitAt(at) is { } steps)
+            UiPointer.ShowMember(steps);
+        else if (TitleSide(at) is { } side)
+            UiPointer.Press(side < 0 ? MenuAction.Left : MenuAction.Right);
+        else if (TabSide(at) is { } tab)
+            UiPointer.Press(tab < 0 ? MenuAction.TabPrevious : MenuAction.TabNext);
+        else
+            return false;
+        return true;
+    }
+
+    /// <summary>The small portrait under a point in the frame, as how far round the party from the member shown it is.</summary>
+    private int? PortraitAt(Vector2 at)
+    {
+        var members = Menu.PortraitOrder.Count;
+        for (var i = 1; i < members && i <= OtherPortraits.Length; i++)
+        {
+            if (new Rect2(PortraitPiece.Position + OtherPortraits[i - 1], OtherSize, OtherSize).HasPoint(at))
+                return i;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Which half of the list's title, with the arrows either side of it, is under a point in the frame, −1 or 1: only on the
+    /// tab and after a battle, whose stick changes the lists.
+    /// </summary>
+    private int? TitleSide(Vector2 at)
+    {
+        if (Window is not (PartyMenu or PostBattleMenu) || Window.HasPopup)
+            return null;
+        var (title, rect) = TitlePlace();
+        var arrow = _ui.Size(MenuImages.SliderLeft).X + TitleArrowGap;
+        var around = rect.GrowIndividual(arrow, 2, arrow, 2);
+        if (!around.HasPoint(at))
+            return null;
+        return at.X < rect.GetCenter().X ? -1 : 1;
+    }
+
+    /// <summary>The gap between the list's title and the arrows either side of it as the pointer is over it.</summary>
+    private const int TitleArrowGap = 4;
+
+    /// <summary>The title of the list showing, and where it's drawn in the frame.</summary>
+    private (RecordId Image, Rect2 Rect) TitlePlace()
+    {
+        var b = PartyMenu.Layout(Menu.List).Bounds;
+        var title = TitleOf(Menu.List);
+        var size = _ui.Size(title);
+        return (title, new Rect2(b.Left + 70 - size.X / 2, b.Top - 20, size));
+    }
+
+    /// <summary>The arrows either side of the list's title, while the pointer is over it, in the title's colour.</summary>
+    private void TitleArrows()
+    {
+        var (_, rect) = TitlePlace();
+        var left = _ui.Size(MenuImages.SliderLeft);
+        var right = _ui.Size(MenuImages.SliderRight);
+        var middle = rect.Position.Y + rect.Size.Y / 2;
+        _ui.Image(_canvas, MenuImages.SliderLeft, (int)rect.Position.X - TitleArrowGap - left.X, (int)(middle - left.Y / 2f), color: PartyMenu.TextColor);
+        _ui.Image(_canvas, MenuImages.SliderRight, (int)rect.End.X + TitleArrowGap, (int)(middle - right.Y / 2f), color: PartyMenu.TextColor);
+    }
+
+    /// <summary>
+    /// Which way a click in the frame changes tab, if it does: the red arrow under the knotwork, its left half or its right (left
+    /// only in combat), or the tabs either side, beyond the frame on a wider screen.
+    /// </summary>
+    private int? TabSide(Vector2 at)
+    {
+        var combat = Menu.Combat is not null;
+        var arrow = new Rect2(SliderAt, _ui.Size(combat ? MenuImages.SliderLeft : MenuImages.SliderBoth)).GrowIndividual(2, 3, 2, 3);
+        if (arrow.HasPoint(at))
+            return combat || at.X < arrow.GetCenter().X ? -1 : 1;
+        return UiPointer.TabBeside(at);
     }
 
     /// <summary>The list under a point in the frame, or else the one the window works in, which the wheel scrolls.</summary>
@@ -471,6 +564,8 @@ public partial class PartyTabView : Control
         // Training's help covers the trainer's list, which is on a layer of its own over the window's.
         if (Window is TrainingMenu { Help: { } help } && !OwnTab)
             Help(help);
+        if (_overTitle && Menu.Slide is null && !Window.HasPopup)
+            TitleArrows();
         if (Veil > 0)
             _ui.Plain(_canvas, MenuImages.PartyTab, PlainPatches, 0, 0, new Rgba(255, 255, 255, (byte)(Veil * 255)));
         _overlay.DrawSetTransform(Vector2.Zero);
@@ -664,6 +759,15 @@ public partial class PartyTabView : Control
             SpellName = 50, NameRight = 140;
     }
 
+    /// <summary>A list's title image: the inventory's is barter's own in a shop.</summary>
+    private RecordId TitleOf(PartyList list) => list switch
+    {
+        PartyList.Inventory => (Window as BarterMenu)?.PartyTitle ?? MenuImages.InventoryTitle,
+        PartyList.Stats => MenuImages.StatsTitle,
+        PartyList.Skills => MenuImages.SkillsTitle,
+        _ => MenuImages.SpellsTitle,
+    };
+
     /// <summary>
     /// A list, by default the one showing, <paramref name="shift"/> across from its place (<see cref="PartyMenu.Layout"/>), under its
     /// title, with its arrows and its rows in <paramref name="font"/>, the cursor's in <paramref name="cursor"/>, or pulsing
@@ -676,13 +780,7 @@ public partial class PartyTabView : Control
         var b = layout.Bounds;
         if (shown == Menu.List)
             _listLayout = layout;
-        var title = shown switch
-        {
-            PartyList.Inventory => (Window as BarterMenu)?.PartyTitle ?? MenuImages.InventoryTitle,
-            PartyList.Stats => MenuImages.StatsTitle,
-            PartyList.Skills => MenuImages.SkillsTitle,
-            _ => MenuImages.SpellsTitle,
-        };
+        var title = TitleOf(shown);
         _ui.Image(_canvas, title, b.Left + 70 - _ui.Size(title).X / 2, b.Top - 20);
         var x = b.Left;
         var y = b.Top;

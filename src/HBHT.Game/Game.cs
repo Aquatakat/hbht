@@ -112,6 +112,11 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
             return;
         AddInputs();
         Views.UiPointer.Host = PointerPress;
+        Views.UiPointer.MemberHost = steps =>
+        {
+            if (_session is { } session && session.ShowMember(steps))
+                ShowPressed(session);
+        };
         AddChild(_limiter);
         var hud = new CanvasLayer();
         StyleOverlay();

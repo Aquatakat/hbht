@@ -499,6 +499,9 @@ public sealed class GameSession
         }
     }
 
+    /// <summary>A click on a small portrait in the pause menu's Party windows: shows that member in one change (<see cref="Ui.PauseMenu.ShowMember"/>).</summary>
+    public bool ShowMember(int steps) => Mode == GameMode.Menu && Menu.ShowMember(steps);
+
     /// <summary>
     /// Whether a battle's spells' visuals are drawn, and with them the sky's dimming as a spell is cast: all but under the runtime's
     /// <c>--spell-fx off</c>, a baseline. Only the drawing hangs on it: the visuals play in the core either way.

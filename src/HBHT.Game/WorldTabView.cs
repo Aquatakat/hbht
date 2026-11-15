@@ -95,7 +95,14 @@ public partial class WorldTabView : Control
             var size = new Vector2I((int)Size.X, (int)Size.Y);
             var at = mouse.Position - (Vector2)((size - new Vector2I(FrameWidth, FrameHeight)) / 2);
             if (ChoiceAt(at) is not { } choice)
+            {
+                // The arrow painted at the map's foot, or the tab beside, slides back to the Party tab.
+                if (!click || (TabArrow.HasPoint(at) ? -1 : UiPointer.TabBeside(at)) is not { } side)
+                    return;
+                UiPointer.Press(side < 0 ? MenuAction.TabPrevious : MenuAction.TabNext);
+                AcceptEvent();
                 return;
+            }
             Menu.MoveCursor(choice == WorldChoice.Camp ? -1 : 1);
         }
         else
@@ -105,6 +112,9 @@ public partial class WorldTabView : Control
         QueueRedraw();
         AcceptEvent();
     }
+
+    /// <summary>The arrow painted into the tab's image at the map's foot, pointing back to the Party tab, with a little room round it.</summary>
+    private static readonly Rect2 TabArrow = new(141, 194, 39, 14);
 
     /// <summary>Camp or Journal, whichever's title is under a point in the frame.</summary>
     private WorldChoice? ChoiceAt(Vector2 at)

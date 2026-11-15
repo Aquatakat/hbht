@@ -131,8 +131,20 @@ public partial class UiScreen : Control
 
     public override void _Notification(int what)
     {
-        if (what == NotificationResized)
-            Fit();
+        switch ((long)what)
+        {
+            case NotificationResized:
+                Fit();
+                break;
+            // A SubViewport finds what's under the mouse for its motion only once it's told the mouse is in it, as a
+            // SubViewportContainer tells its own; without this, hovering never reached the views.
+            case NotificationMouseEnter:
+                _viewport.Notification((int)Viewport.NotificationVpMouseEnter);
+                break;
+            case NotificationMouseExit:
+                _viewport.Notification((int)Viewport.NotificationVpMouseExit);
+                break;
+        }
     }
 
     /// <summary>Sizes the screen to <see cref="Lines"/> and this control's shape.</summary>

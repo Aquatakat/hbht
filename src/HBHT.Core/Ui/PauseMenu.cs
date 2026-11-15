@@ -662,6 +662,20 @@ public sealed class PauseMenu
         _ => !Window.HasPopup,
     };
 
+    /// <summary>
+    /// A click on one of the header's small portraits (ADR 0040): shows the member so far round the party from the one shown, in
+    /// one change, each portrait moving from its place to its new one, with C-left's sound. A port addition: the original steps a
+    /// member a press. Whether the window changes members here.
+    /// </summary>
+    public bool ShowMember(int steps)
+    {
+        if (Tab != PauseTab.Party || Sliding || !Taking || !Window.ChangesMember || Window.HasPopup || _game.Party.Members.Count() < 2)
+            return false;
+        Sound(m => m.Member, OneShot.MenuTicks);
+        Window.ChangeMember(steps);
+        return true;
+    }
+
     /// <summary>Z or R: slides to the tab that way, if there is one and the tab showing can be left.</summary>
     private void ChangeTab(int by)
     {

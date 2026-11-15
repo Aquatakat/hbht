@@ -312,6 +312,23 @@ public class PartyMenuMotionTests
         Assert.Equal(2, menu.Member);
     }
 
+    /// <summary>
+    /// A click on a small portrait shows that member in one change (ADR 0040): two round the party at once, each portrait moving
+    /// from its place in the order before to its place in the new one.
+    /// </summary>
+    [Fact]
+    public void AClickedPortraitShowsItsMemberInOneChange()
+    {
+        var menu = Menu();
+
+        menu.ChangeMember(2);
+
+        Assert.Equal(2, menu.Member);
+        Assert.Equal([0, 1, 2], menu.PreviousOrder);
+        Assert.Equal([2, 0, 1], menu.PortraitOrder);
+        Assert.Equal(0, menu.MemberChange);
+    }
+
     /// <summary>The next list slides the lists right and the one before slides them left, and no other change starts while they slide.</summary>
     [Fact]
     public void TheNextListSlidesRightAndHoldsOffChanges()

@@ -185,6 +185,8 @@ public partial class Game
             : _trekScreen;
         var canvas = frame + (Vector2)((screen.CanvasSize - new Vector2I(320, 240)) / 2);
         var window = screen.ToWindow(canvas);
+        // The window may not have the system's pointer over it, which a hover needs; a player's mouse would be.
+        GetViewport().Notification((int)Viewport.NotificationVpMouseEnter);
         Input.ParseInputEvent(new InputEventMouseMotion { Position = window, GlobalPosition = window });
         var button = gesture switch
         {

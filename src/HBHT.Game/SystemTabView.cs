@@ -193,7 +193,16 @@ public partial class SystemTabView : Control
             return true;
         }
         if (!Hover(point))
-            return false;
+        {
+            // The arrow under the list, or the tab beside, slides to the Party tab.
+            if (Question is not null || Menu.Title || Menu.Page != SystemPage.List)
+                return false;
+            var arrow = new Rect2(ListArrow, _ui.Size(MenuImages.SliderRight)).GrowIndividual(2, 3, 2, 3);
+            if ((arrow.HasPoint(at) ? 1 : UiPointer.TabBeside(at)) is not { } way)
+                return false;
+            UiPointer.Press(way < 0 ? MenuAction.TabPrevious : MenuAction.TabNext);
+            return true;
+        }
         if (Question is null && Menu.Page == SystemPage.Options && Menu.Options is { Rows.Current: { } row } options)
         {
             at -= OptionsShift(options);
