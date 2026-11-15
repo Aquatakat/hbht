@@ -982,6 +982,17 @@ public sealed partial class TrekLoop : IMapObjectHost
         {
             conversation.End(Wanderers, Camera);
             Conversation = null;
+            // The enhanced conversation camera's shots end in a cut back to the view trek had before the talk: a camera
+            // object that moves only its aim, left to track him from the last shot's place a unit over his shoulder, spun
+            // the view round him as he walked off, and the trek camera takes up again where it was.
+            if (conversation.Director is not null && _beforeTalk is var (position, aim))
+            {
+                Camera.PlaceAt(position);
+                Camera.AimAt(aim);
+                Camera.Orient();
+                Camera.Cut();
+            }
+            _beforeTalk = null;
             Box.Hide();
             Backdrop?.Close();
             if (conversation.RebuildsTrek)
@@ -1108,6 +1119,9 @@ public sealed partial class TrekLoop : IMapObjectHost
         Refresh();
     }
 
+    /// <summary>The camera's place and aim as the enhanced conversation camera took it, which it's given back at the end.</summary>
+    private (Vector3 Position, Vector3 Aim)? _beforeTalk;
+
     void IMapObjectHost.Talk(LoadedMap map, PartyObject party)
     {
         if (Conversation is not null || Wanderers.Of(map, party) is not { } wanderer)
@@ -1132,7 +1146,10 @@ public sealed partial class TrekLoop : IMapObjectHost
         }
         Conversation = Conversation.TalkTo(Game, wanderer, _host, Player);
         if (DialogueCamera == CameraStyle.Enhanced)
+        {
             Conversation?.Direct(DialogueTuning);
+            _beforeTalk = (Camera.Position, Camera.Aim);
+        }
         Refresh();
     }
 

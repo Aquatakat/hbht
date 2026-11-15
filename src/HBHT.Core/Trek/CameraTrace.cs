@@ -74,14 +74,15 @@ public static class CameraTrace
     private const int TicksPerSecond = 60;
 
     /// <summary>Trek started where <paramref name="walk"/> starts, on the ground, with the drawn world.</summary>
-    public static TrekLoop Start(PluginSet plugins, CameraWalk walk) => Start(plugins, walk, out _);
+    /// <param name="setDown">Whether he's set down on the ground under <see cref="CameraWalk.Local"/> rather than put there.</param>
+    public static TrekLoop Start(PluginSet plugins, CameraWalk walk, bool setDown = false) => Start(plugins, walk, out _, setDown);
 
-    private static TrekLoop Start(PluginSet plugins, CameraWalk walk, out Host host)
+    private static TrekLoop Start(PluginSet plugins, CameraWalk walk, out Host host, bool setDown = false)
     {
         var game = GameState.NewGame(plugins);
         var set = plugins.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, walk.MapSet));
         var streamer = new ChunkStreamer(plugins, game, new CollisionWorld(), set, new VisibleWorld());
-        var start = GameStart.OfNewGame(plugins) with { Set = set, Chunk = walk.Chunk, Local = walk.Local, Heading = walk.Heading, SetDown = false };
+        var start = GameStart.OfNewGame(plugins) with { Set = set, Chunk = walk.Chunk, Local = walk.Local, Heading = walk.Heading, SetDown = setDown };
         host = new Host();
         var session = GameSession.Start(game, host, new ZoneEngine(game, streamer), start);
         // The player's body plays the party leader's actor, as the runtime's does, which moves him by its root motion.
