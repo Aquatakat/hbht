@@ -20,7 +20,6 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 ### Left over from finished work
 
-- **The mouse and keyboard** ([ADR 0040](adr/0040-the-mouse-comes-first-on-the-keyboard.md)) are done; what's left is what the user finds playing them ([user checks](user-checks.md)). The menus' motion is otherwise 1.0's: their slides, fades and scroll, a battle's pause on a wide screen and the details' edge.
 - **Content still in code:** the [hardcoded content](hardcoded-content.md) log, planned in [Phase 5](#phase-5-mod-system-and-tools). Among it, a mod's own skills, stats and weapon skills load and validate, but the core holds the original's 24 skill slots and 7 stats, so a mod's isn't played (ADR 0032).
 - **2.10:** what else could move onto triggers, each with its event ([events](systems/events.md#what-else-could-move-onto-triggers)): the camp scenes (`camp.started`), the Shadow's cinematic and the Goblin Ambush's end (`battle.ended` with its outcome), and a conversation's end as `script.ended`. The editor has no view of the triggers of its own, and the quest atlas doesn't show what they read and set.
 
