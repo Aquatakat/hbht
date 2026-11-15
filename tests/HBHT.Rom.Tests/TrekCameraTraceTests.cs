@@ -139,6 +139,42 @@ public sealed class TrekCameraTraceTests(Na10Import fixture, ITestOutputHelper o
     }
 
     /// <summary>
+    /// The walking wedge (<see cref="TrekCameraTuning.WedgeWidth"/>): wandering round Port Saiid's E01 cave (map set 2, from the
+    /// Overworld's B15) and along the standard walks, the goal is never put further off behind his travel than the wedge's
+    /// clamp, it changes side at most once in the cave's 20 s, and on C15's forest path (c) and down M05's hallway (a) it
+    /// never takes hold.
+    /// </summary>
+    [Fact]
+    public void TheWalkingWedgeStaysInsideItsClampAndOffOpenPaths()
+    {
+        var plugins = fixture.Data.Set;
+        var (from, door) = plugins.All<HBHT.Plugins.Records.ChunkRecord>(HBHT.Plugins.RecordTypes.Chunk)
+            .SelectMany(c => c.Objects.OfType<HBHT.Plugins.Records.TeleporterObject>().Select(t => (c, t)))
+            .First(x => x.c.Name == "B15" && x.t.Leads?.ToString() == "aidyn:chunk/2/E01");
+        var cave = new CameraWalk("E01", 0, "B15", door.Position + new System.Numerics.Vector3(0, 0.5f, 0), System.Numerics.Vector2.UnitX,
+            "aidyn:chunk/2/E01", "E01", [], 1200, door.Index);
+        var width = TrekCameraTuning.Default.WedgeWidth;
+        int engaged = 0, flips = 0, last = 0;
+        CameraTrace.Run(plugins, cave, CameraStyle.Enhanced, (t, _) =>
+        {
+            var e = t.EnhancedCamera;
+            Assert.True(MathF.Abs(e.WedgePush) <= width + 1e-3f, $"pushed {e.WedgePush:F1}°");
+            engaged += e.WedgeEngaged ? 1 : 0;
+            flips += e.WedgeSide != 0 && last != 0 && e.WedgeSide != last ? 1 : 0;
+            last = e.WedgeSide;
+        }, stick: CameraStick.Wander);
+        output.WriteLine($"E01 wandering: wedge engaged {engaged} ticks, {flips} changes of side");
+        Assert.True(engaged > 0, "the wedge never took hold in the cave");
+        Assert.True(flips <= 1);
+        foreach (var walk in CameraWalk.Standard.Where(w => w.Name[0] is 'a' or 'c'))
+        {
+            var held = 0;
+            CameraTrace.Run(plugins, walk, CameraStyle.Enhanced, (t, _) => held += t.EnhancedCamera.WedgeEngaged ? 1 : 0);
+            Assert.Equal(0, held);
+        }
+    }
+
+    /// <summary>
     /// Laps hugging GwerniaCastle G01's meeting table (map set 4), whose collision is a hollow box rising well over the drawn
     /// table: under the furniture rule the boom passes it and stays at its length with no falls; under collision it keeps
     /// being cut.

@@ -31,6 +31,9 @@ public sealed class TrekCameraMeasureTests(Na10Import fixture, ITestOutputHelper
         Assert.True(original.Progress < 0.6f * original.PathLength);
         Assert.True(original.Pressed > 0.2f);
         Assert.True(enhanced.Progress > 0.9f * enhanced.PathLength);
+        // The walking wedge mustn't steer a forward-holder off C15's path (49.5 of 50.4 before it came).
+        if (walk == "c forward")
+            Assert.True(enhanced.Progress >= 49.4f, $"{enhanced.Progress:F1} of {enhanced.PathLength:F1}");
         Assert.True(enhanced.Pressed < 0.05f);
         Assert.True(enhanced.BendPeak <= TrekCameraTuning.Default.BendBound + 1e-3f);
     }

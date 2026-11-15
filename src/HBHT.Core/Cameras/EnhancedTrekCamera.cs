@@ -157,6 +157,7 @@ public sealed partial class EnhancedTrekCamera
         _swingSide = 0;
         _swingingBehind = false;
         _restGoal = null;
+        (_wedge, _wedgeRaw, _wedgeSide) = (0, 0, 0);
         if (kept)
         {
             Adopt(camera);
@@ -501,7 +502,12 @@ public sealed partial class EnhancedTrekCamera
         }
         // Behind him only where behind has room: whiskers about the goal push it, smoothly, toward the nearer open side.
         var aimed = auto && (_travel.Length() > t.MovingSpeed || _restGoal is not null);
-        goal += StepWhiskers(world, visible, goal, aimed) * Degree;
+        var ideal = goal;
+        // Walking, where the boom behind his travel is cut and a yaw within the wedge either side keeps it: there instead.
+        var striding = Math.Clamp((_travel.Length() - t.MovingSpeed) / MathF.Max(t.MovingSpeed, 1e-3f), 0, 1);
+        var wedge = StepWedge(world, visible, ideal, striding, auto && !_swingingBehind && Sneak.Weight <= 0);
+        goal += (StepWhiskers(world, visible, ideal, aimed) + wedge) * Degree;
+        WedgeOff = MathF.Abs(Wrap(_yaw - ideal)) / Degree;
         // Sneaking past a hunter: toward his far side from it, as quickly as its weight allows.
         var sneak = auto ? Sneak.Weight : 0;
         if (sneak > 0)
@@ -653,11 +659,150 @@ public sealed partial class EnhancedTrekCamera
         return _whisker;
     }
 
+    /// <summary>
+    /// The walking wedge (the user's ask of Nov 14, 2026, in Port Saiid's E01 cave): behind his travel is the ideal, but a yaw
+    /// within <see cref="TrekCameraTuning.WedgeWidth"/> either side of it will do. Where the boom at the ideal, from the pivot
+    /// now and from where it will be over <see cref="TrekCameraTuning.ArmLookahead"/>, loses more than
+    /// <see cref="TrekCameraTuning.WedgeLoss"/> of the length (whole by 0.2 more), and some yaw inside the wedge keeps the place's
+    /// length (but for <see cref="TrekCameraTuning.ArrivalShortfall"/>) from both, the goal goes to the open yaw nearest behind,
+    /// its edge found finely, <see cref="TrekCameraTuning.WedgeMargin"/> inside it. Between openings on both sides it keeps the
+    /// side it has (at first, the side the camera is on), and changes only when that side closes. Eased in over
+    /// <see cref="TrekCameraTuning.WedgeEase"/>, home over <see cref="TrekCameraTuning.WedgeRelease"/>; scaled by how much he's
+    /// walking, so as he stops it hands over to the whiskers. Nothing whole in the wedge, or behind not cut: nothing.
+    /// </summary>
+    /// <returns>How far round from <paramref name="ideal"/> the goal goes, in degrees, eased.</returns>
+    private float StepWedge(CollisionWorld world, VisibleWorld? visible, float ideal, float walking, bool active)
+    {
+        var t = Tuning;
+        if (!active || t.WedgeWidth <= 0 || walking <= 0)
+        {
+            _wedgeRaw = 0;
+            _wedgeHeld = false;
+            (WedgeCut, WedgeOpen) = (0, false);
+        }
+        else if (Ticks % 2 == 0 || !_wedged)
+        {
+            _wedged = true;
+            var want = _length * (1 - t.ArrivalShortfall);
+            // Where the pivot will be, as the arm's look ahead takes it: as far as he really travels, short of a wall.
+            var ahead = _pivotSpeed * t.ArmLookahead * Math.Clamp(_travel.Length() / 2, 0, 1);
+            if (ahead.LengthSquared() > 1e-6f && SpherePhysics.SweepEitherSide(world, _pivot, _pivot + ahead, 0.01f, skipSeeThrough: true) is { } stop)
+                ahead *= MathF.Max(0, stop - 0.6f / ahead.Length());
+            var (sinPitch, cosPitch) = MathF.SinCos(_basePitch * Degree);
+            var pivot = _pivot;
+            float Room(float off)
+            {
+                var yaw = ideal + off * Degree;
+                var way = new Vector3(MathF.Cos(yaw) * cosPitch, sinPitch, MathF.Sin(yaw) * cosPitch);
+                var now = Free(world, visible, way, _length);
+                if (ahead.LengthSquared() < 1e-4f)
+                    return now;
+                _pivot = pivot + ahead;
+                var later = Free(world, visible, way, _length);
+                _pivot = pivot;
+                return MathF.Min(now, later);
+            }
+            var lost = 1 - Room(0) / MathF.Max(_length, 1e-3f);
+            var cut = Smooth((lost - t.WedgeLoss) / 0.2f);
+            // It takes hold only where the boom itself is about to be cut, by the arm's look ahead along its own way (behind
+            // his travel being short of room while the boom where it is has it, on a forest path, is nothing to act on), and
+            // then holds for as long as behind him is cut, wherever the boom has got to.
+            var reach = MathF.Max(MathF.Min(_arm, _length), 0.5f);
+            var threatened = Smooth((Math.Clamp((reach - EnvelopeLast) / reach, 0, 1) - t.WedgeLoss) / 0.2f);
+            if (cut <= 0)
+                _wedgeHeld = false;
+            else if (cut * threatened > 0.3f)
+                _wedgeHeld = true;
+            if (!_wedgeHeld)
+                cut = 0;
+            WedgeCut = cut;
+            float? Opening(int side)
+            {
+                var count = Math.Max(1, (int)MathF.Ceiling(t.WedgeWidth / t.WedgeStep));
+                var shut = 0f;
+                for (var k = 1; k <= count; k++)
+                {
+                    var off = MathF.Min(k * t.WedgeStep, t.WedgeWidth);
+                    if (Room(side * off) < want)
+                    {
+                        shut = off;
+                        continue;
+                    }
+                    // The edge, found finely between the last shut yaw and this open one, so the goal moves continuously.
+                    var open = off;
+                    for (var i = 0; i < 3; i++)
+                    {
+                        var mid = (shut + open) / 2;
+                        if (Room(side * mid) >= want)
+                            open = mid;
+                        else
+                            shut = mid;
+                    }
+                    var inside = MathF.Min(open + t.WedgeMargin, t.WedgeWidth);
+                    return inside > off && Room(side * inside) < want ? off : inside;
+                }
+                return null;
+            }
+            float? plus = null, minus = null;
+            if (cut > 0)
+            {
+                plus = Opening(1);
+                minus = Opening(-1);
+            }
+            WedgeOpen = plus is not null || minus is not null;
+            if (plus is null && minus is null)
+            {
+                _wedgeRaw = 0;
+            }
+            else
+            {
+                // Sticky: the side it has, while that side stays open; at first, the side the camera is on.
+                var side = _wedgeSide != 0 ? _wedgeSide : Wrap(_yaw - ideal) >= 0 ? 1 : -1;
+                if ((side > 0 ? plus : minus) is null)
+                    side = -side;
+                _wedgeSide = side;
+                _wedgeRaw = cut * side * (side > 0 ? plus : minus)!.Value;
+            }
+        }
+        var target = _wedgeRaw * walking;
+        var ease = MathF.Abs(target) > MathF.Abs(_wedge) && MathF.Sign(target) == MathF.Sign(_wedge) || _wedge == 0 && target != 0
+            ? t.WedgeEase : t.WedgeRelease;
+        _wedge += (target - _wedge) * (1 - MathF.Exp(-Tick / MathF.Max(ease, 1e-3f)));
+        if (_wedgeRaw == 0 && MathF.Abs(_wedge) < 1)
+            _wedgeSide = 0;
+        return _wedge;
+    }
+
+    private bool _wedged, _wedgeHeld;
+
     private float _whisker, _whiskerRaw, _lastE;
+    private float _wedge, _wedgeRaw;
+    private int _wedgeSide;
     private bool _whiskered;
 
     /// <summary>How far round from behind him the room has pushed the yaw's goal, in degrees.</summary>
     public float WhiskerPush => _whisker;
+
+    /// <summary>
+    /// How far round from behind his travel the walking wedge has put the yaw's goal, in degrees, eased
+    /// (<see cref="StepWedge"/>).
+    /// </summary>
+    public float WedgePush => _wedge;
+
+    /// <summary>Whether the walking wedge holds the goal off behind him this tick (its push more than a degree).</summary>
+    public bool WedgeEngaged => MathF.Abs(_wedge) > 1;
+
+    /// <summary>The side the wedge's goal is on, +1 or −1, or 0 while it isn't engaged.</summary>
+    public int WedgeSide => WedgeEngaged ? _wedgeSide : 0;
+
+    /// <summary>How much of a cut the wedge last found behind him, 0 to 1 (its trigger), for the rig.</summary>
+    public float WedgeCut { get; private set; }
+
+    /// <summary>Whether, at that cut, some yaw within the wedge kept the length, for the rig.</summary>
+    public bool WedgeOpen { get; private set; }
+
+    /// <summary>How far the yaw is off behind his travel (with the leans), in degrees, last tick.</summary>
+    public float WedgeOff { get; private set; }
 
     /// <summary>
     /// How urgently the follow should turn, eased: how much of the boom the look ahead says is about to go (from 15% lost,
@@ -993,6 +1138,7 @@ public sealed partial class EnhancedTrekCamera
         }
         _yawSpeed = _pitchSpeed = 0;
         _swingSide = 0;
+        (_wedge, _wedgeRaw, _wedgeSide) = (0, 0, 0);
         // Close quarters are judged again at its next fit.
         _free = _freeLevel = _length;
         // A view taken up from elsewhere is one the player didn't choose.

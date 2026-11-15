@@ -93,6 +93,12 @@ namespace HBHT.Core.Cameras;
 /// <param name="SneakOut">How long it takes to let go.</param>
 /// <param name="BoomLimits">What limits the boom and the camera's place: "furniture", the default (collision's limits, but the boom passes a bare collision wall lower than the lens with ground beyond it: a table's box), "collision" (the collision's walls, from either side, and the drawn world), or "drawn" (the drawn world's solid surfaces alone, the camera kept over floor by the collision): a trial, off by default.</param>
 /// <param name="FurnitureClear">Under the furniture rule, how far below the lens a bare wall's top must be for the boom to pass it.</param>
+/// <param name="WedgeWidth">How far either side of behind his travel the walking wedge may put the yaw's goal where the boom behind him is cut and a yaw within it keeps the length; 0 turns it off.</param>
+/// <param name="WedgeStep">How far apart the wedge's yaws are sampled before its opening's edge is found finely.</param>
+/// <param name="WedgeMargin">How far inside the opening, past its edge, the wedge's goal is kept.</param>
+/// <param name="WedgeLoss">The share of the boom's length behind him that must be lost (now or over the look ahead) for the wedge to begin acting; it's whole 0.2 further.</param>
+/// <param name="WedgeEase">How long the wedge's push takes to ease most of the way (63%) out toward a goal further round.</param>
+/// <param name="WedgeRelease">How long it takes to ease back home, or across.</param>
 /// <param name="SneakSwitch">The share of the held hunter's distance another must be within to be framed instead.</param>
 public sealed record TrekCameraTuning(
     float OutdoorLength = 5,
@@ -182,7 +188,13 @@ public sealed record TrekCameraTuning(
     float SneakOut = 0.8f,
     float SneakSwitch = 0.8f,
     string BoomLimits = "furniture",
-    float FurnitureClear = 0.4f)
+    float FurnitureClear = 0.4f,
+    float WedgeWidth = 40,
+    float WedgeStep = 5,
+    float WedgeMargin = 6,
+    float WedgeLoss = 0.35f,
+    float WedgeEase = 0.3f,
+    float WedgeRelease = 0.8f)
 {
     public static TrekCameraTuning Default { get; } = new();
 
