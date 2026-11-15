@@ -730,15 +730,16 @@ public sealed partial class EnhancedTrekCamera
             return _length;
         var (yaw, pivot, pitch) = (_yaw, _pivot, _pitch);
         // How far round it goes: its speed over the span, or toward the goal at the swing's rate if that's more, not past it.
-        var turn = _yawSpeed * t.ArmLookahead;
-        var toward = MathF.Sign(_lastE) * MathF.Min(MathF.Abs(_lastE), MathF.Max(MathF.Abs(turn), _swingingBehind ? t.TightTurn * Degree * t.ArmLookahead : 0));
-        if (MathF.Abs(toward) > MathF.Abs(turn) && (turn == 0 || MathF.Sign(toward) == MathF.Sign(turn)))
+        var turn = _yawSpeed * t.ArmTurnLookahead;
+        var toward = MathF.Sign(_lastE) * MathF.Min(MathF.Abs(_lastE), MathF.Max(MathF.Abs(turn), _swingingBehind ? t.TightTurn * Degree * t.ArmTurnLookahead : 0));
+        if (Tuning.ArmPlansSwing && MathF.Abs(toward) > MathF.Abs(turn) && (turn == 0 || MathF.Sign(toward) == MathF.Sign(turn)))
             turn = toward;
         var least = float.MaxValue;
         const int Points = 8;
         // The pivot goes where it's going, at its own speed (which follows his travel, glides after an arrival, and lifts in
         // close quarters), but no further than a wall in its way.
-        var ahead = _pivotSpeed * t.ArmLookahead;
+        // Pressed into a wall he isn't going anywhere, whatever the pivot's jitter: only as far as he really travels.
+        var ahead = _pivotSpeed * t.ArmLookahead * Math.Clamp(_travel.Length() / 2, 0, 1);
         if (ahead.LengthSquared() > 1e-6f && SpherePhysics.SweepEitherSide(world, pivot, pivot + ahead, 0.01f, skipSeeThrough: true) is { } stop)
             ahead *= MathF.Max(0, stop - 0.6f / ahead.Length());
         for (var k = 1; k <= Points; k++)

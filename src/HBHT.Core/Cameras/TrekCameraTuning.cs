@@ -20,6 +20,8 @@ namespace HBHT.Core.Cameras;
 /// <param name="ArmInAccel">How fast that may change.</param>
 /// <param name="ArmInTime">How long coming in takes to go 90% of the way.</param>
 /// <param name="ArmLookahead">How far ahead the arm looks for the room it will need, seconds of the yaw's turn and his travel.</param>
+/// <param name="ArmTurnLookahead">How far ahead, in seconds, the arm looks along the yaw's turn (his travel takes ArmLookahead).</param>
+/// <param name="ArmPlansSwing">Whether, in a swing, the look ahead takes the yaw as going round at the swing's rate rather than at its present speed.</param>
 /// <param name="WhiskerSpread">How far round either side of the yaw's goal its whiskers sample the room; 0 turns them off.</param>
 /// <param name="WhiskerEase">How long the whiskers' push takes to ease most of the way (63%) to a new value.</param>
 /// <param name="ArmEase">How long the arm's easing out takes to go 90% of the way.</param>
@@ -99,7 +101,9 @@ public sealed record TrekCameraTuning(
     float ArmIn = 12,
     float ArmInAccel = 80,
     float ArmInTime = 0.4f,
-    float ArmLookahead = 1,
+    float ArmLookahead = 0.6f,
+    float ArmTurnLookahead = 0.5f,
+    bool ArmPlansSwing = true,
     float WhiskerSpread = 120,
     float WhiskerEase = 0.6f,
     float CloseLift = 1.6f,
