@@ -37,6 +37,9 @@ public static class DialogueCensus
         public List<(DialogueShot Shot, float Angle, float Toward, float Cover)> Singles { get; init; } = [];
         public List<(DialogueShot Wanted, DialogueShotKind FellTo)> Misses { get; init; } = [];
 
+        /// <summary>For each punch-in that fell to over the shoulder, which of its nearer-first placings it took (0 tight, 1 snug, 2 roomy, 3 and 4 nearer).</summary>
+        public List<int> PunchShoulders { get; init; } = [];
+
         public bool OriginalOnly => !(ShoulderAtNpc || ShoulderAtPlayer || SingleOfNpc || SingleOfPlayer || TwoShot || Wide);
 
         /// <summary>How many of the six fit.</summary>
@@ -98,6 +101,7 @@ public static class DialogueCensus
                     bool Fits(DialogueShotKind kind, Talker who) => DialogueCamera.TryPlace(scene, side, new DialogueShot(kind, who), tuning, out _);
                     var singles = new List<(DialogueShot, float, float, float)>();
                     var misses = new List<(DialogueShot, DialogueShotKind)>();
+                    var punchShoulders = new List<int>();
                     foreach (var kind in new[] { DialogueShotKind.Single, DialogueShotKind.Punch })
                     foreach (var who in new[] { Talker.Npc, Talker.Player })
                     {
@@ -108,7 +112,14 @@ public static class DialogueCensus
                             singles.Add((wanted, angle, toward, cover));
                         }
                         else
-                            misses.Add((wanted, DialogueCamera.Fit(scene, side, wanted, tuning).Shown.Kind));
+                        {
+                            var fell = DialogueCamera.Fit(scene, side, wanted, tuning).Shown.Kind;
+                            misses.Add((wanted, fell));
+                            if (kind == DialogueShotKind.Punch && fell == DialogueShotKind.OverShoulder
+                                && DialogueCamera.TryPlace(scene, side, wanted with { Kind = DialogueShotKind.OverShoulder }, tuning, out _, out var near,
+                                    nearFirst: true))
+                                punchShoulders.Add(near);
+                        }
                     }
                     placings.Add(new Placing(set.Label ?? set.Id.ToString(), chunk.Name, npc.Index, way, interior, side,
                         Fits(DialogueShotKind.OverShoulder, Talker.Npc), Fits(DialogueShotKind.OverShoulder, Talker.Player),
@@ -124,6 +135,7 @@ public static class DialogueCensus
                             == DialogueShotKind.OverShoulder,
                         Singles = singles,
                         Misses = misses,
+                        PunchShoulders = punchShoulders,
                     });
                 }
             }
@@ -181,6 +193,11 @@ public static class DialogueCensus
                 + $"listener's cover at the widest frame, most {(placed.Count > 0 ? placed.Max(x => x.Cover) : 0):P0}; misses fell to "
                 + string.Join(", ", missed.GroupBy(m => m.FellTo).OrderByDescending(g => g.Count()).Select(g => $"{g.Key} {g.Count() / (double)tried:P0}")));
         }
+        var pushed = placings.SelectMany(p => p.PunchShoulders).ToList();
+        if (pushed.Count > 0)
+            output.WriteLine($"A punch-in fallen to over the shoulder took the tight placing {pushed.Count(i => i == 0) / (double)pushed.Count:P0}, "
+                + $"the snug {pushed.Count(i => i == 1) / (double)pushed.Count:P0}, the roomy {pushed.Count(i => i == 2) / (double)pushed.Count:P0}, "
+                + $"nearer {pushed.Count(i => i >= 3) / (double)pushed.Count:P0} ({pushed.Count})");
         static float Median(IEnumerable<float> v)
         {
             var c = v.Order().ToList();
