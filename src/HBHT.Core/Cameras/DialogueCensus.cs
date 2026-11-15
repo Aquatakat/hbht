@@ -35,10 +35,14 @@ public static class DialogueCensus
         public int Fitting => new[] { ShoulderAtNpc, ShoulderAtPlayer, SingleOfNpc, SingleOfPlayer, TwoShot, Wide }.Count(f => f);
     }
 
-    /// <summary>Alaron's sphere, and the gap he talks at beyond the npc's.</summary>
-    private const float PlayerRadius = PlayerMotion.Radius, Gap = 0.5f;
+    /// <summary>Alaron's sphere.</summary>
+    private const float PlayerRadius = PlayerMotion.Radius;
 
-    public static List<Placing> Run(PluginSet plugins, DialogueTuning tuning)
+    /// <summary>The gaps between the spheres the census stands them at: touching, as a player runs up and presses A, and the furthest A reaches (<c>Wanderers.Reaches</c>, 0.5).</summary>
+    public const float Touching = 0.05f, Furthest = 0.5f;
+
+    /// <param name="gap">How far apart their spheres are: <see cref="Touching"/> or <see cref="Furthest"/>.</param>
+    public static List<Placing> Run(PluginSet plugins, DialogueTuning tuning, float gap = Furthest)
     {
         var alaron = plugins.TryGet<EntityRecord>(GameState.Alaron)?.Body;
         var placings = new List<Placing>();
@@ -59,6 +63,7 @@ public static class DialogueCensus
                 var world = streamer.World;
                 var interior = plugins.TryGet<TerrainRecord>(chunk.Terrain) is { SkyDrawn: false };
                 var look = plugins.TryGet<EntityRecord>(npc.Entity)?.Body;
+                var wants = DialoguePlanner.WantsOf(plugins.Get<ScriptRecord>(npc.Script), tuning);
                 var npcRadius = 0.5f * (look?.Scale ?? 1);
                 if (Ground(world, at) is not { } npcGround)
                     continue;
@@ -67,7 +72,7 @@ public static class DialogueCensus
                 {
                     var (s, c) = MathF.SinCos(way * MathF.PI / 4);
                     var dir = new Vector2(c, s);
-                    var reach = npcRadius + PlayerRadius + Gap;
+                    var reach = npcRadius + PlayerRadius + gap;
                     var stand = npcCentre + new Vector3(dir.X, 0, dir.Y) * reach;
                     if (Ground(world, stand) is not { } ground || MathF.Abs(ground - npcGround) > 1)
                         continue;
@@ -81,7 +86,7 @@ public static class DialogueCensus
                     // The follow camera behind Alaron, a little round: the side is chosen mostly by the room.
                     var (bs, bc) = MathF.SinCos(MathF.PI / 9);
                     var back = new Vector2(dir.X * bc - dir.Y * bs, dir.X * bs + dir.Y * bc);
-                    var side = DialogueCamera.ChooseSide(scene, playerCentre + new Vector3(back.X, 0, back.Y) * 5 + Vector3.UnitY, tuning);
+                    var side = DialogueCamera.ChooseSide(scene, playerCentre + new Vector3(back.X, 0, back.Y) * 5 + Vector3.UnitY, tuning, wants);
                     bool Fits(DialogueShotKind kind, Talker who) => DialogueCamera.TryPlace(scene, side, new DialogueShot(kind, who), tuning, out _);
                     placings.Add(new Placing(set.Label ?? set.Id.ToString(), chunk.Name, npc.Index, way, interior, side,
                         Fits(DialogueShotKind.OverShoulder, Talker.Npc), Fits(DialogueShotKind.OverShoulder, Talker.Player),

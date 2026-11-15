@@ -95,6 +95,17 @@ public class DialoguePlannerTests
     }
 
     [Fact]
+    public void WhatAScriptWillWantIsReadFromItAlone()
+    {
+        DialogueShotKind[] plain = [DialogueShotKind.TwoShot, DialogueShotKind.OverShoulder];
+        Assert.Equal(plain, DialoguePlanner.WantsOf(Lines((Npc, "Hello."), (Alaron, "Hi."))));
+        Assert.Equal([.. plain, DialogueShotKind.Single], DialoguePlanner.WantsOf(Lines((Npc, "Hello."), (Alaron, "GET OUT!"))));
+        Assert.Equal([.. plain, DialogueShotKind.Wide], DialoguePlanner.WantsOf(Make(Line(0, "Die.", 1, Npc), Line(1, "", null, null, new ScriptOp.BattleStart()))));
+        var tale = Lines(Enumerable.Range(0, 6).Select(i => ((RecordId?)Npc, $"Line {i}.")).ToArray());
+        Assert.Equal([.. plain, DialogueShotKind.Wide, DialogueShotKind.Single], DialoguePlanner.WantsOf(tale));
+    }
+
+    [Fact]
     public void TheTuningIsSetByName()
     {
         var t = DialogueTuning.Default.Parse("singledistance=3.5,RunPattern=SOWL,AcrossYaws=0;30,MinShotTicks=60");
@@ -186,6 +197,20 @@ public class DialogueFittingTests
         Assert.Equal(-1, DialogueCamera.ChooseSide(walled, new Vector3(1, 3, 0.8f), T));
         // A wall on the other side doesn't move it.
         Assert.Equal(1, DialogueCamera.ChooseSide(Scene(With(-1.2f)), new Vector3(1, 3, 5), T));
+    }
+
+    [Fact]
+    public void TheSideIsTheOneWhereMoreOfTheShotsTheScriptWantsFit()
+    {
+        // A wall 4.6 off on the camera's side (not so near the room alone would leave it): the two-shot and the shoulders fit both sides, the wide only the other.
+        var scene = Scene(With(4.6f));
+        var camera = new Vector3(1, 3, 2);
+        DialogueShotKind[] plain = [DialogueShotKind.TwoShot, DialogueShotKind.OverShoulder];
+        Assert.Equal(DialogueCamera.Fitting(scene, 1, T, plain), DialogueCamera.Fitting(scene, -1, T, plain));
+        // On a tie the room decides, which here would leave the camera's side only for a margin wider than its own.
+        var t = T with { SideMargin = 10 };
+        Assert.Equal(1, DialogueCamera.ChooseSide(scene, camera, t, plain));
+        Assert.Equal(-1, DialogueCamera.ChooseSide(scene, camera, t, [.. plain, DialogueShotKind.Wide]));
     }
 
     [Fact]

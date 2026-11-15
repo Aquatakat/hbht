@@ -60,6 +60,31 @@ public sealed partial class DialoguePlanner(ScriptRecord script, DialogueTuning?
     private readonly DialogueTuning _tuning = tuning ?? DialogueTuning.Default;
     private readonly Dictionary<int, ScriptNode> _nodes = script.Nodes.ToDictionary(n => n.Index);
 
+    /// <summary>The kinds of shot this script will want (<see cref="WantsOf"/>), which the side is chosen by.</summary>
+    public IReadOnlyCollection<DialogueShotKind> Wants => _wants ??= WantsOf(script, _tuning);
+
+    private IReadOnlyCollection<DialogueShotKind>? _wants;
+
+    /// <summary>
+    /// The kinds of shot a script will want, read from it alone: the two-shot and over the shoulder always; the wide where it has a
+    /// long run by one speaker or a battle ahead; the single where it has a shouted line or a long run.
+    /// </summary>
+    public static IReadOnlyCollection<DialogueShotKind> WantsOf(ScriptRecord script, DialogueTuning? tuning = null)
+    {
+        var t = tuning ?? DialogueTuning.Default;
+        var planner = new DialoguePlanner(script, t);
+        var lines = script.Nodes.Where(n => n.Text.Length > 0).ToList();
+        var longRun = lines.Any(n => TalkerOf(n.Speaker) != Talker.None && planner.RunAhead(n.Index, TalkerOf(n.Speaker)) >= t.RunLong);
+        var battle = script.Nodes.Any(n => n.Ops.Any(o => o is ScriptOp.BattleStart));
+        var shouts = lines.Any(n => TalkerOf(n.Speaker) != Talker.None && Shouted(n.Text));
+        var wants = new List<DialogueShotKind> { DialogueShotKind.TwoShot, DialogueShotKind.OverShoulder };
+        if (longRun || battle)
+            wants.Add(DialogueShotKind.Wide);
+        if (longRun || shouts)
+            wants.Add(DialogueShotKind.Single);
+        return wants;
+    }
+
     /// <summary>The shot chosen last, or null before the first page.</summary>
     public DialogueShot? Current { get; private set; }
 

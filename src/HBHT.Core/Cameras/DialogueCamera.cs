@@ -72,7 +72,7 @@ public sealed class DialogueCamera(DialoguePlanner planner, DialogueTuning? tuni
     {
         _tick++;
         if (Side == 0)
-            Side = ChooseSide(scene, camera.Position, _t);
+            Side = ChooseSide(scene, camera.Position, _t, Planner.Wants);
         var wanted = Wanted;
         if (page is { } p && !Equals(key, _page))
         {
@@ -114,15 +114,39 @@ public sealed class DialogueCamera(DialoguePlanner planner, DialogueTuning? tuni
     public static int SideOf(DialogueScene scene, Vector3 point) => Vector3.Dot(Flat(point - scene.Focus), Across(scene)) < 0 ? -1 : 1;
 
     /// <summary>
-    /// The side of the line, chosen once as the conversation starts: the side the camera is on, unless the other has clearly more
-    /// room (<see cref="DialogueTuning.SideMargin"/> more, looked along to <see cref="DialogueTuning.SideReach"/>).
+    /// The side of the line, chosen once as the conversation starts: the side where more of the shots the script will want fit
+    /// (<paramref name="wants"/>, <see cref="DialoguePlanner.WantsOf"/>); on a tie, the side the camera is on, unless the other has
+    /// clearly more room (<see cref="DialogueTuning.SideMargin"/> more, looked along to <see cref="DialogueTuning.SideReach"/>).
     /// </summary>
-    public static int ChooseSide(DialogueScene scene, Vector3 camera, DialogueTuning t)
+    public static int ChooseSide(DialogueScene scene, Vector3 camera, DialogueTuning t, IReadOnlyCollection<DialogueShotKind>? wants = null)
     {
         var side = SideOf(scene, camera);
-        var here = Room(scene, side, t.SideReach);
-        var there = Room(scene, -side, t.SideReach);
-        return there >= here + t.SideMargin ? -side : side;
+        if (wants is not null)
+        {
+            var (here, there) = (Fitting(scene, side, t, wants), Fitting(scene, -side, t, wants));
+            if (here != there)
+                return there > here ? -side : side;
+        }
+        var room = Room(scene, side, t.SideReach);
+        var other = Room(scene, -side, t.SideReach);
+        return other >= room + t.SideMargin ? -side : side;
+    }
+
+    /// <summary>How many of the shots wanted fit on a side, each of the kinds at either talker that has one.</summary>
+    public static int Fitting(DialogueScene scene, int side, DialogueTuning t, IReadOnlyCollection<DialogueShotKind> wants)
+    {
+        var count = 0;
+        foreach (var kind in wants)
+        {
+            if (kind is DialogueShotKind.OverShoulder or DialogueShotKind.Single or DialogueShotKind.Punch)
+            {
+                count += TryPlace(scene, side, new DialogueShot(kind, Talker.Npc), t, out _) ? 1 : 0;
+                count += TryPlace(scene, side, new DialogueShot(kind, Talker.Player), t, out _) ? 1 : 0;
+            }
+            else
+                count += TryPlace(scene, side, new DialogueShot(kind), t, out _) ? 1 : 0;
+        }
+        return count;
     }
 
     /// <summary>How far from the focus the way to one side is open, to <paramref name="reach"/>, tested from both ends and against the drawn world.</summary>
