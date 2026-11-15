@@ -505,7 +505,7 @@ public sealed partial class EnhancedTrekCamera
         var ideal = goal;
         // Walking, where the boom behind his travel is cut and a yaw within the wedge either side keeps it: there instead.
         var striding = Math.Clamp((_travel.Length() - t.MovingSpeed) / MathF.Max(t.MovingSpeed, 1e-3f), 0, 1);
-        var wedge = StepWedge(world, visible, ideal, striding, auto && !_swingingBehind && Sneak.Weight <= 0 && _turn == 0);
+        var wedge = StepWedge(world, visible, ideal, striding, auto && !_swingingBehind && Sneak.Weight <= 0 && _turn is not (1 or -1));
         goal += (StepWhiskers(world, visible, ideal, aimed) + wedge) * Degree;
         WedgeOff = MathF.Abs(Wrap(_yaw - ideal)) / Degree;
         // Sneaking past a hunter: toward his far side from it, as quickly as its weight allows.
@@ -527,13 +527,16 @@ public sealed partial class EnhancedTrekCamera
             _unchosen = false;
             if (_swingingBehind)
                 _swingSide = OpenWayRound(world, visible, e);
+            _swingFrom = goal;
         }
         if (_swingingBehind && MathF.Abs(e) < 10 * Degree)
         {
             _swingingBehind = false;
             _swingSide = 0;
         }
-        StepTurn(world, visible, ref e, auto && (!_swingingBehind || t.TurnPlansSwing) && Sneak.Weight <= 0 && _travel.Length() > t.MovingSpeed);
+        // A turn back made during an unchosen swing, once his travel has turned well away from where the swing was going, is his own.
+        var hisTurn = !_swingingBehind || t.TurnPlansSwing || MathF.Abs(Wrap(goal - _swingFrom)) > 90 * Degree;
+        StepTurn(world, visible, ref e, auto && hisTurn && Sneak.Weight <= 0 && _travel.Length() > t.MovingSpeed);
         if (_turn is 1 or -1)
         {
             // A planned turn keeps its way round.
@@ -603,6 +606,8 @@ public sealed partial class EnhancedTrekCamera
             var tuck = (_arm - _turnPlan) / MathF.Max(t.TurnArmIn, 0.1f) + 0.15f;
             cap = MathF.Max(t.TurnSlowest * Degree, _turnAt / tuck);
         }
+        if (_turn is not (1 or -1))
+            _turnCap = float.MaxValue;
         var unheld = MathF.Max(most, MathF.Abs(_yawSpeed));
         if (_turnCap >= float.MaxValue / 2)
             _turnCap = unheld;
@@ -799,7 +804,10 @@ public sealed partial class EnhancedTrekCamera
     private int _turn;
 
     /// <summary>The planned turn's arm goal (the least room along what's left of its arc) and how far round, in radians, that narrowest part is.</summary>
-    private float _turnPlan, _turnAt, _turnCap = float.MaxValue;
+    private float _turnPlan, _turnAt, _turnCap = float.MaxValue, _swingFrom;
+
+    /// <summary>The planned turn's arm goal, for the rig.</summary>
+    public float TurnPlan => _turnPlan;
 
     /// <summary>Whether a large turn is planned (the arm tucking in over its arc), for the rig: ±1 its way round, 0 none.</summary>
     public int TurnPlanned => _turn is 1 or -1 ? _turn : 0;
@@ -856,7 +864,8 @@ public sealed partial class EnhancedTrekCamera
             var shorter = e >= 0 ? 1 : -1;
             var (near, _) = Arc(shorter, Span(shorter));
             var (far, _) = Arc(-shorter, Span(-shorter));
-            if (near >= want && far >= want)
+            // The shorter way whole: the ordinary turn, as unplanned.
+            if (near >= want)
             {
                 _turn = 2;
                 return;
@@ -869,8 +878,15 @@ public sealed partial class EnhancedTrekCamera
             // An unchosen view's swing has chosen its way round already: that way, planned.
             _turn = _swingingBehind && _swingSide != 0 ? _swingSide : Score(shorter, near) >= Score(-shorter, far) ? shorter : -shorter;
             _turnPlan = 0;
+            // Where the look ahead along his travel already sees a nearer wall than the arc's least, planning can't help: not planned, and not again this turn.
+            var (least, _) = Arc(_turn, Span(_turn));
+            if (EnvelopeLast < least - 0.05f)
+            {
+                _turn = 3;
+                return;
+            }
         }
-        if (_turn == 2)
+        if (_turn is 2 or 3)
             return;
         var span = Span(_turn);
         if (span > 200 * Degree)
@@ -1025,9 +1041,11 @@ public sealed partial class EnhancedTrekCamera
             // In a planned turn the arm rides the least room along what's left of the arc instead, tucking in at a moderate
             // rate ahead of it (the yaw waits for it) and easing out as the narrow part goes by.
             // A wall the look ahead sees nearer than the arc's least (his own travel bringing it) keeps the ordinary rates.
-            var arc = _turn is 1 or -1 && _turnPlan > 0;
-            var planned = arc && EnvelopeLast >= _turnPlan - 0.05f;
-            var goal = MathF.Min(_free, arc ? MathF.Min(_turnPlan, EnvelopeLast) : EnvelopeLast);
+            // The look ahead seeing a nearer wall than the arc's least abandons the plan for this turn: from then on, as unplanned.
+            if (_turn is 1 or -1 && _turnPlan > 0 && EnvelopeLast < _turnPlan - 0.05f)
+                _turn = 3;
+            var planned = _turn is 1 or -1 && _turnPlan > 0;
+            var goal = MathF.Min(_free, planned ? _turnPlan : EnvelopeLast);
             var inward = goal < _arm;
             Approach(ref _arm, ref _armSpeed, goal, SettleRate(inward ? (planned ? t.TurnArmTime : t.ArmInTime) : t.ArmEase),
                 inward ? (planned ? t.TurnArmIn : t.ArmIn) : t.ArmOut, inward ? (planned ? t.TurnArmAccel : t.ArmInAccel) : t.ArmAccel);
