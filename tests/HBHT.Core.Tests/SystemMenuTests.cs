@@ -87,10 +87,18 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         Assert.Equal(["Preset", "Draw Distance", "Object Distance", "Model Detail", "Rain and Snow", "Menu Size", "Menu Filter", "Pace",
                 "Movement", "Status Auras", "Combat Turns", "Camera"],
             options.Rows.Rows.Select(r => r.Label));
-        // A new player's are the original's, and the original's video out.
-        Assert.Equal(["Original", "Original", "Original", "Original", "Original", "Original", "Video Out", "Original", "Original", "Original",
-                "Original", "Original"],
+        // A new player's are the Enhanced preset's.
+        Assert.Equal(["Enhanced", "Extended", "3x", "Highest", "8x", "Smaller", "Video Out", "Brisk", "Smoother", "More Often", "Start Early",
+                "Enhanced"],
             options.Rows.Rows.Select(r => r.ValueName));
+    }
+
+    /// <summary>Settings at the original's, the Original preset, rather than a new player's.</summary>
+    private static Settings OriginalSettings()
+    {
+        var settings = new Settings();
+        Enhancements.Original.ApplyTo(settings);
+        return settings;
     }
 
     private static OptionsMenu EnhancementsPage(Settings settings)
@@ -112,7 +120,7 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     [Fact]
     public void ThePresetSetsTheEnhancementsTogether()
     {
-        var settings = new Settings();
+        var settings = OriginalSettings();
         var options = EnhancementsPage(settings);
         // Before there's a Custom mix of the player's, the preset steps between Original and Enhanced.
         Assert.Equal(["Original", "Enhanced"], options.Rows.Rows[0].Values);
@@ -129,7 +137,6 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     public void ChangingARowTurnsThePresetToCustomAndBack()
     {
         var settings = new Settings();
-        Enhancements.Enhanced.ApplyTo(settings);
         var options = EnhancementsPage(settings);
         Assert.Equal("Enhanced", ValueOf(options, OptionsMenu.PresetLabel));
         ChangeRow(options, "Rain and Snow", -1);
@@ -159,7 +166,6 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     public void ThePresetCountsTheCameraAsStartEarlyShowsIt()
     {
         var settings = new Settings();
-        Enhancements.Enhanced.ApplyTo(settings);
         // The Camera setting kept as Original for when Combat Turns is Original again: the row shows Enhanced, so the preset is too.
         settings.Camera = HBHT.Core.Cameras.CameraStyle.Original;
         Assert.Equal(EnhancementPreset.Enhanced, Enhancements.From(settings).Preset);
@@ -168,7 +174,7 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     [Fact]
     public void ThePresetStepsBackToThePlayersCustomMix()
     {
-        var settings = new Settings();
+        var settings = OriginalSettings();
         var options = EnhancementsPage(settings);
         ChangeRow(options, "Pace", 1);
         ChangeRow(options, "Movement", 1);
@@ -195,8 +201,15 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         {
             var path = Path.Combine(folder, "settings.json");
             var settings = new Settings { CustomEnhancements = Enhancements.Original with { BriskPace = true, UiFilter = UiFilter.Smooth } };
+            // No file yet: a new player's, at the Enhanced preset.
+            Assert.Equal(EnhancementPreset.Enhanced, Enhancements.From(Settings.Load(path)).Preset);
             settings.Save(path);
             Assert.Equal(settings.CustomEnhancements, Settings.Load(path).CustomEnhancements);
+            // A player at the original's stays there: every setting is written, so none reads back as a new player's.
+            var original = new Settings();
+            Enhancements.Original.ApplyTo(original);
+            original.Save(path);
+            Assert.Equal(Enhancements.Original, Enhancements.From(Settings.Load(path)));
         }
         finally
         {
@@ -208,7 +221,7 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     [Fact]
     public void TheCameraRowSaysEnhancedUnderStartEarly()
     {
-        var settings = new Settings();
+        var settings = OriginalSettings();
         var options = new OptionsMenu(settings, inGame: true);
         options.Point(2);
         options.Accept();
@@ -315,7 +328,7 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
     [Fact]
     public void AnEnhancementWrapsRoundItsValues()
     {
-        var settings = new Settings();
+        var settings = OriginalSettings();
         var options = new OptionsMenu(settings, inGame: true);
         options.Point(2);
         options.Accept();

@@ -22,6 +22,12 @@ namespace HBHT.Core;
 public sealed class Settings
 {
     /// <summary>
+    /// A new player's settings: the Enhancements page's at its Enhanced preset, the user's choice, and the original's volumes. A field an
+    /// older <c>settings.json</c> lacks takes these too.
+    /// </summary>
+    public Settings() => Enhancements.Enhanced.ApplyTo(this);
+
+    /// <summary>
     /// The volumes' steps, from silent to full: the original's are floats from 0 to 1 that the stick steps by
     /// 0.01 (<c>WidgetOptionsConfig</c>), which these are in hundredths.
     /// </summary>
@@ -34,7 +40,7 @@ public sealed class Settings
     public int MusicVolume { get; set; } = 65;
 
     /// <summary>How many lines tall the UI screen is: the original's 240, or more for smaller UI with room for more.</summary>
-    public int UiLines { get; set; } = 240;
+    public int UiLines { get; set; }
 
     /// <summary>How the UI screen is scaled up to the window.</summary>
     public UiFilter UiFilter { get; set; } = UiFilter.VideoOut;
@@ -95,13 +101,13 @@ public sealed class Settings
     public bool ExtendedDrawDistance { get; set; }
 
     /// <summary>How far scene objects are drawn, as a multiple of the original's distances.</summary>
-    public float ObjectDistance { get; set; } = 1;
+    public float ObjectDistance { get; set; }
 
     /// <summary>Whether scene objects always draw their nearest, most detailed level.</summary>
     public bool NearestDetail { get; set; }
 
     /// <summary>How many raindrops and snowflakes fall, as a multiple of the original's (<see cref="Particles.WeatherParticles.Density"/>).</summary>
-    public float PrecipitationDensity { get; set; } = 1;
+    public float PrecipitationDensity { get; set; }
 
     /// <summary>How the sky places its objects: no longer on the options menu, the user's choice, but kept for F6 and <c>--sky</c>.</summary>
     public SkyPlacement SkyPlacement { get; set; } = SkyPlacement.Projected;
@@ -119,7 +125,7 @@ public sealed class Settings
     /// How the lasting spells' and potions' scenes over heads take their turns in a battle: one at a time across the battle, as the
     /// original's, or each character's at once (<see cref="Combat.SpellFx.Turns"/>).
     /// </summary>
-    public Combat.AuraTurns SpellAuras { get; set; } = Combat.AuraTurns.Battle;
+    public Combat.AuraTurns SpellAuras { get; set; }
 
     /// <summary>
     /// How a battle's turns are drawn: one after another as the original's, or Start Early's, where the core plays the AI's turns ahead

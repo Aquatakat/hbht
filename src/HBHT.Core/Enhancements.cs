@@ -25,11 +25,14 @@ public enum EnhancementPreset
 public sealed record Enhancements(bool ExtendedDrawDistance, float ObjectDistance, bool NearestDetail, float PrecipitationDensity,
     int UiLines, UiFilter UiFilter, bool BriskPace, MovementMode Movement, AuraTurns SpellAuras, CombatTurns CombatTurns, CameraStyle Camera)
 {
-    /// <summary>The N64's: a new player's settings.</summary>
+    /// <summary>The N64's.</summary>
     public static readonly Enhancements Original = new(false, 1, false, 1, 240, UiFilter.VideoOut, false, MovementMode.Original,
         AuraTurns.Battle, CombatTurns.Original, CameraStyle.Original);
 
-    /// <summary>Every enhancement at its fullest, the user's choice, but for Menu Size at Smaller and the menus through the video out.</summary>
+    /// <summary>
+    /// Every enhancement at its fullest, the user's choice, but for Menu Size at Smaller and the menus through the video out: a new
+    /// player's settings (<see cref="Settings()"/>).
+    /// </summary>
     public static readonly Enhancements Enhanced = new(true, 3, true, 8, 360, UiFilter.VideoOut, true, MovementMode.Modern,
         AuraTurns.EachCharacter, CombatTurns.StartEarly, CameraStyle.Enhanced);
 

@@ -104,7 +104,9 @@ public sealed partial class GameSessionTests(Na10Import fixture)
         var particles = new Core.Particles.ParticleHead(capacity: Core.Particles.WeatherParticles.PoolCapacity);
         var zone = new ZoneEngine(game, streamer, particles: particles);
         var start = GameStart.OfNewGame(Data.Set) with { Set = set, Chunk = "G14", Local = new Vector3(40, 10, 40) };
+        // The player's at the original's, which the changes below step off.
         var settings = new Settings();
+        Enhancements.Original.ApplyTo(settings);
         // What it starts with it plays by at once, before its first tick, as the runtime's sky and audio are built.
         var session = GameSession.Start(game, host, zone, start, settings, host, playing: SessionSettings.Original with { MusicVolume = 40 });
         (float Pace, Core.Sky.SkyPlacement Sky, int Music, float Rain) Playing() =>
