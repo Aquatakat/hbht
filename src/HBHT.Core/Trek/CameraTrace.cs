@@ -49,6 +49,9 @@ public enum CameraStick
     RestThenSteer,
     /// <summary>Held up from the first tick, whatever the camera does: with a front view, back toward the door.</summary>
     Up,
+
+    /// <summary>At rest throughout: he stands where he arrived.</summary>
+    Still,
 }
 
 /// <summary>
@@ -168,6 +171,7 @@ public static class CameraTrace
             var look = trek.Camera.LookXZ;
             var push = !holding ? Pilot.StickFor(way, look)
                 : stick == CameraStick.Up ? Vector2.UnitY
+                : stick == CameraStick.Still ? Vector2.Zero
                 : stick == CameraStick.RestThenSteer && ticks < RestTicks ? Vector2.Zero
                 : Pilot.StickFor(way, look);
             trek.Tick(() => new PlayerInput(push));
@@ -253,7 +257,7 @@ public static class CameraTrace
                     lastHeading = heading;
                 }
                 var now = trek.Camera.LookXZ;
-                if (MathF.Acos(Math.Clamp(Vector2.Dot(look, now), -1, 1)) * 180 / MathF.PI * TicksPerSecond >= 0.5f)
+                if (CameraCensus.Between(look, now) * TicksPerSecond >= 0.5f)
                     moving = i;
                 look = now;
             }

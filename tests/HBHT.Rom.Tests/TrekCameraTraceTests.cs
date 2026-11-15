@@ -104,4 +104,36 @@ public sealed class TrekCameraTraceTests(Na10Import fixture, ITestOutputHelper o
             Assert.True((float)frames.Count(f => MathF.Abs(f.Off) > 110) / frames.Count < 0.2f, $"interior {interior}: too many front views");
         }
     }
+
+    /// <summary>
+    /// An arrival holds: standing where every teleporter set him down, the view doesn't turn for 3 s, but where the teleporter's
+    /// own point is kept and the arm eases in. The set-down's push out of a wall was read as travel, and from GwerniaCastle
+    /// A07 into A05 and Port Saiid's A09 into the Overworld the view wheeled round behind him though he never moved.
+    /// </summary>
+    [Fact]
+    public void StandingAfterAnArrivalTheViewHolds()
+    {
+        var plugins = fixture.Data.Set;
+        var doors = new[] { ("aidyn:chunk/4/A07", 0), ("aidyn:chunk/2/A09", 3) };
+        foreach (var (chunk, index) in doors)
+        {
+            var from = plugins.Get<HBHT.Plugins.Records.ChunkRecord>(HBHT.Plugins.RecordId.Parse(chunk));
+            var door = from.Objects.OfType<HBHT.Plugins.Records.TeleporterObject>().Single(t => t.Index == index);
+            var arrival = HBHT.Core.MapObjects.TeleportArrival.For(plugins, door)!;
+            var set = int.Parse(chunk.Split('/')[1], System.Globalization.CultureInfo.InvariantCulture);
+            var walk = new CameraWalk(chunk, set, from.Name, door.Position + new System.Numerics.Vector3(0, 0.5f, 0), System.Numerics.Vector2.UnitX,
+                arrival.Chunk.Id.ToString(), arrival.Chunk.Name, [], CameraCensus.Ticks, index);
+            var run = CameraCensus.Trace(plugins, walk, CameraStyle.Enhanced, CameraStick.Still);
+            output.WriteLine($"{chunk}/{index}: turned {run.TotalTurn:F1}°");
+            // A07 into A05 keeps the teleporter's point, whose aim settles onto his head: a degree or so of drift, no wheeling round.
+            Assert.True(run.TotalTurn < 3, $"{chunk}/{index} turned {run.TotalTurn:F1}° standing");
+        }
+        var arrivals = CameraCensus.Run(plugins);
+        var turned = arrivals.Where(a => a.Skipped is null)
+            .Select(a => (a.Teleporter, Run: a.Of(CameraStyle.Enhanced, CameraStick.Still)))
+            .Where(x => x.Run.Frame?.Kind != TrekArrivalKind.Authored && x.Run.TotalTurn >= 1).ToList();
+        foreach (var (t, r) in turned)
+            output.WriteLine($"{t}: turned {r.TotalTurn:F1}°");
+        Assert.Empty(turned);
+    }
 }

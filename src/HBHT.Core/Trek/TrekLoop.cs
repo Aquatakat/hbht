@@ -384,7 +384,7 @@ public sealed partial class TrekLoop : IMapObjectHost
             framing.Frame(Camera, world, Chunks.Visible, Wanderers.All);
         else if (CameraStyle == CameraStyle.Enhanced && !Camera.Held)
             EnhancedCamera.Step(Camera, world, Chunks.Visible, motion.Sphere.Position, motion.Heading, Indoors,
-                input.Orbit ? input.OrbitStick : Vector2.Zero);
+                input.Orbit ? input.OrbitStick : Vector2.Zero, input.Pushed && !input.Locked);
         else
             Camera.Step(world, motion.Sphere.Position, motion.Heading);
         Zone.Listen();

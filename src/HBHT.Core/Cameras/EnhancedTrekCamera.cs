@@ -112,6 +112,9 @@ public sealed partial class EnhancedTrekCamera
     /// <summary>The boom's yaw in degrees: the way from the pivot to the camera, from +X toward +Z.</summary>
     public float Yaw => _yaw / Degree;
 
+    /// <summary>His travel as the camera reads it, eased, units a second.</summary>
+    public Vector2 Travel => _travel;
+
     /// <summary>How far the yaw was off its goal last tick, in degrees.</summary>
     public float YawOff { get; private set; }
 
@@ -272,10 +275,11 @@ public sealed partial class EnhancedTrekCamera
     /// <summary>
     /// One 60 Hz tick following the player's sphere at <paramref name="player"/>, who faces <paramref name="heading"/>, in a
     /// chunk that's an interior or not, with the player turning it by <paramref name="turn"/> (the orbit's stick, a frame's,
-    /// or nothing).
+    /// or nothing). <paramref name="walking"/>: whether the stick moves him this tick; only then is his movement travel, so a
+    /// teleport's set-down, a push out of a wall or a wanderer's shove doesn't turn the view.
     /// </summary>
     public void Step(FollowCamera camera, CollisionWorld world, VisibleWorld? visible, Vector3 player, Vector2 heading, bool interior,
-        Vector2 turn)
+        Vector2 turn, bool walking = true)
     {
         var t = Tuning;
         if (!_placed)
@@ -293,7 +297,7 @@ public sealed partial class EnhancedTrekCamera
         // His travel, eased over a few ticks, unless he jumped.
         var moved = new Vector2(player.X - _lastPlayer.X, player.Z - _lastPlayer.Z);
         _lastPlayer = player;
-        if (moved.Length() > 1)
+        if (moved.Length() > 1 || !walking)
             moved = Vector2.Zero;
         _travel += (moved / Tick - _travel) * TravelEase;
         Ticks++;
