@@ -51,6 +51,39 @@ public sealed class DialogueCameraCensusTests(Na10Import fixture, ITestOutputHel
             Assert.Equal(new DialogueShot(DialogueShotKind.OverShoulder, pages[i].Speaker), shots[i]);
     }
 
+    [Fact]
+    public void RealScriptsKeepTheirBeatsUnderEverySeed()
+    {
+        var baldric = Data.Set.Get<ScriptRecord>(Script(0x046A));
+        var tale = DialoguePlanner.FirstPath(GameState.NewGame(Data.Set), baldric, choices: [2, 3]);
+        var goblin = Data.Set.Get<ScriptRecord>(Script(0x03CD));
+        var menace = DialoguePlanner.FirstPath(GameState.NewGame(Data.Set), goblin, choices: [2, 0]);
+        var phelan = Data.Set.Get<ScriptRecord>(Script(0x03A4));
+        var talk = DialoguePlanner.FirstPath(GameState.NewGame(Data.Set), phelan);
+        var openings = new HashSet<DialogueShot>();
+        for (var i = 0; i < 300; i++)
+        {
+            var seed = DialoguePlanner.SeedOf(Script(0x046A), Script(0x046A), i);
+            var shots = DialoguePlanner.Plan(baldric, tale, seed: seed).Skip(5).Take(30).ToList();
+            Assert.Equal(DialogueShot.Wide, shots[2]);
+            Assert.Equal(new DialogueShot(DialogueShotKind.Single, Talker.Player), shots[4]);
+            Assert.NotEqual(new DialogueShot(DialogueShotKind.Single, Talker.Player), shots[^1]);
+            var fight = DialoguePlanner.Plan(goblin, menace, seed: seed);
+            Assert.Equal(DialogueShot.Wide, fight[^1]);
+            Assert.Equal(new DialogueShot(DialogueShotKind.Punch, Talker.Npc), fight[1]);
+            // Every line of a two-way talk shows its speaker, held in a two-shot or wide, or at them.
+            var plan = DialoguePlanner.Plan(phelan, talk, seed: seed);
+            openings.Add(plan[0]);
+            for (var p = 1; p < talk.Count; p++)
+            {
+                Assert.True(plan[p].Shows(talk[p].Speaker), $"{seed}: {p} {plan[p]}");
+                // A single by chance never twice running (seed 2's lines 4 to 6 were three).
+                Assert.False(plan[p].Kind == DialogueShotKind.Single && plan[p - 1].Kind == DialogueShotKind.Single, $"{seed}: {p}");
+            }
+        }
+        Assert.Equal(3, openings.Count);
+    }
+
     [Theory]
     [InlineData(DialogueCensus.Touching)]
     [InlineData(DialogueCensus.Furthest)]
@@ -67,15 +100,18 @@ public sealed class DialogueCameraCensusTests(Na10Import fixture, ITestOutputHel
         // Nov 14, 2026, the side chosen by what fits: touching, 97%, 98%, 97% and 0% of 2,599 placings, interiors 95%, 97%, 95% and 0%;
         // furthest, 97%, 98%, 97% and 0% of 2,431, interiors 94%, 98%, 94% and 0%.
         Assert.True(all.Shoulder > 0.94 && all.Single > 0.95 && all.TwoShot > 0.94 && all.OriginalOnly < 0.02, $"{all}");
-        // Alaron's share of the frame's width: over the shoulder, a median of 27% and 40% at the 90th percentile; in the single, none.
+        // Alaron's share of the frame's width, his shoulders counted (DialogueTuning.ShoulderPadOut): over the shoulder, a median of 26% and
+        // 50–52% at the 90th percentile, which is the tight placings of small rooms (36% and 50–52% before the roomy placing was pulled
+        // out, Nov 14, 2026); in the single, none.
         static float At(IEnumerable<float?> covers, double share)
         {
             var c = covers.OfType<float>().Order().ToList();
             return c[(int)(c.Count * share)];
         }
-        Assert.True(At(placings.Select(p => p.ShoulderCover), 0.5) < 0.33f && At(placings.Select(p => p.ShoulderCover), 0.9) < 0.45f);
+        Assert.True(At(placings.Select(p => p.ShoulderCover), 0.5) < 0.30f && At(placings.Select(p => p.ShoulderCover), 0.9) < 0.56f);
         Assert.True(At(placings.Select(p => p.SingleCover), 0.9) <= DialogueTuning.Default.SingleSliver);
-        Assert.True(placings.Count(p => p.ShoulderPlacing == 0) > 0.8 * placings.Count(p => p.ShoulderPlacing >= 0));
+        Assert.True(placings.Count(p => p.ShoulderPlacing == 0) > 0.75 * placings.Count(p => p.ShoulderPlacing >= 0));
+        Assert.True(placings.Count(p => p.ShoulderPlacing <= 1) > 0.85 * placings.Count(p => p.ShoulderPlacing >= 0));
         Assert.True(placings.Count(p => p.SingleFellToShoulder) < 0.03 * placings.Count);
         Assert.True(interior.Shoulder > 0.91 && interior.Single > 0.94 && interior.TwoShot > 0.91 && interior.OriginalOnly < 0.02, $"{interior}");
     }

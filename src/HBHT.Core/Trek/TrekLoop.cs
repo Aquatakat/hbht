@@ -164,6 +164,10 @@ public sealed partial class TrekLoop : IMapObjectHost
     /// <summary>The conversation camera's numbers, or null for its defaults.</summary>
     public DialogueTuning? DialogueTuning { get; set; }
 
+    /// <summary>How many conversations the enhanced camera has directed this session, and the last, whose opening the next doesn't repeat: its variety's history, cosmetic.</summary>
+    private int _conversations;
+    private DialogueCamera? _lastDirector;
+
     /// <summary>
     /// Trek's camera: the original's (<see cref="FollowCamera"/>) or the enhanced one (<see cref="EnhancedCamera"/>), which writes
     /// the follow camera's place in its stead (docs/systems/cameras.md#the-enhanced-trek-camera-camera-enhanced).
@@ -1131,8 +1135,11 @@ public sealed partial class TrekLoop : IMapObjectHost
             return;
         }
         Conversation = Conversation.TalkTo(Game, wanderer, _host, Player);
-        if (DialogueCamera == CameraStyle.Enhanced)
-            Conversation?.Direct(DialogueTuning);
+        if (DialogueCamera == CameraStyle.Enhanced && Conversation is not null)
+        {
+            Conversation.Direct(DialogueTuning, _conversations++, _lastDirector?.Opening);
+            _lastDirector = Conversation.Director ?? _lastDirector;
+        }
         Refresh();
     }
 

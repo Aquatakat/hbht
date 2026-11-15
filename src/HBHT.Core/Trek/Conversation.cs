@@ -186,10 +186,15 @@ public sealed class Conversation
     public DialogueCamera? Director { get; private set; }
 
     /// <summary>Hands the camera to the enhanced conversation camera for this conversation, if it's a conversation script with someone to talk to.</summary>
-    public void Direct(DialogueTuning? tuning = null)
+    /// <param name="conversation">How many conversations this session has had before this one, which with the npc and its script seeds the camera's variety (<see cref="DialoguePlanner.SeedOf"/>).</param>
+    /// <param name="last">How the conversation before this one opened, which this one doesn't repeat where it can.</param>
+    public void Direct(DialogueTuning? tuning = null, int conversation = 0, DialogueOpening? last = null)
     {
         if (With is not null && Runner.Script.Mode == ScriptMode.Conversation)
-            Director = new DialogueCamera(new DialoguePlanner(Runner.Script, tuning), tuning);
+        {
+            var seed = DialoguePlanner.SeedOf(ChunkRecord.ObjectId(With.Map.Record.Id, With.Party.Index), Runner.Script.Id, conversation);
+            Director = new DialogueCamera(new DialoguePlanner(Runner.Script, tuning, seed, last), tuning);
+        }
     }
 
     /// <summary>

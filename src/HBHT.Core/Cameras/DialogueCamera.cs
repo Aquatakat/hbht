@@ -72,7 +72,7 @@ public sealed class DialogueCamera(DialoguePlanner planner, DialogueTuning? tuni
     {
         _tick++;
         if (Side == 0)
-            Side = ChooseSide(scene, camera.Position, _t, Planner.Wants);
+            Side = ChooseSide(scene, camera.Position, _t, Planner.Wants, Planner.FlipsSide);
         var wanted = Wanted;
         if (page is { } p && !Equals(key, _page))
         {
@@ -83,11 +83,14 @@ public sealed class DialogueCamera(DialoguePlanner planner, DialogueTuning? tuni
         {
             wanted = DialogueShot.TwoShot;
         }
-        if (!_started || wanted != Wanted)
+        if (!_started || wanted != Wanted || Planner.Opening && Opening is null && page is not null)
         {
             _started = true;
             Wanted = wanted;
-            (Shown, Base) = Fit(scene, Side, wanted, _t);
+            if (Planner.Opening && Opening is null)
+                Open(scene);
+            else
+                (Shown, Base) = Fit(scene, Side, wanted, _t, Planner.Style);
             _shownAt = _tick;
             camera.Cut();
         }
@@ -100,6 +103,35 @@ public sealed class DialogueCamera(DialoguePlanner planner, DialogueTuning? tuni
         camera.PlaceAt(shot.Eye + shot.Forward * drift);
         camera.AimAt(shot.Aim);
         camera.Orient();
+    }
+
+    /// <summary>How this conversation opened, as shown, once its first page has: what the next conversation doesn't repeat.</summary>
+    public DialogueOpening? Opening { get; private set; }
+
+    /// <summary>
+    /// The first page's shot: the planner's openings in order, the first that fits and isn't shown as the last conversation's was, or
+    /// the first that fits if every one is.
+    /// </summary>
+    private void Open(DialogueScene scene)
+    {
+        (DialogueShot, Shot?, DialogueOpening, DialogueOpening)? first = null;
+        foreach (var o in Planner.Openings)
+        {
+            var (shown, at, opening) = FitAt(scene, Side, o.Shot, _t, Planner.Style with { Turn = o.Turn });
+            first ??= (shown, at, opening, o);
+            if (opening != Planner.Last)
+            {
+                first = (shown, at, opening, o);
+                break;
+            }
+        }
+        var (s, a, op, planned) = first!.Value;
+        if (planned != Planner.Openings[0])
+        {
+            Planner.Open(planned);
+            Wanted = planned.Shot;
+        }
+        (Shown, Base, Opening) = (s, a, op);
     }
 
     /// <summary>The perpendicular of the line from Alaron to the npc, across the ground, a unit long.</summary>
@@ -118,7 +150,9 @@ public sealed class DialogueCamera(DialoguePlanner planner, DialogueTuning? tuni
     /// (<paramref name="wants"/>, <see cref="DialoguePlanner.WantsOf"/>); on a tie, the side the camera is on, unless the other has
     /// clearly more room (<see cref="DialogueTuning.SideMargin"/> more, looked along to <see cref="DialogueTuning.SideReach"/>).
     /// </summary>
-    public static int ChooseSide(DialogueScene scene, Vector3 camera, DialogueTuning t, IReadOnlyCollection<DialogueShotKind>? wants = null)
+    /// <param name="flip">Whether, on a tie where the other side has about the same room (within <see cref="DialogueTuning.SideMargin"/>), the other side is taken: the seed's (<see cref="DialoguePlanner.FlipsSide"/>).</param>
+    public static int ChooseSide(DialogueScene scene, Vector3 camera, DialogueTuning t, IReadOnlyCollection<DialogueShotKind>? wants = null,
+        bool flip = false)
     {
         var side = SideOf(scene, camera);
         if (wants is not null)
@@ -129,7 +163,9 @@ public sealed class DialogueCamera(DialoguePlanner planner, DialogueTuning? tuni
         }
         var room = Room(scene, side, t.SideReach);
         var other = Room(scene, -side, t.SideReach);
-        return other >= room + t.SideMargin ? -side : side;
+        if (other >= room + t.SideMargin)
+            return -side;
+        return flip && other > room - t.SideMargin ? -side : side;
     }
 
     /// <summary>How many of the shots wanted fit on a side, each of the kinds at either talker that has one.</summary>
@@ -182,14 +218,37 @@ public sealed class DialogueCamera(DialoguePlanner planner, DialogueTuning? tuni
     }
 
     /// <summary>The first shot down <paramref name="wanted"/>'s ladder that fits, or the original's framing (a null shot).</summary>
-    public static (DialogueShot Shown, Shot? At) Fit(DialogueScene scene, int side, DialogueShot wanted, DialogueTuning t)
+    public static (DialogueShot Shown, Shot? At) Fit(DialogueScene scene, int side, DialogueShot wanted, DialogueTuning t,
+        DialogueStyle style = default)
+    {
+        var (shown, at, _) = FitAt(scene, side, wanted, t, style);
+        return (shown, at);
+    }
+
+    /// <summary>As <see cref="Fit"/>, and how it opened a conversation, if it did: the shot shown and the turn it stood at.</summary>
+    public static (DialogueShot Shown, Shot? At, DialogueOpening Opening) FitAt(DialogueScene scene, int side, DialogueShot wanted,
+        DialogueTuning t, DialogueStyle style = default)
     {
         foreach (var shot in Ladder(wanted))
         {
-            if (TryPlace(scene, side, shot, t, out var at))
-                return (shot, at);
+            if (TryPlace(scene, side, shot, t, out var at, out var placing, style))
+            {
+                var turns = Turns(t, style);
+                var turn = shot.Kind is DialogueShotKind.TwoShot or DialogueShotKind.Wide && placing < turns.Count ? turns[placing] : 0;
+                return (shot, at, new DialogueOpening(shot, turn));
+            }
         }
-        return (new DialogueShot(DialogueShotKind.Original), null);
+        var original = new DialogueShot(DialogueShotKind.Original);
+        return (original, null, new DialogueOpening(original));
+    }
+
+    /// <summary>The turns round the line a two-shot or a wide is tried at, in order: the style's first, then the rest of <see cref="DialogueTuning.AcrossYaws"/>.</summary>
+    public static List<float> Turns(DialogueTuning t, DialogueStyle style)
+    {
+        var turns = t.AcrossYaws.ToList();
+        if (turns.Remove(style.Turn))
+            turns.Insert(0, style.Turn);
+        return turns;
     }
 
     /// <summary>Whether <paramref name="shot"/> fits on <paramref name="side"/> in one of its placings, and where.</summary>
@@ -197,10 +256,11 @@ public sealed class DialogueCamera(DialoguePlanner planner, DialogueTuning? tuni
         TryPlace(scene, side, shot, t, out at, out _);
 
     /// <summary>As <see cref="TryPlace(DialogueScene, int, DialogueShot, DialogueTuning, out Shot)"/>, and which of its placings, counted from 0.</summary>
-    public static bool TryPlace(DialogueScene scene, int side, DialogueShot shot, DialogueTuning t, out Shot at, out int placing)
+    public static bool TryPlace(DialogueScene scene, int side, DialogueShot shot, DialogueTuning t, out Shot at, out int placing,
+        DialogueStyle style = default)
     {
         placing = 0;
-        foreach (var (candidate, shows, foreground) in Placings(scene, side, shot, t))
+        foreach (var (candidate, shows, foreground) in Placings(scene, side, shot, t, style))
         {
             if (Fits(scene, side, candidate, shows, foreground, t)
                 && (shot.Kind is not (DialogueShotKind.Single or DialogueShotKind.Punch) || ListenerCover(scene, candidate, Other(shot.Subject), t) <= t.SingleSliver))
@@ -215,7 +275,8 @@ public sealed class DialogueCamera(DialoguePlanner planner, DialogueTuning? tuni
     }
 
     /// <summary>
-    /// The share of the frame's width a talker's body covers in a shot: its head and chest (the two-shot's spheres) projected across the screen (the
+    /// The share of the frame's width a talker's body covers in a shot: its head and chest (the two-shot's spheres) and its shoulders
+    /// (<see cref="DialogueTuning.ShoulderPadOut"/>) projected across the screen (the
     /// whole lens, not its margins), their union clipped to the frame. 0 when it's out of the frame or behind the eye.
     /// </summary>
     public static float ListenerCover(DialogueScene scene, Shot shot, Talker who, DialogueTuning t)
@@ -223,7 +284,12 @@ public sealed class DialogueCamera(DialoguePlanner planner, DialogueTuning? tuni
         var body = scene.Of(who);
         var lens = new Lens(t.FieldOfView, 4f / 3, 1);
         var spans = new List<(float From, float To)>();
-        foreach (var (at, r) in new[] { (body.Eyes, t.HeadRadius), (body.Eyes - Vector3.UnitY * t.ChestDrop, t.ChestRadius) })
+        // The head, the chest, and a shoulder each side reaching past the body's sphere, as a pauldron or a cloak's shoulder does: the
+        // talkers face each other, so their shoulders lie along the line's perpendicular.
+        var shoulder = body.Eyes - Vector3.UnitY * t.ShoulderPadDrop;
+        var aside = Across(scene) * t.ShoulderPadOut;
+        foreach (var (at, r) in new[] { (body.Eyes, t.HeadRadius), (body.Eyes - Vector3.UnitY * t.ChestDrop, t.ChestRadius),
+            (shoulder + aside, t.ShoulderPadRadius), (shoulder - aside, t.ShoulderPadRadius) })
         {
             var v = at - shot.Eye;
             var depth = Vector3.Dot(v, shot.Forward);
@@ -257,7 +323,7 @@ public sealed class DialogueCamera(DialoguePlanner planner, DialogueTuning? tuni
 
     /// <summary>Where a shot may stand, best first: the talkers it must show, and the one whose shoulder is in front, if any.</summary>
     public static IEnumerable<(Shot Shot, Talker[] Shows, Talker Foreground)> Placings(DialogueScene scene, int side, DialogueShot shot,
-        DialogueTuning t)
+        DialogueTuning t, DialogueStyle style = default)
     {
         var n = Across(scene) * side;
         var up = Vector3.UnitY;
@@ -276,8 +342,8 @@ public sealed class DialogueCamera(DialoguePlanner planner, DialogueTuning? tuni
                         subjects.Add(new ShotSubject(b.Centre, b.Radius));
                 }
                 var aim = ShotFraming.Middle(subjects) - up * t.AimDrop;
-                var pitch = Degrees.ToRadians(wide ? t.WidePitch : t.TwoShotPitch);
-                foreach (var turn in t.AcrossYaws)
+                var pitch = Degrees.ToRadians((wide ? t.WidePitch : t.TwoShotPitch) + style.Pitch);
+                foreach (var turn in Turns(t, style))
                 {
                     var (s, c) = MathF.SinCos(Degrees.ToRadians(turn));
                     var back = new Vector3(n.X * c + n.Z * s, 0, -n.X * s + n.Z * c);
@@ -294,13 +360,14 @@ public sealed class DialogueCamera(DialoguePlanner planner, DialogueTuning? tuni
                 var toL = Way(x.Eyes, l.Eyes, n);
                 var aim = x.Eyes - up * t.AimDrop;
                 // The roomy placing, then the tight one, then nearer still, as rooms have space for.
-                foreach (var (back, across, rise) in new[] { (t.ShoulderBack, t.ShoulderSide, t.ShoulderRise),
+                foreach (var (back, across, rise) in new[] { (t.ShoulderBack + style.Back, t.ShoulderSide + style.Side, t.ShoulderRise + style.Rise),
+                    (t.SnugShoulderBack, t.SnugShoulderSide, t.SnugShoulderRise),
                     (t.TightShoulderBack, t.TightShoulderSide, t.TightShoulderRise),
                     (t.TightShoulderBack * 0.75f, t.TightShoulderSide * 1.2f, t.TightShoulderRise),
                     (t.TightShoulderBack * 0.5f, t.TightShoulderSide * 1.4f, t.TightShoulderRise) })
                 {
                     var eye = l.Eyes + toL * back + n * across + up * rise;
-                    yield return (Shot.Of(eye, aim), [shot.Subject], Other(shot.Subject));
+                    yield return (Lead(Shot.Of(eye, aim), aim, l.Eyes, t.ShoulderLead, t), [shot.Subject], Other(shot.Subject));
                 }
                 break;
             }
@@ -319,11 +386,7 @@ public sealed class DialogueCamera(DialoguePlanner planner, DialogueTuning? tuni
                     var (s, c) = MathF.SinCos(Degrees.ToRadians(angle));
                     var way = Vector3.Normalize(toL * c + n * s);
                     var eye = x.Eyes + way * near * scale + up * t.SingleRise;
-                    var straight = Shot.Of(eye, aim);
-                    // Turn the aim away from the listener's side of the frame.
-                    var listenerSide = MathF.Sign(Vector3.Dot(l.Eyes - eye, straight.Right));
-                    var turned = aim - straight.Right * listenerSide * lead * Vector3.Distance(eye, aim) * MathF.Tan(t.FieldOfView * MathF.PI / 360) * 4f / 3;
-                    yield return (Shot.Of(eye, turned), [shot.Subject], Talker.None);
+                    yield return (Lead(Shot.Of(eye, aim), aim, l.Eyes, lead, t), [shot.Subject], Talker.None);
                 }
                 break;
             }
@@ -381,6 +444,16 @@ public sealed class DialogueCamera(DialoguePlanner planner, DialogueTuning? tuni
                 return false;
         }
         return true;
+    }
+
+    /// <summary>A shot's view turned away from the listener's side of the frame by <paramref name="lead"/> of the half-width, so the subject sits off-centre on the listener's side and the listener nearer the edge.</summary>
+    private static Shot Lead(Shot straight, Vector3 aim, Vector3 listener, float lead, DialogueTuning t)
+    {
+        if (lead == 0)
+            return straight;
+        var listenerSide = MathF.Sign(Vector3.Dot(listener - straight.Eye, straight.Right));
+        var turned = aim - straight.Right * listenerSide * lead * Vector3.Distance(straight.Eye, aim) * MathF.Tan(t.FieldOfView * MathF.PI / 360) * 4f / 3;
+        return Shot.Of(straight.Eye, turned);
     }
 
     private static Talker Other(Talker t) => t == Talker.Player ? Talker.Npc : Talker.Player;

@@ -579,8 +579,10 @@ public sealed class ConversationTests(Na10Import fixture)
     {
         var s = Make(ConversationPlugins.Talk);
         var conversation = s.Talk();
-        conversation.Direct();
+        // Unvaried, so the shots are the plain plan's (the variety is DialogueVarietyTests').
+        conversation.Direct(DialogueTuning.Default.Plain);
         var director = Assert.IsType<DialogueCamera>(conversation.Director);
+        Assert.False(director.Planner.Varied);
         // A camera object holding the camera doesn't keep it.
         s.Camera.Hold();
         conversation.Frame(s.Camera, s.World);
