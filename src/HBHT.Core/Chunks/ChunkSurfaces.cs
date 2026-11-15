@@ -84,5 +84,5 @@ public sealed class ChunkSurfaces(PluginSet plugins)
 
     // Whichever thread reads a scene first keeps its triangles; any other reading it at once reads the same.
     private DrawnTriangle[] Scene(RecordId id) =>
-        _scenes.GetOrAdd(id, id => [.. SceneMesh.For(plugins, id).Select(t => new DrawnTriangle(t.A, t.B, t.C, Absorbs(t)))]);
+        _scenes.GetOrAdd(id, id => [.. SceneMesh.For(plugins, id).Select(t => new DrawnTriangle(t.A, t.B, t.C, Absorbs(t), t.Scrolls && t.Blend == SurfaceBlend.Opaque))]);
 }

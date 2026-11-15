@@ -39,6 +39,12 @@ namespace HBHT.Core.Cameras;
 /// <param name="SettleTime">The follow's settle: how long its smoothed approach takes to go 90% of the way from rest (half in about a third of it, at rest to half a degree in about twice it).</param>
 /// <param name="FollowTime">The same while he walks, trailing his travel; it eases over to SettleTime as he stops.</param>
 /// <param name="SneakTime">The same for sneaking's swing to the hunter's far side.</param>
+/// <param name="UrgentTurn">The follow's rate cap when turning would save the boom from a wall it's about to meet (urgency 1); 0 turns it off.</param>
+/// <param name="UrgentTurnAccel">How fast that turn may change.</param>
+/// <param name="UrgentTime">The follow's time to 90% then.</param>
+/// <param name="UrgentProbe">How far round toward the goal the room is sampled to see whether turning would keep the boom.</param>
+/// <param name="UrgentRise">How long urgency takes to rise most of the way (63%).</param>
+/// <param name="UrgentFall">How long it takes to fall.</param>
 /// <param name="SwingTime">The same for the swing behind him.</param>
 /// <param name="PitchSpeed">The fastest the pitch moves on its own.</param>
 /// <param name="PitchAccel">How fast that may change.</param>
@@ -85,6 +91,7 @@ namespace HBHT.Core.Cameras;
 /// <param name="SneakTurnAccel">How fast that swing may change.</param>
 /// <param name="SneakIn">How long sneaking's framing takes to take hold.</param>
 /// <param name="SneakOut">How long it takes to let go.</param>
+/// <param name="BoomLimits">What limits the boom and the camera's place: "collision" (the collision's walls, from either side, and the drawn world), or "drawn" (the drawn world's solid surfaces alone, the camera kept over floor by the collision): a trial, off by default.</param>
 /// <param name="SneakSwitch">The share of the held hunter's distance another must be within to be framed instead.</param>
 public sealed record TrekCameraTuning(
     float OutdoorLength = 5,
@@ -121,6 +128,12 @@ public sealed record TrekCameraTuning(
     float FollowTime = 1.5f,
     float SneakTime = 1,
     float SwingTime = 1.6f,
+    float UrgentTurn = 150,
+    float UrgentTurnAccel = 600,
+    float UrgentTime = 0.4f,
+    float UrgentProbe = 60,
+    float UrgentRise = 0.1f,
+    float UrgentFall = 0.5f,
     float PitchSpeed = 30,
     float PitchAccel = 120,
     float MovingSpeed = 0.5f,
@@ -166,7 +179,8 @@ public sealed record TrekCameraTuning(
     float SneakTurnAccel = 720,
     float SneakIn = 0.4f,
     float SneakOut = 0.8f,
-    float SneakSwitch = 0.8f)
+    float SneakSwitch = 0.8f,
+    string BoomLimits = "collision")
 {
     public static TrekCameraTuning Default { get; } = new();
 

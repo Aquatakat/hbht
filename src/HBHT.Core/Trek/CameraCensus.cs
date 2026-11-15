@@ -191,7 +191,7 @@ public static class CameraCensus
                 var feels = traced.Select(a => a.Of(style, stick).Feel!).ToList();
                 var ticks = feels.Sum(f => f.Ticks);
                 text.AppendLine(string.Create(CultureInfo.InvariantCulture,
-                    $"feel {style,-9} {stick,-14}: cuts {feels.Sum(f => f.Cuts) * 3600f / Math.Max(ticks, 1),5:F1}/min, accel peak {feels.Max(f => f.AccelPeak),6:F0} 95% {Percentile(feels.Select(f => f.Accel95), 0.95f),5:F0}, standing bad {(float)feels.Sum(f => f.StandingBad) / Math.Max(feels.Sum(f => f.Standing), 1):P1}, out of frame {(float)feels.Sum(f => f.StandingOut) / Math.Max(feels.Sum(f => f.Standing), 1):P1} of {feels.Sum(f => f.Standing)}"));
+                    $"feel {style,-9} {stick,-14}: cuts {feels.Sum(f => f.Cuts) * 3600f / Math.Max(ticks, 1),5:F1}/min, excursions {feels.Sum(f => f.Excursions) * 3600f / Math.Max(ticks, 1),5:F1}/min, urgent {(float)feels.Sum(f => f.Urgent) / Math.Max(ticks, 1):P1}, past drawn {feels.Sum(f => f.PastDrawn)}, off floor {feels.Sum(f => f.OffFloor)}, lens in {feels.Sum(f => f.LensInside)}, accel peak {feels.Max(f => f.AccelPeak),6:F0} 95% {Percentile(feels.Select(f => f.Accel95), 0.95f),5:F0}, standing bad {(float)feels.Sum(f => f.StandingBad) / Math.Max(feels.Sum(f => f.Standing), 1):P1}, out of frame {(float)feels.Sum(f => f.StandingOut) / Math.Max(feels.Sum(f => f.Standing), 1):P1} of {feels.Sum(f => f.Standing)}"));
             }
         text.AppendLine("ever hidden under Enhanced, steering:");
         foreach (var a in traced.Where(a => a.Of(CameraStyle.Enhanced).Trace.Hidden > 0).Take(40))

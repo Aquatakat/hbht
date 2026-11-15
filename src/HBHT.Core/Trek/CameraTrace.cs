@@ -115,9 +115,10 @@ public static class CameraTrace
     /// <param name="each">Called after each tick traced, with the tick's number from the arrival.</param>
     /// <param name="stick">How the stick is pushed on a walk with no route.</param>
     public static CameraTraceResult Run(PluginSet plugins, CameraWalk walk, CameraStyle style, Action<TrekLoop, int>? each = null,
-        TrekCameraTuning? tuning = null, CameraStick stick = CameraStick.Steer, int standTicks = 0, bool tour = false)
+        TrekCameraTuning? tuning = null, CameraStick stick = CameraStick.Steer, int standTicks = 0, bool tour = false,
+        Func<TrekLoop, IReadOnlyList<CameraTour.Stop>>? plan = null, bool setDown = false)
     {
-        var trek = Start(plugins, walk, out var host);
+        var trek = Start(plugins, walk, out var host, setDown);
         trek.CameraStyle = style;
         trek.EnhancedCamera.Tuning = tuning ?? TrekCameraTuning.Default;
         var checksum = 14695981039346656037UL;
@@ -152,9 +153,10 @@ public static class CameraTrace
         var route = walk.Route.Select(p => new Vector2(origin.X + p.X, origin.Z + p.Y)).ToArray();
         // A tour of the place (CameraTour), with its stops.
         var pauses = new int[route.Length];
-        if (tour)
+        if (tour || plan is not null)
         {
-            var stops = CameraTour.Plan(trek);
+            tour = true;
+            var stops = plan?.Invoke(trek) ?? CameraTour.Plan(trek);
             route = [.. stops.Select(x => x.At)];
             pauses = [.. stops.Select(x => x.Ticks)];
         }

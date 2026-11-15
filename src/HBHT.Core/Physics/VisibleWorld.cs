@@ -7,7 +7,8 @@ namespace HBHT.Core.Physics;
 /// A triangle a chunk draws: one that rain splashes on, or one that takes it in without a splash
 /// (<see cref="Absorbs"/>).
 /// </summary>
-public readonly record struct DrawnTriangle(Vector3 A, Vector3 B, Vector3 C, bool Absorbs = false);
+/// <param name="Scrolls">Whether it is opaque and its texture scrolls (lava, a magic item's glow): absorbing, but solid to the enhanced trek camera's drawn limits; a translucent scrolling one (water, a light shaft) isn't.</param>
+public readonly record struct DrawnTriangle(Vector3 A, Vector3 B, Vector3 C, bool Absorbs = false, bool Scrolls = false);
 
 /// <summary>
 /// The surfaces the loaded chunks draw, in world coordinates, with a grid to find the triangles near a
@@ -20,7 +21,7 @@ public sealed class VisibleWorld
     private readonly TriangleGrid<Triangle> _grid = new();
     private readonly List<Triangle> _near = [];
 
-    private readonly record struct Triangle(Vector3 A, Vector3 B, Vector3 C, Vector3 Normal, bool Absorbs) : IGridTriangle;
+    private readonly record struct Triangle(Vector3 A, Vector3 B, Vector3 C, Vector3 Normal, bool Absorbs, bool Scrolls) : IGridTriangle;
 
     public int Count => _grid.Count;
 
@@ -31,12 +32,12 @@ public sealed class VisibleWorld
     public void Add(ChunkKey key, IEnumerable<DrawnTriangle> triangles, Vector3 offset)
     {
         var list = new List<Triangle>();
-        foreach (var (a, b, c, absorbs) in triangles)
+        foreach (var (a, b, c, absorbs, scrolls) in triangles)
         {
             var normal = Vector3.Cross(b - a, c - a);
             if (normal.Length() < 1e-6f)
                 continue;
-            list.Add(new Triangle(a + offset, b + offset, c + offset, Vector3.Normalize(normal), absorbs));
+            list.Add(new Triangle(a + offset, b + offset, c + offset, Vector3.Normalize(normal), absorbs, scrolls));
         }
 
         _grid.Add(key, list);
@@ -80,7 +81,8 @@ public sealed class VisibleWorld
     /// the share of the way with its unit normal, or null: what <see cref="Raycast"/> finds, past those that absorb (cut-outs such as canopies,
     /// translucent draws such as light shafts, and scrolling ones such as water). The enhanced trek camera's arm uses it.
     /// </summary>
-    public (float Share, Vector3 Normal)? RaycastSolid(Vector3 from, Vector3 to)
+    /// <param name="scrollingSolid">Whether a scrolling surface (lava, water, a glow) counts as solid too.</param>
+    public (float Share, Vector3 Normal)? RaycastSolid(Vector3 from, Vector3 to, bool scrollingSolid = false)
     {
         var delta = to - from;
         var best = float.MaxValue;
@@ -90,7 +92,7 @@ public sealed class VisibleWorld
         _grid.Near(minX, minZ, maxX, maxZ, _near);
         foreach (var t in _near)
         {
-            if (!t.Absorbs && Cross(from, delta, t) is { } share && share < best)
+            if ((!t.Absorbs || (scrollingSolid && t.Scrolls)) && Cross(from, delta, t) is { } share && share < best)
                 (best, normal) = (share, t.Normal);
         }
         return best == float.MaxValue ? null : (best, normal);

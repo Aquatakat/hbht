@@ -93,7 +93,8 @@ public sealed class TrekCameraTraceTests(Na10Import fixture, ITestOutputHelper o
                 Assert.True(Share(x => x.BackOut) <= 0.01f, $"interior {interior} {stick}: walked back out");
                 Assert.True(Share(x => x.Trace.Hidden > 0) <= 0.08f, $"interior {interior} {stick}: hidden too often");
                 Assert.True(r.Average(x => x.Lifted) <= 0.15f, $"interior {interior} {stick}: lifted too long");
-                Assert.True(r.Max(x => x.PeakTurn) <= TrekCameraTuning.Default.TightTurn + 5, $"interior {interior} {stick}: whipped round");
+                // The swing at its 90°/s; keeping up with his own turn past a wall, the quickened follow's.
+                Assert.True(r.Max(x => x.PeakTurn) <= MathF.Max(TrekCameraTuning.Default.TightTurn, TrekCameraTuning.Default.UrgentTurn) + 5, $"interior {interior} {stick}: whipped round");
             }
             var steer = group.Select(a => a.Of(CameraStyle.Enhanced)).ToList();
             // The swing is slow on purpose: round by 3 s.
