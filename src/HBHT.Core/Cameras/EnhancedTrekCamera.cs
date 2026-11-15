@@ -115,6 +115,9 @@ public sealed partial class EnhancedTrekCamera
     /// <summary>The ticks the arm has been pulled in at once by more than 0.1 since it was made: a wall it didn't see coming.</summary>
     public int Cuts { get; private set; }
 
+    /// <summary>How much the follow is quickened to turn the boom clear of a wall it's about to meet, 0 to 1.</summary>
+    public float Urgency { get; private set; }
+
     /// <summary>His travel as the camera reads it, eased, units a second.</summary>
     public Vector2 Travel => _travel;
 
@@ -272,6 +275,8 @@ public sealed partial class EnhancedTrekCamera
     {
         var eye = _pivot + Direction * _arm;
         var chest = player + new Vector3(0, 0.5f, 0);
+        if (Tuning.BoomLimits == "drawn" && visible is not null)
+            return visible.RaycastSolid(eye, chest, scrollingSolid: true) is null;
         return SpherePhysics.SweepEitherSide(world, eye, chest, 0.01f, skipSeeThrough: true) is null
             && visible?.RaycastSolid(eye, chest) is null;
     }
@@ -569,6 +574,12 @@ public sealed partial class EnhancedTrekCamera
         rate = MathF.Max(rate, sneak * SettleRate(t.SneakTime));
         most = MathF.Max(most, sneak * t.SneakTurn * Degree);
         accel = MathF.Max(accel, sneak * t.SneakTurnAccel * Degree);
+        // Turn first, shorten second: where the boom is about to lose much of its length and turning toward the goal keeps
+        // it, the follow quickens to get there first.
+        StepUrgency(world, visible, e, walking, auto);
+        rate = Lerp(rate, MathF.Max(rate, SettleRate(t.UrgentTime)), Urgency);
+        most = Lerp(most, MathF.Max(most, t.UrgentTurn * Degree), Urgency);
+        accel = Lerp(accel, MathF.Max(accel, t.UrgentTurnAccel * Degree), Urgency);
         var yaw = _yaw;
         Approach(ref yaw, ref _yawSpeed, yaw + e, rate, most, accel);
         _yaw = Wrap(yaw);
@@ -644,6 +655,47 @@ public sealed partial class EnhancedTrekCamera
     /// <summary>How far round from behind him the room has pushed the yaw's goal, in degrees.</summary>
     public float WhiskerPush => _whisker;
 
+    /// <summary>
+    /// How urgently the follow should turn, eased: how much of the boom the look ahead says is about to go (from 15% lost,
+    /// none, to 50%, all) times how much of the length the yaws toward the goal keep (the room at the goal and at up to
+    /// <see cref="TrekCameraTuning.UrgentProbe"/> round toward it, smoothstepped from half the length to 85% of it), while he
+    /// walks. With walls all round, turning wouldn't help and it stays nothing.
+    /// </summary>
+    private void StepUrgency(CollisionWorld world, VisibleWorld? visible, float e, float walking, bool auto)
+    {
+        var t = Tuning;
+        var raw = 0f;
+        // Not in an unchosen view's swing, which keeps its calm 90°/s: this is keeping up with his own turns.
+        if (auto && walking > 0 && !_swingingBehind && MathF.Abs(e) > 5 * Degree && t.UrgentTurn > 0)
+        {
+            var reach = MathF.Max(MathF.Min(_arm, _length), 0.5f);
+            var lost = Math.Clamp((reach - EnvelopeLast) / reach, 0, 1);
+            var need = Smooth((lost - 0.15f) / 0.35f);
+            if (need > 0)
+            {
+                var yaw = _yaw;
+                float RoomAt(float at)
+                {
+                    _yaw = at;
+                    return Free(world, visible, DirectionAt(_pitch), _length);
+                }
+                var toward = RoomAt(yaw + MathF.Sign(e) * MathF.Min(MathF.Abs(e), t.UrgentProbe * Degree));
+                var atGoal = RoomAt(yaw + e);
+                _yaw = yaw;
+                var kept = Smooth((MathF.Min(toward, atGoal) / _length - 0.5f) / 0.35f);
+                raw = need * kept * walking;
+            }
+        }
+        var ease = raw > Urgency ? t.UrgentRise : t.UrgentFall;
+        Urgency += (raw - Urgency) * (1 - MathF.Exp(-Tick / MathF.Max(ease, 1e-3f)));
+    }
+
+    private static float Smooth(float x)
+    {
+        x = Math.Clamp(x, 0, 1);
+        return x * x * (3 - 2 * x);
+    }
+
     /// <summary>The rate of a critically damped approach that's 90% of the way, from rest, in <paramref name="seconds"/>.</summary>
     private static float SettleRate(float seconds) => 3.89f / MathF.Max(seconds, 0.05f);
 
@@ -695,6 +747,7 @@ public sealed partial class EnhancedTrekCamera
         // Out as far as the arm is, which a camera taken up from elsewhere can have longer than the boom.
         var reach = MathF.Max(_length, _arm);
         var free = Free(world, visible, Direction, reach);
+        FitLimit = $"{DrawnLimit} free {free:F2}";
         _free = MathF.Min(free, _length);
         _freeLevel = Free(world, visible, DirectionAt(_basePitch + _userPitch), _length);
         if (at || free < MathF.Min(_arm, reach - 1e-3f))
@@ -731,8 +784,11 @@ public sealed partial class EnhancedTrekCamera
         var (yaw, pivot, pitch) = (_yaw, _pivot, _pitch);
         // How far round it goes: its speed over the span, or toward the goal at the swing's rate if that's more, not past it.
         var turn = _yawSpeed * t.ArmTurnLookahead;
-        var toward = MathF.Sign(_lastE) * MathF.Min(MathF.Abs(_lastE), MathF.Max(MathF.Abs(turn), _swingingBehind ? t.TightTurn * Degree * t.ArmTurnLookahead : 0));
-        if (Tuning.ArmPlansSwing && MathF.Abs(toward) > MathF.Abs(turn) && (turn == 0 || MathF.Sign(toward) == MathF.Sign(turn)))
+        // Toward the goal at the swing's rate in a swing, and at the quickened follow's while it's urgent: the arm draws in
+        // for the yaw it will have, not for a wall the turn is about to clear.
+        var planned = MathF.Max(_swingingBehind ? t.TightTurn : 0, Urgency * t.UrgentTurn) * Degree * t.ArmTurnLookahead;
+        var toward = MathF.Sign(_lastE) * MathF.Min(MathF.Abs(_lastE), MathF.Max(MathF.Abs(turn), planned));
+        if ((Tuning.ArmPlansSwing || Urgency > 0.05f) && MathF.Abs(toward) > MathF.Abs(turn) && (turn == 0 || MathF.Sign(toward) == MathF.Sign(turn)))
             turn = toward;
         var least = float.MaxValue;
         const int Points = 8;
@@ -758,6 +814,8 @@ public sealed partial class EnhancedTrekCamera
     private float Free(CollisionWorld world, VisibleWorld? visible, Vector3 way, float length)
     {
         var t = Tuning;
+        if (t.BoomLimits == "drawn" && visible is not null)
+            return FreeDrawn(world, visible, way, length);
         var free = length;
         if (SpherePhysics.SweepEitherSide(world, _pivot, _pivot + way * length, t.Radius, skipSeeThrough: true) is { } share)
             free = share * length - t.Margin;
@@ -772,6 +830,60 @@ public sealed partial class EnhancedTrekCamera
             free = MathF.Min(free, drawn.Share * reach - (t.Radius + t.Margin) / slant);
         }
         return MathF.Max(free, 0);
+    }
+
+    /// <summary>
+    /// How far the camera can go along <paramref name="way"/> under the drawn limits (<see cref="TrekCameraTuning.BoomLimits"/>
+    /// "drawn"): the drawn world's solid surfaces, scrolling ones (lava, a glow) solid too and translucent and cut-out ones not,
+    /// met by five rays (the middle one kept the sphere's radius off square to the surface, four more fanned out from the
+    /// pivot to a sphere's radius round the far end, kept the margin off) so the lens has a body; collision only for bounds, the camera kept over floor (a probe
+    /// down from points along the boom finds ground within 6 under each), and the see-through flag aside.
+    /// </summary>
+    /// <summary>What limited the boom under the drawn limits at its last test, for the rig.</summary>
+    public string DrawnLimit { get; private set; } = "";
+
+    /// <summary>The same for the arm's own test last tick, with the room it found.</summary>
+    public string FitLimit { get; private set; } = "";
+
+    private float FreeDrawn(CollisionWorld world, VisibleWorld visible, Vector3 way, float length)
+    {
+        var t = Tuning;
+        var free = length;
+        var reach = length + 4 * t.Radius;
+        if (visible.RaycastSolid(_pivot, _pivot + way * reach, scrollingSolid: true) is { } drawn)
+        {
+            var slant = MathF.Max(MathF.Abs(Vector3.Dot(way, drawn.Normal)), 0.25f);
+            free = MathF.Min(free, drawn.Share * reach - (t.Radius + t.Margin) / slant);
+            DrawnLimit = "middle";
+        }
+        else
+            DrawnLimit = "none";
+        var side = Vector3.Cross(way, Vector3.UnitY);
+        side = side.LengthSquared() > 1e-6f ? Vector3.Normalize(side) : Vector3.UnitX;
+        var up = Vector3.Cross(side, way);
+        // Four more fanned out from the pivot to a sphere's radius round the far end: from the pivot, so a ray never starts on
+        // the far side of a low ceiling or a wall beside his head.
+        foreach (var offset in new[] { side, -side, up, -up })
+        {
+            var to = _pivot + way * reach + offset * t.Radius;
+            if (visible.RaycastSolid(_pivot, to, scrollingSolid: true) is { } hit && hit.Share * reach - t.Margin < free)
+                (free, DrawnLimit) = (hit.Share * reach - t.Margin, "fan");
+        }
+        free = MathF.Max(free, 0);
+        // Over floor: the boom stops at the first point along it with no ground under it.
+        const int Points = 4;
+        for (var k = 1; k <= Points; k++)
+        {
+            var d = free * k / Points;
+            var at = _pivot + way * d;
+            if (!SpherePhysics.SweepNearest(world, at, at - new Vector3(0, 6, 0), 0.05f, skipSeeThrough: false, minUp: 0.5f, out _, out _))
+            {
+                free = free * (k - 1) / Points;
+                DrawnLimit = "floor";
+                break;
+            }
+        }
+        return free;
     }
 
     /// <summary>The way from the pivot to the camera.</summary>

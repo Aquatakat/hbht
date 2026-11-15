@@ -90,7 +90,9 @@ public static class ConversationEndTrace
             trek.Tick(() => new PlayerInput(stick));
             each?.Invoke(trek, tick);
             var now = Angle(trek.Camera.LookXZ);
-            turns.Add(Wrap(now - last));
+            // A room's camera object holding the view as he walks into its reach is its authored move, not the end's turn.
+            if (!trek.Camera.Held && trek.Use.CurrentCamera is null)
+                turns.Add(Wrap(now - last));
             last = now;
         }
         float total = 0, net = 0, peak = 0;

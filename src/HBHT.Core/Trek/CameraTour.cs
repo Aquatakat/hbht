@@ -17,6 +17,52 @@ public static class CameraTour
     /// <summary>What the last plan found, for the rig's report.</summary>
     public static string Note { get; private set; } = "";
 
+    /// <summary>
+    /// Laps round a piece of furniture whose collision is a hollow ring of walls (GwerniaCastle G01's table), the way a player
+    /// runs round a table: its middle found as the mean of the ring's hits from <paramref name="guess"/> at hip height, its
+    /// edge by rays out from the middle, and a waypoint every 15° <paramref name="hug"/> off the edge; <paramref name="laps"/>
+    /// one way (anticlockwise seen from above with <paramref name="clockwise"/> false), a short stop, then as many the other.
+    /// </summary>
+    public static IReadOnlyList<Stop> Around(TrekLoop trek, Vector2 guess, float hug, int laps, int pause = 45)
+    {
+        var world = trek.Chunks.World;
+        var y = trek.Player.Sphere.Position.Y;
+        var centre = guess;
+        float Edge(Vector2 from, float angle)
+        {
+            var dir = new Vector3(MathF.Cos(angle), 0, MathF.Sin(angle));
+            var start = new Vector3(from.X, y, from.Y);
+            return SpherePhysics.SweepEitherSide(world, start, start + dir * 6, 0.01f, skipSeeThrough: true) is { } share ? share * 6 : 6;
+        }
+        // The middle: twice, the mean of the edge's points round the guess.
+        for (var pass = 0; pass < 2; pass++)
+        {
+            var sum = Vector2.Zero;
+            for (var k = 0; k < 24; k++)
+            {
+                var angle = k * MathF.PI / 12;
+                sum += centre + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * Edge(centre, angle);
+            }
+            centre = sum / 24;
+        }
+        var ring = new List<Vector2>();
+        for (var k = 0; k < 24; k++)
+        {
+            var angle = k * MathF.PI / 12;
+            ring.Add(centre + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * (Edge(centre, angle) + hug));
+        }
+        var stops = new List<Stop>();
+        foreach (var sense in new[] { 1, -1 })
+        {
+            for (var lap = 0; lap < laps; lap++)
+                for (var k = 0; k < 24; k++)
+                    stops.Add(new Stop(ring[((sense * k) % 24 + 24) % 24], 0));
+            stops.Add(new Stop(ring[0], pause));
+        }
+        Note = $"table middle {centre}";
+        return stops;
+    }
+
     public static IReadOnlyList<Stop> Plan(TrekLoop trek, float reach = 30, float cell = 0.5f, int pause = 90)
     {
         // The body's width between cells: his own half a unit, or where that can't leave the door he stands at, a little less.
