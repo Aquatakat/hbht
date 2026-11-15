@@ -23,12 +23,6 @@ Entertainment or THQ, Aidyn Chronicles is their trademark.
 
 ## Accuracy
 
-This project is not a decomp, it's essentially a clean-room reimplementation of
-the engine in a different language, with the ROM checked generally to answer
-specific questions as to how certain systems function. This gains us a lot of
-flexibility and the ability to expand the game in the future, but loses flawless
-accuracy and requires significantly more testing.
-
 The primary goal is a reasonable representation of the game, down to some of its
 weirder quirks, but this is a game limited by its hardware and rushed out the
 door, so some bugs and limitations are corrected at the expense of perfect N64
@@ -36,7 +30,7 @@ accuracy.
 
 Examples of some fixed bugs:
 - Precipitation splashes on visible geometry, rather than on collision boxes.
-- Weather continues from trek mode into cutscenes rather than reverting to clear
+- Weather continues from trek mode into cut-scenes rather than reverting to clear
   and restarting.
 - The time of day and compass are meant to be hidden inside some interiors. The
   original shows them when you load a save inside, HBHT hides them.
@@ -58,6 +52,10 @@ Differences from the original:
   due to low frame rate may succeed in HBHT. This is fairly rare, and doesn't
   have a large impact on the feel of combat. The AI is still janky, gets stuck,
   skips their turns, etc.
+- N64 games use a unique form of texture filtering that samples three points
+  rather than four. It causes smooth 45 degree slants top left to bottom right.
+  I didn't mimic this because Aidyn's artwork doesn't seem to take advantage of
+  it artistically. Cut out edges like trees look a little rounder.
 
 Something that may or may not be a bug?:
 - The Ring of Healing restoring 1 HP per frame outside of combat. No other
@@ -72,9 +70,13 @@ Something that may or may not be a bug?:
 - Extended draw distance
 - Higher rain and snow density
 - Three size settings for the HUD and menus
+- [Enhanced camera movement](https://www.youtube.com/watch?v=LUJc9yhlceA),
+  including [a new camera for non-cut-scene dialogue](https://www.youtube.com/watch?v=-li307gXxTM)
 - Faster movement speed
 - Smoother movement
-- Status auras appear more often in battle
+- [Faster combat](https://www.youtube.com/watch?v=W-fbM2U1Sy8): the next turn
+  starts as soon as it can, allowing multiple enemies to move at the same time
+- Status auras appear more often in combat
 - Rebindable controls
 
 Each of these is optional, except for the frame rate. You can limit it to 30,
@@ -82,28 +84,49 @@ but there's no going back to the 15-20 from the console.
 
 These enhancements are planned:
 
-- An overhaul of camera movement and placement, including during non cut-scene
-  dialogue.
-- Asynchronous battle movement (two enemies whose turns won't affect each other
-  move at the same time, similar to Ogre Battle 64).
 - An overhaul of battle AI - smarter (or dumber!) decision-making based on
   stats, and sensible pathfinding.
 - Replaceable menus at native resolution.
 
 ## Status
 
-Trek mode has been tested from a new game through defeating Pochangarat. More
-combat testing is required. The editor hasn't been meaningfully started, though
-there is an inspector and a map/dialogue viewer.
+Trek mode has been tested from a new game through defeating Pochangarat by hand
+and all combat encounters and side quests have been completed through automated
+testing. The editor hasn't been meaningfully started, though there is an
+inspector and a map/dialogue viewer.
 
 | System | Status |
 | --- | --- |
-| Trek | ✅ Complete, tested in a variety of situations. There's probably some odd edge cases left. |
-| Quest progression | ✅ A full playthrough revealed no quest progression or flag-related bugs. The side quests (Gwernia's Inn, Elisheva's Tomb, etc.) have not been tested yet. Some content-related bugs are left unfixed, leaving them for the mod editor (talking to Keelin in Terminor from certain angles loads the wrong set of camera positions). |
-| Cut-scenes | ⚠️ All story cut-scenes play through with no game-breaking issues. Some edge cases involving differences between HBHT and the original cause some cut-scenes to play out better (Niesen no longer faces the wrong way during the Fire Lord cutscene) and some to play out worse (Shamsuk sometimes doesn't stand in the correct spot in the scene prior to his fight). A full test of all cut-scenes is required. |
-| Combat | ✅ Combat has been compared against the ROM in a variety of scenarios, and simulations were conducted to confirm the damage and stat formulas match exactly. There may be some edge cases left. There may still be some oddities that are accurate to the original, or edge cases. |
+| Trek | ✅ Complete, tested in a variety of situations. There may be some movement issues in some areas with the smoother movement enhancement. |
+| Quest progression | ✅ A full playthrough revealed no quest progression or flag-related bugs. Automated testing confirmed all flags are reachable (chests, combat encounters, cut-scenes, side quests). Some content-related bugs are left unfixed, leaving them for the mod editor (talking to Keelin in Port Saiid with Dougal in your party softlocks the original, HBHT ends the conversation). |
+| Cut-scenes | ✅ All story cut-scenes play through with no game-breaking issues. Some edge cases involving differences between HBHT and the original cause some cut-scenes to play out better (Niesen no longer faces the wrong way during the Fire Lord cut-scene) and some to play out worse (Shamsuk sometimes stands half a unit off in the cut-scene prior to his fight). |
+| Combat | ✅ Combat has been compared against the ROM in a variety of scenarios, and simulations were conducted to confirm the damage and stat formulas match exactly. Automated testing has completed every combat encounter that sets a defeated flag (the vast majority). |
 | Menu | ✅ Complete |
 | Editor | ⏳ An inspector is available for in-game maps, characters, scenes, dialogue. Editing hasn't been started yet. An audit of hardcoded content is required, followed by a finalization of the plugin format. |
+
+## Why C# and Godot
+
+This project is not a decomp, it's a reimplementation of the engine in a
+different language. For the most part, all of the game's systems are C#, with
+Godot being a thin display layer on top.
+
+What this gets us:
+- C# is a pretty easy language that imposes a lot of structure, which makes it
+  simpler for humans and AI to reason about.
+- Adding our own features and changing the engine becomes simpler.
+- The engine is much more stable. A decomp might immediately fix the most common
+  crashes in the original just by PCs having more memory, but HBHT fixes the
+  weird ones that were noticed while rebuilding each system one by one. Camping
+  in the corner of the desert, talking to Keelin in Terminor, etc.
+
+What we lose:
+- Accuracy doesn't come for free, a significant amount of testing is required
+  to match the original, and it's an endless process. The game is huge, and
+  while I'm confident the game can be enjoyed end to end right now, there's
+  always going to be some little thing I missed.
+- Performance is worse. On a regular PC with a graphics card, you'll get
+  hundreds of frames per second, no problem. On integrated graphics, it may
+  struggle to maintain 60 FPS.
 
 ## Credits
 
@@ -131,6 +154,13 @@ because the code as-written is mostly derived from reading the machine code.
 Instead, I'd like to extend this public apology, and just add that this project
 exists for the love of this very weird, janky, ambitious game - I don't mean to
 take away from the decomp's work, or the art of decompilation in general.
+
+## Also Check Out
+
+### [Aidyn ReChronicled](https://github.com/spitzdano/AidynReChronicled)
+
+A static recomp of the game by Spitzdano. It takes the original game and adds
+modern conveniences on top as well as upscaled artwork.
 
 ## License
 
