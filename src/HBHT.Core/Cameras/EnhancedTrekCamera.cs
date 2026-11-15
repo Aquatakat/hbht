@@ -112,6 +112,9 @@ public sealed partial class EnhancedTrekCamera
     /// <summary>The boom's yaw in degrees: the way from the pivot to the camera, from +X toward +Z.</summary>
     public float Yaw => _yaw / Degree;
 
+    /// <summary>The ticks the arm has been pulled in at once by more than 0.1 since it was made: a wall it didn't see coming.</summary>
+    public int Cuts { get; private set; }
+
     /// <summary>His travel as the camera reads it, eased, units a second.</summary>
     public Vector2 Travel => _travel;
 
@@ -457,12 +460,16 @@ public sealed partial class EnhancedTrekCamera
             goal = MathF.Atan2(-_travel.Y, -_travel.X) + lean * Degree;
             _restGoal = goal;
         }
+        // Behind him only where behind has room: whiskers about the goal push it, smoothly, toward the nearer open side.
+        var aimed = auto && (_travel.Length() > t.MovingSpeed || _restGoal is not null);
+        goal += StepWhiskers(world, visible, goal, aimed) * Degree;
         // Sneaking past a hunter: toward his far side from it, as quickly as its weight allows.
         var sneak = auto ? Sneak.Weight : 0;
         if (sneak > 0)
             goal += sneak * Wrap(Sneak.Yaw(player) - goal);
         var e = Wrap(goal - _yaw);
         YawOff = MathF.Abs(e) / Degree;
+        _lastE = e;
         if (!auto)
         {
             // The player turned it: the view is his.
@@ -537,6 +544,76 @@ public sealed partial class EnhancedTrekCamera
         _yaw = Wrap(yaw);
     }
 
+    /// <summary>
+    /// How far round from <paramref name="goal"/> the room asks the goal to go, in degrees, eased in time
+    /// (<see cref="TrekCameraTuning.WhiskerEase"/>). Every other tick a fan of whiskers, the arm's free length at the place's
+    /// pitch from above his head, samples each side of the goal out to <see cref="TrekCameraTuning.WhiskerSpread"/>; each
+    /// whisker's room is smoothstepped from the close floor (none) to the place's length (all). The goal moves by as much as
+    /// straight behind lacks room, toward the side whose open whiskers weigh more, nearer ones counting for more, to the mean
+    /// angle of that side's open whiskers. With room behind it's nothing, and as room returns the push fades. Only as he stops
+    /// and stands, his goal where his travel left it; walking, it fades out, and an arrival's view holds.
+    /// </summary>
+    private float StepWhiskers(CollisionWorld world, VisibleWorld? visible, float goal, bool aimed)
+    {
+        var t = Tuning;
+        if (!aimed || t.WhiskerSpread <= 0)
+        {
+            _whiskerRaw = 0;
+        }
+        else if (Ticks % 2 == 0 || !_whiskered)
+        {
+            _whiskered = true;
+            var want = _length * (1 - t.ArrivalShortfall);
+            var floor = MathF.Min(t.CloseFloor, want - 0.1f);
+            float Open(float off)
+            {
+                var yaw = goal + off * Degree;
+                var (sinPitch, cosPitch) = MathF.SinCos(_basePitch * Degree);
+                var way = new Vector3(MathF.Cos(yaw) * cosPitch, sinPitch, MathF.Sin(yaw) * cosPitch);
+                var free = Free(world, visible, way, _length);
+                var x = Math.Clamp((free - floor) / MathF.Max(want - floor, 1e-3f), 0, 1);
+                return x * x * (3 - 2 * x);
+            }
+            var behind = Open(0);
+            if (behind > 0.999f)
+            {
+                _whiskerRaw = 0;
+            }
+            else
+            {
+                float weightPlus = 0, anglePlus = 0, weightMinus = 0, angleMinus = 0;
+                var count = Math.Max(1, (int)MathF.Round(t.WhiskerSpread / t.ArrivalStep));
+                for (var k = 1; k <= count; k++)
+                {
+                    var off = k * t.WhiskerSpread / count;
+                    var near = MathF.Exp(-off / 60);
+                    var plus = Open(off) * near;
+                    var minus = Open(-off) * near;
+                    (weightPlus, anglePlus) = (weightPlus + plus, anglePlus + plus * off);
+                    (weightMinus, angleMinus) = (weightMinus + minus, angleMinus + minus * off);
+                }
+                // The side: by the open whiskers' weight, softly, with a lean to the side the camera's already on.
+                var already = MathF.Tanh(Wrap(_yaw - goal) / (15 * Degree));
+                var lean = (weightPlus - weightMinus) / MathF.Max(weightPlus + weightMinus, 1e-3f) + 0.3f * already;
+                var side = Math.Clamp(0.5f + lean * 2, 0, 1);
+                var toPlus = weightPlus > 1e-3f ? anglePlus / weightPlus : t.WhiskerSpread;
+                var toMinus = weightMinus > 1e-3f ? angleMinus / weightMinus : t.WhiskerSpread;
+                // Only as he stands: walking, the arm takes the tightness, and a goal pushed off his travel would steer him (the
+                // stick being the camera's) off a forest path between trees behind him. It fades in as he slows.
+                var walking = Math.Clamp((_travel.Length() - t.MovingSpeed) / MathF.Max(t.MovingSpeed, 1e-3f), 0, 1);
+                _whiskerRaw = (1 - walking) * (1 - behind) * (side * toPlus - (1 - side) * toMinus);
+            }
+        }
+        _whisker += (_whiskerRaw - _whisker) * (1 - MathF.Exp(-Tick / MathF.Max(t.WhiskerEase, 1e-3f)));
+        return _whisker;
+    }
+
+    private float _whisker, _whiskerRaw, _lastE;
+    private bool _whiskered;
+
+    /// <summary>How far round from behind him the room has pushed the yaw's goal, in degrees.</summary>
+    public float WhiskerPush => _whisker;
+
     /// <summary>The rate of a critically damped approach that's 90% of the way, from rest, in <paramref name="seconds"/>.</summary>
     private static float SettleRate(float seconds) => 3.89f / MathF.Max(seconds, 0.05f);
 
@@ -592,14 +669,55 @@ public sealed partial class EnhancedTrekCamera
         _freeLevel = Free(world, visible, DirectionAt(_basePitch + _userPitch), _length);
         if (at || free < MathF.Min(_arm, reach - 1e-3f))
         {
-            // A wall nearer than the camera: in at once.
+            // A wall nearer than the camera, which the look ahead didn't see coming: in at once, the backstop.
+            if (!at && free < _arm - 0.1f)
+                Cuts++;
             _arm = at ? _free : free;
             _armSpeed = 0;
         }
         else
-            // Out as room opens, or in gently when longer than the boom with no wall in the way: eased, its speed never
-            // jumping, at most ArmOut a second.
-            Approach(ref _arm, ref _armSpeed, _free, SettleRate(Tuning.ArmEase), Tuning.ArmOut, Tuning.ArmAccel);
+        {
+            // The arm rides the least room it's about to need, over where the yaw and the pivot are going in the next
+            // ArmLookahead, so it has shortened before a wall arrives; out as room opens, eased, never jumping.
+            var goal = MathF.Min(_free, Envelope(world, visible));
+            var t = Tuning;
+            var inward = goal < _arm;
+            Approach(ref _arm, ref _armSpeed, goal, SettleRate(inward ? t.ArmInTime : t.ArmEase), inward ? t.ArmIn : t.ArmOut,
+                inward ? t.ArmInAccel : t.ArmAccel);
+            _arm = MathF.Min(_arm, MathF.Max(free, 0));
+        }
+    }
+
+    /// <summary>
+    /// The least room over the next <see cref="TrekCameraTuning.ArmLookahead"/>: the yaw where its speed and its turn toward
+    /// the goal take it, and the pivot where his travel takes it, at a few points along the way.
+    /// </summary>
+    private float Envelope(CollisionWorld world, VisibleWorld? visible)
+    {
+        var t = Tuning;
+        if (t.ArmLookahead <= 0)
+            return _length;
+        var (yaw, pivot) = (_yaw, _pivot);
+        // How far round it goes: its speed over the span, or toward the goal at the swing's rate if that's more, not past it.
+        var turn = _yawSpeed * t.ArmLookahead;
+        var toward = MathF.Sign(_lastE) * MathF.Min(MathF.Abs(_lastE), MathF.Max(MathF.Abs(turn), _swingingBehind ? t.TightTurn * Degree * t.ArmLookahead : 0));
+        if (MathF.Abs(toward) > MathF.Abs(turn) && (turn == 0 || MathF.Sign(toward) == MathF.Sign(turn)))
+            turn = toward;
+        var least = float.MaxValue;
+        const int Points = 4;
+        // The pivot goes with his travel, but no further than a wall in its way: he stops there.
+        var ahead = new Vector3(_travel.X, 0, _travel.Y) * t.ArmLookahead;
+        if (ahead.LengthSquared() > 1e-6f && SpherePhysics.SweepEitherSide(world, pivot, pivot + ahead, t.Radius, skipSeeThrough: true) is { } stop)
+            ahead *= MathF.Max(0, stop - t.Radius / ahead.Length());
+        for (var k = 1; k <= Points; k++)
+        {
+            var share = (float)k / Points;
+            _yaw = yaw + turn * share;
+            _pivot = pivot + ahead * share;
+            least = MathF.Min(least, Free(world, visible, Direction, _length));
+        }
+        (_yaw, _pivot) = (yaw, pivot);
+        return least;
     }
 
     /// <summary>How far the camera's sphere can go from the pivot along <paramref name="way"/>, up to <paramref name="length"/>.</summary>

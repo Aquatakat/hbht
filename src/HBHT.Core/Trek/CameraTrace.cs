@@ -52,6 +52,12 @@ public enum CameraStick
 
     /// <summary>At rest throughout: he stands where he arrived.</summary>
     Still,
+
+    /// <summary>At rest for half a second, then steering correctly toward where the camera was then: walking at the lens.</summary>
+    Down,
+
+    /// <summary>Steering correctly, along a way that turns 70° every two seconds from the one he arrived facing: a walk round a room.</summary>
+    Wander,
 }
 
 /// <summary>
@@ -147,6 +153,7 @@ public static class CameraTrace
         // With no route, he holds the way he arrived facing.
         var holding = route.Length == 0;
         var facing = trek.Player.Heading;
+        Vector2? towardLens = null;
         var held = 0;
         int aheadSeen = 0, aheadCounted = 0;
         bool? aheadAtFirst = null;
@@ -167,11 +174,14 @@ public static class CameraTrace
                 next++;
             if (!holding && next >= route.Length)
                 break;
-            var way = holding ? facing : Vector2.Normalize(route[next] - flatAt);
+            var way = !holding ? Vector2.Normalize(route[next] - flatAt)
+                : stick == CameraStick.Wander ? Turned(facing, 70 * (ticks / 120))
+                : facing;
             var look = trek.Camera.LookXZ;
             var push = !holding ? Pilot.StickFor(way, look)
                 : stick == CameraStick.Up ? Vector2.UnitY
                 : stick == CameraStick.Still ? Vector2.Zero
+                : stick == CameraStick.Down ? (ticks < RestTicks ? Vector2.Zero : Pilot.StickFor(towardLens ??= LensWay(trek), look))
                 : stick == CameraStick.RestThenSteer && ticks < RestTicks ? Vector2.Zero
                 : Pilot.StickFor(way, look);
             trek.Tick(() => new PlayerInput(push));
@@ -250,6 +260,7 @@ public static class CameraTrace
             for (var i = 1; i <= standTicks; i++)
             {
                 trek.Tick(() => new PlayerInput(Vector2.Zero));
+                each?.Invoke(trek, ticks + i - 1);
                 var heading = trek.Player.Heading;
                 if (Vector2.Dot(heading, lastHeading) < MathF.Cos(0.5f * MathF.PI / 180))
                 {
@@ -269,6 +280,18 @@ public static class CameraTrace
         return new CameraTraceResult(walk.Name, style, ticks, Share(blocked), late == 0 ? 0 : (float)blockedLate / late, Share(past), Share(hidden), late == 0 ? 0 : (float)front / late,
             Peak(turns), Percentile(turns, 0.95f), Peak(accels), Percentile(accels, 0.95f), checksum, next, route.Length, held,
             aheadCounted == 0 ? float.NaN : (float)aheadSeen / aheadCounted, aheadAtFirst, settle, settleOff);
+    }
+
+    private static Vector2 LensWay(TrekLoop trek)
+    {
+        var to = new Vector2(trek.Camera.Position.X - trek.Player.Sphere.Position.X, trek.Camera.Position.Z - trek.Player.Sphere.Position.Z);
+        return to.LengthSquared() > 1e-6f ? Vector2.Normalize(to) : -trek.Player.Heading;
+    }
+
+    private static Vector2 Turned(Vector2 v, float degrees)
+    {
+        var (s, c) = MathF.SinCos(degrees * MathF.PI / 180);
+        return new Vector2(v.X * c - v.Y * s, v.X * s + v.Y * c);
     }
 
     /// <summary>How long <see cref="CameraStick.RestThenSteer"/> leaves the stick at rest.</summary>

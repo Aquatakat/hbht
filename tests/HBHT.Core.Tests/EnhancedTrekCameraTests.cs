@@ -206,6 +206,36 @@ public class EnhancedTrekCameraTests
     }
 
     [Fact]
+    public void StandingWithHisBackToAWallItRestsBesideHimNotOnHisHead()
+    {
+        // A wall 0.8 behind him, a ceiling 4.8 up; he takes a few steps away from it and stops, his back to it.
+        var world = FlatWith(Worlds.Wall(-0.8f, 10));
+        var visible = new VisibleWorld();
+        visible.Add(Worlds.Chunk(1), Worlds.Floor(4.8f, -50, 60, -50, 60).Drawn(), Vector3.Zero);
+        var (enhanced, camera) = Arrived(world, Vector2.UnitX, visible, interior: true);
+        var player = Player;
+        for (var i = 0; i < 20; i++)
+        {
+            player += new Vector3(0.02f, 0, 0);
+            enhanced.Step(camera, world, visible, player, Vector2.UnitX, interior: true, Vector2.Zero);
+        }
+        float lastYaw = enhanced.Yaw, most = 0;
+        for (var i = 0; i < 600; i++)
+        {
+            enhanced.Step(camera, world, visible, player, Vector2.UnitX, interior: true, Vector2.Zero, walking: false);
+            most = MathF.Max(most, MathF.Abs(enhanced.Yaw - lastYaw));
+            lastYaw = enhanced.Yaw;
+            Assert.True(camera.Position.X > -0.8f + 0.25f, $"the camera at {camera.Position} is past the wall");
+        }
+        // Beside him or at a rear three-quarter, at least the close floor out, not lifted over his head.
+        Assert.True(MathF.Abs(enhanced.WhiskerPush) > 30, $"pushed {enhanced.WhiskerPush:F0}°");
+        Assert.True(enhanced.Arm >= TrekCameraTuning.Default.CloseFloor - 0.1f, $"arm {enhanced.Arm:F2}");
+        Assert.True(enhanced.Pivot.Y - player.Y - 1.05f < 0.3f, "lifted over his head");
+        // And it got there smoothly: no tick's turn over 2°.
+        Assert.True(most < 2, $"a tick turned {most:F1}°");
+    }
+
+    [Fact]
     public void InAClosetItRisesOverHisHead()
     {
         // Walls 0.6 from him on every side, with a drawn ceiling 4.8 up: no angle has room.
