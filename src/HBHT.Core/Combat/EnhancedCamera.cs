@@ -329,9 +329,7 @@ public sealed class EnhancedCamera
         if (Released || _motion is null)
             return;
         Released = true;
-        original.PlaceAt(Camera.Position);
-        original.AimAt(Camera.Aim);
-        original.LookXZ = Camera.LookXZ;
+        original.TakeOver(Camera.Position, Camera.Aim, Camera.LookXZ);
     }
 
     /// <summary>The turn ends: the director has the camera again, and forgets the target, the aim and the plan.</summary>

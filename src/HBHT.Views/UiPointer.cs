@@ -28,6 +28,9 @@ public static class UiPointer
     /// </summary>
     public static bool InUse { get; set; }
 
+    /// <summary>Whether the host keeps <see cref="InUse"/> itself, as the game does by the menus' events; else the views do by their own.</summary>
+    public static bool HostTracks { get; set; }
+
     /// <summary>Keeps <see cref="InUse"/> by an event, whatever takes it.</summary>
     public static void Track(InputEvent e)
     {

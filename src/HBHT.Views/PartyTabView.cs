@@ -205,8 +205,9 @@ public partial class PartyTabView : Control
     /// </summary>
     public override void _GuiInput(InputEvent @event)
     {
-        // The game tracks it for every event; the editor's panels have only this.
-        UiPointer.Track(@event);
+        // The game tracks it for the menus' events (Game.TrackPointer); the editor's panels have only this.
+        if (!UiPointer.HostTracks)
+            UiPointer.Track(@event);
         if (@event is InputEventMouseMotion motion)
         {
             if (!Hover(motion.Position))

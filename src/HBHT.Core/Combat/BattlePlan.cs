@@ -72,7 +72,7 @@ public sealed class BattlePlan
             case "stick":
                 return Hold(N(3), new PlayerInput(new Vector2(F(1), F(2))));
             case "orbit":
-                return Hold(N(3), new PlayerInput(Vector2.Zero, Orbit: true, OrbitStick: new Vector2(F(1), F(2)), Free: true));
+                return Hold(N(3), new PlayerInput(Vector2.Zero, Orbit: true, OrbitStick: new Vector2(F(1), F(2)), Free: true, Held: true));
             case "accept":
                 drawing.Press(MenuAction.Accept);
                 break;

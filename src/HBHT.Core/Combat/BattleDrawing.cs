@@ -225,7 +225,9 @@ public sealed class BattleDrawing
     /// </param>
     private BattleFrame Step(ZoneEngine arena, Func<PlayerInput>? readInput, bool live)
     {
-        Battle.CombatCamera.Hand(live && HandCamera && Turns == CombatTurns.StartEarly && _composer.Live is not null ? Director.Camera : null);
+        // Not only while the composer has the turn open: the battle's first turn, which is the composer's first action, is never
+        // opened, and its stick would read the original's camera, which isn't drawn.
+        Battle.CombatCamera.Hand(live && HandCamera && Turns == CombatTurns.StartEarly ? Director.Camera : null);
         Recorder.BeginTick();
         var step = Battle.Tick(arena, readInput);
         var frame = Recorder.Sample(Battle, step);

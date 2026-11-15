@@ -258,6 +258,23 @@ public sealed partial class FollowCamera
     public void AimAt(Vector3 aim) => Aim = AimGoal = aim;
 
     /// <summary>
+    /// Takes over another camera's shot, as the player takes the enhanced camera's in hand: put at its eye and aim, looking its way,
+    /// with an orbit under way starting afresh from there. Mouse look holds the orbit all the time (ADR 0040), so its carry would
+    /// otherwise move the eye by the whole way from its last aim to the new one, and the angle and pitch it built up would swing it.
+    /// </summary>
+    public void TakeOver(Vector3 eye, Vector3 aim, Vector2 look)
+    {
+        PlaceAt(eye);
+        AimAt(aim);
+        LookXZ = look;
+        _orbitAim = aim;
+        OrbitAngle = 0;
+        Pitch = 0;
+        if (_hold != HoldState.None)
+            _hold = HoldState.Starting;
+    }
+
+    /// <summary>
     /// Keeps it <paramref name="distance"/> behind the player, but no nearer than
     /// <see cref="MinDistance"/>, for the next half second outdoors (a camera object's flag 0x100).
     /// </summary>

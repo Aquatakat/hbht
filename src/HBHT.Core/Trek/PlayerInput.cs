@@ -16,8 +16,12 @@ namespace HBHT.Core.Trek;
 /// The mouse's movement this tick, which moves a battle's free cursors (a thrown weapon's and an area spell's) as far as it
 /// went rather than at the stick's pace, in frames of the stick's step, up and right positive (ADR 0040).
 /// </param>
+/// <param name="Held">
+/// R itself held (Camera Hold), which keeps A from attacking in a battle's turn. <paramref name="Orbit"/> is also true while the
+/// camera turns by what needs no R: a second stick, the camera's keys, and mouse look on every tick (ADR 0040).
+/// </param>
 public readonly record struct PlayerInput(Vector2 Stick, bool Sneak = false, bool Orbit = false, Vector2 OrbitStick = default, bool Free = false,
-    Vector2 Aim = default)
+    Vector2 Aim = default, bool Held = false)
 {
     /// <summary>
     /// Which way and how far a battle's free cursor goes this tick, of <paramref name="step"/> a frame, turned by the camera's look:

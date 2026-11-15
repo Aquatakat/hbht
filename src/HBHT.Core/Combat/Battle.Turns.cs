@@ -43,7 +43,10 @@ public sealed partial class Battle
     /// <summary>Whether the stick was centred as the turn last read it, which Z needs to skip and A to attack.</summary>
     private bool _stickCentred = true;
 
-    /// <summary>Whether R was held as the turn last read it, which keeps A from attacking.</summary>
+    /// <summary>
+    /// Whether R was held as the turn last read it, which keeps A from attacking: R itself (<see cref="PlayerInput.Held"/>), not the
+    /// orbit that mouse look, the second stick or the camera's keys turn without it.
+    /// </summary>
     private bool _orbiting;
 
     /// <summary>Whether an entity never moves in its field, which is 0 (Pochanargat, <c>0x800E28EB</c>).</summary>
@@ -112,7 +115,7 @@ public sealed partial class Battle
         body.Drive(input.Move, Camera.LookXZ);
         current.UpdateFromBody(this);
         _stickCentred = input.Stick == Vector2.Zero;
-        _orbiting = input.Orbit;
+        _orbiting = input.Held;
         FollowNearShadow(current);
     }
 

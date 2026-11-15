@@ -136,7 +136,7 @@ public partial class Game
         // He stands still only while what would move him steers, as with R; a source of Move's alone still walks him.
         var free = !(hold && shared != Vector2.Zero) || own != Vector2.Zero;
         return new PlayerInput(stick, Input.IsActionPressed(Action(GameControls.Sneak)), orbit, orbitStick, Free: free,
-            Aim: new System.Numerics.Vector2(aim.X, aim.Y));
+            Aim: new System.Numerics.Vector2(aim.X, aim.Y), Held: hold);
 
         // Up, down, left and right as Godot's vector: up is negative y.
         static Vector2 Vector(string[] actions) => Input.GetVector(Action(actions[2]), Action(actions[3]), Action(actions[0]), Action(actions[1]));
@@ -153,8 +153,31 @@ public partial class Game
             && Battle?.Menu is null && _camera is { Flying: false } && GetWindow().HasFocus();
         var mode = look ? Input.MouseModeEnum.Captured : Input.MouseModeEnum.Visible;
         if (Input.MouseMode != mode)
+        {
             Input.MouseMode = mode;
+            _mouseModeAt = Time.GetTicksMsec();
+        }
         _camera?.MouseLook = look;
+    }
+
+    /// <summary>When the mouse was last captured or let go, in <see cref="Time.GetTicksMsec"/>'s milliseconds.</summary>
+    private ulong _mouseModeAt;
+
+    /// <summary>How long after the mouse is captured or let go its motion is taken for the warp, not the player's hand.</summary>
+    private const ulong MouseModeSettleMsec = 150;
+
+    /// <summary>
+    /// Keeps <see cref="Views.UiPointer.InUse"/> by the events in the menus alone, so the arrows only the mouse needs show as they
+    /// did when the menu last closed: trek's and a battle's mouse look, and a controller there, leave it. The motion the pointer's
+    /// warp sends as the mouse is let go isn't the player's.
+    /// </summary>
+    private void TrackPointer(InputEvent e)
+    {
+        if (_session is not { Mode: GameMode.Menu })
+            return;
+        if (e is InputEventMouseMotion && Time.GetTicksMsec() - _mouseModeAt < MouseModeSettleMsec)
+            return;
+        Views.UiPointer.Track(e);
     }
 
     /// <summary>
