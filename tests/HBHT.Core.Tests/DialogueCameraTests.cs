@@ -305,3 +305,141 @@ public class DialogueFittingTests
         Assert.Equal(1, director.Side);
     }
 }
+
+/// <summary>The enhanced conversation camera's variety by its cosmetic seed (<see cref="DialoguePlanner"/>, the user's ask of Nov 14, 2026).</summary>
+public class DialogueVarietyTests
+{
+    private static readonly RecordId Npc = Entity(0x0123);
+    private static readonly RecordId Alaron = GameState.Alaron;
+    private static readonly RecordId Who = Ids.MapObject(8, "G01", 3);
+    private static readonly ulong[] Seeds = Enumerable.Range(0, 300).Select(i => DialoguePlanner.SeedOf(Who, Script(0x0F00), i)).ToArray();
+
+    private static ScriptRecord Make(params ScriptNode[] nodes) => new(Script(0x0F00), 1, ScriptMode.Conversation, nodes);
+
+    private static List<DialoguePage> Pages(ScriptRecord script) =>
+        script.Nodes.Where(n => n.Text.Length > 0).Select(n => new DialoguePage(n.Index, DialoguePlanner.TalkerOf(n.Speaker), n.Text)).ToList();
+
+    private static ScriptRecord Lines(params (RecordId? Speaker, string Text)[] lines) =>
+        Make(lines.Select((l, i) => Line(i, l.Text, i + 1 < lines.Length ? i + 1 : null, l.Speaker)).ToArray());
+
+    /// <summary>A town's chatter: two-way talk, short lines and long.</summary>
+    private static ScriptRecord Chatter() => Lines((Npc, "Good day to you, traveller, and welcome to our town."), (Alaron, "Thanks."),
+        (Npc, "Have you come far?"), (Alaron, "From Gwernia, by the coast road."), (Npc, "A long way."), (Alaron, "It was."),
+        (Npc, "Mind the guards at the gate; they're in a foul temper since the raids began."), (Alaron, "I will."), (Npc, "Farewell."));
+
+    [Fact]
+    public void TheSameSeedGivesTheSamePlanAndDifferentSeedsDiffer()
+    {
+        var script = Chatter();
+        string Of(ulong s) => string.Join(" ", DialoguePlanner.PlanStyled(script, Pages(script), seed: s));
+        var plans = Seeds.Select(Of).ToList();
+        Assert.Equal(plans, Seeds.Select(Of));
+        Assert.True(plans.Distinct().Count() > 100, $"{plans.Distinct().Count()}");
+        // No seed, or variety off, is the unvaried plan.
+        var plain = DialoguePlanner.Plan(script, Pages(script));
+        Assert.All(Seeds.Take(20), s => Assert.Equal(plain, DialoguePlanner.Plan(script, Pages(script), DialogueTuning.Default.Plain, seed: s)));
+        Assert.NotEqual(DialoguePlanner.SeedOf(Who, Script(0x0F00), 0), DialoguePlanner.SeedOf(Who, Script(0x0F00), 1));
+    }
+
+    [Fact]
+    public void TheDefaultLookIsTheMostLikely()
+    {
+        var script = Chatter();
+        var plans = Seeds.Select(s => DialoguePlanner.Plan(script, Pages(script), seed: s)).ToList();
+        var openings = plans.GroupBy(p => p[0]).OrderByDescending(g => g.Count()).ToList();
+        Assert.Equal(DialogueShot.TwoShot, openings[0].Key);
+        Assert.Contains(openings, g => g.Key == new DialogueShot(DialogueShotKind.OverShoulder, Talker.Npc));
+        Assert.Contains(openings, g => g.Key == DialogueShot.Wide);
+        // The wide opens only a long script.
+        var brief = Lines((Npc, "Hello."), (Alaron, "Hi."));
+        Assert.DoesNotContain(Seeds.Select(s => DialoguePlanner.Plan(brief, Pages(brief), seed: s)[0]), s => s == DialogueShot.Wide);
+        var later = plans.SelectMany(p => p.Skip(1)).ToList();
+        Assert.True(later.Count(s => s.Kind == DialogueShotKind.OverShoulder) > later.Count / 2, "over the shoulder stays the usual line");
+        Assert.Contains(later, s => s.Kind == DialogueShotKind.Single);
+    }
+
+    [Fact]
+    public void TheLastOpeningIsntRepeated()
+    {
+        var script = Chatter();
+        foreach (var s in Seeds)
+        {
+            var planner = new DialoguePlanner(script, seed: s);
+            var opening = planner.Openings[0];
+            var next = new DialoguePlanner(script, seed: s, last: opening);
+            Assert.NotEqual(opening, next.Openings[0]);
+            Assert.Equal(planner.Openings.ToHashSet(), next.Openings.ToHashSet());
+        }
+    }
+
+    [Fact]
+    public void TheBeatsShoutsAndRunsHoldUnderEverySeed()
+    {
+        var battle = Make(Line(0, "Hello.", 1, Npc), Line(1, "Hi.", 2, Alaron), Line(2, "Die.", 3, Npc), Line(3, "", null, null, new ScriptOp.BattleStart()));
+        var join = Make(Line(0, "Hello.", 1, Npc), Line(1, "Hi.", 2, Alaron), Line(2, "I'll come along.", 3, Npc),
+            Line(3, "", null, null, new ScriptOp.PartyAddMember(Npc)));
+        var check = Make(Line(0, "Hello.", 1, Npc), Line(1, "A locked chest.", 2, Npc),
+            Node(2, ScriptNodeKind.If, "", [3, 3], null, new ScriptOp.CheckSkill(RecordIds.Skill(3))), Line(3, "Done.", null, Npc));
+        var shout = Lines((Npc, "Hello."), (Alaron, "Hi."), (Npc, "Get OUT of here!"), (Alaron, "Fine."), (Npc, "Go!!"));
+        var narrator = Lines((Npc, "Hello."), (Alaron, "Hi."), (null, "The wind howls."));
+        var tale = Lines(Enumerable.Range(0, 17).Select(i => ((RecordId?)Npc, $"Line {i}.")).Prepend((Alaron, "Tell me.")).ToArray());
+        var listener = new DialogueShot(DialogueShotKind.Single, Talker.Player);
+        foreach (var s in Seeds)
+        {
+            Assert.Equal(DialogueShot.Wide, DialoguePlanner.Plan(battle, Pages(battle), seed: s)[2]);
+            Assert.Equal(DialogueShot.TwoShot, DialoguePlanner.Plan(join, Pages(join), seed: s)[2]);
+            Assert.Equal(listener, DialoguePlanner.Plan(check, Pages(check), seed: s)[1]);
+            var shouted = DialoguePlanner.Plan(shout, Pages(shout), seed: s);
+            Assert.Equal(new DialogueShot(DialogueShotKind.Punch, Talker.Npc), shouted[2]);
+            Assert.Equal(new DialogueShot(DialogueShotKind.Punch, Talker.Npc), shouted[4]);
+            Assert.Equal(DialogueShot.TwoShot, DialoguePlanner.Plan(narrator, Pages(narrator), seed: s)[2]);
+            // A run's wide at its 3rd line and the listener at its 5th, and the listener never on its last.
+            var run = DialoguePlanner.Plan(tale, Pages(tale), seed: s);
+            Assert.Equal(DialogueShot.Wide, run[3]);
+            Assert.Equal(listener, run[5]);
+            Assert.NotEqual(listener, run[17]);
+            Assert.Contains(DialogueShot.Wide, run.Skip(6));
+            // A page of choices looks at the npc.
+            var menu = Pages(shout);
+            menu[3] = menu[3] with { Speaker = Talker.Npc, Text = "What will it be?", Choices = 2 };
+            Assert.Equal(new DialogueShot(DialogueShotKind.OverShoulder, Talker.Npc), DialoguePlanner.Plan(shout, menu, seed: s)[3]);
+        }
+    }
+
+    [Fact]
+    public void TheMinimumShotHoldsUnderEverySeed()
+    {
+        var script = Chatter();
+        foreach (var s in Seeds)
+        {
+            // Pages every 30 ticks: within 90 of a cut, a change is only to the two-shot.
+            var shots = DialoguePlanner.Plan(script, Pages(script), ticksPerPage: 30, seed: s);
+            var cutAt = 0;
+            for (var i = 1; i < shots.Count; i++)
+            {
+                if (shots[i] == shots[i - 1])
+                    continue;
+                Assert.True((i - cutAt) * 30 >= 90 || shots[i] == DialogueShot.TwoShot, $"seed {s}, page {i}: {shots[i - 1]} to {shots[i]}");
+                cutAt = i;
+            }
+        }
+    }
+
+    [Fact]
+    public void TheCameraDoesntOpenAsTheLastConversationDidWhereAnotherFits()
+    {
+        var scene = new DialogueScene(Worlds.Flat(), null, new TalkingBody(new(0, 0.5f, 0), 0.5f, new(0.15f, 1.62f, 0)),
+            new TalkingBody(new(2, 0.5f, 0), 0.5f, new(1.85f, 1.62f, 0)), []);
+        var script = Chatter();
+        DialogueOpening? last = null;
+        foreach (var s in Seeds.Take(60))
+        {
+            var director = new DialogueCamera(new DialoguePlanner(script, seed: s, last: last));
+            director.Step(new FollowCamera(new Vector3(1, 0.5f, 5), new Vector2(0, -1)), scene, Pages(script)[0], "a");
+            Assert.NotNull(director.Opening);
+            Assert.NotEqual(last, director.Opening);
+            Assert.Equal(director.Shown, director.Opening!.Value.Shot);
+            last = director.Opening;
+        }
+    }
+}

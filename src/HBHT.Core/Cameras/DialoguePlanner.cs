@@ -46,6 +46,18 @@ public readonly record struct DialogueShot(DialogueShotKind Kind, Talker Subject
 public readonly record struct DialoguePage(int Node, Talker Speaker, string Text, int Choices = 0);
 
 /// <summary>
+/// How a shot is taken, beside what it is: for a two-shot or a wide, the turn round the line tried first and a change of pitch; for over
+/// the shoulder, changes to the roomy placing's distance back, out to the side and up. <see cref="Plain"/> is the unvaried shot.
+/// </summary>
+public readonly record struct DialogueStyle(float Turn = 0, float Pitch = 0, float Back = 0, float Side = 0, float Rise = 0)
+{
+    public static DialogueStyle Plain { get; } = new();
+}
+
+/// <summary>How a conversation opened: its first shot, and for a two-shot or a wide the turn round the line it stood at (else 0).</summary>
+public readonly record struct DialogueOpening(DialogueShot Shot, float Turn = 0);
+
+/// <summary>
 /// Chooses a conversation's shots a page at a time from the script alone, and the conversation's history: no world, so what a script
 /// gets can be asked headless (<see cref="Plan"/>). The world's part, where each shot stands and whether it fits, is
 /// <see cref="DialogueCamera"/>'s. The rules are the design's (docs/systems/cameras.md, the enhanced conversation camera), in order:
@@ -54,11 +66,167 @@ public readonly record struct DialoguePage(int Node, Talker Speaker, string Text
 /// shouted line punches in; a long run by one speaker goes wide at its third line and to the listener at its fifth, then turns
 /// between the single and over the shoulder; any other line is over the listener's shoulder at the speaker. A shot lasts at least
 /// <see cref="DialogueTuning.MinShotTicks"/>: a page sooner keeps it if it shows the speaker, else goes to the two-shot.
+/// Given a seed (<see cref="SeedOf"/>), it varies a tad by it (the user's ask of Nov 14, 2026): the opening, how each shot is taken
+/// (<see cref="Style"/>), sometimes the single or a held two-shot for an ordinary line, and where a long run's cycle starts. The beats,
+/// the shouts, a run's wide and listener, and the minimum shot don't vary. Without a seed, or with <see cref="DialogueTuning.Variety"/>
+/// off, it's the unvaried plan. The seed is cosmetic: it never touches the game's own random numbers (<see cref="Rng"/>).
 /// </summary>
-public sealed partial class DialoguePlanner(ScriptRecord script, DialogueTuning? tuning = null)
+/// <param name="seed">The cosmetic seed, or null for the unvaried plan.</param>
+/// <param name="last">How the conversation before this one opened, which this one doesn't repeat where another opening is there.</param>
+public sealed partial class DialoguePlanner(ScriptRecord script, DialogueTuning? tuning = null, ulong? seed = null, DialogueOpening? last = null)
 {
     private readonly DialogueTuning _tuning = tuning ?? DialogueTuning.Default;
     private readonly Dictionary<int, ScriptNode> _nodes = script.Nodes.ToDictionary(n => n.Index);
+
+    /// <summary>Whether this conversation varies by its seed.</summary>
+    public bool Varied => seed is not null && _tuning.Variety;
+
+    /// <summary>How the conversation before this one opened.</summary>
+    public DialogueOpening? Last => last;
+
+    // Two streams from the seed: one drawn once as the conversation starts, one a page at a time.
+    private Cosmetic _start = new((seed ?? 0) ^ 0x5EED_0F_0CA3E7A5UL), _pages = new(seed ?? 0);
+
+    /// <summary>How the shot chosen last is taken.</summary>
+    public DialogueStyle Style { get; private set; } = DialogueStyle.Plain;
+
+    /// <summary>Whether, where both sides of the line fit equally with about the same room, the other side is taken (<see cref="DialogueCamera.ChooseSide"/>).</summary>
+    public bool FlipsSide { get { Begin(); return _flips; } }
+
+    private bool _flips, _begun;
+
+    /// <summary>The draws made once, in a fixed order whatever's asked first: the openings, the side, the run's phase.</summary>
+    private void Begin()
+    {
+        if (_begun)
+            return;
+        _begun = true;
+        _openings = MakeOpenings();
+        _flips = Varied && _start.Chance(_tuning.SideFlipChance);
+        _phase = Varied && _tuning.RunPhaseVaries && _tuning.RunPattern.Length > 0 ? (int)(_start.Next() * _tuning.RunPattern.Length) : 0;
+    }
+
+    /// <summary>
+    /// The openings, best first: the one drawn by the seed (not the last conversation's, where another is there), then the rest in the
+    /// order drawn. The camera takes the first that fits and doesn't repeat the last conversation's as it's shown.
+    /// </summary>
+    public IReadOnlyList<DialogueOpening> Openings { get { Begin(); return _openings!; } }
+
+    private List<DialogueOpening>? _openings;
+
+    private int RunPhase { get { Begin(); return _phase; } }
+
+    private int _phase;
+
+    private int _pageCount, _holds;
+
+    private List<DialogueOpening> MakeOpenings()
+    {
+        var turns = _tuning.AcrossYaws.Take(3).ToList();
+        var straight = turns.Count > 0 ? turns[0] : 0;
+        if (!Varied)
+            return [new DialogueOpening(DialogueShot.TwoShot, straight)];
+        var kinds = new List<(DialogueShot Shot, float Weight)> { (DialogueShot.TwoShot, _tuning.OpenTwoShotWeight),
+            (new DialogueShot(DialogueShotKind.OverShoulder, Talker.Npc), _tuning.OpenShoulderWeight) };
+        if (script.Nodes.Count(n => n.Text.Length > 0) >= _tuning.OpenWideLines)
+            kinds.Add((DialogueShot.Wide, _tuning.OpenWideWeight));
+        var order = new List<DialogueOpening>();
+        while (kinds.Count > 0)
+        {
+            var total = kinds.Sum(k => MathF.Max(k.Weight, 0));
+            var pick = 0;
+            if (total > 0)
+            {
+                var draw = _start.Next() * total;
+                while (pick < kinds.Count - 1 && (draw -= MathF.Max(kinds[pick].Weight, 0)) >= 0)
+                    pick++;
+            }
+            var shot = kinds[pick].Shot;
+            if (kinds[pick].Weight > 0 || order.Count == 0)
+            {
+                if (shot.Kind is DialogueShotKind.TwoShot or DialogueShotKind.Wide)
+                {
+                    var first = DrawTurn(ref _start);
+                    order.Add(new DialogueOpening(shot, first));
+                    order.AddRange(turns.Where(t => t != first).Select(t => new DialogueOpening(shot, t)));
+                }
+                else
+                    order.Add(new DialogueOpening(shot));
+            }
+            kinds.RemoveAt(pick);
+        }
+        // The drawn opening first, unless it's the last conversation's and another is there.
+        if (last is { } l && order.Count > 1 && order[0] == l)
+        {
+            var other = order.FindIndex(o => o != l);
+            (order[0], order[other]) = (order[other], order[0]);
+        }
+        return order;
+    }
+
+    /// <summary>The turn round the line a two-shot or a wide tries first: straight across, or by <see cref="DialogueTuning.TurnChance"/> 20° either way.</summary>
+    private float DrawTurn(ref Cosmetic random)
+    {
+        var turns = _tuning.AcrossYaws;
+        if (turns.Length == 0)
+            return 0;
+        if (turns.Length < 3 || !random.Chance(_tuning.TurnChance))
+            return turns[0];
+        return random.Chance(0.5f) ? turns[1] : turns[2];
+    }
+
+    /// <summary>A style for a new shot drawn from the page stream, or the plain one.</summary>
+    private DialogueStyle DrawStyle(DialogueShot shot, float? turn = null)
+    {
+        if (!Varied)
+            return DialogueStyle.Plain with { Turn = _tuning.AcrossYaws.FirstOrDefault() };
+        float Spread(float most) => most == 0 ? 0 : (float)(_pages.Next() * 2 - 1) * most;
+        return shot.Kind switch
+        {
+            DialogueShotKind.TwoShot or DialogueShotKind.Wide => new DialogueStyle(turn ?? DrawTurn(ref _pages), Spread(_tuning.PitchJitter)),
+            DialogueShotKind.OverShoulder => new DialogueStyle(_tuning.AcrossYaws.FirstOrDefault(), 0, Spread(_tuning.ShoulderBackJitter),
+                Spread(_tuning.ShoulderSideJitter), Spread(_tuning.ShoulderRiseJitter)),
+            _ => DialogueStyle.Plain with { Turn = _tuning.AcrossYaws.FirstOrDefault() },
+        };
+    }
+
+    /// <summary>
+    /// Opens with <paramref name="opening"/> in place of the one planned, keeping the style's draw but its turn: the camera's choice
+    /// where the planned opening didn't fit or was shown as the last conversation's was.
+    /// </summary>
+    public void Open(DialogueOpening opening)
+    {
+        Current = opening.Shot;
+        Style = Style with { Turn = opening.Turn };
+    }
+
+    /// <summary>
+    /// A cosmetic seed for a conversation: the npc's map object, its script and how many conversations this session has had, so two talks
+    /// with the same npc differ. FNV-1a, stable across runs.
+    /// </summary>
+    public static ulong SeedOf(RecordId who, RecordId script, int conversation)
+    {
+        var hash = 0xCBF29CE484222325UL;
+        foreach (var c in $"{who}|{script}|{conversation}")
+            hash = (hash ^ c) * 0x100000001B3UL;
+        return hash;
+    }
+
+    /// <summary>SplitMix64: the planner's own numbers, apart from the game's.</summary>
+    private struct Cosmetic(ulong state)
+    {
+        private ulong _state = state;
+
+        public double Next()
+        {
+            var z = _state += 0x9E3779B97F4A7C15UL;
+            z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9UL;
+            z = (z ^ (z >> 27)) * 0x94D049BB133111EBUL;
+            return ((z ^ (z >> 31)) >> 11) * (1.0 / (1UL << 53));
+        }
+
+        public bool Chance(float p) => p > 0 && Next() < p;
+    }
 
     /// <summary>The kinds of shot this script will want (<see cref="WantsOf"/>), which the side is chosen by.</summary>
     public IReadOnlyCollection<DialogueShotKind> Wants => _wants ??= WantsOf(script, _tuning);
@@ -112,16 +280,33 @@ public sealed partial class DialoguePlanner(ScriptRecord script, DialogueTuning?
             _runIndex = 1;
         _runSpeaker = page.Choices > 0 ? Talker.None : page.Speaker;
 
-        var wanted = first ? DialogueShot.TwoShot : Choose(page);
-        if (!first && Current is { } current && wanted != current && tick - _cutAt < _tuning.MinShotTicks)
+        _pageCount++;
+        if (first)
+        {
+            var opening = Openings[0];
+            Current = opening.Shot;
+            Style = DrawStyle(opening.Shot, opening.Turn);
+            _cutAt = tick;
+            return opening.Shot;
+        }
+        var held = false;
+        var wanted = Choose(page, ref held);
+        _holds = held ? _holds + 1 : 0;
+        if (Current is { } current && wanted != current && tick - _cutAt < _tuning.MinShotTicks)
             wanted = current.Shows(page.Speaker) ? current : DialogueShot.TwoShot;
         if (wanted != Current)
+        {
             _cutAt = tick;
+            Style = DrawStyle(wanted);
+        }
         Current = wanted;
         return wanted;
     }
 
-    private DialogueShot Choose(DialoguePage page)
+    /// <summary>Whether the page last planned was the conversation's first.</summary>
+    public bool Opening => _pageCount == 1;
+
+    private DialogueShot Choose(DialoguePage page, ref bool held)
     {
         var speaker = page.Speaker;
         if (speaker == Talker.None)
@@ -143,13 +328,26 @@ public sealed partial class DialoguePlanner(ScriptRecord script, DialogueTuning?
             if (_runIndex == _tuning.RunListenerAt && !last)
                 return new DialogueShot(DialogueShotKind.Single, listener);
             if (_runIndex > _tuning.RunListenerAt && _tuning.RunPattern.Length > 0)
-                return char.ToUpperInvariant(_tuning.RunPattern[(_runIndex - _tuning.RunListenerAt - 1) % _tuning.RunPattern.Length]) switch
+                return char.ToUpperInvariant(_tuning.RunPattern[(_runIndex - _tuning.RunListenerAt - 1 + RunPhase) % _tuning.RunPattern.Length]) switch
                 {
                     'S' => new DialogueShot(DialogueShotKind.Single, speaker),
                     'W' => DialogueShot.Wide,
                     'L' when !last => new DialogueShot(DialogueShotKind.Single, listener),
                     _ => new DialogueShot(DialogueShotKind.OverShoulder, speaker),
                 };
+        }
+        if (Varied)
+        {
+            // An ordinary line, varied a tad: a short one may keep a shot showing both (once in a row), or take the clean single.
+            var shortLine = page.Text.Length <= _tuning.ShortLine;
+            if (shortLine && _holds == 0 && Current is { Kind: DialogueShotKind.TwoShot or DialogueShotKind.Wide } both
+                && _pages.Chance(_tuning.HoldChance))
+            {
+                held = true;
+                return both;
+            }
+            if (_pages.Chance(shortLine ? _tuning.ShortSingleChance : _tuning.SingleChance))
+                return new DialogueShot(DialogueShotKind.Single, speaker);
         }
         return new DialogueShot(DialogueShotKind.OverShoulder, speaker);
     }
@@ -263,14 +461,19 @@ public sealed partial class DialoguePlanner(ScriptRecord script, DialogueTuning?
     /// The shots along a run of pages, each shown <paramref name="ticksPerPage"/> after the last: what a script gets, with no world.
     /// </summary>
     public static IReadOnlyList<DialogueShot> Plan(ScriptRecord script, IEnumerable<DialoguePage> pages,
-        DialogueTuning? tuning = null, int ticksPerPage = 180)
+        DialogueTuning? tuning = null, int ticksPerPage = 180, ulong? seed = null, DialogueOpening? last = null) =>
+        PlanStyled(script, pages, tuning, ticksPerPage, seed, last).Select(s => s.Shot).ToList();
+
+    /// <summary>As <see cref="Plan"/>, with how each shot is taken.</summary>
+    public static IReadOnlyList<(DialogueShot Shot, DialogueStyle Style)> PlanStyled(ScriptRecord script, IEnumerable<DialoguePage> pages,
+        DialogueTuning? tuning = null, int ticksPerPage = 180, ulong? seed = null, DialogueOpening? last = null)
     {
-        var planner = new DialoguePlanner(script, tuning);
+        var planner = new DialoguePlanner(script, tuning, seed, last);
         var tick = 0L;
-        var shots = new List<DialogueShot>();
+        var shots = new List<(DialogueShot, DialogueStyle)>();
         foreach (var page in pages)
         {
-            shots.Add(planner.Next(page, tick));
+            shots.Add((planner.Next(page, tick), planner.Style));
             tick += ticksPerPage;
         }
         return shots;

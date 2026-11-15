@@ -19,7 +19,7 @@ public static class DialogueCensus
     public sealed record Placing(string MapSet, string Chunk, int Index, int Way, bool Interior, int Side, bool ShoulderAtNpc, bool ShoulderAtPlayer,
         bool SingleOfNpc, bool SingleOfPlayer, bool TwoShot, bool Wide)
     {
-        /// <summary>Which over-the-shoulder placing at the npc fitted (0 roomy, 1 tight, 2 and 3 nearer), or −1.</summary>
+        /// <summary>Which over-the-shoulder placing at the npc fitted (0 roomy, 1 snug, 2 tight, 3 and 4 nearer), or −1.</summary>
         public int ShoulderPlacing { get; init; } = -1;
 
         /// <summary>The share of the frame's width Alaron covers over the shoulder at the npc, and in the single of the npc, where they fit.</summary>
@@ -139,10 +139,12 @@ public static class DialogueCensus
         }
         var shoulders = placings.Where(p => p.ShoulderPlacing >= 0).ToList();
         output.WriteLine($"Alaron's width in the frame: over the shoulder {Spread(placings.Select(p => p.ShoulderCover))}, "
+            + $"its roomy placing alone {Spread(placings.Where(p => p.ShoulderPlacing == 0).Select(p => p.ShoulderCover))}, "
             + $"the single {Spread(placings.Select(p => p.SingleCover))}");
         output.WriteLine($"Over the shoulder placed roomy {shoulders.Count(p => p.ShoulderPlacing == 0) / (double)Math.Max(shoulders.Count, 1):P0}, "
-            + $"tight {shoulders.Count(p => p.ShoulderPlacing == 1) / (double)Math.Max(shoulders.Count, 1):P0}, "
-            + $"nearer {shoulders.Count(p => p.ShoulderPlacing >= 2) / (double)Math.Max(shoulders.Count, 1):P0}; "
+            + $"snug {shoulders.Count(p => p.ShoulderPlacing == 1) / (double)Math.Max(shoulders.Count, 1):P0}, "
+            + $"tight {shoulders.Count(p => p.ShoulderPlacing == 2) / (double)Math.Max(shoulders.Count, 1):P0}, "
+            + $"nearer {shoulders.Count(p => p.ShoulderPlacing >= 3) / (double)Math.Max(shoulders.Count, 1):P0}; "
             + $"a wanted single fell to the over-the-shoulder {placings.Count(p => p.SingleFellToShoulder) / (double)Math.Max(placings.Count, 1):P0}");
         output.WriteLine("The ten worst placed (mean shots fitting of six, over the ways Alaron could stand):");
         foreach (var g in placings.GroupBy(p => (p.MapSet, p.Chunk, p.Index)).OrderBy(g => g.Average(p => p.Fitting)).ThenBy(g => g.Key.Chunk).Take(10))
