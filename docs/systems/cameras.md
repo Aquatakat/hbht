@@ -217,7 +217,6 @@ Through the skeleton archers' battle, every arrow is loosed and then cut to its 
 
 **Left:**
 - Trek's and conversations' cameras are enhanced too, by the same setting ([below](#the-enhanced-trek-camera-camera-enhanced)).
-- The user has played it eight times and reshaped it each time (above); the eighth reshaping awaits their play.
 - The hit is held until the turn ends, through a dying target's fall: about four seconds on a Giant Rat. The user means to shorten that in the turns (Start Early), not the camera.
 - How fast the orbit (`CarryTurn`, 90° a second) should be, how long a swing onto a new framing takes (`SwingTime`, 2 s, no faster than `FramingTurn`, 60°) and how long a hidden one is kept (`HiddenPatience`, 45 ticks), how near the target goes by distance alone and the orbit stops (`StrikeRange`, 5), how soon a new target is taken (`TargetHold`, 15 ticks within `TargetQuickRange`, 10, to `TargetHoldFar`, 90), how smoothly the camera follows (`FollowSmoothing`, 0.15 s), how long a pan takes (`PanTicks`) and how far an AI's walk's eye moves (`WalkPan`, `WalkPanMost`) and from how far round (`WalkYaws`), how long a change of framing glides (`GlideTime`, 1 s) and how smoothly the turn and the lead follow (`TurnSmoothing`, `LeadSmoothing`), how far the aim leads (`LeadTime`), how its walk's rail rounds and how smoothly it's ridden (`WalkRound`, `WalkSmoothing`), and how a pack fades in (`PackFade`), the shot comes in (`ZoomInTime`) and a target let go is held (`TrailAfter`) are the user's to feel.
 
