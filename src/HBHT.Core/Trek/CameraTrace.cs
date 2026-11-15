@@ -48,13 +48,14 @@ public sealed record CameraWalk(string Name, int MapSet, string Chunk, Vector3 L
 /// changes. The front and the turning are counted from the walk's second second, past the arrival.
 /// </summary>
 public sealed record CameraTraceResult(string Walk, CameraStyle Style, int Ticks, float Blocked, float BlockedLate, float PastWall, float Hidden, float Front,
-    float PeakTurn, float Turn95, float PeakAccel, float Accel95, ulong Checksum, int Ends, int Points, int Held = 0)
+    float PeakTurn, float Turn95, float PeakAccel, float Accel95, ulong Checksum, int Ends, int Points, int Held = 0,
+    float AheadInFrame = float.NaN, bool? AheadAtFirst = null)
 {
     public static string Header =>
-        $"{"walk",-16} {"style",-9} {"ticks",5} {"blocked",8} {">1s",5} {"past",6} {"hidden",7} {"front",6} {"turn pk",8} {"turn95",7} {"acc pk",8} {"acc95",7} {"route",5}";
+        $"{"walk",-16} {"style",-9} {"ticks",5} {"blocked",8} {">1s",5} {"past",6} {"hidden",7} {"front",6} {"turn pk",8} {"turn95",7} {"acc pk",8} {"acc95",7} {"ahead",6} {"route",5}";
 
     public override string ToString() => string.Create(CultureInfo.InvariantCulture,
-        $"{Walk,-16} {Style,-9} {Ticks,5} {Blocked,8:P0} {BlockedLate,5:P0} {PastWall,6:P0} {Hidden,7:P0} {Front,6:P0} {PeakTurn,8:F0} {Turn95,7:F0} {PeakAccel,8:F0} {Accel95,7:F0} {Ends,3}/{Points}");
+        $"{Walk,-16} {Style,-9} {Ticks,5} {Blocked,8:P0} {BlockedLate,5:P0} {PastWall,6:P0} {Hidden,7:P0} {Front,6:P0} {PeakTurn,8:F0} {Turn95,7:F0} {PeakAccel,8:F0} {Accel95,7:F0} {(float.IsNaN(AheadInFrame) ? "-" : AheadInFrame.ToString("P0", CultureInfo.InvariantCulture)),6} {Ends,3}/{Points}");
 }
 
 /// <summary>
@@ -131,6 +132,8 @@ public static class CameraTrace
         var holding = route.Length == 0;
         var facing = trek.Player.Heading;
         var held = 0;
+        int aheadSeen = 0, aheadCounted = 0;
+        bool? aheadAtFirst = null;
         var next = 0;
         var ticks = 0;
         int blocked = 0, blockedLate = 0, past = 0, hidden = 0, front = 0, late = 0;
@@ -157,6 +160,14 @@ public static class CameraTrace
             each?.Invoke(trek, ticks);
             if (trek.Use.CurrentCamera is not null)
                 held++;
+            if (AheadInFrame(trek) is { } inFrame)
+            {
+                aheadCounted++;
+                if (inFrame)
+                    aheadSeen++;
+                if (ticks == 0)
+                    aheadAtFirst = inFrame;
+            }
 
             var player = trek.Player.Sphere.Position;
             var world = trek.Chunks.World;
@@ -174,7 +185,9 @@ public static class CameraTrace
                         blockedLate++;
                 }
             }
-            if (Crosses(world, visible, camera.Aim, camera.Position))
+            // Past a wall: the boom, from what it turns about (the enhanced camera's pivot, the original's aim) to the camera.
+            var boom = trek.CameraStyle == CameraStyle.Enhanced ? trek.EnhancedCamera.Pivot : camera.Aim;
+            if (Crosses(world, visible, boom, camera.Position))
                 past++;
             if (Crosses(world, visible, camera.Position, player + new Vector3(0, 0.5f, 0)))
                 hidden++;
@@ -205,7 +218,42 @@ public static class CameraTrace
 
         float Share(int n) => ticks == 0 ? 0 : (float)n / ticks;
         return new CameraTraceResult(walk.Name, style, ticks, Share(blocked), late == 0 ? 0 : (float)blockedLate / late, Share(past), Share(hidden), late == 0 ? 0 : (float)front / late,
-            Peak(turns), Percentile(turns, 0.95f), Peak(accels), Percentile(accels, 0.95f), checksum, next, route.Length, held);
+            Peak(turns), Percentile(turns, 0.95f), Peak(accels), Percentile(accels, 0.95f), checksum, next, route.Length, held,
+            aheadCounted == 0 ? float.NaN : (float)aheadSeen / aheadCounted, aheadAtFirst);
+    }
+
+    /// <summary>How far ahead of him the way ahead is looked for, at head height.</summary>
+    public const float AheadSight = 8;
+
+    /// <summary>The runtime's lens: 45° high, on a 16:9 screen.</summary>
+    private const float HalfHigh = 22.5f, Aspect = 16f / 9;
+
+    /// <summary>
+    /// Whether the way ahead is in frame: the point <see cref="AheadSight"/> ahead of him along the way his body faces, at head
+    /// height (1.05 above his sphere's centre), inside the lens and not behind a wall from the camera; or null where a wall is
+    /// nearer than that ahead of him, when there's no way ahead to see.
+    /// </summary>
+    public static bool? AheadInFrame(TrekLoop trek)
+    {
+        var camera = trek.Camera;
+        var world = trek.Chunks.World;
+        var visible = trek.Chunks.Visible;
+        var head = trek.Player.Sphere.Position + new Vector3(0, 1.05f, 0);
+        var faces = trek.Player.Heading;
+        var point = head + new Vector3(faces.X, 0, faces.Y) * AheadSight;
+        if (Crosses(world, visible, head, point))
+            return null;
+        var forward = Vector3.Normalize(camera.Aim - camera.Position);
+        var right = Vector3.Normalize(Vector3.Cross(forward, Vector3.UnitY));
+        var up = Vector3.Cross(right, forward);
+        var to = point - camera.Position;
+        var depth = Vector3.Dot(to, forward);
+        if (depth <= 0)
+            return false;
+        var tan = MathF.Tan(HalfHigh * MathF.PI / 180);
+        if (MathF.Abs(Vector3.Dot(to, up)) / depth > tan || MathF.Abs(Vector3.Dot(to, right)) / depth > tan * Aspect)
+            return false;
+        return !Crosses(world, visible, camera.Position, point);
     }
 
     /// <summary>

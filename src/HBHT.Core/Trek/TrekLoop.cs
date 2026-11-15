@@ -172,6 +172,9 @@ public sealed partial class TrekLoop : IMapObjectHost
     /// <summary>The enhanced trek camera, which steps in the follow camera's stead under <see cref="CameraStyle.Enhanced"/>.</summary>
     public EnhancedTrekCamera EnhancedCamera { get; } = new();
 
+    /// <summary>How much of the player's model is drawn, 0 to 1: the enhanced camera's fade as it comes close, else whole.</summary>
+    public float PlayerFade => CameraStyle == CameraStyle.Enhanced ? EnhancedCamera.Fade(Camera.Position, Player.Sphere.Position) : 1;
+
     /// <summary>Whether the chunk he's in is an interior's, its sky not drawn, which the enhanced camera frames closer.</summary>
     private bool Indoors => _chunk is not null && Game.Terrain(_chunk.Terrain) is { SkyDrawn: false };
 

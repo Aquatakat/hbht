@@ -36,6 +36,33 @@ public partial class Player : Node3D
         Sync();
     }
 
+    /// <summary>How much of him is drawn, 0 to 1 (<see cref="Core.Trek.TrekLoop.PlayerFade"/>).</summary>
+    private float _fade = 1;
+
+    /// <summary>
+    /// Draws him at <paramref name="alpha"/>, 0 to 1, as scenery fades (<see cref="Views.N64Material.SetFade"/>): through his
+    /// materials' faded copies while partly drawn, and not at all at 0.
+    /// </summary>
+    public void Fade(float alpha)
+    {
+        alpha = Mathf.Clamp(alpha, 0, 1);
+        if (alpha == _fade)
+            return;
+        var faded = alpha is > 0 and < 1;
+        if (faded != _fade is > 0 and < 1)
+        {
+            foreach (var mesh in Meshes)
+            {
+                if (mesh is MeshInstance3D instance)
+                    Views.N64Material.SetFaded(instance, faded);
+            }
+        }
+        if (_model is not null)
+            _model.Visible = alpha > 0;
+        Views.N64Material.SetFade(Meshes, faded ? alpha : 1);
+        _fade = alpha;
+    }
+
     /// <summary>Where his feet were as the last tick was drawn, or null after a <see cref="Snap"/>.</summary>
     private System.Numerics.Vector3? _last;
 

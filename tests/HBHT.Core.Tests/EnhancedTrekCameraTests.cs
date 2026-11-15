@@ -174,4 +174,35 @@ public class EnhancedTrekCameraTests
         Assert.Equal(TrekCameraTuning.Default.OutdoorLength, tuning.OutdoorLength);
         Assert.Throws<FormatException>(() => TrekCameraTuning.Default.Parse("Nothing=1"));
     }
+
+    [Fact]
+    public void BackedAgainstAWallItRisesOverHisHeadAndKeepsTheWayAheadInFrame()
+    {
+        // A wall 0.6 behind him, as at the door he came through, with a drawn ceiling 4.8 up.
+        var world = FlatWith(Worlds.Wall(-0.6f, 10));
+        var visible = new VisibleWorld();
+        visible.Add(Worlds.Chunk(1), Worlds.Floor(4.8f, -50, 60, -50, 60).Drawn(), Vector3.Zero);
+        var (enhanced, camera) = Arrived(world, Vector2.UnitX, visible, interior: true);
+        for (var i = 0; i < 60; i++)
+            enhanced.Step(camera, world, visible, Player, Vector2.UnitX, interior: true, Vector2.Zero);
+        var head = Player + new Vector3(0, 1.05f, 0);
+        Assert.True(camera.Position.X > -0.6f + 0.25f, $"the camera at {camera.Position} is past the wall");
+        Assert.True(camera.Position.Y - head.Y > 1, $"the camera at {camera.Position} isn't over his head");
+        Assert.True(camera.Position.Y < 4.8f - 0.25f);
+        // The point 8 ahead at head height is inside the lens's 22.5° half-height.
+        var look = Vector3.Normalize(camera.Aim - camera.Position);
+        var to = Vector3.Normalize(head + new Vector3(8, 0, 0) - camera.Position);
+        Assert.True(MathF.Acos(Vector3.Dot(look, to)) * 180 / MathF.PI < 22.5f);
+        Assert.Equal(1, enhanced.Fade(camera.Position, Player), 3);
+    }
+
+    [Fact]
+    public void HisModelFadesAsTheCameraComesClose()
+    {
+        var enhanced = new EnhancedTrekCamera();
+        var head = Player + new Vector3(0, 1.05f, 0);
+        Assert.Equal(1, enhanced.Fade(head + new Vector3(-2, 0, 0), Player));
+        Assert.Equal(0, enhanced.Fade(head + new Vector3(-0.3f, 0, 0), Player));
+        Assert.InRange(enhanced.Fade(head + new Vector3(-0.85f, 0, 0), Player), 0.4f, 0.6f);
+    }
 }

@@ -695,6 +695,7 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
             return;
         ShowPopup();
         _player.Sync();
+        _player.Fade(session.Trek.PlayerFade);
         // A camera object cutting jumps the view; it isn't blended from where it was. Godot resets interpolation
         // from where the camera is when it's called, so after it has moved.
         var cut = session.Trek.Camera.TakeCut();

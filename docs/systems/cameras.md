@@ -316,7 +316,8 @@ The design, as the user asked for it on Nov 14, 2026; being built, and nothing h
 - **The player's turn.** The orbit's stick moves the yaw 3° a frame and the pitch 1.5° a frame at once, and the automatic yaw and pitch wait 2 s after it; then the pitch eases back by 10°/s.
 - **Room, walking at the lens.** Room is the shorter of the arm's free length and the mean of the free lengths square to the boom on either side, over the boom's length. The yaw turns at 40°/s (90°/s²) with room, up to 270°/s (1,080°/s²) with none, by how much room it lacks times how far round it has to go, from 20° to 90° off: trailing round a bend stays calm, and only walking at the lens in a tight space swings quickly. More than 150° off, the way round is chosen once (the way it's turning, else the side with more room) and kept.
 - **The spring arm.** `SpherePhysics.SweepEitherSide` (one sweep that turns each triangle to face it, nearest hit, passable and see-through left out) in place of two one-sided sweeps, and `VisibleWorld.RaycastSolid` (the drawn world past what absorbs: M05's light shafts lie across its hallway every two units, at head height, and stopped every ray); a drawn surface met at a slant is kept the sphere's radius off square to it. The sphere is 0.25, the margin 0.05. In at once when a wall is nearer than the camera, so it's never past one; out at 1.5 a second; a camera taken up longer than the boom comes in at 1.5 a second too.
-- **Close quarters** go by the free length at the place's own pitch, so the walls about him and not a ceiling over a raised boom: the pivot rises up to 0.6 and the pitch up to 25° in proportion as that's short. A ceiling nearer than the walls brings the pitch back down. Without that, M05's low arches raised the boom into the ceiling and the arm collapsed to nothing.
+- **Close quarters** go by the free length at the place's own pitch, so the walls about him and not a ceiling over a raised boom. As that's short, the boom parts from him by height, not by pitching down: the pivot rises up to 1.6 above his head, under the drawn ceiling and the collision's (M05's ceiling is about 4.8), and the pitch rises up to 25° but is capped so the point 8 ahead of him at head height stays 4° inside the top of the runtime's 45°-high lens (`SightCap`); the aim is the pivot, or a unit ahead of the eye along the boom when the arm is shorter than that, so the look never degenerates. A ceiling nearer than the walls brings the pitch back down. Backed against the door he came through (0.6 in front of it in M05), the arm is nothing, the camera is about 2.5 above his sphere's centre looking down the hallway, and he sits at the bottom of the frame. Before, the pitch went steep, the arm collapsed to 0.5, and the view was his hair and the carpet. An arrival places the lift and the cap at once (`PlaceFitted`). The arm's shortest is nothing, not 0.05: a camera kept 0.05 out from a pivot pressed to a door frame sat in it.
+- **The fade.** `EnhancedTrekCamera.Fade` gives how much of his model is drawn by the camera's distance from his head: whole from 1.2 out, gone by 0.5 (`FadeFrom`, `FadeGone`). `TrekLoop.PlayerFade` is it under Enhanced and 1 under Original, and the runtime's `Player.Fade` draws it each trek tick as scenery fades, through the materials' faded copies (`N64Material.SetFaded`, `SetFade`), hiding the model at 0. Lifted over his head the camera rarely comes that close; it's for the moments it does.
 - **Arriving.** Behind him along his heading, the arm fitted, as a cut. A teleporter's camera point is kept only when it's already behind him (the view from it within 90° of his heading), or where a camera object takes the camera at the arrival (`MapObjectUse.CameraReaches`), since the object's move starts from wherever the camera is: from behind I07's door it went through the wall. A point in front of him, looking back at him (M05's from the courtyard, 7 ahead), was the blind view the user objected to, and is passed over.
 - **A view he didn't choose** (an arrival, an authored shot let go, a conversation's end, anything it takes up from elsewhere) swings behind him at the tight rate whatever the room, if he sets off with it more than 90° (`UnchosenSwing`) off behind his travel; it's done in about a second, and his turning the camera cancels it. The slow back-off and drift outdoors is left for when he himself turns and runs at the lens.
 - **His travel** is eased by 0.05 of the gap a tick: a body pressed into a wall jitters back and forth, which at 0.2 read as travel, turned the yaw, and the stick with it, round and round.
@@ -326,29 +327,31 @@ The design, as the user asked for it on Nov 14, 2026; being built, and nothing h
 
 **The rig.** `CameraTrace` over `CameraWalk.Standard`, from `hbht camera trace [original|enhanced]` and in `TrekCameraTraceTests`, which hold the original's trace tick for tick by a checksum and the enhanced one never past a wall nor hiding him, never showing his front down M05's hallway, and no jerkier than the original. The walks: (a) through I07's teleporter into M05 and down its hallway, (b) from the Overworld's M06 into I07, (c) C15's forest path from (2.8, 23.9) along +X into its bend. Shares of ticks; "past" is the camera past collision (from either side) or the drawn world's solid surfaces; "front" and the turning count from the second second; turning in °/s, its change in °/s². With Alaron's actor's root motion and the original's movement:
 
-| walk | camera | blocked | after 1 s | past | hidden | front | turn peak / 95% | change peak / 95% |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| a | Original | 29% | 15% | 1% | 1% | 11% | 253 / 207 | 5,044 / 1,695 |
-| a | Enhanced | 0 | 0 | 0 | 0 | 0 | 21 / 17 | 62 / 36 |
-| b | Original | 46% | 16% | 0 | 0 | 39% | 96 / 82 | 962 / 456 |
-| b | Enhanced | 44% | 13% | 0 | 0 | 21% | 257 / 235 | 1,123 / 1,067 |
-| c | Original | 2% | 3% | 32% | 32% | 0 | 43 / 34 | 406 / 166 |
-| c | Enhanced | 4% | 5% | 0 | 0 | 0 | 47 / 32 | 98 / 86 |
+| walk | camera | blocked | after 1 s | past | hidden | front | turn peak / 95% | change peak / 95% | way ahead in frame |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| a | Original | 29% | 15% | 1% | 1% | 11% | 253 / 207 | 5,044 / 1,695 | 43% |
+| a | Enhanced | 0 | 0 | 0 | 0 | 0 | 15 / 10 | 97 / 35 | 100% |
+| b | Original | 46% | 16% | 0 | 0 | 39% | 96 / 82 | 962 / 456 | 0 |
+| b | Enhanced | 44% | 13% | 0 | 0 | 21% | 257 / 235 | 1,123 / 1,067 | 21% |
+| c | Original | 2% | 3% | 32% | 32% | 0 | 43 / 34 | 406 / 166 | 25% |
+| c | Enhanced | 4% | 5% | 0 | 0 | 0 | 47 / 32 | 96 / 88 | 79% |
 
-"Front" is the camera looking at the way his body faces while he moves (his travel turned back on a bounce off a wall). On (a) the enhanced camera arrives behind him and stays there. On (b) I07's camera object holds the view for the first 80 ticks, and then the enhanced camera swings behind him in about half a second; that swing is the turning's peak, on purpose. On (c) the original's camera is in the tree wall a third of the time. The nearest the eye came to his chest on the walks is 2.0, so no model fade is needed there.
+"Past" is the boom, from what it turns about (the enhanced camera's pivot, the original's aim) to the camera. "The way ahead in frame" is the share of ticks the point 8 ahead of him along the way he faces, at head height, is inside a 45°-high 16:9 lens and not behind a wall from the camera, of the ticks where no wall is nearer than that ahead of him (`CameraTrace.AheadInFrame`). "Front" is the camera looking at the way his body faces while he moves (his travel turned back on a bounce off a wall). On (a) the enhanced camera arrives behind him and stays there. On (b) I07's camera object holds the view for the first 80 ticks, and then the enhanced camera swings behind him in about half a second; that swing is the turning's peak, on purpose. On (c) the original's camera is in the tree wall a third of the time. The nearest the eye came to his chest on the walks is 2.0, so no model fade is needed there.
 
 **The arrival census.** `CameraCensus`, from `hbht camera census` and in `TrekCameraTraceTests` (about ten seconds, side by side): every teleporter in the plugins arrived through, holding forward along the way he arrives facing for 3 s. Of 894, 460 are taken by a camera object and skipped, 6 can't be made, and 428 are traced:
 
-| | camera | arrivals | ever past a wall | his front after 1 s | view ahead blocked |
-| --- | --- | --- | --- | --- | --- |
-| interior | Original | 293 | 33.8% | 67.2% | 52.5% |
-| interior | Enhanced | 293 | 1.0% | 0.3% | 36.1% |
-| outdoor | Original | 135 | 71.1% | 1.5% | 20.8% |
-| outdoor | Enhanced | 135 | 0.7% | 0 | 19.6% |
+| | camera | arrivals | ever past a wall | his front after 1 s | view ahead blocked | way ahead in frame | at the first tick |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| interior | Original | 293 | 33.8% | 67.2% | 52.5% | 7.1% | 2.9% |
+| interior | Enhanced | 293 | 0 | 0.3% | 34.7% | 94.5% | 97.8% |
+| outdoor | Original | 135 | 71.1% | 1.5% | 20.8% | 46.4% | 25.0% |
+| outdoor | Enhanced | 135 | 0 | 0 | 19.3% | 97.4% | 99.0% |
 
 The worst left under Enhanced are arrivals facing a wall, which holding forward runs into, the view blocked throughout under either camera (Overworld B09's and I10's own doors, E11's into E19 in map set 12).
 
-**Left.** Slices 2 and 3. The four arrivals still past a wall for a moment. Whether a fade of his model is wanted when the arm is short in a tighter place than these walks.
+Ever hidden (the camera to his chest crossing a wall for a tick or more) is 8.5% of interior arrivals and 4.4% of outdoor under Enhanced, against 38.2% and 71.1% under the original.
+
+**Left.** Slices 2 and 3. Those arrivals where he's hidden for a moment, likely the lifted pivot trailing him under a lintel. The fade, seen in the game.
 
 ## The enhanced conversation camera (Camera: Enhanced)
 

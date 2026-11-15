@@ -65,7 +65,7 @@ public static class CameraCensus
         text.AppendLine(CultureInfo.InvariantCulture, $"{arrivals.Count} arrivals: {traced.Count} traced, "
             + $"{arrivals.Count(a => a.Skipped == "a camera object")} taken by a camera object, "
             + $"{arrivals.Count(a => a.Skipped is not null and not "a camera object")} not made");
-        text.AppendLine($"{"",-9} {"style",-9} {"n",5} {"ever past",10} {"front>1s",9} {"blocked",8}");
+        text.AppendLine($"{"",-9} {"style",-9} {"n",5} {"ever past",10} {"front>1s",9} {"blocked",8} {"ahead",7} {"ahead@0",8} {"hidden",7}");
         foreach (var (label, interior) in new[] { ("interior", true), ("outdoor", false) })
         {
             var group = traced.Where(a => a.Interior == interior).ToList();
@@ -75,7 +75,7 @@ public static class CameraCensus
                 if (r.Count == 0)
                     continue;
                 text.AppendLine(string.Create(CultureInfo.InvariantCulture,
-                    $"{label,-9} {style,-9} {r.Count,5} {(float)r.Count(x => x.PastWall > 0) / r.Count,10:P1} {(float)r.Count(x => x.Front > 0) / r.Count,9:P1} {r.Average(x => x.Blocked),8:P1}"));
+                    $"{label,-9} {style,-9} {r.Count,5} {(float)r.Count(x => x.PastWall > 0) / r.Count,10:P1} {(float)r.Count(x => x.Front > 0) / r.Count,9:P1} {r.Average(x => x.Blocked),8:P1} {Mean(r.Select(x => x.AheadInFrame)),7:P1} {Share(r.Select(x => x.AheadAtFirst)),8:P1} {(float)r.Count(x => x.Hidden > 0) / r.Count,7:P1}"));
             }
         }
         text.AppendLine("worst under Enhanced:");
@@ -83,6 +83,16 @@ public static class CameraCensus
             text.AppendLine(string.Create(CultureInfo.InvariantCulture,
                 $"  {a.Teleporter} -> {a.Into}: past {a.Enhanced!.PastWall:P0} front {a.Enhanced.Front:P0} blocked {a.Enhanced.Blocked:P0} (original {a.Original!.PastWall:P0} / {a.Original.Front:P0} / {a.Original.Blocked:P0})"));
         return text.ToString();
+    }
+
+    /// <summary>The mean of the values that are numbers.</summary>
+    public static float Mean(IEnumerable<float> values) => values.Where(v => !float.IsNaN(v)).DefaultIfEmpty(float.NaN).Average();
+
+    /// <summary>The share true of the answers there are.</summary>
+    public static float Share(IEnumerable<bool?> answers)
+    {
+        var given = answers.Where(a => a is not null).ToList();
+        return given.Count == 0 ? float.NaN : (float)given.Count(a => a == true) / given.Count;
     }
 
     /// <summary>How bad an arrival is: past a wall worst, then his front, then the view blocked.</summary>
