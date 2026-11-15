@@ -331,7 +331,8 @@ public static class CameraTrace
     public const int RestTicks = 30;
 
     /// <summary>Whether <paramref name="point"/> is inside the runtime's lens from trek's camera and not behind a wall from it.</summary>
-    public static bool InFrame(TrekLoop trek, Vector3 point)
+    /// <param name="drawnOnly">Whether only the drawn world can hide it, not collision walls (the furniture rule passes bare low ones).</param>
+    public static bool InFrame(TrekLoop trek, Vector3 point, bool drawnOnly = false)
     {
         var camera = trek.Camera;
         var forward = Vector3.Normalize(camera.Aim - camera.Position);
@@ -344,7 +345,9 @@ public static class CameraTrace
         var tan = MathF.Tan(HalfHigh * MathF.PI / 180);
         if (MathF.Abs(Vector3.Dot(to, up)) / depth > tan || MathF.Abs(Vector3.Dot(to, right)) / depth > tan * Aspect)
             return false;
-        return !Crosses(trek.Chunks.World, trek.Chunks.Visible, camera.Position, point);
+        return drawnOnly
+            ? trek.Chunks.Visible?.RaycastSolid(camera.Position, point, scrollingSolid: true) is null
+            : !Crosses(trek.Chunks.World, trek.Chunks.Visible, camera.Position, point);
     }
 
     /// <summary>How far ahead of him the way ahead is looked for, at head height.</summary>

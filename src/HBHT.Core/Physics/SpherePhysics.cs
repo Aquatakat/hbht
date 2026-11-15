@@ -137,7 +137,15 @@ public static class SpherePhysics
     /// with <paramref name="skipSeeThrough"/> see-through ones. The original has no such query; the enhanced trek camera's
     /// arm and its trace use it.
     /// </summary>
-    public static float? SweepEitherSide(CollisionWorld world, Vector3 from, Vector3 to, float radius, bool skipSeeThrough)
+    public static float? SweepEitherSide(CollisionWorld world, Vector3 from, Vector3 to, float radius, bool skipSeeThrough) =>
+        SweepEitherSide(world, from, to, radius, skipSeeThrough, null);
+
+    /// <summary>
+    /// <see cref="SweepEitherSide(CollisionWorld, Vector3, Vector3, float, bool)"/>, leaving out besides the triangles
+    /// <paramref name="passes"/> says the sphere may pass (the enhanced trek camera's furniture rule).
+    /// </summary>
+    internal static float? SweepEitherSide(CollisionWorld world, Vector3 from, Vector3 to, float radius, bool skipSeeThrough,
+        Func<CollisionWorld.Triangle, bool>? passes)
     {
         var delta = to - from;
         var best = float.MaxValue;
@@ -145,7 +153,7 @@ public static class SpherePhysics
         world.Along(new Vector2(from.X, from.Z), new Vector2(to.X, to.Z), radius + 1, near);
         foreach (var t in near)
         {
-            if (t.Has(CollisionFlags.Passable) || (skipSeeThrough && t.Has(CollisionFlags.SeeThrough)))
+            if (t.Has(CollisionFlags.Passable) || (skipSeeThrough && t.Has(CollisionFlags.SeeThrough)) || (passes is not null && passes(t)))
                 continue;
             var facing = Vector3.Dot(delta, t.Normal) <= 0 ? t : t with { Normal = -t.Normal };
             if (SweepPlane(from, delta, radius, facing, out _, out var share) && share < best)
