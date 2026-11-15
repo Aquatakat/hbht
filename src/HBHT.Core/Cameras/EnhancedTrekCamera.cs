@@ -60,7 +60,7 @@ public sealed partial class EnhancedTrekCamera
     /// </summary>
     private const float TravelEase = 0.05f;
 
-    private Vector3 _pivot;
+    private Vector3 _pivot, _pivotSpeed;
     private float _yaw, _yawSpeed;
     private float _pitch, _pitchSpeed;
     private float _arm, _armSpeed, _free, _freeLevel;
@@ -159,6 +159,7 @@ public sealed partial class EnhancedTrekCamera
             var free = Free(world, visible, Direction, _arm);
             if (free < _arm)
                 _arm = free;
+            _shortened = Shortened;
             // Kept where it frames him: many points are only where the original's follow camera starts from, below his
             // head or at his feet, and it leaves them the next tick.
             if (Sees(world, visible, player) && Framed(player))
@@ -337,22 +338,37 @@ public sealed partial class EnhancedTrekCamera
 
         // Close quarters go by the walls about him, the arm's room at the place's own pitch: a ceiling over a raised boom
         // would otherwise raise it further.
-        var shortened = Shortened;
+        // How far into close quarters, eased: the room about him changes in steps as walls come and go.
+        _shortened += (Shortened - _shortened) * (1 - MathF.Exp(-Tick / MathF.Max(t.CloseEase, 1e-3f)));
+        var shortened = _shortened;
         StepPivot(world, visible, player, shortened);
         Room = JudgeRoom(world, visible);
         StepYaw(world, visible, player, heading, auto);
         // Close quarters part him from the lens by height, not by pitching down: the pitch is capped so a point
         // AheadSight ahead of him at head height stays inside the lens's top, and the lift does the rest.
-        var pitchGoal = MathF.Min(_basePitch + t.ClosePitch * shortened + _slope, SightCap(player, heading)) + _userPitch;
+        var sightCap = SightCap(player, heading);
+        var capped = sightCap < _basePitch + t.ClosePitch * shortened + _slope;
+        var pitchGoal = MathF.Min(_basePitch + t.ClosePitch * shortened + _slope, sightCap) + _userPitch;
         // A ceiling over the raised boom, nearer than the walls: it comes down to the place's pitch instead.
         if (_free < _freeLevel - 0.1f && _pitch > _basePitch + _userPitch)
             pitchGoal = _basePitch + _userPitch;
         pitchGoal = Math.Clamp(pitchGoal, t.LowestPitch, t.HighestPitch);
         Channel(ref _pitch, ref _pitchSpeed, pitchGoal, t.PitchSpeed, t.PitchAccel, 3);
         _pitch = Math.Clamp(_pitch, t.LowestPitch, t.HighestPitch);
+        var cutsBefore = Cuts;
         Fit(world, visible, at: false);
         Write(camera);
+        Last = new TrekCameraTick(_pivot, _yaw / Degree, _pitch, _arm, Cuts != cutsBefore, capped, shortened, _whisker, _leanNow, _lastE / Degree,
+            _swingingBehind);
     }
+
+    /// <summary>What it did last tick, for the rig to tell its movements apart.</summary>
+    public TrekCameraTick Last { get; private set; }
+
+    private float _leanNow, _shortened;
+
+    /// <summary>The least room the arm's look ahead found last tick.</summary>
+    public float EnvelopeLast { get; private set; }
 
     /// <summary>
     /// The highest pitch at which the point <see cref="TrekCameraTuning.AheadSight"/> ahead of him, at head height, stays
@@ -386,19 +402,31 @@ public sealed partial class EnhancedTrekCamera
     /// <summary>
     /// How far into close quarters it is, 0 to 1: the walls' room about him at the place's pitch against the shorter of the
     /// boom and <see cref="TrekCameraTuning.CloseFloor"/>, so a frame at the close floor against a wall isn't lifted.
+    /// A camera held further out than the boom (an authored point, a view taken up from elsewhere) has room where it is, and
+    /// isn't in close quarters until the arm has come in.
     /// </summary>
-    private float Shortened => Math.Clamp(1 - _freeLevel / MathF.Max(MathF.Min(_length, Tuning.CloseFloor), 1e-3f), 0, 1);
+    private float Shortened => _arm > _length + 0.1f ? 0 : Math.Clamp(1 - _freeLevel / MathF.Max(MathF.Min(_length, Tuning.CloseFloor), 1e-3f), 0, 1);
 
     /// <summary>The pivot closes on its place above him, lifted as the arm shortens, but kept under the drawn ceiling.</summary>
     private void StepPivot(CollisionWorld world, VisibleWorld? visible, Vector3 player, float shortened)
     {
         var t = Tuning;
         var goal = PivotGoal(world, visible, player, shortened);
-        var step = (goal - _pivot) * t.PivotRate;
-        var most = t.PivotSpeed * Tick;
-        if (step.Length() > most)
-            step *= most / step.Length();
-        _pivot += step;
+        // Critically damped, its speed and its change capped: a body jittering against a wall, or the lift coming on, no
+        // longer moves the camera in steps. A ceiling coming down over it is kept to at once.
+        var rate = SettleRate(t.PivotTime);
+        var a = rate * rate * (goal - _pivot) - 2 * rate * _pivotSpeed;
+        if (a.Length() > t.PivotAccel)
+            a *= t.PivotAccel / a.Length();
+        _pivotSpeed += a * Tick;
+        if (_pivotSpeed.Length() > t.PivotSpeed)
+            _pivotSpeed *= t.PivotSpeed / _pivotSpeed.Length();
+        _pivot += _pivotSpeed * Tick;
+        if (_pivot.Y > goal.Y && goal.Y < player.Y + t.Height + t.CloseLift * shortened - 1e-3f)
+        {
+            _pivot.Y = MathF.Min(_pivot.Y, goal.Y + 0.05f);
+            _pivotSpeed.Y = MathF.Min(_pivotSpeed.Y, 0);
+        }
     }
 
     /// <summary>The pivot's place: above his head, lifted as the arm shortens, under the drawn ceiling and the collision's.</summary>
@@ -424,7 +452,8 @@ public sealed partial class EnhancedTrekCamera
         PlaceBehind(player, heading);
         Fit(world, visible, at: true);
         var unlifted = _arm;
-        _pivot = PivotGoal(world, visible, player, Shortened);
+        _shortened = Shortened;
+        _pivot = PivotGoal(world, visible, player, _shortened);
         _pitch = MathF.Min(_pitch, SightCap(player, heading));
         Fit(world, visible, at: true);
         return unlifted;
@@ -457,6 +486,7 @@ public sealed partial class EnhancedTrekCamera
             foreach (var l in Leans)
                 lean += Math.Clamp(l.Lean(player, _travel, Yaw), -l.Bound, l.Bound);
             lean = Math.Clamp(lean, -t.LeanBound, t.LeanBound);
+            _leanNow = lean;
             goal = MathF.Atan2(-_travel.Y, -_travel.X) + lean * Degree;
             _restGoal = goal;
         }
@@ -679,7 +709,8 @@ public sealed partial class EnhancedTrekCamera
         {
             // The arm rides the least room it's about to need, over where the yaw and the pivot are going in the next
             // ArmLookahead, so it has shortened before a wall arrives; out as room opens, eased, never jumping.
-            var goal = MathF.Min(_free, Envelope(world, visible));
+            EnvelopeLast = Envelope(world, visible);
+            var goal = MathF.Min(_free, EnvelopeLast);
             var t = Tuning;
             var inward = goal < _arm;
             Approach(ref _arm, ref _armSpeed, goal, SettleRate(inward ? t.ArmInTime : t.ArmEase), inward ? t.ArmIn : t.ArmOut,
@@ -697,26 +728,29 @@ public sealed partial class EnhancedTrekCamera
         var t = Tuning;
         if (t.ArmLookahead <= 0)
             return _length;
-        var (yaw, pivot) = (_yaw, _pivot);
+        var (yaw, pivot, pitch) = (_yaw, _pivot, _pitch);
         // How far round it goes: its speed over the span, or toward the goal at the swing's rate if that's more, not past it.
-        var turn = _yawSpeed * t.ArmLookahead;
-        var toward = MathF.Sign(_lastE) * MathF.Min(MathF.Abs(_lastE), MathF.Max(MathF.Abs(turn), _swingingBehind ? t.TightTurn * Degree * t.ArmLookahead : 0));
-        if (MathF.Abs(toward) > MathF.Abs(turn) && (turn == 0 || MathF.Sign(toward) == MathF.Sign(turn)))
+        var turn = _yawSpeed * t.ArmTurnLookahead;
+        var toward = MathF.Sign(_lastE) * MathF.Min(MathF.Abs(_lastE), MathF.Max(MathF.Abs(turn), _swingingBehind ? t.TightTurn * Degree * t.ArmTurnLookahead : 0));
+        if (Tuning.ArmPlansSwing && MathF.Abs(toward) > MathF.Abs(turn) && (turn == 0 || MathF.Sign(toward) == MathF.Sign(turn)))
             turn = toward;
         var least = float.MaxValue;
-        const int Points = 4;
-        // The pivot goes with his travel, but no further than a wall in its way: he stops there.
-        var ahead = new Vector3(_travel.X, 0, _travel.Y) * t.ArmLookahead;
-        if (ahead.LengthSquared() > 1e-6f && SpherePhysics.SweepEitherSide(world, pivot, pivot + ahead, t.Radius, skipSeeThrough: true) is { } stop)
-            ahead *= MathF.Max(0, stop - t.Radius / ahead.Length());
+        const int Points = 8;
+        // The pivot goes where it's going, at its own speed (which follows his travel, glides after an arrival, and lifts in
+        // close quarters), but no further than a wall in its way.
+        // Pressed into a wall he isn't going anywhere, whatever the pivot's jitter: only as far as he really travels.
+        var ahead = _pivotSpeed * t.ArmLookahead * Math.Clamp(_travel.Length() / 2, 0, 1);
+        if (ahead.LengthSquared() > 1e-6f && SpherePhysics.SweepEitherSide(world, pivot, pivot + ahead, 0.01f, skipSeeThrough: true) is { } stop)
+            ahead *= MathF.Max(0, stop - 0.6f / ahead.Length());
         for (var k = 1; k <= Points; k++)
         {
             var share = (float)k / Points;
             _yaw = yaw + turn * share;
             _pivot = pivot + ahead * share;
+            _pitch = Math.Clamp(pitch + _pitchSpeed * t.ArmLookahead * share, t.LowestPitch, t.HighestPitch);
             least = MathF.Min(least, Free(world, visible, Direction, _length));
         }
-        (_yaw, _pivot) = (yaw, pivot);
+        (_yaw, _pivot, _pitch) = (yaw, pivot, pitch);
         return least;
     }
 
@@ -754,6 +788,7 @@ public sealed partial class EnhancedTrekCamera
     {
         _placed = true;
         _pivot = player + new Vector3(0, Tuning.Height, 0);
+        _pivotSpeed = Vector3.Zero;
         var back = heading.LengthSquared() > 1e-8f ? -Vector2.Normalize(heading) : -Vector2.UnitX;
         _yaw = MathF.Atan2(back.Y, back.X);
         _pitch = _basePitch;
@@ -766,6 +801,7 @@ public sealed partial class EnhancedTrekCamera
     {
         _placed = true;
         _pivot = camera.Aim;
+        _pivotSpeed = Vector3.Zero;
         var offset = camera.Position - camera.Aim;
         var length = offset.Length();
         if (length > 1e-4f)
@@ -842,3 +878,11 @@ public readonly record struct TrekArrival(TrekArrivalKind Kind, float Off, float
         _ => TrekArrivalKind.Front,
     };
 }
+
+/// <summary>
+/// One tick of the enhanced trek camera, for the rig: the pivot, the yaw and pitch in degrees, the arm, whether the backstop cut
+/// it, whether the sight cap held the pitch, how far into close quarters (the lift) it was, the whiskers' push and the leans,
+/// how far the yaw was off its goal, and whether an unchosen view's swing was under way.
+/// </summary>
+public readonly record struct TrekCameraTick(Vector3 Pivot, float Yaw, float Pitch, float Arm, bool Cut, bool SightCapped, float Shortened,
+    float Whisker, float Lean, float Off, bool Swinging);

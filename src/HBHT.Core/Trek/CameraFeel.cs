@@ -12,7 +12,7 @@ namespace HBHT.Core.Trek;
 public sealed class CameraFeel
 {
     private const float TicksPerSecond = 60;
-    private int _ticks, _standing, _standingBad, _cuts;
+    private int _ticks, _standing, _standingBad, _standingOut, _cuts;
     private int? _cutsBefore;
     private Vector3? _p1, _p2;
     private Vector3? _lastPlayer;
@@ -39,6 +39,8 @@ public sealed class CameraFeel
             var seen = CameraTrace.InFrame(trek, at + new Vector3(0, 0.5f, 0));
             if (!seen || (enhanced is not null && enhanced.Arm < enhanced.Tuning.CloseFloor - 0.05f))
                 _standingBad++;
+            if (!seen)
+                _standingOut++;
         }
         _lastPlayer = at;
     }
@@ -58,4 +60,9 @@ public sealed class CameraFeel
     public int StandingBad => _standingBad;
 
     public float StandingBadShare => _standing == 0 ? 0 : (float)_standingBad / _standing;
+
+    /// <summary>Of the standing ticks, the share he's out of the frame or hidden, whatever the arm.</summary>
+    public float StandingOutShare => _standing == 0 ? 0 : (float)_standingOut / _standing;
+
+    public int StandingOut => _standingOut;
 }
