@@ -60,7 +60,7 @@ public enum CameraStick
 /// </summary>
 public sealed record CameraTraceResult(string Walk, CameraStyle Style, int Ticks, float Blocked, float BlockedLate, float PastWall, float Hidden, float Front,
     float PeakTurn, float Turn95, float PeakAccel, float Accel95, ulong Checksum, int Ends, int Points, int Held = 0,
-    float AheadInFrame = float.NaN, bool? AheadAtFirst = null)
+    float AheadInFrame = float.NaN, bool? AheadAtFirst = null, float Settle = float.NaN, float SettleOff = float.NaN)
 {
     public static string Header =>
         $"{"walk",-16} {"style",-9} {"ticks",5} {"blocked",8} {">1s",5} {"past",6} {"hidden",7} {"front",6} {"turn pk",8} {"turn95",7} {"acc pk",8} {"acc95",7} {"ahead",6} {"route",5}";
@@ -106,7 +106,7 @@ public static class CameraTrace
     /// <param name="each">Called after each tick traced, with the tick's number from the arrival.</param>
     /// <param name="stick">How the stick is pushed on a walk with no route.</param>
     public static CameraTraceResult Run(PluginSet plugins, CameraWalk walk, CameraStyle style, Action<TrekLoop, int>? each = null,
-        TrekCameraTuning? tuning = null, CameraStick stick = CameraStick.Steer)
+        TrekCameraTuning? tuning = null, CameraStick stick = CameraStick.Steer, int standTicks = 0)
     {
         var trek = Start(plugins, walk, out var host);
         trek.CameraStyle = style;
@@ -233,10 +233,38 @@ public static class CameraTrace
             lastPlayer = player;
         }
 
+        // Standing on after the walk: how long from his heading's last change the view takes to come to rest (turning under
+        // half a degree a second from then on), and how far its look rests from the way he faces.
+        var settle = float.NaN;
+        var settleOff = float.NaN;
+        if (standTicks > 0)
+        {
+            var lastHeading = trek.Player.Heading;
+            var changed = 0;
+            var moving = 0;
+            var look = trek.Camera.LookXZ;
+            for (var i = 1; i <= standTicks; i++)
+            {
+                trek.Tick(() => new PlayerInput(Vector2.Zero));
+                var heading = trek.Player.Heading;
+                if (Vector2.Dot(heading, lastHeading) < MathF.Cos(0.5f * MathF.PI / 180))
+                {
+                    changed = i;
+                    lastHeading = heading;
+                }
+                var now = trek.Camera.LookXZ;
+                if (MathF.Acos(Math.Clamp(Vector2.Dot(look, now), -1, 1)) * 180 / MathF.PI * TicksPerSecond >= 0.5f)
+                    moving = i;
+                look = now;
+            }
+            settle = (float)(Math.Max(moving, changed) - changed) / TicksPerSecond;
+            settleOff = MathF.Acos(Math.Clamp(Vector2.Dot(trek.Camera.LookXZ, trek.Player.Heading), -1, 1)) * 180 / MathF.PI;
+        }
+
         float Share(int n) => ticks == 0 ? 0 : (float)n / ticks;
         return new CameraTraceResult(walk.Name, style, ticks, Share(blocked), late == 0 ? 0 : (float)blockedLate / late, Share(past), Share(hidden), late == 0 ? 0 : (float)front / late,
             Peak(turns), Percentile(turns, 0.95f), Peak(accels), Percentile(accels, 0.95f), checksum, next, route.Length, held,
-            aheadCounted == 0 ? float.NaN : (float)aheadSeen / aheadCounted, aheadAtFirst);
+            aheadCounted == 0 ? float.NaN : (float)aheadSeen / aheadCounted, aheadAtFirst, settle, settleOff);
     }
 
     /// <summary>How long <see cref="CameraStick.RestThenSteer"/> leaves the stick at rest.</summary>

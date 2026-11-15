@@ -14,7 +14,9 @@ namespace HBHT.Core.Cameras;
 /// <param name="Height">How far above the player's sphere's centre the pivot is: the original's aim, 1.05.</param>
 /// <param name="Radius">The camera's sphere, which the spring arm sweeps.</param>
 /// <param name="Margin">How far short of a wall the arm stops, past the sphere.</param>
-/// <param name="ArmOut">How fast the arm grows back once the wall is gone. It comes in at once.</param>
+/// <param name="ArmOut">The fastest the arm grows back once the wall is gone. It comes in at once.</param>
+/// <param name="ArmAccel">How fast that may change.</param>
+/// <param name="ArmEase">How long the arm's easing out takes to go 90% of the way.</param>
 /// <param name="CloseLift">How far the pivot rises above his head with the arm at nothing, in proportion as it's shortened.</param>
 /// <param name="ClosePitch">How much the pitch rises with the arm at nothing, in proportion, no higher than the way ahead allows.</param>
 /// <param name="AheadSight">How far ahead of him, at head height, the way ahead is kept in frame: the pitch is capped for it.</param>
@@ -24,9 +26,12 @@ namespace HBHT.Core.Cameras;
 /// <param name="FadeGone">How near, with his model gone.</param>
 /// <param name="OpenTurn">The fastest the yaw trails him with room all round.</param>
 /// <param name="OpenTurnAccel">How fast that turn may change.</param>
-/// <param name="TightTurn">The fastest it swings round with no room to back off into: a corridor walked along at the lens.</param>
-/// <param name="TightTurnAccel">How fast that turn may change.</param>
-/// <param name="TurnSettle">How quickly the last of a turn closes, a second's share, so it eases onto its goal.</param>
+/// <param name="TightTurn">The swing's peak rate: the fastest it swings round, an unchosen view behind him or with no room to back off into.</param>
+/// <param name="TightTurnAccel">How fast that turn may change: the swing's ease in.</param>
+/// <param name="SettleTime">The follow's settle: how long its smoothed approach takes to go 90% of the way from rest (half in about a third of it, at rest to half a degree in about twice it).</param>
+/// <param name="FollowTime">The same while he walks, trailing his travel; it eases over to SettleTime as he stops.</param>
+/// <param name="SneakTime">The same for sneaking's swing to the hunter's far side.</param>
+/// <param name="SwingTime">The same for the swing behind him.</param>
 /// <param name="PitchSpeed">The fastest the pitch moves on its own.</param>
 /// <param name="PitchAccel">How fast that may change.</param>
 /// <param name="MovingSpeed">How fast he must travel for the yaw to trail him: slower, it holds.</param>
@@ -41,6 +46,9 @@ namespace HBHT.Core.Cameras;
 /// <param name="ArrivalShortfall">How far short of the place's length an arrival's arm may be and still count as reaching it.</param>
 /// <param name="ArrivalStep">How far round from behind him each angle an arrival tries is from the last.</param>
 /// <param name="ArrivalShortest">The share of the length below which no angle will do and the arrival is lifted behind him; also how short the arm along an unchosen swing's shorter way must close for it to go the other way.</param>
+/// <param name="CloseFloor">The shortest arm a close arrival frame, against a wall, may have; close quarters (the lift) begin below it.</param>
+/// <param name="RearBand">How far round from behind him the arrival's rear band reaches.</param>
+/// <param name="SideBand">How far its side band reaches; the front band is the rest.</param>
 /// <param name="LeanBound">The most all the yaw's leans together add to its goal (slices 2 and 3: the path's bend, the nudges).</param>
 /// <param name="BendRays">How many level sweeps the path's bend fans ahead of his travel (<see cref="PathBendLean"/>).</param>
 /// <param name="BendSpread">How far either side of his travel the fan reaches.</param>
@@ -78,6 +86,8 @@ public sealed record TrekCameraTuning(
     float Radius = 0.25f,
     float Margin = 0.05f,
     float ArmOut = 1.5f,
+    float ArmAccel = 3,
+    float ArmEase = 1.5f,
     float CloseLift = 1.6f,
     float ClosePitch = 25,
     float AheadSight = 8,
@@ -85,11 +95,14 @@ public sealed record TrekCameraTuning(
     float SightMargin = 4,
     float FadeFrom = 1.2f,
     float FadeGone = 0.5f,
-    float OpenTurn = 40,
+    float OpenTurn = 60,
     float OpenTurnAccel = 90,
-    float TightTurn = 180,
-    float TightTurnAccel = 720,
-    float TurnSettle = 2,
+    float TightTurn = 90,
+    float TightTurnAccel = 240,
+    float SettleTime = 2.3f,
+    float FollowTime = 1.5f,
+    float SneakTime = 1,
+    float SwingTime = 1.6f,
     float PitchSpeed = 30,
     float PitchAccel = 120,
     float MovingSpeed = 0.5f,
@@ -104,6 +117,9 @@ public sealed record TrekCameraTuning(
     float ArrivalShortfall = 0.15f,
     float ArrivalStep = 20,
     float ArrivalShortest = 0.35f,
+    float CloseFloor = 2,
+    float RearBand = 60,
+    float SideBand = 110,
     float LeanBound = 40,
     float BendRays = 13,
     float BendSpread = 75,
