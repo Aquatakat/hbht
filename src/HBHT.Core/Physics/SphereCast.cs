@@ -24,18 +24,24 @@ public static class SphereCast
     /// <param name="Face">The normal of the triangle it touches.</param>
     /// <param name="Surface">That triangle's surface.</param>
     /// <param name="OnFace">Whether it touched the face rather than an edge or a corner.</param>
-    public readonly record struct Hit(float Share, Vector3 Normal, Vector3 Face, int Surface, bool OnFace);
+    /// <param name="Top">The height of that triangle's highest corner.</param>
+    public readonly record struct Hit(float Share, Vector3 Normal, Vector3 Face, int Surface, bool OnFace, float Top);
 
     /// <summary>
     /// Which triangles are walls, by their surface and how far their normal faces up, whose edges and corners a sphere may come
-    /// within <paramref name="Share"/> of its radius of, where their faces, and all of the ground, keep it the whole of it away.
-    /// 1.0's sphere slips past the edges and corners of walls, and so through gaps narrower than itself
-    /// (docs/systems/movement.md#narrow-gaps).
+    /// within <paramref name="Share"/> of its radius of, and moving, their faces within <paramref name="FaceShare"/> of it, where
+    /// all of the ground keeps it the whole of it away. 1.0's sphere slips past the edges and corners of walls, and so through gaps
+    /// narrower than itself, and its push out of two walls narrowing ahead of it leaves it in them (docs/systems/movement.md#narrow-gaps).
+    /// A push out (<see cref="PushOut"/>) keeps it a whole radius from faces: the cut-scenes in the Misc interiors' C05, between
+    /// its invisible posts, walked longer where it left bodies nearer them.
     /// </summary>
-    public sealed record SoftEdges(Func<int, float, bool> Wall, float Share)
+    public sealed record SoftEdges(Func<int, float, bool> Wall, float Share, float FaceShare = 1)
     {
         /// <summary>How near to a triangle's edges and corners a sphere of <paramref name="radius"/> is kept.</summary>
         internal float Reach(in Triangle t, float radius) => Wall(t.Surface, t.Normal.Y) ? radius * Share : radius;
+
+        /// <summary>How near to a triangle's face a sphere of <paramref name="radius"/> is kept.</summary>
+        internal float FaceReach(in Triangle t, float radius) => Wall(t.Surface, t.Normal.Y) ? radius * FaceShare : radius;
     }
 
     /// <summary>Two hits closer than this share of a move are at the same moment, as where triangles meet.</summary>
@@ -56,7 +62,8 @@ public static class SphereCast
         var near = Near(world, from, delta.Length() + radius);
         foreach (var t in near)
         {
-            if (!Blocks(t, skipSeeThrough) || !Cast(t, from, delta, radius, edges?.Reach(t, radius) ?? radius, out var h))
+            if (!Blocks(t, skipSeeThrough)
+                || !Cast(t, from, delta, radius, edges?.Reach(t, radius) ?? radius, edges?.FaceReach(t, radius) ?? radius, out var h))
                 continue;
             if (t.Surface is not (1 or 2) && PlainCopy(t, Closest(from + delta * h.Share, t), near, skipSeeThrough) is { } plain)
                 h = h with { Surface = plain };
@@ -172,9 +179,10 @@ public static class SphereCast
 
     /// <summary>
     /// A sphere at the origin moving by <paramref name="d"/> against one triangle, whose corners are relative to it: its face at
-    /// the sphere's radius, and its edges and corners at <paramref name="edge"/> from its centre (<see cref="SoftEdges"/>).
+    /// <paramref name="face"/> from its centre, and its edges and corners at <paramref name="edge"/> (<see cref="SoftEdges"/>), each
+    /// no more than its radius <paramref name="r"/>.
     /// </summary>
-    private static bool Cast(in Triangle t, Vector3 from, Vector3 d, float r, float edge, out Hit hit)
+    private static bool Cast(in Triangle t, Vector3 from, Vector3 d, float r, float edge, float face, out Hit hit)
     {
         hit = default;
         var n = t.Normal;
@@ -198,8 +206,8 @@ public static class SphereCast
         if (toward < 0 && height >= 0)
         {
             // The face: the moment the front of the sphere reaches the plane, if it does so within the triangle.
-            var share = MathF.Max(0, (height - r) / -toward);
-            if (share <= 1 && Inside(d * share - n * r, a, b, c, n))
+            var share = MathF.Max(0, (height - face) / -toward);
+            if (share <= 1 && Inside(d * share - n * face, a, b, c, n))
                 (best, normal, onFace) = (share, n, true);
         }
         if (!onFace)
@@ -213,7 +221,7 @@ public static class SphereCast
         }
         if (best > 1)
             return false;
-        hit = new Hit(best, normal, n, t.Surface, onFace);
+        hit = new Hit(best, normal, n, t.Surface, onFace, MathF.Max(t.A.Y, MathF.Max(t.B.Y, t.C.Y)));
         return true;
     }
 

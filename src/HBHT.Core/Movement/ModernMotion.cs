@@ -78,6 +78,15 @@ internal sealed class ModernMotion(Body body)
     /// <summary>The surface he stands on, under Modern movement.</summary>
     private int _groundSurface;
 
+    /// <summary>How far the triangle he stands on faces up, under Modern movement.</summary>
+    private float _groundUp = 1;
+
+    /// <summary>
+    /// The height of his feet as he last stood on ground by <see cref="ModernRules.Ground"/>, not a slope he climbs as a step
+    /// (<see cref="ModernRules.SlopeStep"/>): none till he first stands on it.
+    /// </summary>
+    private float _stoodFeet = float.NegativeInfinity;
+
     /// <summary>
     /// The height his sphere was at as he last stood on the ground, which walls lift him no more than a step above: none till he
     /// first stands on it.
@@ -106,7 +115,7 @@ internal sealed class ModernMotion(Body body)
             if (_edges is null || !ReferenceEquals(_edgesFor, Rules))
             {
                 var rules = _edgesFor = Rules;
-                _edges = new SphereCast.SoftEdges((surface, up) => !rules.Ground(surface, up), rules.WallEdge);
+                _edges = new SphereCast.SoftEdges((surface, up) => !rules.Ground(surface, up), rules.WallEdge, rules.WallFace);
             }
             return _edges;
         }
@@ -129,8 +138,9 @@ internal sealed class ModernMotion(Body body)
     /// <summary>Takes up where the original's movement left it, on the ground if it was.</summary>
     public void Begin(bool grounded)
     {
-        (_onGround, _groundNormal, _groundSurface) = (grounded, Vector3.UnitY, Sphere.Surface);
+        (_onGround, _groundNormal, _groundSurface, _groundUp) = (grounded, Vector3.UnitY, Sphere.Surface, 1);
         _groundHeight = grounded ? Sphere.Position.Y : float.NegativeInfinity;
+        _stoodFeet = grounded ? Sphere.Position.Y - Radius : float.NegativeInfinity;
         _left = new Vector3(float.NaN);
     }
 
@@ -138,12 +148,20 @@ internal sealed class ModernMotion(Body body)
     public void Lift() => _onGround = false;
 
     /// <summary>
-    /// Whether a hit is ground: a face that's ground by <see cref="Rules"/>, or an edge or corner of one below him, nearly under
-    /// him (<see cref="LipStand"/>), or further out as he moves onto the ground over it (<see cref="LipUp"/>).
+    /// Whether a hit is ground: a face that's ground by <see cref="Rules"/> or a slope he climbs as a step (<see cref="Climbable"/>),
+    /// or an edge or corner of one below him, nearly under him (<see cref="LipStand"/>), or further out as he moves onto the
+    /// ground over it (<see cref="LipUp"/>).
     /// </summary>
     private bool Ground(SphereCast.Hit hit) =>
-        Rules.Ground(hit.Surface, hit.Face.Y) && (hit.OnFace || hit.Normal.Y >= LipStand
+        (Rules.Ground(hit.Surface, hit.Face.Y) || Climbable(hit)) && (hit.OnFace || hit.Normal.Y >= LipStand
             || (hit.Normal.Y >= LipUp && Into(hit.Normal, _across)));
+
+    /// <summary>
+    /// Whether a hit is of a slope too steep to be ground that he climbs as a step, its top no more than
+    /// <see cref="ModernRules.SlopeStep"/> above the ground he last stood on: a strip of it between two grounds, as at Overworld
+    /// E15, and not a cliff of it, whose higher triangles are further above.
+    /// </summary>
+    private bool Climbable(SphereCast.Hit hit) => Rules.Slope(hit.Surface, hit.Face.Y) && hit.Top <= _stoodFeet + Rules.SlopeStep;
 
     /// <summary>Whether a move across the ground heads into an edge facing <paramref name="normal"/>, within 60° of straight at it.</summary>
     private static bool Into(Vector3 normal, Vector3 across)
@@ -213,7 +231,11 @@ internal sealed class ModernMotion(Body body)
         _left = s.Position;
         _pressed = aim is { } wanted ? new Vector2(wanted.X - _left.X, wanted.Z - _left.Z) : Vector2.Zero;
         if (_onGround)
+        {
             (s.Touching, s.ContactNormal, s.Surface, _groundHeight) = (true, _groundNormal, _groundSurface, position.Y);
+            if (Rules.Ground(_groundSurface, _groundUp))
+                _stoodFeet = s.Position.Y - Radius;
+        }
         else if (!s.Touching)
             s.Surface = 0;
         s.Trod.Clear();
@@ -297,7 +319,7 @@ internal sealed class ModernMotion(Body body)
             Touch(hit);
             if (Ground(hit))
             {
-                (normal, _groundSurface) = (hit.Normal, hit.Surface);
+                (normal, _groundSurface, _groundUp) = (hit.Normal, hit.Surface, hit.Face.Y);
                 continue;
             }
             if (!stepped)
@@ -391,7 +413,7 @@ internal sealed class ModernMotion(Body body)
             if (landing.Y < position.Y + MinStep || (landing - hit.Normal * Radius).Y > position.Y - Radius + height)
                 return false;
             position = landing;
-            (normal, _groundSurface) = (hit.Normal, hit.Surface);
+            (normal, _groundSurface, _groundUp) = (hit.Normal, hit.Surface, hit.Face.Y);
             Touch(hit);
             return true;
         }
@@ -406,7 +428,7 @@ internal sealed class ModernMotion(Body body)
     {
         if (!Land(world, ref position, depth, out var hit))
             return false;
-        (_groundNormal, _groundSurface) = (hit.Normal, hit.Surface);
+        (_groundNormal, _groundSurface, _groundUp) = (hit.Normal, hit.Surface, hit.Face.Y);
         Touch(hit);
         return true;
     }
@@ -457,7 +479,7 @@ internal sealed class ModernMotion(Body body)
             Touch(hit);
             if (Ground(hit) && velocity.Y <= 0)
             {
-                (_onGround, _groundNormal, _groundSurface) = (true, hit.Normal, hit.Surface);
+                (_onGround, _groundNormal, _groundSurface, _groundUp) = (true, hit.Normal, hit.Surface, hit.Face.Y);
                 velocity = Vector3.Zero;
                 move = AlongGround(move with { Y = 0 }, hit.Normal);
                 continue;

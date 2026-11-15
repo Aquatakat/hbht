@@ -87,6 +87,100 @@ public sealed partial class GameSessionTests
         Assert.InRange(top, 2.5f, 2.7f);
     }
 
+    /// <summary>
+    /// The Misc interiors' E05's five chests on their platforms: each ramp's foot and top, in E05's coordinates, and the chest's
+    /// object. The ramps' see-through rails close from 2 apart at the foot to 0.88 to 0.93 at the top.
+    /// </summary>
+    private static readonly (int Chest, Vector2 Foot, Vector2 Top)[] E05Ramps =
+    [
+        (15, new(61.06f, 24.26f), new(61.06f, 20.76f)), (17, new(61.43f, 49.35f), new(61.43f, 52.85f)),
+        (19, new(82.02f, 24.40f), new(82.02f, 20.90f)), (21, new(84.92f, 43.14f), new(84.92f, 46.64f)),
+        (23, new(64.80f, 82.60f), new(68.30f, 82.60f)),
+    ];
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(SessionSettings.BriskPace)]
+    public void InModernMovementAlaronSlipsUpEachOfE05sRampsToItsChestAndBack(float pace)
+    {
+        // From 1.5 before each ramp's foot, up it to its chest, near enough to open it, and back past the foot, where the rails
+        // narrowing to less than his width held him 0.26 short of the top while faces kept him his whole radius off.
+        var (world, origin) = Loaded(6, "E05", new Vector3(60, 6, 50));
+        var chunk = Data.Set.ChunksIn(RecordId.Decimal(RecordTypes.MapSet, 6)).Single(c => c.Name == "E05");
+        var run = ActorMotion.For(Data.Set, Data.Set.Get<ActorRecord>(AlaronActor), new Lcg(0))!;
+        foreach (var rules in new[] { ModernRules.Default, ModernRules.Default with { WallFace = 1 } })
+        foreach (var (index, foot, top) in E05Ramps)
+        foreach (var side in new[] { -0.4f, 0f, 0.4f })
+        {
+            var chest = (ContainerObject)chunk.Objects.Single(o => o.Index == index);
+            var up = Vector2.Normalize(top - foot);
+            var start = foot - up * 1.5f + new Vector2(-up.Y, up.X) * side;
+            var player = new PlayerMotion(origin + new Vector3(start.X, chest.Position.Y, start.Y), up)
+                { Movement = MovementMode.Modern, Pace = pace, Rules = rules };
+            for (var i = 0; i < 20; i++)
+                player.Step(world, new MoveInput(Vector2.Zero), up, run);
+            var reached = Run(player, [top + up * 0.8f, new(chest.Position.X, chest.Position.Z)], 600,
+                () => Vector3.Distance(player.Sphere.Position - origin, chest.Position) <= chest.Reach + player.Sphere.Radius);
+            if (rules != ModernRules.Default)
+            {
+                Assert.False(reached, $"chest {index} reached with faces kept a whole radius off");
+                continue;
+            }
+            Assert.True(reached, $"chest {index} from {side} held at {player.Sphere.Position - origin}");
+            Assert.True(Run(player, [top, start], 600, () => Vector2.Distance(Local(player, origin), start) < 0.5f),
+                $"back from chest {index} held at {player.Sphere.Position - origin}");
+        }
+
+        // Up on the stick toward each point in turn, the camera looking at it, until done says so.
+        bool Run(PlayerMotion player, Vector2[] way, int ticks, Func<bool> done)
+        {
+            var next = 0;
+            for (var i = 0; i < ticks; i++)
+            {
+                if (done())
+                    return true;
+                var at = Local(player, origin);
+                if (next < way.Length - 1 && Vector2.Distance(at, way[next]) < 0.3f)
+                    next++;
+                var look = way[next] - at;
+                player.Step(world, new MoveInput(new Vector2(0, 1)), look.LengthSquared() > 1e-6f ? Vector2.Normalize(look) : Vector2.UnitY, run);
+                Assert.False(player.FellOut);
+            }
+            return false;
+        }
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(SessionSettings.BriskPace)]
+    public void InModernMovementAlaronClimbsE15sStoneStripOntoTheGrassAsAStep(float pace)
+    {
+        // Overworld E15's rock, its top at −27.83, meets the grass at −27.11 across a strip of stone (triangles 128 and 192) of
+        // normal Y 0.44 and 0.34, too steep for ground: he climbs it as a step (ModernRules.SlopeStep), straight or slanting,
+        // as the original's sphere is pushed up it.
+        var (world, origin) = Loaded(0, "E15", new Vector3(22, -27.3f, 11.5f));
+        var run = ActorMotion.For(Data.Set, Data.Set.Get<ActorRecord>(AlaronActor), new Lcg(0))!;
+        foreach (var rules in new[] { ModernRules.Default, ModernRules.Default with { SlopeStep = 0 } })
+        foreach (var (from, to) in new (Vector2, Vector2)[]
+                 { (new(19.5f, 11.5f), new(19.5f, 5)), (new(21.5f, 11.5f), new(21.5f, 5)), (new(23.5f, 11.5f), new(23.5f, 5)),
+                   (new(22, 12.5f), new(18, 5)), (new(22, 12.5f), new(27, 5)) })
+        {
+            var way = Vector2.Normalize(to - from);
+            var player = new PlayerMotion(origin + new Vector3(from.X, -27.3f, from.Y), way)
+                { Movement = MovementMode.Modern, Pace = pace, Rules = rules };
+            for (var i = 0; i < 20; i++)
+                player.Step(world, new MoveInput(Vector2.Zero), way, run);
+            var over = false;
+            for (var i = 0; i < 300 && !over; i++)
+            {
+                player.Step(world, new MoveInput(new Vector2(0, 1)), way, run);
+                over = Local(player, origin).Y < 7.5f && player.Feet.Y - origin.Y > -27.3f;
+            }
+            // Without it, the straight runs stop at the strip, and only a slant round its west end gets over.
+            Assert.True(over == (rules == ModernRules.Default) || from.Y > 12, $"from {from} toward {to}: at {player.Sphere.Position - origin}");
+        }
+    }
+
     [Fact]
     public void InModernMovementAlaronPassesTheMovedRoogCaveMushroomEveryWayAndWedgesWhereTheROMHasIt()
     {
