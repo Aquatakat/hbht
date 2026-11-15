@@ -27,6 +27,7 @@ public sealed class LaunchSettings
     private Core.Cameras.CameraStyle? _dialogueCamera;
     private Core.Cameras.DialogueTuning? _dialogueTuning;
     private Core.Cameras.CameraStyle? _trekCamera;
+    private readonly Core.Cameras.TrekCameraTuning? _trekTuning;
     private float? _pace;
     private Core.Movement.MovementMode? _movement;
 
@@ -49,6 +50,7 @@ public sealed class LaunchSettings
         _dialogueCamera = options.DialogueCamera;
         _dialogueTuning = options.DialogueTuning;
         _trekCamera = options.TrekCamera;
+        _trekTuning = options.TrekTuning;
         _pace = options.Pace;
         _movement = options.Movement;
         _seen = player.Copy();
@@ -87,7 +89,7 @@ public sealed class LaunchSettings
         // --battle-camera is the battle's alone: trek's and a conversation's cameras are the player's Camera setting, or their own flags'.
         var settings = SessionSettings.From(Over(player)) with
         {
-            CameraTuning = _cameraTuning, TrekCamera = _trekCamera ?? player.Camera,
+            CameraTuning = _cameraTuning, TrekCamera = _trekCamera ?? player.Camera, TrekTuning = _trekTuning,
             DialogueCamera = _dialogueCamera ?? player.Camera, DialogueTuning = _dialogueTuning,
         };
         return _pace is { } pace ? settings with { Pace = pace } : settings;

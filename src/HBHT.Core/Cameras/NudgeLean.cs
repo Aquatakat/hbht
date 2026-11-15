@@ -28,6 +28,9 @@ public sealed class NudgeLean(EnhancedTrekCamera camera) : ITrekCameraLean
 
     public float Bound => camera.Tuning.NudgeBound;
 
+    /// <summary>A nudge turns the view, not his travel.</summary>
+    public bool Steers => false;
+
     /// <summary>The lean now, in degrees.</summary>
     public float Value => _lean;
 

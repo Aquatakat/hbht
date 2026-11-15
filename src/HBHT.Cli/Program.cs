@@ -84,6 +84,7 @@ try
         ["movement", "reach", .. var rest] => ReachReport.Run(InstalledPlugins(), rest),
         ["movement", "compare", .. var rest] => CompareReport.Run(InstalledPlugins(), rest),
         ["playthrough", .. var rest] => PlaythroughReport.Run(InstalledPlugins(), rest),
+        ["camera", "census"] => CameraReport.Census(InstalledPlugins()),
         ["camera", "trace", .. var rest] => CameraReport.Run(InstalledPlugins(), rest),
         ["camera", "measure", .. var rest] => CameraMeasureReport.Run(InstalledPlugins(), rest),
         ["schema", var dir] => Schema(dir),

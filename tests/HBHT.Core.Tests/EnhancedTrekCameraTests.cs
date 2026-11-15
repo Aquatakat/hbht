@@ -125,4 +125,53 @@ public class EnhancedTrekCameraTests
         // It glides from there rather than snapping back behind him.
         Assert.True(Vector3.Distance(before, camera.Position) < 0.2f, $"it jumped from {before} to {camera.Position}");
     }
+
+    [Theory]
+    // A point in front of him, looking back at him, is passed over for behind him.
+    [InlineData(6f, false)]
+    // A point behind him is kept.
+    [InlineData(-6f, true)]
+    public void ATeleportersCameraPointIsKeptOnlyBehindHim(float pointX, bool kept)
+    {
+        var camera = new FollowCamera(Player, Vector2.UnitX);
+        camera.PlaceAt(new Vector3(pointX, 3, 1));
+        var enhanced = new EnhancedTrekCamera();
+        enhanced.Arrive(camera, Worlds.Flat(), null, Player, Vector2.UnitX, interior: false, kept: true);
+        Assert.Equal(kept, camera.Position.X == pointX);
+        Assert.True(camera.Position.X < 0);
+        // A camera object taking the camera there keeps it whatever its side.
+        camera.PlaceAt(new Vector3(6, 3, 1));
+        enhanced.Arrive(camera, Worlds.Flat(), null, Player, Vector2.UnitX, interior: false, kept: true, authored: true);
+        Assert.Equal(6, camera.Position.X);
+    }
+
+    [Fact]
+    public void AViewHeDidntChooseSwingsBehindHimQuicklyEvenOutdoors()
+    {
+        var world = Worlds.Flat();
+        var camera = new FollowCamera(Player, Vector2.UnitX);
+        var enhanced = new EnhancedTrekCamera();
+        enhanced.Step(camera, world, null, Player, Vector2.UnitX, interior: false, Vector2.Zero);
+        // A camera object leaves the camera in front of him, looking back at him, and lets go.
+        camera.PlaceAt(new Vector3(5, 2, 0));
+        camera.AimAt(Player + new Vector3(0, 1.05f, 0));
+        var player = Player;
+        var ticks = 0;
+        for (; ticks < 300 && MathF.Abs(enhanced.Yaw) < 170; ticks++)
+        {
+            player += new Vector3(0.06f, 0, 0);
+            enhanced.Step(camera, world, null, player, Vector2.UnitX, interior: false, Vector2.Zero);
+        }
+        Assert.True(ticks < 90, $"it took {ticks} ticks to come round behind him");
+    }
+
+    [Fact]
+    public void ItsNumbersAreSetByName()
+    {
+        var tuning = TrekCameraTuning.Default.Parse("OpenTurn=60, interiorlength=3");
+        Assert.Equal(60, tuning.OpenTurn);
+        Assert.Equal(3, tuning.InteriorLength);
+        Assert.Equal(TrekCameraTuning.Default.OutdoorLength, tuning.OutdoorLength);
+        Assert.Throws<FormatException>(() => TrekCameraTuning.Default.Parse("Nothing=1"));
+    }
 }

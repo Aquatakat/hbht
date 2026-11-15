@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace HBHT.Core.Cameras;
 
 /// <summary>
@@ -30,8 +32,7 @@ namespace HBHT.Core.Cameras;
 /// <param name="HighestPitch">The highest pitch, the player's or close quarters'.</param>
 /// <param name="PivotRate">The share of the way the pivot closes on the player a tick.</param>
 /// <param name="PivotSpeed">The fastest it closes, units a second.</param>
-/// <param name="ArrivalSwing">How long after an arrival it may swing round as quickly as in a tight space.</param>
-/// <param name="ArrivalHold">How long a teleporter's own camera point is held, standing, before it swings round behind him.</param>
+/// <param name="UnchosenSwing">How far off behind his travel a view he didn't choose must be, as he sets off, to swing behind at the tight rate.</param>
 /// <param name="LeanBound">The most all the yaw's leans together add to its goal (slices 2 and 3: the path's bend, the nudges).</param>
 /// <param name="BendRays">How many level sweeps the path's bend fans ahead of his travel (<see cref="PathBendLean"/>).</param>
 /// <param name="BendSpread">How far either side of his travel the fan reaches.</param>
@@ -85,8 +86,7 @@ public sealed record TrekCameraTuning(
     float HighestPitch = 70,
     float PivotRate = 0.12f,
     float PivotSpeed = 8,
-    float ArrivalSwing = 1.5f,
-    float ArrivalHold = 0.5f,
+    float UnchosenSwing = 90,
     float LeanBound = 40,
     float BendRays = 13,
     float BendSpread = 75,
@@ -115,4 +115,30 @@ public sealed record TrekCameraTuning(
     float SneakSwitch = 0.8f)
 {
     public static TrekCameraTuning Default { get; } = new();
+
+    /// <summary>
+    /// These numbers with some set by name, <c>Name=value</c> joined by commas, as <c>--trek-camera enhanced,OpenTurn=60</c> gives
+    /// them: any member of the record, found by reflection, so a new member needs no change here.
+    /// </summary>
+    public TrekCameraTuning Parse(string settings)
+    {
+        var tuning = this with { };
+        foreach (var part in settings.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var eq = part.IndexOf('=');
+            if (eq < 0)
+                throw new FormatException($"'{part}' isn't Name=value.");
+            var (name, value) = (part[..eq].Trim(), part[(eq + 1)..].Trim());
+            var property = typeof(TrekCameraTuning).GetProperties().FirstOrDefault(p => p.CanWrite && string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase))
+                ?? throw new FormatException($"The trek camera has no setting '{name}'.");
+            object parsed = property.PropertyType == typeof(int) ? int.Parse(value, CultureInfo.InvariantCulture)
+                : property.PropertyType == typeof(float) ? float.Parse(value, CultureInfo.InvariantCulture)
+                : property.PropertyType == typeof(bool) ? bool.Parse(value)
+                : property.PropertyType == typeof(float[]) ? value.Split(';').Select(v => float.Parse(v, CultureInfo.InvariantCulture)).ToArray()
+                : property.PropertyType == typeof(string) ? value
+                : throw new FormatException($"'{name}' can't be set.");
+            property.SetValue(tuning, parsed);
+        }
+        return tuning;
+    }
 }
