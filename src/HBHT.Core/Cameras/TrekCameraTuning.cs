@@ -99,6 +99,14 @@ namespace HBHT.Core.Cameras;
 /// <param name="WedgeLoss">The share of the boom's length behind him that must be lost (now or over the look ahead) for the wedge to begin acting; it's whole 0.2 further.</param>
 /// <param name="WedgeEase">How long the wedge's push takes to ease most of the way (63%) out toward a goal further round.</param>
 /// <param name="WedgeRelease">How long it takes to ease back home, or across.</param>
+/// <param name="TurnFrom">How far the yaw's goal must be off the yaw, while he walks, for a large turn (turning back on himself) to be planned; 0 turns planning off.</param>
+/// <param name="TurnDone">How near the goal the yaw must come for the large turn to end.</param>
+/// <param name="TurnBias">How much the shorter arc, and the side already being turned through, each count in choosing the way round, as a share of the length added to the arc's least room.</param>
+/// <param name="TurnArmIn">The fastest the arm tucks in over a planned turn's arc, units a second.</param>
+/// <param name="TurnArmAccel">How fast that may change.</param>
+/// <param name="TurnArmTime">How long the tuck takes to go 90% of the way.</param>
+/// <param name="TurnSlowest">The slowest a planned turn is held to while it waits for the arm, degrees a second.</param>
+/// <param name="TurnPlansSwing">Whether an unchosen view's swing behind him, once he turns back during it, is planned as a large turn too (its way round kept).</param>
 /// <param name="SneakSwitch">The share of the held hunter's distance another must be within to be framed instead.</param>
 public sealed record TrekCameraTuning(
     float OutdoorLength = 5,
@@ -194,7 +202,15 @@ public sealed record TrekCameraTuning(
     float WedgeMargin = 6,
     float WedgeLoss = 0.35f,
     float WedgeEase = 0.3f,
-    float WedgeRelease = 0.8f)
+    float WedgeRelease = 0.8f,
+    float TurnFrom = 100,
+    float TurnDone = 20,
+    float TurnBias = 0.15f,
+    float TurnArmIn = 3,
+    float TurnArmAccel = 12,
+    float TurnArmTime = 0.6f,
+    float TurnSlowest = 40,
+    bool TurnPlansSwing = false)
 {
     public static TrekCameraTuning Default { get; } = new();
 
