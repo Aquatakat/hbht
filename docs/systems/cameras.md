@@ -216,7 +216,7 @@ Through the skeleton archers' battle, every arrow is loosed and then cut to its 
 **Port's classes:** `CameraStyle`, `Shot`, `Lens`, `ShotSubject`, `ShotFraming`, `SightLines`, `CappedMotion`, `MotionCaps`, `ShotGlide` and `FollowPoint` in `HBHT.Core.Cameras`; `EnhancedCamera`, `CameraScene`, `SceneFacts`, `CameraIntent`, `ShotFinder`, `TargetCone`, `Vantage`, `CameraTuning` and `BattlePlan` in `HBHT.Core.Combat`, with Start Early's `BattleDirector` and `BeatShots`; `CameraIntentView` in the runtime.
 
 **Left:**
-- Trek's camera isn't enhanced yet; the setting is named for that.
+- Trek's and conversations' cameras are enhanced too, by the same setting ([below](#the-enhanced-trek-camera-camera-enhanced)).
 - The user has played it eight times and reshaped it each time (above); the eighth reshaping awaits their play.
 - The hit is held until the turn ends, through a dying target's fall: about four seconds on a Giant Rat. The user means to shorten that in the turns (Start Early), not the camera.
 - How fast the orbit (`CarryTurn`, 90° a second) should be, how long a swing onto a new framing takes (`SwingTime`, 2 s, no faster than `FramingTurn`, 60°) and how long a hidden one is kept (`HiddenPatience`, 45 ticks), how near the target goes by distance alone and the orbit stops (`StrikeRange`, 5), how soon a new target is taken (`TargetHold`, 15 ticks within `TargetQuickRange`, 10, to `TargetHoldFar`, 90), how smoothly the camera follows (`FollowSmoothing`, 0.15 s), how long a pan takes (`PanTicks`) and how far an AI's walk's eye moves (`WalkPan`, `WalkPanMost`) and from how far round (`WalkYaws`), how long a change of framing glides (`GlideTime`, 1 s) and how smoothly the turn and the lead follow (`TurnSmoothing`, `LeadSmoothing`), how far the aim leads (`LeadTime`), how its walk's rail rounds and how smoothly it's ridden (`WalkRound`, `WalkSmoothing`), and how a pack fades in (`PackFade`), the shot comes in (`ZoomInTime`) and a target let go is held (`TrailAfter`) are the user's to feel.
@@ -289,7 +289,7 @@ Piece C of Start Early's plan, done Nov 9, 2026, reshaped from the user's first 
 
 ## The enhanced trek camera (Camera: Enhanced)
 
-The design, as the user asked for it on Nov 14, 2026; being built, and nothing here is in until its slice says so under **Built** below. Under Camera: Original nothing changes. The aim is a camera nobody notices: calm, always moving a little, never stepped (the battle camera's cuts and swoops aren't its style).
+The design, as the user asked for it on Nov 14, 2026, built that day; **Built** below says how each part ended up, and it awaits the user's play. Under Camera: Original nothing changes. The aim is a camera nobody notices: calm, always moving a little, never stepped (the battle camera's cuts and swoops aren't its style).
 
 **How it fits.** `FollowCamera` is left as it is, since the battle camera shares its insides. The enhanced camera is a class of its own, stepped where `TrekLoop` steps `FollowCamera.Step`, and it writes the follow camera's position, aim and look, so the sky, the steering, the wanderers and the runtime read what they always did. A camera object that holds the camera still has it (the authored shots stay), and when it lets go the enhanced camera glides from where the camera was left. `--trek-camera original|enhanced` overrides the setting for trek alone, to compare.
 
@@ -388,7 +388,7 @@ With the leans, the trace's walks: (c) 0 blocked, its turn 47 / 33 and the turn'
 
 ## The enhanced conversation camera (Camera: Enhanced)
 
-The design, with the trek camera's; being built. It runs for a conversation with a body (`ScriptMode.Conversation`, `Conversation.With`), in place of `FollowCamera.Frame`. No conversation script has a camera op (0 of 596), so it never meets an authored shot in a script. It does take the camera from a room's camera object for the conversation, and gives it back at the end, as the user chose: every shot must then be in bounds, since those rooms were only ever seen from one side. `--dialogue-camera original|enhanced` overrides the setting for it alone.
+The design, with the trek camera's, built with it; **Built** below says how it ended up, and it awaits the user's play. It runs for a conversation with a body (`ScriptMode.Conversation`, `Conversation.With`), in place of `FollowCamera.Frame`. No conversation script has a camera op (0 of 596), so it never meets an authored shot in a script. It does take the camera from a room's camera object for the conversation, and gives it back at the end, as the user chose: every shot must then be in bounds, since those rooms were only ever seen from one side. `--dialogue-camera original|enhanced` overrides the setting for it alone.
 
 **What it has.** Two talkers, always: no conversation has three speakers, and a third entity's line in a shared script (116 lines of 5,260) is the talked-to npc's body speaking. Other party members have no body in trek. The talkers stand where they were, facing each other. Eyes are `CutSceneActor.Eyes`' formula over the body's height, scale and radius; there's no head bone. The box covers the bottom quarter (`Lens.Floor` keeps subjects above it). Lines advance only on A.
 
