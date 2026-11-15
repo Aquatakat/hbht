@@ -18,7 +18,24 @@ public partial class CameraRig : Node3D
     private readonly Camera3D _fly = new() { Name = "Fly", Fov = 45, Near = 0.1f, Far = 2000, PhysicsInterpolationMode = PhysicsInterpolationModeEnum.Off };
     private Vector2 _drag;
 
-    public FollowCamera? Follow { get; set; }
+    public FollowCamera? Follow
+    {
+        get;
+        set
+        {
+            if (!ReferenceEquals(field, value))
+                Shown = null;
+            field = value;
+        }
+    }
+
+    /// <summary>
+    /// The follow camera's place and aim as the view was last put there (<see cref="Sync"/>), which is what's on screen: the
+    /// follow camera can leave it while the world is held. A conversation that ends in the pause menu, training or
+    /// bartering, cuts trek's camera back to its view before the talk in the tick the menu opens, while the menu stands
+    /// over the conversation's last shot, as the original's over its frame (<c>GetSnapShot</c>).
+    /// </summary>
+    public (System.Numerics.Vector3 Position, System.Numerics.Vector3 Aim)? Shown { get; private set; }
 
     /// <summary>The follow camera's far plane: the original's 180 in trek, 125 in a cut-scene.</summary>
     public float Far
@@ -67,6 +84,7 @@ public partial class CameraRig : Node3D
     {
         if (Follow is null)
             return;
+        Shown = (Follow.Position, Follow.Aim);
         var from = Follow.Position.ToGodot();
         var to = Follow.Aim.ToGodot();
         if (!from.IsEqualApprox(to))

@@ -798,8 +798,10 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
         }
         // In a cut-scene, a battle or the title's fly-through there's no player: levels of detail go by the camera's aim.
         var follow = Scene?.Camera ?? Drawing?.Camera ?? Title?.Camera ?? Trek!.Camera;
-        var from = Scene is not null || Battle is not null || Title is not null ? follow.Aim : _player!.Motion.Sphere.Position;
-        return SceneView.Aimed(from, follow.Position, follow.Aim, cone);
+        // From where the view was put, which the follow camera can have left under the pause menu (CameraRig.Shown).
+        var (position, aim) = ReferenceEquals(_camera.Follow, follow) && _camera.Shown is { } shown ? shown : (follow.Position, follow.Aim);
+        var from = Scene is not null || Battle is not null || Title is not null ? aim : _player!.Motion.Sphere.Position;
+        return SceneView.Aimed(from, position, aim, cone);
     }
 
     /// <summary>
@@ -854,7 +856,8 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     private void DrawWanderers()
     {
         _wanderersDrawnTo = _objectDistance.Bodies;
-        var aim = Trek!.Camera.Aim;
+        // Under the menu, by the view it stands over (CameraRig.Shown).
+        var aim = ReferenceEquals(_camera!.Follow, Trek!.Camera) && _camera.Shown is { } shown ? shown.Aim : Trek.Camera.Aim;
         var centre = _chunks!.Chunks.MapAt(_player!.Motion.Sphere.Position);
         var ownAim = BodyShadow.ChunkAim(aim, centre?.Origin);
         _chunks.SyncWanderers();
