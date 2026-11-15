@@ -46,6 +46,9 @@ public class ControlBindingsTests : IDisposable
     [InlineData("menu_member_right", "Key:E", "Joy:RB")]
     [InlineData("menu_tab_previous", "Key:Z", "Axis:LeftTrigger+")]
     [InlineData("menu_tab_next", "Key:X", "Axis:RightTrigger+")]
+    // The port's: 1 to 4 show the party's members by their place (ADR 0040).
+    [InlineData("menu_member_1", "Key:Key1", "")]
+    [InlineData("menu_member_4", "Key:Key4", "")]
     // Combat read the same actions as the menus.
     [InlineData("battle_target", "Source:WASD Source:Arrows", "Source:LeftStick Source:DPad")]
     [InlineData("battle_attack", "Key:Space Mouse:Left", "Joy:A")]
@@ -68,7 +71,7 @@ public class ControlBindingsTests : IDisposable
     [Fact]
     public void EveryControlIsListedOnceAndTheDefaultsDontConflict()
     {
-        Assert.Equal(29, GameControls.All.Count);
+        Assert.Equal(33, GameControls.All.Count);
         Assert.Equal(GameControls.All.Count, GameControls.All.Select(c => c.Id).Distinct().Count());
         Assert.Empty(new ControlBindings().Conflicts());
         Assert.All(GameControls.All.SelectMany(c => c.Keyboard.Concat(c.Controller)), b => Assert.True(Binding.IsValid(b), b));

@@ -6,4 +6,7 @@ A check far into the story needn't be played to: Claude writes a save at the pla
 
 ## Open
 
-Nothing open.
+- **The mouse and keyboard in play** ([ADR 0040](adr/0040-the-mouse-comes-first-on-the-keyboard.md)). Launched runs checked the menus' clicks, hovering, the title, a cut-scene's line and a held menu's click; these need a hand on the mouse, as a launched window has no focus to capture it:
+  - In trek: mouse look, Invert Mouse Y and (on a controller) Invert Camera Y, and that the click bringing the window back to the front doesn't open a chest.
+  - In a battle: aiming an attack or a spell, moving the mouse across steps the target and feels paced right (80 pixels a step); a bow's, thrown weapon's or flask's cursor and an area spell's follow the mouse ([combat](systems/combat-actions.md#the-port)); the wheel scrolls a long held menu ([ui](systems/ui.md#the-held-menus)).
+  - The clicks not yet tried: a shop, training, the save screens, a trek popup's choices, a conversation's choices, and the editor's window panels.

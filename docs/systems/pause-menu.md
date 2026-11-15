@@ -249,6 +249,7 @@ The port's own page ([ADR 0026](../adr/0026-controls-are-bound-by-situation.md),
   | | Appraise | R | X | C-up, in a shop; on this page it clears a binding |
   | | Next Member, Previous Member | Q, E | LB, RB | C-left, C-right |
   | | Previous Tab, Next Tab | Z, X | LT, RT | Z or L, R |
+  | | Member 1 to Member 4 | 1 to 4 | None | the port's: shows the party's member in that place in one change (`PauseMenu.ShowNthMember`) |
   | Combat | Target | WASD, Arrows | Left Stick, D-Pad | steps an attack's or a spell's target, moves a held menu's cursor |
   | | Attack, Cancel | Space, Left Click; Backspace, Right Click | A, B | A, B |
   | | Skip Turn | Z | LT | Z |

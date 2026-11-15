@@ -676,6 +676,20 @@ public sealed class PauseMenu
         return true;
     }
 
+    /// <summary>
+    /// The keys 1 to 4 (<see cref="Controls.GameControls.MenuMembers"/>): shows the party's member in that place, 0 the first, in one
+    /// change, as a click on their portrait does (<see cref="ShowMember"/>). Whether it changed the member shown.
+    /// </summary>
+    public bool ShowNthMember(int n)
+    {
+        var menu = Window.Menu;
+        var slots = Enumerable.Range(0, menu.Party.Slots.Count).Where(i => menu.Party.Slots[i] is not null).ToList();
+        if (n < 0 || n >= slots.Count)
+            return false;
+        var steps = menu.PortraitOrder.ToList().IndexOf(slots[n]);
+        return steps > 0 && ShowMember(steps);
+    }
+
     /// <summary>Z or R: slides to the tab that way, if there is one and the tab showing can be left.</summary>
     private void ChangeTab(int by)
     {

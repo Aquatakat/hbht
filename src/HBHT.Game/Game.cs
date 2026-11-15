@@ -998,6 +998,12 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
             _titleLayer?.Redraw();
             return;
         }
+        if (session.Mode == GameMode.Menu && Array.FindIndex(Core.Controls.GameControls.MenuMembers, id => e.IsActionPressed(id)) is var place and >= 0)
+        {
+            if (session.ShowNthMember(place))
+                ShowPressed(session);
+            return;
+        }
         var action = _stick.Translate(e);
         var outcome = session.Press(action, keyboard: e is InputEventKey);
         if (outcome != PressOutcome.Ignored)

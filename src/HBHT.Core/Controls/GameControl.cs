@@ -99,6 +99,13 @@ public static class GameControls
         MenuDetails = "menu_details", MenuAppraise = "menu_appraise", MenuMemberLeft = "menu_member_left", MenuMemberRight = "menu_member_right",
         MenuTabPrevious = "menu_tab_previous", MenuTabNext = "menu_tab_next";
 
+    /// <summary>
+    /// The keys that show the party's first, second, third and fourth member on the Party windows, by their place in the party
+    /// (<see cref="Ui.PauseMenu.ShowNthMember"/>), a port addition (ADR 0040). They press nothing the original has, so the runtime
+    /// reads them by name.
+    /// </summary>
+    public static readonly string[] MenuMembers = ["menu_member_1", "menu_member_2", "menu_member_3", "menu_member_4"];
+
     public const string BattleTarget = "battle_target", BattleAttack = "battle_attack", BattleCancel = "battle_cancel", BattleSkip = "battle_skip",
         BattleSpells = "battle_spells", BattleItems = "battle_items", BattleRangedLeft = "battle_ranged_left", BattleRangedRight = "battle_ranged_right",
         BattlePause = "battle_pause";
@@ -137,6 +144,7 @@ public static class GameControls
         Button(MenuMemberRight, "Previous Member", Situation.Menus, Situation.Menus, MenuAction.MemberRight, ["Key:E"], ["Joy:RB"]),
         Button(MenuTabPrevious, "Previous Tab", Situation.Menus, Situation.Menus, MenuAction.TabPrevious, ["Key:Z"], ["Axis:LeftTrigger+"]),
         Button(MenuTabNext, "Next Tab", Situation.Menus, Situation.Menus, MenuAction.TabNext, ["Key:X"], ["Axis:RightTrigger+"]),
+        .. MenuMembers.Select((id, i) => Button(id, $"Member {i + 1}", Situation.Menus, Situation.Menus, null, [$"Key:Key{i + 1}"], [])),
 
         // A battle's own: the stick, the D-pad and the keys choose a target and move a held menu's cursor.
         Sources(BattleTarget, "Target", Situation.Combat, Battle, [InputSource.Wasd, InputSource.Arrows], [InputSource.LeftStick, InputSource.DPad], Walkable),
