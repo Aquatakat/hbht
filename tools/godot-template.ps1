@@ -296,7 +296,12 @@ function Test-GodotTemplate([string]$template) {
     if (-not $process.WaitForExit(120000)) { $process.Kill($true); throw "The bind check was still running after two minutes" }
     Get-Content -LiteralPath $log, "$log.stderr" | Where-Object { $_ -match '^BindCheck(:| failed)' } | ForEach-Object { Write-Host $_ }
     if ($process.ExitCode -ne 0 -or -not (Select-String -LiteralPath $log -Pattern '^BindCheck: \d+ classes bound, 0 failed' -Quiet)) {
-        throw "GodotSharp doesn't bind to the template $template (exit $($process.ExitCode)); the run's output is in $log"
+        # macOS kills a hardened app outright (SIGKILL, 137) when it breaks its code signing, as
+        # .NET's JIT does without the entitlements the apps' presets give it, before any output.
+        $hint = if ($platform -eq 'macos' -and $process.ExitCode -eq 137) {
+            ". Killed by the system, most likely for code signing: the bind check's macOS preset needs the apps' codesign/entitlements"
+        } else { '' }
+        throw "GodotSharp doesn't bind to the template $template (exit $($process.ExitCode))$hint; the run's output is in $log"
     }
     # GodotSharp's classes the template doesn't have, which the exports mustn't use (Assert-GodotClassesInTemplate).
     $missing = (Select-String -LiteralPath $log -Pattern '^BindCheck missing: (.*)$').Matches[0].Groups[1].Value
