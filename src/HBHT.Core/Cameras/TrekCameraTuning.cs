@@ -92,6 +92,7 @@ namespace HBHT.Core.Cameras;
 /// <param name="SneakIn">How long sneaking's framing takes to take hold.</param>
 /// <param name="SneakOut">How long it takes to let go.</param>
 /// <param name="BoomLimits">What limits the boom and the camera's place: "collision" (the collision's walls, from either side, and the drawn world), or "drawn" (the drawn world's solid surfaces alone, the camera kept over floor by the collision): a trial, off by default.</param>
+/// <param name="FurnitureClear">Under the furniture rule, how far below the lens a bare wall's top must be for the boom to pass it.</param>
 /// <param name="SneakSwitch">The share of the held hunter's distance another must be within to be framed instead.</param>
 public sealed record TrekCameraTuning(
     float OutdoorLength = 5,
@@ -180,7 +181,8 @@ public sealed record TrekCameraTuning(
     float SneakIn = 0.4f,
     float SneakOut = 0.8f,
     float SneakSwitch = 0.8f,
-    string BoomLimits = "collision")
+    string BoomLimits = "collision",
+    float FurnitureClear = 0.4f)
 {
     public static TrekCameraTuning Default { get; } = new();
 

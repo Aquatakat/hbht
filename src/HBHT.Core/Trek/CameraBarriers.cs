@@ -22,7 +22,8 @@ public static class CameraBarriers
 
     public sealed record Tally(float WallArea, float BareArea, Dictionary<int, float> BareBySurface, List<float> BareTops, int Chunks);
 
-    public static (Tally Interior, Tally Outdoor) Run(PluginSet plugins, int mostChunksPerSet = 40)
+    /// <param name="perChunk">Told each chunk's area of wholly bare walls under 2.2 over the floor: furniture.</param>
+    public static (Tally Interior, Tally Outdoor) Run(PluginSet plugins, int mostChunksPerSet = 40, Action<ChunkRecord, bool, float>? perChunk = null)
     {
         var interior = new Tally(0, 0, [], [], 0);
         var outdoor = new Tally(0, 0, [], [], 0);
@@ -43,6 +44,7 @@ public static class CameraBarriers
                 var triangles = new List<CollisionWorld.Triangle>();
                 streamer.World.Near(origin.X, origin.Z, origin.X + set.CellSize, origin.Z + set.CellSize, triangles, key);
                 var any = false;
+                var low = 0f;
                 foreach (var t in triangles.Distinct())
                 {
                     if (MathF.Abs(t.Normal.Y) >= 0.45f || t.Has(Plugins.Assets.CollisionFlags.SeeThrough))
@@ -67,9 +69,14 @@ public static class CameraBarriers
                         var top = MathF.Max(t.A.Y, MathF.Max(t.B.Y, t.C.Y));
                         var foot = centre + t.Normal * 0.3f;
                         if (SpherePhysics.SweepNearest(streamer.World, foot with { Y = top + 0.5f }, foot with { Y = top - 8 }, 0.05f, true, 0.5f, out var floor, out _))
+                        {
                             tally.BareTops.Add(top - floor.Y);
+                            if (top - floor.Y < 2.2f)
+                                low += area;
+                        }
                     }
                 }
+                perChunk?.Invoke(chunk, isInterior, low);
                 if (isInterior)
                     interior = tally with { Chunks = tally.Chunks + (any ? 1 : 0) };
                 else

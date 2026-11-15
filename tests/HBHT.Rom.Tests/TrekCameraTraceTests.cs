@@ -137,4 +137,30 @@ public sealed class TrekCameraTraceTests(Na10Import fixture, ITestOutputHelper o
             output.WriteLine($"{t}: turned {r.TotalTurn:F1}°");
         Assert.Empty(turned);
     }
+
+    /// <summary>
+    /// Laps hugging GwerniaCastle G01's meeting table (map set 4), whose collision is a hollow box rising well over the drawn
+    /// table: under the furniture rule the boom passes it and stays at its length with no falls; under collision it keeps
+    /// being cut.
+    /// </summary>
+    [Fact]
+    public void UnderTheFurnitureRuleTheBoomStaysWholeRoundG01sTable()
+    {
+        var walk = new CameraWalk("g01", 4, "G01", new System.Numerics.Vector3(19.3f, 5, 8.3f), System.Numerics.Vector2.UnitX, null, "G01", [], 7200);
+        CameraFeel Laps(string limits)
+        {
+            var feel = new CameraFeel();
+            CameraTrace.Run(fixture.Data.Set, walk, CameraStyle.Enhanced, (t, _) => feel.Tick(t), TrekCameraTuning.Default with { BoomLimits = limits },
+                plan: t => CameraTour.Around(t, new System.Numerics.Vector2(t.Player.Sphere.Position.X - 3.25f, t.Player.Sphere.Position.Z + 0.25f), 0.8f, 2),
+                setDown: true);
+            return feel;
+        }
+        var furniture = Laps("furniture");
+        var collision = Laps("collision");
+        output.WriteLine($"furniture: excursions {furniture.Excursions}, arm median {furniture.ArmMedian:F2}; collision: {collision.Excursions}, {collision.ArmMedian:F2}");
+        Assert.Equal(0, furniture.Excursions);
+        Assert.True(furniture.ArmMedian > 3.4f);
+        Assert.Equal(0, furniture.PastDrawn);
+        Assert.True(collision.Excursions > 5);
+    }
 }

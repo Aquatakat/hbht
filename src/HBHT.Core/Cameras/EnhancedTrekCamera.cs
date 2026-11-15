@@ -149,6 +149,7 @@ public sealed partial class EnhancedTrekCamera
         bool door = true)
     {
         (_length, _basePitch) = Place(interior);
+        _headY = player.Y + Tuning.Height;
         _userPitch = 0;
         _sinceInput = Tuning.InputWait;
         _travel = Vector2.Zero;
@@ -277,8 +278,10 @@ public sealed partial class EnhancedTrekCamera
         var chest = player + new Vector3(0, 0.5f, 0);
         if (Tuning.BoomLimits == "drawn" && visible is not null)
             return visible.RaycastSolid(eye, chest, scrollingSolid: true) is null;
-        return SpherePhysics.SweepEitherSide(world, eye, chest, 0.01f, skipSeeThrough: true) is null
-            && visible?.RaycastSolid(eye, chest) is null;
+        // Under the furniture rule, the sight line passes what the boom may: a bare wall below the lens.
+        var passes = Tuning.BoomLimits == "furniture" ? Furniture(world, visible, Direction) : null;
+        return SpherePhysics.SweepEitherSide(world, eye, chest, 0.01f, skipSeeThrough: true, passes) is null
+            && visible?.RaycastSolid(eye, chest, scrollingSolid: true) is null;
     }
 
     /// <summary>
@@ -303,6 +306,7 @@ public sealed partial class EnhancedTrekCamera
             Adopt(camera);
         }
 
+        _headY = player.Y + t.Height;
         // His travel, eased over a few ticks, unless he jumped.
         var moved = new Vector2(player.X - _lastPlayer.X, player.Z - _lastPlayer.Z);
         _lastPlayer = player;
@@ -817,14 +821,17 @@ public sealed partial class EnhancedTrekCamera
         if (t.BoomLimits == "drawn" && visible is not null)
             return FreeDrawn(world, visible, way, length);
         var free = length;
-        if (SpherePhysics.SweepEitherSide(world, _pivot, _pivot + way * length, t.Radius, skipSeeThrough: true) is { } share)
+        // The furniture rule: bare walls the lens looks over, with ground beyond, are passed.
+        var passes = t.BoomLimits == "furniture" ? Furniture(world, visible, way) : null;
+        if (SpherePhysics.SweepEitherSide(world, _pivot, _pivot + way * length, t.Radius, skipSeeThrough: true, passes) is { } share)
             free = share * length - t.Margin;
         // The sphere's sweep meets faces only, so a corner or an edge can slip between: a thin ray along the middle too.
-        if (SpherePhysics.SweepEitherSide(world, _pivot, _pivot + way * length, 0.01f, skipSeeThrough: true) is { } line)
+        if (SpherePhysics.SweepEitherSide(world, _pivot, _pivot + way * length, 0.01f, skipSeeThrough: true, passes) is { } line)
             free = MathF.Min(free, line * length - t.Radius - t.Margin);
         // The drawn surface is kept a sphere's radius off, measured square to it: along a ray that meets it at a slant, further.
+        // An opaque scrolling one (lava, a glow) stops it too.
         var reach = length + 4 * t.Radius;
-        if (visible?.RaycastSolid(_pivot, _pivot + way * reach) is { } drawn)
+        if (visible?.RaycastSolid(_pivot, _pivot + way * reach, scrollingSolid: true) is { } drawn)
         {
             var slant = MathF.Max(MathF.Abs(Vector3.Dot(way, drawn.Normal)), 0.25f);
             free = MathF.Min(free, drawn.Share * reach - (t.Radius + t.Margin) / slant);
@@ -839,6 +846,68 @@ public sealed partial class EnhancedTrekCamera
     /// pivot to a sphere's radius round the far end, kept the margin off) so the lens has a body; collision only for bounds, the camera kept over floor (a probe
     /// down from points along the boom finds ground within 6 under each), and the see-through flag aside.
     /// </summary>
+    /// <summary>
+    /// The furniture rule (<see cref="TrekCameraTuning.BoomLimits"/> "furniture"), for a boom along <paramref name="way"/>: which
+    /// collision triangles it may pass. A wall (under 0.45 up or down) with nothing solid drawn at it (<see cref="Bare"/>),
+    /// whose top is below the lens by <see cref="TrekCameraTuning.FurnitureClear"/>: the lens's height taken at the place's own
+    /// pitch and length from above his head, so the decision doesn't change as the pitch settles or the arm moves; and only
+    /// where the camera's place beyond is over ground (probes down from the full length and two-thirds of it find ground within
+    /// 6), so a low bare barrier at a ledge or a balcony still stops it. Null, passing nothing, where there's no ground beyond.
+    /// </summary>
+    private Func<CollisionWorld.Triangle, bool>? Furniture(CollisionWorld world, VisibleWorld? visible, Vector3 way)
+    {
+        var t = Tuning;
+        var flat = new Vector3(way.X, 0, way.Z);
+        if (flat.LengthSquared() < 1e-6f)
+            return null;
+        flat = Vector3.Normalize(flat);
+        var (sinPitch, cosPitch) = MathF.SinCos(_basePitch * Degree);
+        var head = new Vector3(_pivot.X, _headY, _pivot.Z);
+        var place = head + (flat * cosPitch + new Vector3(0, sinPitch, 0)) * _length;
+        foreach (var share in new[] { 1f, 2f / 3 })
+        {
+            var at = head + (place - head) * share;
+            if (!SpherePhysics.SweepNearest(world, at, at - new Vector3(0, 6, 0), 0.05f, skipSeeThrough: false, minUp: 0.5f, out _, out _))
+                return null;
+        }
+        var lens = place.Y - t.FurnitureClear;
+        return tri => MathF.Abs(tri.Normal.Y) < 0.45f && MathF.Max(tri.A.Y, MathF.Max(tri.B.Y, tri.C.Y)) < lens && Bare(visible, tri);
+    }
+
+    private readonly Dictionary<(Vector3, Vector3, Vector3), bool> _bare = [];
+
+    /// <summary>Whether nothing solid is drawn at a collision triangle's top: no drawn surface within 0.35 across it at its middle or most of the way to its top corners.</summary>
+    private bool Bare(VisibleWorld? visible, CollisionWorld.Triangle tri)
+    {
+        if (visible is null)
+            return false;
+        var key = (tri.A, tri.B, tri.C);
+        if (_bare.TryGetValue(key, out var known))
+            return known;
+        const float Near = 0.35f;
+        var centre = (tri.A + tri.B + tri.C) / 3;
+        var bare = true;
+        // Sampled toward its top: a table's box rises a good way over the drawn table and its benches, while a room's wall is
+        // drawn up to its top.
+        var top = MathF.Max(tri.A.Y, MathF.Max(tri.B.Y, tri.C.Y));
+        var samples = new[] { tri.A, tri.B, tri.C }.Where(v => v.Y > top - 0.3f).Select(v => centre + (v - centre) * 0.8f).Append(centre);
+        foreach (var s in samples)
+            if (visible.RaycastSolid(s + tri.Normal * Near, s - tri.Normal * Near, scrollingSolid: true) is not null
+                || visible.RaycastSolid(s - tri.Normal * Near, s + tri.Normal * Near, scrollingSolid: true) is not null)
+            {
+                bare = false;
+                break;
+            }
+        if (_bare.Count > 200_000)
+            _bare.Clear();
+        return _bare[key] = bare;
+    }
+
+    /// <summary>How many triangles the furniture rule has found bare, for the rig.</summary>
+    public int BareWalls => _bare.Count(x => x.Value);
+
+    private float _headY;
+
     /// <summary>What limited the boom under the drawn limits at its last test, for the rig.</summary>
     public string DrawnLimit { get; private set; } = "";
 
