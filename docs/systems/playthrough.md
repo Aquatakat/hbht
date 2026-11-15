@@ -4,7 +4,7 @@
 
 It finds softlocks, flags nothing can set, scripts that stop, routes that can't be walked, battles a sensibly levelled party can't win, and crashes. It doesn't judge anything drawn or heard, or whether the port plays as 1.0 does: a fault the port shares with 1.0 plays as 1.0's does.
 
-The code is in `src/HBHT.Core/Playthrough` (namespace `HBHT.Core.Playthrough`), beside the other tools over the real rules (`Reach`, `MovementCompare`), and the CLI's report in `src/HBHT.Cli`. Its real-data tests are in `tests/HBHT.Rom.Tests/Playthrough*.cs`, slow ones marked `Slow`. The roadmap's [Phase 4](../roadmap.md#the-playthrough-bot) holds each slice's status.
+The code is in `src/HBHT.Core/Playthrough` (namespace `HBHT.Core.Playthrough`), beside the other tools over the real rules (`Reach`, `MovementCompare`), and the CLI's report in `src/HBHT.Cli`. Its real-data tests are in `tests/HBHT.Rom.Tests/Playthrough*.cs`, slow ones marked `Slow`.
 
 ## The layers
 
@@ -945,6 +945,8 @@ Stage 5. The 2,229 targets above are only the flags the model's actions set. Eve
 - **The 125 new: 115 covered.** 70 of the 76 traps; 15 of the 17 camping flags, the check flag 4240 among them; the help menu; and 29 of the 31 over the engine's, most of them by the trunk's own game. Left: six traps (the chest in the canyon near Port Saiid, E13/14's 2034, with no plan; four in Shamsuk's Tower, 2286, 3218, 3221 and 3224, behind a way to the tower the planner gives up on; and E05/24's level 4, 2292, which the party there always disarms); Godric and Becan's camp after Shamsuk (468 and 5150), lost walking into Overworld I13/5, the story's order with Becan as at [party jobs](#party-jobs); and the seasons' bits 1 and 2 (2311, 2312), seasons 2 to 5, which the trunk's game, some 70 days from week 6 of the first season, doesn't reach and no job waits months for.
 
 ## Where it stands
+
+**Flag coverage is done** (Nov 14, 2026): from a new game a fresh trunk tree sets every target that's the bot's, 2,317 of the 2,353, and the other 36 are in `NotTheBots` ([after stage 10](#after-stage-10)).
 
 From a new game the run reaches the ending: the Coronation of Alaron plays and the ending's credits roll. It plays 86 steps, 3,915,237 ticks (about 1,088 game minutes), in about 2 minutes of wall time (the run is deterministic: the same plugins play the same run, and a change to where routes start, as the set-down arrivals and `SnapStart` were, sends it another way).
 
