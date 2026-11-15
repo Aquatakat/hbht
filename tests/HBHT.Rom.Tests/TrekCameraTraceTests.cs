@@ -175,6 +175,41 @@ public sealed class TrekCameraTraceTests(Na10Import fixture, ITestOutputHelper o
     }
 
     /// <summary>
+    /// Turning back on himself (<see cref="TrekCameraTuning.TurnFrom"/>): walking M05's hallway and back six times, each
+    /// turn-back is a planned tuck, the arm never moving in faster than 5 a second after the arrival's first second; and on
+    /// open ground (Overworld C14) the same walk is the ordinary follow, tick for tick as with planning off.
+    /// </summary>
+    [Fact]
+    public void ATurnBackIsOneCalmTuckAndOpenGroundIsUnchanged()
+    {
+        var plugins = fixture.Data.Set;
+        static IReadOnlyList<CameraTour.Stop> Back(System.Numerics.Vector2 a, System.Numerics.Vector2 b) =>
+            [.. Enumerable.Range(0, 6).Select(i => new CameraTour.Stop(i % 2 == 0 ? b : a, 45))];
+        var hall = new CameraWalk("M05", 4, "I07", new System.Numerics.Vector3(15.5f, 5, 4), new System.Numerics.Vector2(0, -1), "aidyn:chunk/4/M05", "M05", [], 3600);
+        float fastest = 0, last = float.NaN;
+        CameraTrace.Run(plugins, hall, CameraStyle.Enhanced, (t, tick) =>
+        {
+            var arm = t.EnhancedCamera.Arm;
+            if (tick > 60 && !float.IsNaN(last))
+                fastest = MathF.Max(fastest, (last - arm) * 60);
+            last = arm;
+        }, plan: t =>
+        {
+            var o = t.Chunks.Origin(t.Chunks.Find("M05")!);
+            return Back(new(o.X + 4.3f, o.Z + 20), new(o.X + 4.3f, o.Z + 6));
+        });
+        output.WriteLine($"M05 turn-backs: the arm's fastest inward {fastest:F1} a second");
+        Assert.True(fastest <= 5, $"the arm came in at {fastest:F1} a second");
+        var open = new CameraWalk("C14", 0, "C14", new System.Numerics.Vector3(40, 0, 53), System.Numerics.Vector2.UnitX, null, "C14", [], 3600);
+        ulong Sum(TrekCameraTuning tuning) => CameraTrace.Run(plugins, open, CameraStyle.Enhanced, tuning: tuning, setDown: true, plan: t =>
+        {
+            var o = t.Chunks.Origin(t.Chunks.Find("C14")!);
+            return Back(new(o.X + 40, o.Z + 53), new(o.X + 52, o.Z + 53));
+        }).Checksum;
+        Assert.Equal(Sum(TrekCameraTuning.Default with { TurnFrom = 0 }), Sum(TrekCameraTuning.Default));
+    }
+
+    /// <summary>
     /// Laps hugging GwerniaCastle G01's meeting table (map set 4), whose collision is a hollow box rising well over the drawn
     /// table: under the furniture rule the boom passes it and stays at its length with no falls; under collision it keeps
     /// being cut.
