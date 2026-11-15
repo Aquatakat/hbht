@@ -18,8 +18,6 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 **M4: the prologue** is done: the user played it side by side with the emulator, what differed is fixed, and the user has played the fixes. **Phase 4: content parity** is under way: [the playthrough bot](#the-playthrough-bot) plays the game headless to the ending and sets every flag reachable. Next is the rest of the phase: the journal entries, rules parity area by area, and which of the original's bugs to keep.
 
-Beside it, **Camera: Enhanced** now covers trek and conversations as well as battles, built Nov 14, 2026 as the user asked: [the enhanced trek camera](systems/cameras.md#the-enhanced-trek-camera-camera-enhanced) (the boom with its spring arm, arriving behind him, close quarters, the path's bend, slopes, nudges and sneaking) and [the enhanced conversation camera](systems/cameras.md#the-enhanced-conversation-camera-camera-enhanced), which chooses its shots from the script. Both are measured headless (the camera trace, the arrival census and the shot census), and the user has played them in every situation the check named; each section's **Left** has what's open.
-
 ### Left over from finished work
 
 - **The menus' mouse:** the mouse choosing a row, and on the World tab ([pause menu](systems/pause-menu.md)); the user has set it aside for now. The menus' motion is otherwise 1.0's: their slides, fades and scroll, a battle's pause on a wide screen and the details' edge.
