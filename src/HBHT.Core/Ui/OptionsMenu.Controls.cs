@@ -45,7 +45,8 @@ public sealed partial class OptionsMenu
 
     /// <summary>
     /// The Controls page: the device first, then each situation's controls under its heading, each a binding or, for a direction, a
-    /// choice among its sources' combinations, then the mouse's sensitivity on the keyboard's page, and Reset to Defaults.
+    /// choice among its sources' combinations, then the mouse's sensitivity and Invert Mouse Y on the keyboard's page or Invert Camera Y
+    /// on the controller's, and Reset to Defaults.
     /// </summary>
     private List<OptionRow> ControlRows()
     {
@@ -68,12 +69,18 @@ public sealed partial class OptionsMenu
         {
             rows.Add(new("Mouse Sensitivity", OptionKind.Choice, () => NearestIndex(Sensitivities, Settings.MouseSensitivity),
                 v => Settings.MouseSensitivity = Sensitivities[v], [.. Sensitivities.Select(s => s.ToString("0.##", CultureInfo.InvariantCulture) + "x")], GapBefore: true));
+            rows.Add(new("Invert Mouse Y", OptionKind.Choice, () => Settings.InvertMouseY ? 1 : 0, v => Settings.InvertMouseY = v == 1, ["Off", "On"]));
+        }
+        else
+        {
+            rows.Add(new("Invert Camera Y", OptionKind.Choice, () => Settings.InvertCameraY ? 1 : 0, v => Settings.InvertCameraY = v == 1, ["Off", "On"],
+                GapBefore: true));
         }
         rows.Add(new("Reset to Defaults", OptionKind.Command, () => 0, _ =>
         {
             Bindings.Reset();
             Say("Controls Reset");
-        }, [], GapBefore: Device != ControlDevice.Keyboard));
+        }, []));
         return rows;
     }
 

@@ -152,12 +152,14 @@ public partial class UiScreen : Control
 
     /// <summary>
     /// Whether the mouse reaches the views on the screen, its position mapped into the screen's
-    /// pixels. Off by default, so the screen doesn't take the mouse from what's under it.
+    /// pixels. Off by default, so the screen doesn't take the mouse from what's under it. What no view takes, a right click
+    /// that's Back among them, goes on to the game's unhandled input.
     /// </summary>
     public bool ForwardsMouse
     {
         get => MouseFilter != MouseFilterEnum.Ignore;
-        set => MouseFilter = value ? MouseFilterEnum.Stop : MouseFilterEnum.Ignore;
+        // Pass, not Stop, which would mark every event handled whether a view took it or not.
+        set => MouseFilter = value ? MouseFilterEnum.Pass : MouseFilterEnum.Ignore;
     }
 
     public override void _GuiInput(InputEvent @event)
@@ -171,7 +173,8 @@ public partial class UiScreen : Control
         copy.Position = (mouse.Position - rect.Position) / rect.Size * (Vector2)CanvasSize;
         copy.GlobalPosition = copy.Position;
         _viewport.PushInput(copy, true);
-        AcceptEvent();
+        if (_viewport.IsInputHandled())
+            AcceptEvent();
     }
 
     /// <summary>The screen as it's drawn, in its own pixels, before it's scaled up.</summary>

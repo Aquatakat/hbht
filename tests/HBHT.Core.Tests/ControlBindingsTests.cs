@@ -18,26 +18,27 @@ public class ControlBindingsTests : IDisposable
 
     /// <summary>
     /// The runtime's input actions before the Controls page (<c>Game.AddInputs</c>), as the controls that took each over in the
-    /// situations that read it: the defaults are those bindings, so nothing changes for a player who never opens the page.
+    /// situations that read it: the controller's defaults are those bindings. The keyboard's put the mouse first (ADR 0040): mouse
+    /// look, the left button as A in trek and a battle, and the right as B everywhere.
     /// </summary>
     [Theory]
     // move_forward W/Up/LeftY-, move_back S/Down/LeftY+, move_left A/Left/LeftX-, move_right D/Right/LeftX+.
     [InlineData("move", "Source:WASD Source:Arrows", "Source:LeftStick")]
     // camera_left Q and RightX-, camera_right E and RightX+, camera_up and down RightY; orbit (RB) with the left stick.
-    [InlineData("camera", "", "Source:LeftStick Source:RightStick")]
-    [InlineData("camera_hold", "Mouse:Right", "Joy:RB")]
+    [InlineData("camera", "Source:Mouse", "Source:LeftStick Source:RightStick")]
+    [InlineData("camera_hold", "", "Joy:RB")]
     [InlineData("camera_left", "Key:Q", "")]
     [InlineData("camera_right", "Key:E", "")]
     [InlineData("walk", "Key:Shift", "")]
     [InlineData("sneak", "Key:Ctrl", "Axis:LeftTrigger+")]
     // pause: Enter, Escape, Start; menu_accept Space, A; menu_back Backspace, B.
-    [InlineData("use", "Key:Space", "Joy:A")]
-    [InlineData("portraits", "Key:Backspace", "Joy:B")]
+    [InlineData("use", "Key:Space Mouse:Left", "Joy:A")]
+    [InlineData("portraits", "Key:Backspace Mouse:Right", "Joy:B")]
     [InlineData("pause", "Key:Enter Key:Escape", "Joy:Start")]
     // The menus' directions: the movement keys, the left stick, and the D-pad (menu_up and so on).
     [InlineData("menu_cursor", "Source:WASD Source:Arrows", "Source:LeftStick Source:DPad")]
     [InlineData("menu_accept", "Key:Space", "Joy:A")]
-    [InlineData("menu_back", "Key:Backspace", "Joy:B")]
+    [InlineData("menu_back", "Key:Backspace Mouse:Right", "Joy:B")]
     [InlineData("menu_close", "Key:Enter Key:Escape", "Joy:Start")]
     [InlineData("menu_details", "Key:Tab", "Joy:Y")]
     [InlineData("menu_appraise", "Key:R", "Joy:X")]
@@ -47,15 +48,15 @@ public class ControlBindingsTests : IDisposable
     [InlineData("menu_tab_next", "Key:X", "Axis:RightTrigger+")]
     // Combat read the same actions as the menus.
     [InlineData("battle_target", "Source:WASD Source:Arrows", "Source:LeftStick Source:DPad")]
-    [InlineData("battle_attack", "Key:Space", "Joy:A")]
-    [InlineData("battle_cancel", "Key:Backspace", "Joy:B")]
+    [InlineData("battle_attack", "Key:Space Mouse:Left", "Joy:A")]
+    [InlineData("battle_cancel", "Key:Backspace Mouse:Right", "Joy:B")]
     [InlineData("battle_skip", "Key:Z", "Axis:LeftTrigger+")]
     [InlineData("battle_spells", "Key:Tab", "Joy:Y")]
     [InlineData("battle_items", "Key:R", "Joy:X")]
     [InlineData("battle_ranged_left", "Key:Q", "Joy:LB")]
     [InlineData("battle_ranged_right", "Key:E", "Joy:RB")]
     [InlineData("battle_pause", "Key:Enter Key:Escape", "Joy:Start")]
-    public void TheDefaultsAreTheBindingsTheRuntimeAlwaysHad(string control, string keyboard, string controller)
+    public void TheDefaultsAreTheRuntimesOldBindingsWithTheMouseFirst(string control, string keyboard, string controller)
     {
         var bindings = new ControlBindings();
 
@@ -179,7 +180,7 @@ public class ControlBindingsTests : IDisposable
         Assert.False(bindings.SetSources(GameControls.MenuCursor, Pad, []).Done);
         // Taking Accept's only key refuses the change.
         Assert.Equal("Accept Needs It", bindings.Rebind(GameControls.MenuBack, Keys, "Key:Space").Refusal);
-        Assert.Equal(["Key:Backspace"], bindings.Get(GameControls.MenuBack, Keys));
+        Assert.Equal(["Key:Backspace", "Mouse:Right"], bindings.Get(GameControls.MenuBack, Keys));
         // The rest can be left with nothing.
         Assert.True(bindings.Clear(GameControls.MenuDetails, Keys).Done);
         Assert.Empty(bindings.Get(GameControls.MenuDetails, Keys));
@@ -208,7 +209,7 @@ public class ControlBindingsTests : IDisposable
     public void TheBindingsKeepInTheSettingsFile()
     {
         var path = Path.Combine(_folder, "settings.json");
-        var settings = new Settings { MouseSensitivity = 2 };
+        var settings = new Settings { MouseSensitivity = 2, InvertMouseY = true, InvertCameraY = true };
         settings.Controls.Rebind(GameControls.Use, Keys, "Key:F");
         settings.Controls.SetSources(GameControls.Camera, Keys, [InputSource.Mouse]);
         settings.Controls.Clear(GameControls.Walk, Keys);
@@ -220,6 +221,8 @@ public class ControlBindingsTests : IDisposable
         Assert.DoesNotContain("\"menu_accept\"", text);
         var read = Settings.Load(path);
         Assert.Equal(2, read.MouseSensitivity);
+        Assert.True(read.InvertMouseY);
+        Assert.True(read.InvertCameraY);
         Assert.Equal(["Key:F"], read.Controls.Get(GameControls.Use, Keys));
         Assert.Equal(["Joy:A"], read.Controls.Get(GameControls.Use, Pad));
         Assert.Equal([InputSource.Mouse], read.Controls.Get(GameControls.Camera, Keys));
@@ -293,10 +296,10 @@ public class ControlBindingsTests : IDisposable
         Assert.Equal("Device", rows[0].Label);
         Assert.Equal("Keyboard", rows[0].ValueName);
         Assert.Equal(["Trek", "Menus", "Combat"], rows.Select(r => r.Heading).OfType<string>());
-        Assert.Equal(["Mouse Sensitivity", "Reset to Defaults"], rows.TakeLast(2).Select(r => r.Label));
+        Assert.Equal(["Mouse Sensitivity", "Invert Mouse Y", "Reset to Defaults"], rows.TakeLast(3).Select(r => r.Label));
         Assert.Equal("WASD, Arrows", rows[RowOf(options, "move")].ValueName);
         Assert.Equal("Enter, Escape", rows[RowOf(options, "pause")].ValueName);
-        Assert.Equal("None", rows[RowOf(options, "camera")].ValueName);
+        Assert.Equal("Mouse", rows[RowOf(options, "camera")].ValueName);
 
         // The Device row switches the page to the controller's bindings, which have no mouse.
         options.Point(0);
@@ -305,7 +308,8 @@ public class ControlBindingsTests : IDisposable
         Assert.Equal("Left Stick", options.Rows.Rows[RowOf(options, "move")].ValueName);
         Assert.Equal("Both Sticks", options.Rows.Rows[RowOf(options, "camera")].ValueName);
         Assert.Equal("LT", options.Rows.Rows[RowOf(options, "sneak")].ValueName);
-        Assert.DoesNotContain(options.Rows.Rows, r => r.Label == "Mouse Sensitivity");
+        Assert.DoesNotContain(options.Rows.Rows, r => r.Label is "Mouse Sensitivity" or "Invert Mouse Y");
+        Assert.Equal(["Invert Camera Y", "Reset to Defaults"], options.Rows.Rows.TakeLast(2).Select(r => r.Label));
     }
 
     [Fact]

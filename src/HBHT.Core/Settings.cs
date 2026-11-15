@@ -189,4 +189,13 @@ public sealed class Settings
 
     /// <summary>How far the mouse turns the camera, as a multiple of the drag the runtime always had.</summary>
     public float MouseSensitivity { get; set; } = 1;
+
+    /// <summary>Whether the mouse's up raises the camera rather than lowering it, as moving it up looks up by default.</summary>
+    public bool InvertMouseY { get; set; }
+
+    /// <summary>
+    /// Whether a controller's stick or D-pad on Camera lowers the camera pushed up rather than raising it, as the N64's R with the
+    /// stick does by default.
+    /// </summary>
+    public bool InvertCameraY { get; set; }
 }

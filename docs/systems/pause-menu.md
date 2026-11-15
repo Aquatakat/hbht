@@ -5,7 +5,7 @@ The System, Party and World tabs (`BigAssMenu.cpp`, `DollMenu*.cpp`), the Party 
 - **The tabs are one long scroll.** Each tab is a widget tree in its own 320 × 240 frame, 320 pixels apart, and changing tab slides them all. Over them is a 3D scroll, `aidyn:actor/0x0E6B` (scene `0x0E63`), seen from above, which slides with them: System shows its wooden roller at the left, World at the right, Party neither. It unrolls as the menu opens and rolls up as it closes ([opening and closing](#opening-and-closing)).
 - **Each tab has a full-screen image** over the scroll (`pause_menu_borg8`): `0x00D8`, `0x00D9` and `0x00DA`, all 320 × 240.
 - **The menus keep the original's layouts at every screen size** ([ADR 0014](../adr/0014-menus-keep-the-originals-layouts.md)): each tab's image is drawn whole at the screen's centre and filled in at the original's coordinates.
-- **Not ported yet:** a mouse click choosing what it's over, and the mouse on the World tab. On the Party windows and the System tab, hovering a row and the wheel move the cursor, in the runtime and the editor.
+- **The mouse** ([ADR 0040](../adr/0040-the-mouse-comes-first-on-the-keyboard.md)): the right button is Back everywhere. On the Party windows and the System tab, hovering a row and the wheel move the cursor, in the runtime and the editor. **Not ported yet:** a left click choosing what it's under, the wheel scrolling the view rather than stepping the cursor, and the mouse on the World tab; until a window has its clicks, a left click there does nothing.
 
 ## Opening and closing
 
@@ -226,37 +226,38 @@ The user laid this out, and it isn't the original's ([ADR 0013](../adr/0013-sett
 
 ### Controls
 
-The port's own page ([ADR 0026](../adr/0026-controls-are-bound-by-situation.md), [ADR 0027](../adr/0027-conversations-take-the-menus-controls.md)): every control can be rebound, on the keyboard with the mouse and on a controller apart. `OptionsMenu.Controls.cs` holds the page over `Settings.Controls` (`ControlBindings`), and `SystemTabView.Controls.cs` draws it; the runtime turns the bindings into Godot's input actions as the game starts and whenever they change (`InputBindings`, [runtime](runtime.md#controls)).
+The port's own page ([ADR 0026](../adr/0026-controls-are-bound-by-situation.md), [ADR 0027](../adr/0027-conversations-take-the-menus-controls.md), [ADR 0040](../adr/0040-the-mouse-comes-first-on-the-keyboard.md)): every control can be rebound, on the keyboard with the mouse and on a controller apart. `OptionsMenu.Controls.cs` holds the page over `Settings.Controls` (`ControlBindings`), and `SystemTabView.Controls.cs` draws it; the runtime turns the bindings into Godot's input actions as the game starts and whenever they change (`InputBindings`, [runtime](runtime.md#controls)).
 
-- **The controls** are what the player does in each situation, not the N64's buttons (`GameControls`), so C-down is both the menus' Details and combat's Spell Menu, which share a default. The defaults:
+- **The controls** are what the player does in each situation, not the N64's buttons (`GameControls`), so C-down is both the menus' Details and combat's Spell Menu, which share a default. The defaults, the controller's the runtime's from before the page and the keyboard's with the mouse first (ADR 0040):
 
   | Situation | Control | Keyboard | Controller | What it is |
   | --- | --- | --- | --- | --- |
   | Trek | Move | WASD, Arrows | Left Stick | the stick: walks under 80% tilt, runs above |
-  | | Camera | None | Both Sticks | what steers the camera ([cameras](cameras.md#the-follow-camera-cameramode0)) |
-  | | Camera Hold | Right Click | RB | the N64's R: steers with what moves |
+  | | Camera | Mouse | Both Sticks | what steers the camera ([cameras](cameras.md#the-follow-camera-cameramode0)) |
+  | | Camera Hold | None | RB | the N64's R: steers with what moves |
   | | Camera Left, Camera Right | Q, E | None | turn the camera |
   | | Walk | Shift | None | the stick at half tilt |
   | | Sneak | Ctrl | LT | Z |
-  | | Use | Space | A | A: uses the map object reached |
-  | | Portraits | Backspace | B | B: raises or lowers the portraits |
+  | | Use | Space, Left Click | A | A: uses the map object reached |
+  | | Portraits | Backspace, Right Click | B | B: raises or lowers the portraits |
   | | Menu | Enter, Escape | Start | Start: opens the pause menu |
   | Menus | Move Cursor | WASD, Arrows | Left Stick, D-Pad | the stick and the D-pad |
-  | | Accept, Back | Space, Backspace | A, B | A, B |
+  | | Accept | Space | A | A; a left click takes what's under it instead |
+  | | Back | Backspace, Right Click | B | B |
   | | Close Menu | Enter, Escape | Start | Start |
   | | Details | Tab | Y | C-down, held |
   | | Appraise | R | X | C-up, in a shop; on this page it clears a binding |
   | | Next Member, Previous Member | Q, E | LB, RB | C-left, C-right |
   | | Previous Tab, Next Tab | Z, X | LT, RT | Z or L, R |
   | Combat | Target | WASD, Arrows | Left Stick, D-Pad | steps an attack's or a spell's target, moves a held menu's cursor |
-  | | Attack, Cancel | Space, Backspace | A, B | A, B |
+  | | Attack, Cancel | Space, Left Click; Backspace, Right Click | A, B | A, B |
   | | Skip Turn | Z | LT | Z |
   | | Spell Menu, Item Menu | Tab, R | Y, X | C-down, C-up, held |
   | | Ranged Left, Ranged Right | Q, E | LB, RB | C-left, C-right: a bow's or thrown weapon's target |
   | | Pause | Enter, Escape | Start | Start |
 
   **Cut-scenes and conversations take the menus' controls** ([ADR 0027](../adr/0027-conversations-take-the-menus-controls.md)), as do trek's popups, a backdrop's and the help menu's page, a cinematic and the credits: Move Cursor moves the choices, Accept continues, Back closes a popup, goes back on the help menu's page or skips a cinematic, and Close Menu skips a cut-scene, a cinematic or the credits. They're live in both situations (`Situation.Talking` is still what those modes are), so a rebound Accept is a conversation's too and the page can't say one thing while a conversation does another; the menus' other controls don't reach them. A battle's turn walks and turns the camera with trek's controls; Sneak still acts there but isn't checked against combat's buttons, since the left trigger is also Skip Turn. The debug keys ([runtime](runtime.md#controls)) aren't on the page and stay fixed.
-- **The layout:** the Device row (Keyboard, Controller) at y 70, then the list from y 88, nine lines 12 apart, a situation's heading taking a line of its own, centred in a darker brown. Labels are at x 72 and values at x 188, clear of the longest label, Previous Member, to 304; a value longer than that is printed in the slim font, as a save's long name is. The list scrolls to keep the cursor's row in the middle, with the System list's arrow `0x3757` turned up or down at the right where there's more. Under the list, at y 202, the last change's message for three seconds, or on a binding what clears it ("R: Clear"). One device shows at a time: a column for each won't fit the 238 pixels between the roller and the frame's edge. Mouse Sensitivity (0.25x to 4x, 1x the runtime's drag) is on the keyboard's page, then Reset to Defaults, which resets both devices.
+- **The layout:** the Device row (Keyboard, Controller) at y 70, then the list from y 88, nine lines 12 apart, a situation's heading taking a line of its own, centred in a darker brown. Labels are at x 72 and values at x 188, clear of the longest label, Previous Member, to 304; a value longer than that is printed in the slim font, as a save's long name is. The list scrolls to keep the cursor's row in the middle, with the System list's arrow `0x3757` turned up or down at the right where there's more. Under the list, at y 202, the last change's message for three seconds, or on a binding what clears it ("R: Clear"). One device shows at a time: a column for each won't fit the 238 pixels between the roller and the frame's edge. Mouse Sensitivity (0.25x to 4x, 1x the runtime's drag) and Invert Mouse Y are on the keyboard's page and Invert Camera Y on the controller's ([cameras](cameras.md#the-follow-camera-cameramode0)), then Reset to Defaults, which resets both devices' bindings but not those rows.
 - **A button's row:** A shows "Press a Key... 5" (or "Press a Button...") in its value, the row steady in the headings' brown, counting the seconds down. The next key, mouse button or wheel turn (on the keyboard's page), or controller button, stick or trigger pushed past 0.6 (on the controller's), replaces the cell, and the prompt closes. Nothing else ends it but the five seconds, which change nothing, so Escape, Backspace, Start and B can be bound like any other; an input of the other device and the debug keys' F-keys are passed over. While it waits it takes every event, before the menus (`Game.BindPrompted`), and the System tab's mouse handling lets the wheel and buttons by. The menus' Appraise (R, X) clears the cell.
 - **A direction's row** (Move, Camera, Move Cursor, Target) is a choice among its sources' combinations on the device: the stick's left and right or A step through None, each source, and each combination, "Both Sticks" for the two sticks. The mouse is only Camera's; Move Cursor never offers None.
 - **Conflicts** are checked only within a situation, and the newest binding wins: whatever else in the same situation had the input loses it, a button its binding and a direction the source holding it, and the foot says "Taken From Portraits". Two directions may share a source, which is how Camera Hold works. A battle's aiming (`Situation.Aiming`) is apart from its turn, so RB is both Camera Hold on a turn and Ranged Right when aiming.

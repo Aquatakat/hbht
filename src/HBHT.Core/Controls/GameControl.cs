@@ -81,7 +81,9 @@ public sealed record GameControl(string Id, string Label, Situation Heading, Sit
 
 /// <summary>
 /// The player's controls, in the order the Controls page lists them: what the runtime reads in trek, the menus, a battle and a
-/// conversation (its <c>MenuStick</c> and <c>Game.ReadInput</c>), with defaults that are the bindings the runtime always had.
+/// conversation (its <c>MenuStick</c> and <c>Game.ReadInput</c>). The controller's defaults are the bindings the runtime always
+/// had; the keyboard's put the mouse first (ADR 0040): mouse look, the left button as A and the right as B. The menus' Accept
+/// has no mouse button, since a click there takes what's under the pointer rather than the cursor's row.
 /// The debug keys (the F-keys, the free camera and fast-forward) aren't among them.
 /// </summary>
 public static class GameControls
@@ -111,22 +113,22 @@ public static class GameControls
     [
         // Trek, whose walking and camera a battle's turn shares.
         Sources(Move, "Move", Situation.Trek, Walking | Situation.Aiming, [InputSource.Wasd, InputSource.Arrows], [InputSource.LeftStick], Walkable),
-        Sources(Camera, "Camera", Situation.Trek, Walking, [], [InputSource.LeftStick, InputSource.RightStick], Lookable),
-        Button(CameraHold, "Camera Hold", Situation.Trek, Walking, null, ["Mouse:Right"], ["Joy:RB"]),
+        Sources(Camera, "Camera", Situation.Trek, Walking, [InputSource.Mouse], [InputSource.LeftStick, InputSource.RightStick], Lookable),
+        Button(CameraHold, "Camera Hold", Situation.Trek, Walking, null, [], ["Joy:RB"]),
         Button(CameraLeft, "Camera Left", Situation.Trek, Walking, null, ["Key:Q"], []),
         Button(CameraRight, "Camera Right", Situation.Trek, Walking, null, ["Key:E"], []),
         Button(Walk, "Walk", Situation.Trek, Walking, null, ["Key:Shift"], []),
         // Sneak acts in a battle's turn too, as it always has, but isn't checked there: the left trigger is also Skip Turn.
         Button(Sneak, "Sneak", Situation.Trek, Situation.Trek, null, ["Key:Ctrl"], ["Axis:LeftTrigger+"]),
-        Button(Use, "Use", Situation.Trek, Situation.Trek, MenuAction.Accept, ["Key:Space"], ["Joy:A"]),
-        Button(Portraits, "Portraits", Situation.Trek, Situation.Trek, MenuAction.Back, ["Key:Backspace"], ["Joy:B"]),
+        Button(Use, "Use", Situation.Trek, Situation.Trek, MenuAction.Accept, ["Key:Space", "Mouse:Left"], ["Joy:A"]),
+        Button(Portraits, "Portraits", Situation.Trek, Situation.Trek, MenuAction.Back, ["Key:Backspace", "Mouse:Right"], ["Joy:B"]),
         Button(Pause, "Menu", Situation.Trek, Situation.Trek, MenuAction.Start, ["Key:Enter", "Key:Escape"], ["Joy:Start"], essential: true),
 
         // A conversation's choices, its next line, closing it and skipping a cut-scene are the menus' cursor, Accept, Back and Close Menu.
         Sources(MenuCursor, "Move Cursor", Situation.Menus, MenusAndTalking, [InputSource.Wasd, InputSource.Arrows],
             [InputSource.LeftStick, InputSource.DPad], Walkable, essential: true),
         Button(MenuAccept, "Accept", Situation.Menus, MenusAndTalking, MenuAction.Accept, ["Key:Space"], ["Joy:A"], essential: true),
-        Button(MenuBack, "Back", Situation.Menus, MenusAndTalking, MenuAction.Back, ["Key:Backspace"], ["Joy:B"], essential: true),
+        Button(MenuBack, "Back", Situation.Menus, MenusAndTalking, MenuAction.Back, ["Key:Backspace", "Mouse:Right"], ["Joy:B"], essential: true),
         Button(MenuClose, "Close Menu", Situation.Menus, MenusAndTalking, MenuAction.Start, ["Key:Enter", "Key:Escape"], ["Joy:Start"]),
         Button(MenuDetails, "Details", Situation.Menus, Situation.Menus, MenuAction.Details, ["Key:Tab"], ["Joy:Y"], release: MenuAction.DetailsRelease),
         Button(MenuAppraise, "Appraise", Situation.Menus, Situation.Menus, MenuAction.Appraise, ["Key:R"], ["Joy:X"], release: MenuAction.AppraiseRelease),
@@ -138,8 +140,8 @@ public static class GameControls
 
         // A battle's own: the stick, the D-pad and the keys choose a target and move a held menu's cursor.
         Sources(BattleTarget, "Target", Situation.Combat, Battle, [InputSource.Wasd, InputSource.Arrows], [InputSource.LeftStick, InputSource.DPad], Walkable),
-        Button(BattleAttack, "Attack", Situation.Combat, Battle, MenuAction.Accept, ["Key:Space"], ["Joy:A"]),
-        Button(BattleCancel, "Cancel", Situation.Combat, Battle, MenuAction.Back, ["Key:Backspace"], ["Joy:B"]),
+        Button(BattleAttack, "Attack", Situation.Combat, Battle, MenuAction.Accept, ["Key:Space", "Mouse:Left"], ["Joy:A"]),
+        Button(BattleCancel, "Cancel", Situation.Combat, Battle, MenuAction.Back, ["Key:Backspace", "Mouse:Right"], ["Joy:B"]),
         Button(BattleSkip, "Skip Turn", Situation.Combat, Battle, MenuAction.TabPrevious, ["Key:Z"], ["Axis:LeftTrigger+"]),
         Button(BattleSpells, "Spell Menu", Situation.Combat, Situation.Combat, MenuAction.Details, ["Key:Tab"], ["Joy:Y"], release: MenuAction.DetailsRelease),
         Button(BattleItems, "Item Menu", Situation.Combat, Situation.Combat, MenuAction.Appraise, ["Key:R"], ["Joy:X"], release: MenuAction.AppraiseRelease),

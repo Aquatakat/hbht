@@ -19,11 +19,16 @@ public static class InputBindings
     /// <summary>Move's sources that aren't Camera's: what moves him, with or without Camera Hold. Up, down, left, right.</summary>
     public static readonly string[] Move = ["move_forward", "move_back", "move_left", "move_right"];
 
-    /// <summary>The sources both Move and Camera take: they move him, and with Camera Hold held steer the camera instead.</summary>
-    public static readonly string[] Steer = ["steer_forward", "steer_back", "steer_left", "steer_right"];
+    /// <summary>
+    /// The sources both Move and Camera take: they move him, and with Camera Hold held steer the camera instead. The keyboard's
+    /// and the controller's apart, as Invert Camera Y turns only the controller's.
+    /// </summary>
+    public static readonly string[] Steer = ["steer_forward", "steer_back", "steer_left", "steer_right"],
+        SteerPad = ["steer_pad_forward", "steer_pad_back", "steer_pad_left", "steer_pad_right"];
 
-    /// <summary>Camera's sources that aren't Move's, but the mouse: they steer the camera always.</summary>
-    public static readonly string[] Look = ["look_up", "look_down", "look_left", "look_right"];
+    /// <summary>Camera's sources that aren't Move's, but the mouse: they steer the camera always. The keyboard's and the controller's apart.</summary>
+    public static readonly string[] Look = ["look_up", "look_down", "look_left", "look_right"],
+        LookPad = ["look_pad_up", "look_pad_down", "look_pad_left", "look_pad_right"];
 
     /// <summary>The menus' cursor, which moves a conversation's choices too, and a battle's target and held menus.</summary>
     public static readonly string[] Menu = ["menu_up", "menu_down", "menu_left", "menu_right"],
@@ -32,7 +37,7 @@ public static class InputBindings
     /// <summary>Every action the bindings make: the buttons', and the directions'.</summary>
     public static readonly string[] Actions =
     [
-        .. GameControls.All.Where(c => c.Kind == ControlKind.Button).Select(c => c.Id), .. Move, .. Steer, .. Look, .. Menu, .. Target,
+        .. GameControls.All.Where(c => c.Kind == ControlKind.Button).Select(c => c.Id), .. Move, .. Steer, .. SteerPad, .. Look, .. LookPad, .. Menu, .. Target,
     ];
 
     private static readonly Dictionary<string, JoyButton> Buttons = new()
@@ -75,11 +80,15 @@ public static class InputBindings
         var moving = bindings.Get(GameControls.Move);
         var looking = bindings.Get(GameControls.Camera);
         AddSources(Move, moving.Except(looking));
-        AddSources(Steer, moving.Intersect(looking));
-        AddSources(Look, looking.Except(moving));
+        AddSources(Steer, moving.Intersect(looking).Where(IsKeyboard));
+        AddSources(SteerPad, moving.Intersect(looking).Where(s => !IsKeyboard(s)));
+        AddSources(Look, looking.Except(moving).Where(IsKeyboard));
+        AddSources(LookPad, looking.Except(moving).Where(s => !IsKeyboard(s)));
         AddSources(Menu, bindings.Get(GameControls.MenuCursor));
         AddSources(Target, bindings.Get(GameControls.BattleTarget));
     }
+
+    private static bool IsKeyboard(string source) => Binding.DeviceOf(source) == ControlDevice.Keyboard;
 
     /// <summary>Adds each source's four directions to four actions, up, down, left and right.</summary>
     private static void AddSources(string[] actions, IEnumerable<string> sources)

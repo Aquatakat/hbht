@@ -82,7 +82,11 @@ public partial class Game
     {
         var hold = Input.IsActionPressed(Action(GameControls.CameraHold));
         var own = Vector(InputBindings.Move);
-        var shared = Vector(InputBindings.Steer);
+        var sharedKeys = Vector(InputBindings.Steer);
+        var sharedPad = Vector(InputBindings.SteerPad);
+        var shared = (sharedKeys + sharedPad).LimitLength(1);
+        // Invert Camera Y turns the controller's up and down on the camera, not his walking.
+        var padY = _settings.InvertCameraY ? new Vector2(1, -1) : Vector2.One;
         var move = hold ? own : (own + shared).LimitLength(1);
         var stick = new System.Numerics.Vector2(move.X, -move.Y);
         if (Input.IsActionPressed(Action(GameControls.Walk)) && stick.Length() > 0.5f)
@@ -92,7 +96,8 @@ public partial class Game
         var orbit = false;
         var orbitStick = System.Numerics.Vector2.Zero;
         // What turns the camera while what moves him still does: Camera's own sources and its turning keys.
-        var look = Vector(InputBindings.Look) + new Vector2(Input.GetAxis(Action(GameControls.CameraLeft), Action(GameControls.CameraRight)), 0);
+        var look = Vector(InputBindings.Look) + Vector(InputBindings.LookPad) * padY
+            + new Vector2(Input.GetAxis(Action(GameControls.CameraLeft), Action(GameControls.CameraRight)), 0);
         if (look != Vector2.Zero)
         {
             orbit = true;
@@ -102,13 +107,14 @@ public partial class Game
         if (hold)
         {
             orbit = true;
-            orbitStick += new System.Numerics.Vector2(shared.X, -shared.Y);
+            var steer = (sharedKeys + sharedPad * padY).LimitLength(1);
+            orbitStick += new System.Numerics.Vector2(steer.X, -steer.Y);
         }
         var drag = _camera!.TakeDrag();
         if (_camera.MouseSteers)
         {
             orbit = true;
-            var scale = DragToStick * _settings.MouseSensitivity;
+            var scale = DragToStick * _settings.MouseSensitivity * (_settings.InvertMouseY ? new Vector2(1, -1) : Vector2.One);
             orbitStick += new System.Numerics.Vector2(drag.X * scale.X, drag.Y * scale.Y);
         }
         // He stands still only while what would move him steers, as with R; a source of Move's alone still walks him.
@@ -131,6 +137,21 @@ public partial class Game
         if (Input.MouseMode != mode)
             Input.MouseMode = mode;
         _camera?.MouseLook = look;
+    }
+
+    /// <summary>
+    /// Whether a mouse button is passed over: in trek and a battle with mouse look, while the mouse isn't captured, the click
+    /// that brings the window back to the front, which would otherwise use what he stands by or start an attack. It captures
+    /// the mouse instead.
+    /// </summary>
+    private bool UncapturedClick(GameSession session, InputEvent e)
+    {
+        if (e is not InputEventMouseButton || session.Mode is not (GameMode.Trek or GameMode.Combat) || _camera is not { Flying: false }
+            || !InputBindings.MouseLook(_settings.Controls) || Input.MouseMode == Input.MouseModeEnum.Captured)
+            return false;
+        CaptureMouse();
+        GetViewport().SetInputAsHandled();
+        return true;
     }
 
     /// <summary>
