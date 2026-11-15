@@ -376,7 +376,6 @@ public sealed partial class TrekLoop : IMapObjectHost
             Hud.Raise(false);
         var before = motion.Sphere.Position;
         _sneaking = input.Sneak;
-        _steerByEnhanced = Conversation is not { With: not null } && CameraStyle == CameraStyle.Enhanced && !Camera.Held;
         if (Conversation is { With: not null } framing)
             framing.Frame(Camera, world, Chunks.Visible, Wanderers.All);
         else if (CameraStyle == CameraStyle.Enhanced && !Camera.Held)
@@ -386,8 +385,7 @@ public sealed partial class TrekLoop : IMapObjectHost
             Camera.Step(world, motion.Sphere.Position, motion.Heading);
         Zone.Listen();
         var keys = Zone.Keys;
-        StepPlayer(world, motion, input, Camera, keys.Sounding(PlayerAnimation, _playerAudio, _playerSounds, motion.Sphere),
-            SteerLook(Camera));
+        StepPlayer(world, motion, input, Camera, keys.Sounding(PlayerAnimation, _playerAudio, _playerSounds, motion.Sphere));
         if (motion.FellOut)
         {
             Rescue();
@@ -455,8 +453,7 @@ public sealed partial class TrekLoop : IMapObjectHost
     /// orbiting it about him and otherwise following, and his standing still anchoring it; then he moves, up on the
     /// stick being the way the camera looks.
     /// </summary>
-    public static void StepPlayer(CollisionWorld world, PlayerMotion player, PlayerInput input, FollowCamera camera, IRootMotion animation,
-        Vector2? steer = null)
+    public static void StepPlayer(CollisionWorld world, PlayerMotion player, PlayerInput input, FollowCamera camera, IRootMotion animation)
     {
         if (input.Orbit)
             camera.Orbit(player.Sphere.Position, input.OrbitStick, moving: input.Free && input.Pushed);
@@ -464,7 +461,7 @@ public sealed partial class TrekLoop : IMapObjectHost
             camera.Follow();
         if (!input.Locked && !input.Pushed)
             camera.Anchor(player.Sphere.Position);
-        player.Step(world, input.Move, steer ?? camera.LookXZ, animation);
+        player.Step(world, input.Move, camera.LookXZ, animation);
     }
 
     /// <summary>

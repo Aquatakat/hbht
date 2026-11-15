@@ -28,9 +28,6 @@ public sealed class NudgeLean(EnhancedTrekCamera camera) : ITrekCameraLean
 
     public float Bound => camera.Tuning.NudgeBound;
 
-    /// <summary>A nudge turns the view, not his travel.</summary>
-    public bool Steers => false;
-
     /// <summary>The lean now, in degrees.</summary>
     public float Value => _lean;
 
@@ -47,7 +44,7 @@ public sealed class NudgeLean(EnhancedTrekCamera camera) : ITrekCameraLean
             if (Usable(player, travel) is { } usable)
                 goal += Toward(player, travel, usable, t.NudgeReach, t);
             if (Hunter(player) is { } hunter)
-                goal += Toward(player, travel, hunter, t.HunterReach, t);
+                goal += t.HunterShare * Toward(player, travel, hunter, t.HunterReach, t);
         }
         goal = Math.Clamp(goal, -t.NudgeBound, t.NudgeBound);
         var step = (goal - _lean) * (1 - MathF.Exp(-Tick / t.NudgeEase));

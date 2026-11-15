@@ -55,6 +55,7 @@ namespace HBHT.Core.Cameras;
 /// <param name="NudgeBound">The most the nudges lean the yaw's goal (<see cref="NudgeLean"/>).</param>
 /// <param name="NudgeReach">How far the use button's choice is asked for, and where its nudge fades to nothing.</param>
 /// <param name="HunterReach">Where a hunter's nudge fades to nothing.</param>
+/// <param name="HunterShare">The share of its lean a hunter's nudge gives: the stick being the camera's, a whole one drew a walker holding forward toward it.</param>
 /// <param name="NudgeEase">How long a nudge takes to ease most of the way.</param>
 /// <param name="NudgeRate">The fastest a nudge changes.</param>
 /// <param name="SneakLength">How much longer the boom is, sneaking past a hunter (<see cref="SneakFraming"/>).</param>
@@ -114,6 +115,7 @@ public sealed record TrekCameraTuning(
     float NudgeBound = 12,
     float NudgeReach = 8,
     float HunterReach = 15,
+    float HunterShare = 0.3f,
     float NudgeEase = 0.5f,
     float NudgeRate = 12,
     float SneakLength = 1,

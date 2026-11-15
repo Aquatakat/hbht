@@ -18,11 +18,6 @@ public interface ITrekCameraLean
     /// </summary>
     float Lean(Vector3 player, Vector2 travel, float yaw);
 
-    /// <summary>
-    /// Whether the player steers by this lean: the path's bend, yes, so holding forward follows the path; a nudge, no, or
-    /// holding forward past a hunter would curve him into it (<see cref="EnhancedTrekCamera.SteerXZ"/>).
-    /// </summary>
-    bool Steers => true;
 }
 
 /// <summary>
@@ -101,22 +96,6 @@ public sealed partial class EnhancedTrekCamera
     public float SlopePitch => _slope;
 
     private float _slope;
-
-    /// <summary>The part of the yaw's lean, in degrees, the player doesn't steer by: the nudges'.</summary>
-    private float _unsteered;
-
-    /// <summary>
-    /// The way the stick steers him, in X and Z: the look with the nudges' part of the lean taken out, so a nudge turns the
-    /// view and not his travel. Sneaking's framing and the bend's lean are steered by, as the view is.
-    /// </summary>
-    public Vector2 SteerXZ
-    {
-        get
-        {
-            var angle = _yaw + MathF.PI - _unsteered * Degree;
-            return new Vector2(MathF.Cos(angle), MathF.Sin(angle));
-        }
-    }
 
     /// <summary>What the boom turns about: above his head, lifted in close quarters.</summary>
     public Vector3 Pivot => _pivot;
@@ -334,21 +313,11 @@ public sealed partial class EnhancedTrekCamera
         var goal = _yaw;
         if (auto && _travel.Length() > t.MovingSpeed)
         {
-            float lean = 0, steering = 0;
+            float lean = 0;
             foreach (var l in Leans)
-            {
-                var one = Math.Clamp(l.Lean(player, _travel, Yaw), -l.Bound, l.Bound);
-                lean += one;
-                if (l.Steers)
-                    steering += one;
-            }
+                lean += Math.Clamp(l.Lean(player, _travel, Yaw), -l.Bound, l.Bound);
             lean = Math.Clamp(lean, -t.LeanBound, t.LeanBound);
-            _unsteered = lean - Math.Clamp(steering, -t.LeanBound, t.LeanBound);
             goal = MathF.Atan2(-_travel.Y, -_travel.X) + lean * Degree;
-        }
-        else
-        {
-            _unsteered = 0;
         }
         // Sneaking past a hunter: toward his far side from it, as quickly as its weight allows.
         var sneak = auto ? Sneak.Weight : 0;
