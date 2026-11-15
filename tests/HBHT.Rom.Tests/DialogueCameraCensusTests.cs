@@ -51,10 +51,12 @@ public sealed class DialogueCameraCensusTests(Na10Import fixture, ITestOutputHel
             Assert.Equal(new DialogueShot(DialogueShotKind.OverShoulder, pages[i].Speaker), shots[i]);
     }
 
-    [Fact]
-    public void TheShotsFitAboutNearlyEveryNpcThatTalks()
+    [Theory]
+    [InlineData(DialogueCensus.Touching)]
+    [InlineData(DialogueCensus.Furthest)]
+    public void TheShotsFitAboutNearlyEveryNpcThatTalks(float gap)
     {
-        var placings = DialogueCensus.Run(Data.Set, DialogueTuning.Default);
+        var placings = DialogueCensus.Run(Data.Set, DialogueTuning.Default, gap);
         var writer = new StringWriter();
         DialogueCensus.Report(placings, writer);
         output.WriteLine(writer.ToString());
@@ -62,8 +64,19 @@ public sealed class DialogueCameraCensusTests(Na10Import fixture, ITestOutputHel
         Assert.True(placings.Count > 2000, $"{placings.Count}");
         var all = DialogueCensus.Shares(placings);
         var interior = DialogueCensus.Shares(placings.Where(p => p.Interior).ToList());
-        // Nov 14, 2026: 95%, 94%, 95% and 1% of 2,431 placings; interiors 91%, 90%, 90% and 1%.
-        Assert.True(all.Shoulder > 0.92 && all.Single > 0.9 && all.TwoShot > 0.92 && all.OriginalOnly < 0.02, $"{all}");
-        Assert.True(interior.Shoulder > 0.88 && interior.Single > 0.87 && interior.TwoShot > 0.87 && interior.OriginalOnly < 0.03, $"{interior}");
+        // Nov 14, 2026, the side chosen by what fits: touching, 97%, 98%, 97% and 0% of 2,599 placings, interiors 95%, 97%, 95% and 0%;
+        // furthest, 97%, 98%, 97% and 0% of 2,431, interiors 94%, 98%, 94% and 0%.
+        Assert.True(all.Shoulder > 0.94 && all.Single > 0.95 && all.TwoShot > 0.94 && all.OriginalOnly < 0.02, $"{all}");
+        // Alaron's share of the frame's width: over the shoulder, a median of 27% and 40% at the 90th percentile; in the single, none.
+        static float At(IEnumerable<float?> covers, double share)
+        {
+            var c = covers.OfType<float>().Order().ToList();
+            return c[(int)(c.Count * share)];
+        }
+        Assert.True(At(placings.Select(p => p.ShoulderCover), 0.5) < 0.33f && At(placings.Select(p => p.ShoulderCover), 0.9) < 0.45f);
+        Assert.True(At(placings.Select(p => p.SingleCover), 0.9) <= DialogueTuning.Default.SingleSliver);
+        Assert.True(placings.Count(p => p.ShoulderPlacing == 0) > 0.8 * placings.Count(p => p.ShoulderPlacing >= 0));
+        Assert.True(placings.Count(p => p.SingleFellToShoulder) < 0.03 * placings.Count);
+        Assert.True(interior.Shoulder > 0.91 && interior.Single > 0.94 && interior.TwoShot > 0.91 && interior.OriginalOnly < 0.02, $"{interior}");
     }
 }
