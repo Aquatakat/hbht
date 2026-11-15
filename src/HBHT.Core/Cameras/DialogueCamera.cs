@@ -231,7 +231,9 @@ public sealed class DialogueCamera(DialoguePlanner planner, DialogueTuning? tuni
     {
         foreach (var shot in Ladder(wanted))
         {
-            if (TryPlace(scene, side, shot, t, out var at, out var placing, style))
+            // A shouted line's punch-in fallen to over the shoulder still pushes in: its nearer placings first.
+            var nearFirst = wanted.Kind == DialogueShotKind.Punch && shot.Kind == DialogueShotKind.OverShoulder;
+            if (TryPlace(scene, side, shot, t, out var at, out var placing, style, nearFirst))
             {
                 var turns = Turns(t, style);
                 var turn = shot.Kind is DialogueShotKind.TwoShot or DialogueShotKind.Wide && placing < turns.Count ? turns[placing] : 0;
@@ -256,11 +258,12 @@ public sealed class DialogueCamera(DialoguePlanner planner, DialogueTuning? tuni
         TryPlace(scene, side, shot, t, out at, out _);
 
     /// <summary>As <see cref="TryPlace(DialogueScene, int, DialogueShot, DialogueTuning, out Shot)"/>, and which of its placings, counted from 0.</summary>
+    /// <param name="nearFirst">For over the shoulder, its placings tight, snug, roomy and then nearer still: a punch-in's fallback.</param>
     public static bool TryPlace(DialogueScene scene, int side, DialogueShot shot, DialogueTuning t, out Shot at, out int placing,
-        DialogueStyle style = default)
+        DialogueStyle style = default, bool nearFirst = false)
     {
         placing = 0;
-        foreach (var (candidate, shows, foreground) in Placings(scene, side, shot, t, style))
+        foreach (var (candidate, shows, foreground) in Placings(scene, side, shot, t, style, nearFirst))
         {
             if (Fits(scene, side, candidate, shows, foreground, t)
                 && (shot.Kind is not (DialogueShotKind.Single or DialogueShotKind.Punch) || ListenerCover(scene, candidate, Other(shot.Subject), t, t.CleanAspect) <= t.SingleSliver))
@@ -343,7 +346,7 @@ public sealed class DialogueCamera(DialoguePlanner planner, DialogueTuning? tuni
 
     /// <summary>Where a shot may stand, best first: the talkers it must show, and the one whose shoulder is in front, if any.</summary>
     public static IEnumerable<(Shot Shot, Talker[] Shows, Talker Foreground)> Placings(DialogueScene scene, int side, DialogueShot shot,
-        DialogueTuning t, DialogueStyle style = default)
+        DialogueTuning t, DialogueStyle style = default, bool nearFirst = false)
     {
         var n = Across(scene) * side;
         var up = Vector3.UnitY;
@@ -379,10 +382,12 @@ public sealed class DialogueCamera(DialoguePlanner planner, DialogueTuning? tuni
                 var (x, l) = (scene.Of(shot.Subject), scene.Of(Other(shot.Subject)));
                 var toL = Way(x.Eyes, l.Eyes, n);
                 var aim = x.Eyes - up * t.AimDrop;
-                // The roomy placing, then the tight one, then nearer still, as rooms have space for.
-                foreach (var (back, across, rise) in new[] { (t.ShoulderBack + style.Back, t.ShoulderSide + style.Side, t.ShoulderRise + style.Rise),
-                    (t.SnugShoulderBack, t.SnugShoulderSide, t.SnugShoulderRise),
-                    (t.TightShoulderBack, t.TightShoulderSide, t.TightShoulderRise),
+                // The roomy placing, then the snug and the tight, then nearer still, as rooms have space for; for a punch-in's
+                // fallback, the tight, the snug and the roomy, then nearer still.
+                (float, float, float) roomy = (t.ShoulderBack + style.Back, t.ShoulderSide + style.Side, t.ShoulderRise + style.Rise),
+                    snug = (t.SnugShoulderBack, t.SnugShoulderSide, t.SnugShoulderRise),
+                    tight = (t.TightShoulderBack, t.TightShoulderSide, t.TightShoulderRise);
+                foreach (var (back, across, rise) in new[] { nearFirst ? tight : roomy, snug, nearFirst ? roomy : tight,
                     (t.TightShoulderBack * 0.75f, t.TightShoulderSide * 1.2f, t.TightShoulderRise),
                     (t.TightShoulderBack * 0.5f, t.TightShoulderSide * 1.4f, t.TightShoulderRise) })
                 {

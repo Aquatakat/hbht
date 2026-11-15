@@ -284,6 +284,22 @@ public class DialogueFittingTests
     }
 
     [Fact]
+    public void AShoutAtTouchingDistanceIsANearerOverTheShoulderThanAnOrdinaryLine()
+    {
+        var touching = new DialogueScene(Worlds.Flat(), null, new TalkingBody(new(0, 0.5f, 0), 0.5f, new(0.15f, 1.62f, 0)),
+            new TalkingBody(new(1.05f, 0.5f, 0), 0.5f, new(0.9f, 1.62f, 0)), []);
+        var (punched, punchAt) = DialogueCamera.Fit(touching, 1, new DialogueShot(DialogueShotKind.Punch, Talker.Npc), T);
+        var (ordinary, ordinaryAt) = DialogueCamera.Fit(touching, 1, new DialogueShot(DialogueShotKind.OverShoulder, Talker.Npc), T);
+        Assert.Equal(new DialogueShot(DialogueShotKind.OverShoulder, Talker.Npc), punched);
+        Assert.Equal(punched, ordinary);
+        var subject = new Vector3(0.9f, 1.62f, 0);
+        Assert.True(Vector3.Distance(punchAt!.Value.Eye, subject) < Vector3.Distance(ordinaryAt!.Value.Eye, subject) - 0.5f);
+        // An ordinary line keeps the roomy placing first.
+        DialogueCamera.TryPlace(touching, 1, ordinary, T, out _, out var placing);
+        Assert.Equal(0, placing);
+    }
+
+    [Fact]
     public void AWallSeenFromBehindStillStopsAShot()
     {
         // One-sided, facing away from the line: a sweep out from the focus passes it, the sweep back meets it.
