@@ -3,7 +3,8 @@
 #
 #   Windows: HBHT-beta-<n>-windows.msi and HBHT-beta-<n>-windows-portable.zip
 #   Linux:   HBHT-beta-<n>-linux-x86_64.tar.gz
-#   macOS:   HBHT-beta-<n>-macos.dmg
+#
+# macOS isn't packaged (docs/systems/releases.md#macos).
 #
 # It fetches the pinned Godot into .tools/ (tools/godot-pin.ps1), builds HBHT's own export
 # template from the pinned source on first use (tools/godot-template.ps1), exports both Godot
@@ -13,7 +14,7 @@
 # left as it was: the version written into project.godot and the files the export needs
 # beside each project are put back or removed afterwards.
 #
-# PowerShell 7 on Windows, Linux or macOS. The workflow, .github/workflows/release.yml,
+# PowerShell 7 on Windows or Linux. The workflow, .github/workflows/release.yml,
 # runs this same script on each runner.
 [CmdletBinding()]
 param(
@@ -37,11 +38,12 @@ $OutDir = [IO.Path]::GetFullPath($OutDir)
 $platform = Get-HostPlatform
 $name = "HBHT-beta-$Version"
 $work = Join-Path $OutDir "work-$platform"
+if ($platform -eq 'macos') { throw "macOS isn't packaged: docs/systems/releases.md#macos says why and how to bring it back" }
 
-# The two apps: the Godot project, the executable (and PCK) name, the macOS bundle name.
+# The two apps: the Godot project and the executable (and PCK) name.
 $apps = @(
-    @{ Project = 'HBHT.Game';   Exe = 'hbht';        Bundle = 'HBHT' }
-    @{ Project = 'HBHT.Editor'; Exe = 'hbht-editor'; Bundle = 'HBHT Editor' }
+    @{ Project = 'HBHT.Game';   Exe = 'hbht' }
+    @{ Project = 'HBHT.Editor'; Exe = 'hbht-editor' }
 )
 
 function Invoke-Native([string]$exe, [string[]]$arguments) {
@@ -87,8 +89,7 @@ function Export-App($app, [string]$preset, [string]$target) {
             Invoke-Native dotnet @('new', 'sln', '--format', 'sln', '-n', $app.Project, '-o', $dir)
             Invoke-Native dotnet @('sln', $sln, 'add', (Join-Path $dir "$($app.Project).csproj"))
         }
-        # The version: Godot gives it to the Windows file and product versions and the
-        # macOS bundle versions.
+        # The version: Godot gives it to the Windows file and product versions.
         $text = [Text.Encoding]::UTF8.GetString($original)
         $versioned = [regex]::Replace($text, '(?m)^config/version="[^"]*"', "config/version=`"$Version`"")
         if ($versioned -eq $text -and $text -notmatch "(?m)^config/version=`"$Version`"") {
@@ -245,60 +246,6 @@ function New-LinuxPackage {
     Write-Host "Wrote $tar"
 }
 
-function New-MacPackage {
-    $stage = Join-Path $work $name
-    Reset-Folder $stage
-    foreach ($app in $apps) {
-        $zip = Join-Path $work "$($app.Exe)-macos.zip"
-        Export-App $app 'macOS' $zip
-        $unzipped = Join-Path $work "$($app.Exe)-macos"
-        Reset-Folder $unzipped
-        Invoke-Native ditto @('-x', '-k', $zip, $unzipped)
-        $exported = @(Get-ChildItem -LiteralPath $unzipped -Directory -Filter '*.app')
-        if ($exported.Count -ne 1) { throw "Expected one .app in $zip" }
-        $bundle = Join-Path $stage "$($app.Bundle).app"
-        Move-Item -LiteralPath $exported[0].FullName -Destination $bundle
-
-        # Godot names the executable and the PCK after the project ("HBHT Editor");
-        # the packages name them hbht and hbht-editor, as on Windows and Linux. The
-        # engine finds the PCK by the executable's name, in Contents/Resources.
-        $contents = Join-Path $bundle 'Contents'
-        $binary = @(Get-ChildItem -LiteralPath (Join-Path $contents 'MacOS') -File)
-        if ($binary.Count -ne 1) { throw "Expected one executable in $contents/MacOS" }
-        $pck = Join-Path $contents "Resources/$($binary[0].BaseName).pck"
-        Assert-Exists @($pck,
-            (Join-Path $contents "Resources/data_$($app.Project)_macos_arm64"),
-            (Join-Path $contents "Resources/data_$($app.Project)_macos_x86_64"))
-        Assert-TemplateClasses (Join-Path $contents "Resources/data_$($app.Project)_macos_arm64")
-        if ($binary[0].Name -cne $app.Exe) {
-            Move-Item -LiteralPath $binary[0].FullName -Destination (Join-Path $contents "MacOS/$($app.Exe).tmp")
-            Move-Item -LiteralPath (Join-Path $contents "MacOS/$($app.Exe).tmp") -Destination (Join-Path $contents "MacOS/$($app.Exe)")
-            Move-Item -LiteralPath $pck -Destination (Join-Path $contents "Resources/$($app.Exe).pck.tmp")
-            Move-Item -LiteralPath (Join-Path $contents "Resources/$($app.Exe).pck.tmp") -Destination (Join-Path $contents "Resources/$($app.Exe).pck")
-            Invoke-Native plutil @('-replace', 'CFBundleExecutable', '-string', $app.Exe, (Join-Path $contents 'Info.plist'))
-        }
-        # Renaming broke Godot's ad-hoc signature. Sign again, ad hoc: arm64 Macs run
-        # nothing unsigned. There's no Developer ID, so Gatekeeper still asks (releases.md).
-        Invoke-Native codesign @('--force', '--deep', '--sign', '-', $bundle)
-        Invoke-Native codesign @('--verify', '--deep', '--verbose=2', $bundle)
-    }
-    Copy-Item (Join-Path $repo 'LICENSE'), (Join-Path $repo 'README.md') $stage
-    # A link to /Applications, so the disk image's window says where the apps go.
-    Invoke-Native ln @('-s', '/Applications', (Join-Path $stage 'Applications'))
-    $dmg = Join-Path $OutDir "$name-macos.dmg"
-    if (Test-Path -LiteralPath $dmg) { Remove-Item -LiteralPath $dmg }
-    # ULMO is LZMA, which packs the apps smaller than UDZO's zlib, and which disk images open
-    # with from macOS 10.15, the oldest the presets allow. hdiutil now and then fails with
-    # "Resource busy" on a busy machine; a retry clears it.
-    foreach ($attempt in 1..3) {
-        & hdiutil create -volname "HBHT beta $Version" -srcfolder $stage -ov -format ULMO $dmg
-        if ($LASTEXITCODE -eq 0) { break }
-        if ($attempt -eq 3) { throw "hdiutil create exited with $LASTEXITCODE" }
-        Start-Sleep -Seconds 5
-    }
-    Write-Host "Wrote $dmg"
-}
-
 New-Item -ItemType Directory -Force $OutDir | Out-Null
 Reset-Folder $work
 $script:godot = Install-Godot
@@ -311,5 +258,4 @@ Write-Host "Exporting with $(if ($script:template) { $script:template } else { "
 switch ($platform) {
     'windows' { New-WindowsPackages }
     'linux'   { New-LinuxPackage }
-    'macos'   { New-MacPackage }
 }

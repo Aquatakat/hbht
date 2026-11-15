@@ -9,10 +9,10 @@
 # .tools/godot-template/<key>/ on first use, where <key> hashes the pin, the two profiles and
 # this script, so a change to any of them builds again. The release workflow caches that
 # folder by the same files. Building needs Python 3 and the platform's C++ toolchain:
-# Visual Studio 2019 16.11 or later with its C++ workload on Windows, Xcode on macOS, and on
-# Linux nothing but curl and bzip2, as the build uses Godot's own buildroot toolchain.
+# Visual Studio 2019 16.11 or later with its C++ workload on Windows, and on Linux nothing
+# but curl and bzip2, as the build uses Godot's own buildroot toolchain.
 #
-# Runs on Windows, Linux and macOS (PowerShell 7).
+# Runs on Windows and Linux (PowerShell 7). macOS isn't built (docs/systems/releases.md#macos).
 
 $GodotSconsVersion = '4.11.1'
 
@@ -55,7 +55,6 @@ function Get-GodotTemplateName([string]$platform) {
     switch ($platform) {
         'windows' { 'windows_release_x86_64.exe' }
         'linux'   { 'linux_release.x86_64' }
-        'macos'   { 'macos.zip' }
     }
 }
 
@@ -232,33 +231,7 @@ function Build-GodotTemplate([string]$platform, [string]$out) {
             Copy-Item -LiteralPath (Join-Path $bin 'godot.linuxbsd.template_release.x86_64.mono') -Destination $out
             Invoke-Checked chmod @('+x', $out)
         }
-        'macos' {
-            $deps = Install-GodotDeps $tools @('install_angle.py', 'install_accesskit.py')
-            # MoltenVK, for Vulkan on Intel Macs and beside Metal on Apple silicon, linked in
-            # (use_volk=no) as Godot's own macOS template has it: the bundle has no Frameworks.
-            $vulkan = Join-Path $HOME 'VulkanSDK'
-            if (-not (Test-Path -LiteralPath $vulkan)) {
-                Invoke-Checked bash @((Join-Path $tools.Source 'misc/scripts/install_vulkan_sdk_macos.sh'))
-            }
-            # SCons finds the newest SDK under ~/VulkanSDK itself.
-            $common = @('platform=macos', 'use_volk=no',
-                "angle_libs=$(Join-Path $deps 'angle')", "accesskit_sdk_path=$(Join-Path $deps 'accesskit')")
-            foreach ($arch in @('arm64', 'x86_64')) { Invoke-Scons $tools ($common + "arch=$arch") }
-            # One universal binary in the bundle Godot's own macos.zip holds.
-            $stage = Join-Path $GodotBuildRoot 'macos-template'
-            if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }
-            New-Item -ItemType Directory -Force $stage | Out-Null
-            Invoke-Checked cp @('-R', (Join-Path $tools.Source 'misc/dist/macos_template.app'), $stage)
-            $macos = Join-Path $stage 'macos_template.app/Contents/MacOS'
-            New-Item -ItemType Directory -Force $macos | Out-Null
-            Invoke-Checked lipo @('-create',
-                (Join-Path $bin 'godot.macos.template_release.arm64.mono'),
-                (Join-Path $bin 'godot.macos.template_release.x86_64.mono'),
-                '-output', (Join-Path $macos 'godot_macos_release.universal'))
-            Invoke-Checked chmod @('+x', (Join-Path $macos 'godot_macos_release.universal'))
-            Push-Location $stage
-            try { Invoke-Checked zip @('-q', '-9', '-r', $out, 'macos_template.app') } finally { Pop-Location }
-        }
+        default { throw "HBHT's template isn't built for $platform (docs/systems/releases.md#macos)" }
     }
 }
 
@@ -277,7 +250,6 @@ function Test-GodotTemplate([string]$template) {
     $preset, $target, $exe = switch ($platform) {
         'windows' { 'Windows Desktop', (Join-Path $out 'bindcheck.exe'), (Join-Path $out 'bindcheck.exe') }
         'linux'   { 'Linux', (Join-Path $out 'bindcheck.x86_64'), (Join-Path $out 'bindcheck.x86_64') }
-        'macos'   { 'macOS', (Join-Path $out 'BindCheck.app'), (Join-Path $out 'BindCheck.app/Contents/MacOS/BindCheck') }
     }
     $presetsFile = Join-Path $project 'export_presets.cfg'
     $original = [IO.File]::ReadAllBytes($presetsFile)
@@ -296,12 +268,7 @@ function Test-GodotTemplate([string]$template) {
     if (-not $process.WaitForExit(120000)) { $process.Kill($true); throw "The bind check was still running after two minutes" }
     Get-Content -LiteralPath $log, "$log.stderr" | Where-Object { $_ -match '^BindCheck(:| failed)' } | ForEach-Object { Write-Host $_ }
     if ($process.ExitCode -ne 0 -or -not (Select-String -LiteralPath $log -Pattern '^BindCheck: \d+ classes bound, 0 failed' -Quiet)) {
-        # macOS kills a hardened app outright (SIGKILL, 137) when it breaks its code signing, as
-        # .NET's JIT does without the entitlements the apps' presets give it, before any output.
-        $hint = if ($platform -eq 'macos' -and $process.ExitCode -eq 137) {
-            ". Killed by the system, most likely for code signing: the bind check's macOS preset needs the apps' codesign/entitlements"
-        } else { '' }
-        throw "GodotSharp doesn't bind to the template $template (exit $($process.ExitCode))$hint; the run's output is in $log"
+        throw "GodotSharp doesn't bind to the template $template (exit $($process.ExitCode)); the run's output is in $log"
     }
     # GodotSharp's classes the template doesn't have, which the exports mustn't use (Assert-GodotClassesInTemplate).
     $missing = (Select-String -LiteralPath $log -Pattern '^BindCheck missing: (.*)$').Matches[0].Groups[1].Value

@@ -1,4 +1,4 @@
-# Builds HBHT's Godot template (godot-template.yml) and the packages on Windows, Linux and macOS,
+# Builds HBHT's Godot template (godot-template.yml) and the packages on Windows and Linux,
 # and publishes them as a release,
 # "HBHT beta N", tagged vN, where N is one more than the highest v<number> tag
 # (docs/systems/releases.md). Run by hand from the Actions tab.
@@ -55,7 +55,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
+        os: [windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     # A package takes about 10 minutes; a stuck one shouldn't hold the run for GitHub's 6 hours.
     timeout-minutes: 60

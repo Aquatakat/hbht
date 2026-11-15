@@ -1,4 +1,4 @@
-# Builds HBHT's own Godot export template on Windows, Linux and macOS (tools/godot-template.ps1,
+# Builds HBHT's own Godot export template on Windows and Linux (tools/godot-template.ps1,
 # docs/systems/releases.md#the-engine) and keeps it in the Actions cache, keyed by the files it's
 # built from, where the release's package jobs find it. The release workflow calls this first,
 # and a run whose template is already cached does nothing. Run it by hand to build ahead of a
@@ -18,9 +18,9 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
+        os: [windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
-    # Building Godot takes the better part of an hour on a hosted runner, two builds on macOS.
+    # Building Godot takes the better part of an hour on a hosted runner.
     timeout-minutes: 240
     steps:
       - uses: actions/checkout@v7

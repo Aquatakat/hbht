@@ -41,8 +41,7 @@ $lines = [System.Collections.Generic.List[string]]::new()
 $lines.Add("A beta of HBHT: it plays, with some rough edges left. HBHT doesn't include the game. When it first runs, you import your own ROM of Aidyn Chronicles: The First Mage.")
 $lines.Add('')
 $lines.Add('**Windows:** the `.msi` installs HBHT for everyone on the PC. The `-portable.zip` runs from wherever you unzip it and keeps its data there. ' +
-    '**Linux:** unpack the `.tar.gz` and run `hbht`. ' +
-    "**macOS:** open the ``.dmg`` and drag both apps to Applications. They aren't notarized, so macOS asks before it opens them the first time: [what to do]($RepositoryUrl/blob/v$Version/docs/systems/releases.md#macos).")
+    '**Linux:** unpack the `.tar.gz` and run `hbht`.')
 $lines.Add('')
 
 if (-not $Previous) {
