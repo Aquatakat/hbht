@@ -32,6 +32,21 @@ public enum MovementMode
 /// ground keep him a whole radius away: 1.0's sphere slips past them, through gaps between a wall's end and a post, or two posts,
 /// that are narrower than it.
 /// </param>
+/// <param name="WallFace">
+/// The share of his radius walls' faces keep him from as he slips between walls that hold him, moving on, though a push out of
+/// what he overlaps keeps him all of it from them: 1.0's push out of two walls
+/// narrowing ahead of it, once a frame and one after the other, leaves its sphere in them, and runs it up the ramps of the Misc
+/// interiors' E05, whose rails close to 0.88 apart at their tops.
+/// </param>
+/// <param name="SlopeUp">
+/// The least a surface other than plain collision faces up, too steep to be ground, to be climbed as a step
+/// (<paramref name="SlopeStep"/>): 0.25, about 75°.
+/// </param>
+/// <param name="SlopeStep">
+/// How far above the ground he last stood on the top of a slope too steep to be ground, other than plain collision, may be for
+/// him to climb it as ground: 1.0's sphere is pushed up such slopes along their normals, and the strips of stone 0.72 to 0.81
+/// tall between the grass and the rocks at Overworld E15 and M07 are meant to be crossed.
+/// </param>
 /// <param name="Stride">
 /// The ticks his speed is the mean root motion of, or 1 for none: his footfalls jerk him a little, which the mean glides over.
 /// </param>
@@ -57,7 +72,8 @@ public enum MovementMode
 public sealed record ModernRules(float FloorUp = 0.45f, float PlainLevelUp = 0.97f, float StepHeight = 0.5f, float SnapDown = 0.5f,
     bool PlainIsWall = true, float WallEdge = 0.75f, int Stride = EntityBody.DefaultStride, float SetOffTurn = EntityBody.DefaultSetOffTurn * MathF.PI / 180,
     float StopPace = EntityBody.DefaultStopPace, float StopReach = EntityBody.DefaultStopReach,
-    float ClimbFrom = 15 * MathF.PI / 180, float ClimbTo = 60 * MathF.PI / 180, float ClimbSlowest = 0.5f)
+    float ClimbFrom = 15 * MathF.PI / 180, float ClimbTo = 60 * MathF.PI / 180, float ClimbSlowest = 0.5f,
+    float WallFace = 0.85f, float SlopeUp = 0.25f, float SlopeStep = 1)
 {
     /// <summary>
     /// The share of his pace he climbs ground rising <paramref name="angle"/> radians ahead of him at: all of it to
@@ -79,4 +95,10 @@ public sealed record ModernRules(float FloorUp = 0.45f, float PlainLevelUp = 0.9
 
     /// <summary>Whether a triangle of this surface, facing up by <paramref name="up"/>, is ground to stand and walk on.</summary>
     public bool Ground(int surface, float up) => up >= (PlainIsWall && surface is 1 or 2 ? PlainLevelUp : FloorUp);
+
+    /// <summary>
+    /// Whether a triangle of this surface, facing up by <paramref name="up"/>, is a slope too steep to be ground that he climbs as
+    /// a step, where its top is no more than <see cref="SlopeStep"/> above the ground he last stood on.
+    /// </summary>
+    public bool Slope(int surface, float up) => up >= SlopeUp && !Ground(surface, up) && !(PlainIsWall && surface is 1 or 2);
 }
