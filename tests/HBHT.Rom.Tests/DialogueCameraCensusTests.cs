@@ -97,9 +97,16 @@ public sealed class DialogueCameraCensusTests(Na10Import fixture, ITestOutputHel
         Assert.True(placings.Count > 2000, $"{placings.Count}");
         var all = DialogueCensus.Shares(placings);
         var interior = DialogueCensus.Shares(placings.Where(p => p.Interior).ToList());
-        // Nov 14, 2026, the side chosen by what fits: touching, 97%, 98%, 97% and 0% of 2,599 placings, interiors 95%, 97%, 95% and 0%;
-        // furthest, 97%, 98%, 97% and 0% of 2,431, interiors 94%, 98%, 94% and 0%.
-        Assert.True(all.Shoulder > 0.94 && all.Single > 0.95 && all.TwoShot > 0.94 && all.OriginalOnly < 0.02, $"{all}");
+        // Nov 15, 2026, the inside single: touching, over the shoulder 97%, the single 1%, the two-shot 97% and the original's alone 0%
+        // of 2,599 placings, interiors 95%, 0%, 95% and 0%; furthest, 97%, 99%, 97% and 0% of 2,431, interiors 94%, 99%, 94% and 0%.
+        // Touching, a clean three-quarter single can't be had, and over the shoulder is shot.
+        var touching = gap < 0.2f;
+        Assert.True(all.Shoulder > 0.94 && (touching || all.Single > 0.95) && all.TwoShot > 0.94 && all.OriginalOnly < 0.02, $"{all}");
+        // Every single and punch-in placed: no further round than the cap, the subject's room toward the listener, the listener out of
+        // the widest frame.
+        var t = DialogueTuning.Default;
+        Assert.All(placings.SelectMany(p => p.Singles), x => Assert.True(x.Angle <= t.SingleAngleMost + 0.5f && x.Toward <= 0.02f
+            && x.Cover <= t.SingleSliver, $"{x}"));
         // Alaron's share of the frame's width, his shoulders counted (DialogueTuning.ShoulderPadOut): over the shoulder, a median of 26% and
         // 50–52% at the 90th percentile, which is the tight placings of small rooms (36% and 50–52% before the roomy placing was pulled
         // out, Nov 14, 2026); in the single, none.
@@ -109,10 +116,10 @@ public sealed class DialogueCameraCensusTests(Na10Import fixture, ITestOutputHel
             return c[(int)(c.Count * share)];
         }
         Assert.True(At(placings.Select(p => p.ShoulderCover), 0.5) < 0.30f && At(placings.Select(p => p.ShoulderCover), 0.9) < 0.56f);
-        Assert.True(At(placings.Select(p => p.SingleCover), 0.9) <= DialogueTuning.Default.SingleSliver);
+        Assert.True(placings.All(p => p.SingleCover is null or <= 0.05f));
         Assert.True(placings.Count(p => p.ShoulderPlacing == 0) > 0.75 * placings.Count(p => p.ShoulderPlacing >= 0));
         Assert.True(placings.Count(p => p.ShoulderPlacing <= 1) > 0.85 * placings.Count(p => p.ShoulderPlacing >= 0));
-        Assert.True(placings.Count(p => p.SingleFellToShoulder) < 0.03 * placings.Count);
-        Assert.True(interior.Shoulder > 0.91 && interior.Single > 0.94 && interior.TwoShot > 0.91 && interior.OriginalOnly < 0.02, $"{interior}");
+        Assert.True(touching || placings.Count(p => p.SingleFellToShoulder) < 0.03 * placings.Count);
+        Assert.True(interior.Shoulder > 0.91 && (touching || interior.Single > 0.94) && interior.TwoShot > 0.91 && interior.OriginalOnly < 0.02, $"{interior}");
     }
 }

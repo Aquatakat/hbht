@@ -108,8 +108,8 @@ public class DialoguePlannerTests
     [Fact]
     public void TheTuningIsSetByName()
     {
-        var t = DialogueTuning.Default.Parse("singledistance=3.5,RunPattern=SOWL,AcrossYaws=0;30,MinShotTicks=60");
-        Assert.Equal((3.5f, "SOWL", 60), (t.SingleDistance, t.RunPattern, t.MinShotTicks));
+        var t = DialogueTuning.Default.Parse("singleanglemost=50,RunPattern=SOWL,AcrossYaws=0;30,MinShotTicks=60");
+        Assert.Equal((50f, "SOWL", 60), (t.SingleAngleMost, t.RunPattern, t.MinShotTicks));
         Assert.Equal([0f, 30f], t.AcrossYaws);
         Assert.Throws<FormatException>(() => DialogueTuning.Default.Parse("Nope=1"));
     }
@@ -247,14 +247,40 @@ public class DialogueFittingTests
         Assert.Equal([new(DialogueShotKind.Punch, Talker.Npc), new(DialogueShotKind.Single, Talker.Npc), new(DialogueShotKind.OverShoulder, Talker.Npc),
             DialogueShot.TwoShot, DialogueShot.Wide], DialogueCamera.Ladder(new DialogueShot(DialogueShotKind.Punch, Talker.Npc)));
         Assert.Equal([DialogueShot.Wide, DialogueShot.TwoShot], DialogueCamera.Ladder(DialogueShot.Wide));
-        // A corridor 1.8 wide: nothing fits beside the line.
-        var (shown, at) = DialogueCamera.Fit(Scene(With(0.9f, -0.9f)), 1, new DialogueShot(DialogueShotKind.OverShoulder, Talker.Npc), T);
+        // A corridor 1.2 wide: nothing fits beside the line.
+        var (shown, at) = DialogueCamera.Fit(Scene(With(0.6f, -0.6f)), 1, new DialogueShot(DialogueShotKind.OverShoulder, Talker.Npc), T);
         Assert.Equal(DialogueShotKind.Original, shown.Kind);
         Assert.Null(at);
         // A wall 3 off: the shoulder fits, the wide doesn't, and falls to the original's framing (it's last on its ladder).
         var room = Scene(With(3f));
         Assert.Equal(DialogueShotKind.OverShoulder, DialogueCamera.Fit(room, 1, new DialogueShot(DialogueShotKind.OverShoulder, Talker.Npc), T).Shown.Kind);
         Assert.Equal(DialogueShotKind.TwoShot, DialogueCamera.Fit(room, 1, DialogueShot.Wide, T).Shown.Kind);
+    }
+
+    [Fact]
+    public void ASingleIsAThreeQuarterWithItsRoomTowardTheListenerAndCleanAtTheWidestFrame()
+    {
+        // Talkers' centres from 1.5 to 3 apart: every single and punch-in that fits, at either, holds the rules; touching, it falls to
+        // over the shoulder rather than a profile.
+        foreach (var gap in new[] { 1.5f, 2f, 3f })
+        {
+            var scene = new DialogueScene(Worlds.Flat(), null, new TalkingBody(new(0, 0.5f, 0), 0.5f, new(0.15f, 1.62f, 0)),
+                new TalkingBody(new(gap, 0.5f, 0), 0.5f, new(gap - 0.15f, 1.62f, 0)), []);
+            foreach (var shot in new DialogueShot[] { new(DialogueShotKind.Single, Talker.Npc), new(DialogueShotKind.Single, Talker.Player),
+                         new(DialogueShotKind.Punch, Talker.Npc), new(DialogueShotKind.Punch, Talker.Player) })
+            foreach (var side in new[] { 1, -1 })
+            {
+                Assert.True(DialogueCamera.TryPlace(scene, side, shot, T, out var at), $"{gap} {shot}");
+                var (angle, toward, cover) = DialogueCamera.Measure(scene, shot, at, T);
+                Assert.True(angle <= T.SingleAngleMost + 0.5f, $"{gap} {shot}: {angle}");
+                Assert.True(toward <= 0.02f, $"{gap} {shot}: the subject toward the listener's side by {toward}");
+                Assert.True(cover <= T.SingleSliver, $"{gap} {shot}: the listener covers {cover} at 16:9");
+            }
+        }
+        var touching = new DialogueScene(Worlds.Flat(), null, new TalkingBody(new(0, 0.5f, 0), 0.5f, new(0.15f, 1.62f, 0)),
+            new TalkingBody(new(1.05f, 0.5f, 0), 0.5f, new(0.9f, 1.62f, 0)), []);
+        Assert.Equal(new DialogueShot(DialogueShotKind.OverShoulder, Talker.Player),
+            DialogueCamera.Fit(touching, 1, new DialogueShot(DialogueShotKind.Single, Talker.Player), T).Shown);
     }
 
     [Fact]
