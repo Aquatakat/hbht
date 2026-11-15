@@ -21,6 +21,8 @@ The string tables, the fonts and the portraits beside what characters say. Dialo
 | 10 | Credits | 133 | The credits, which a table in the code cuts into cards, as the credits record (`aidyn:credits/0`, [ui](../systems/ui.md#the-credits)) |
 | 11 | PotionNames | 17 | Potions' names, which the item records already carry |
 
+The game spells some names more than one way. Pochanargat is the entity's name, which the docs and records use, and the dialogue more often spells it Pochangarat (the user's reading); the player-facing README follows the dialogue. Neither is a typo to fix.
+
 1.1 has 560 lines of Common and 25 of Controller, the Controller Pak errors it added. The debug ROM's credits have 130 lines. The descriptions are on the item, spell, stat and skill records too, which know which line is whose.
 
 ## Fonts
