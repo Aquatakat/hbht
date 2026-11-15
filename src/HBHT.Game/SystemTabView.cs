@@ -142,8 +142,20 @@ public partial class SystemTabView : Control
         }
         if (RowAt(at) is not { } row)
             return false;
+        // A page that keeps the cursor's row in the middle would scroll under a still pointer, which would hover the next row on:
+        // the view holds where it is until the keys move the cursor.
+        if (Menu.Page == SystemPage.Options && Menu.Options is { ViewFirst: null } options && ShownFirst(options) is { } first)
+            options.ScrollTo(first);
         Menu.Point(row);
         return true;
+    }
+
+    /// <summary>The first line in view of an options page that scrolls, or null for one that doesn't.</summary>
+    private int? ShownFirst(OptionsMenu options)
+    {
+        if (options.Page == OptionsPage.Controls)
+            return ControlPlaces(options).First;
+        return ChoicesScroll(options) ? FirstChoice(options) : null;
     }
 
     /// <summary>

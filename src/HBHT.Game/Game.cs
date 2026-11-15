@@ -984,6 +984,9 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     /// for; a cut-scene and a battle let the free camera's and the overlay's keys through; and in trek anything the press
     /// didn't do.
     /// </summary>
+    /// <summary>Every event, before the views take theirs: which the player is using, the mouse or a controller (<see cref="Views.UiPointer.InUse"/>).</summary>
+    public override void _Input(InputEvent e) => Views.UiPointer.Track(e);
+
     public override void _UnhandledInput(InputEvent e)
     {
         _stick.Situation = _session is { } playing ? Core.Controls.Situations.Of(playing.Mode) : Core.Controls.Situation.Trek;

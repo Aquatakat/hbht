@@ -154,18 +154,23 @@ public sealed class CombatMenu
         _held = false;
     }
 
-    /// <summary>Whether the wheel has scrolled the list (ADR 0040), which then stays where it was put until the stick moves the cursor.</summary>
+    /// <summary>Whether the wheel or the pointer has put the list's view (ADR 0040), which then stays where it was put until the stick moves the cursor.</summary>
     private bool _held;
 
     // The last layout's rows' tops and heights, and its list's top, which a point is found among.
     private IReadOnlyList<int> _tops = [], _heights = [];
     private int _listTop;
 
-    /// <summary>Puts the cursor on a row, as the pointer over it does, leaving the list where the wheel put it.</summary>
+    /// <summary>
+    /// Puts the cursor on a row, as the pointer over it does, holding the list where it is: following a row half in view would
+    /// scroll the next one under a still pointer.
+    /// </summary>
     public void Point(int row)
     {
-        if (row >= 0 && row < Rows.Count)
-            Cursor = row;
+        if (row < 0 || row >= Rows.Count)
+            return;
+        Cursor = row;
+        _held = true;
     }
 
     /// <summary>

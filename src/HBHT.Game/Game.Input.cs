@@ -294,16 +294,33 @@ public partial class Game
         }
     }
 
+    /// <summary>How long after the window comes to the front a mouse button is still the click that brought it there.</summary>
+    private const ulong FocusClickMsec = 300;
+
+    /// <summary>When the window last came to the front, in <see cref="Time.GetTicksMsec"/>'s milliseconds.</summary>
+    private ulong _focusedAt;
+
+    public override void _Notification(int what)
+    {
+        if (what == NotificationApplicationFocusIn)
+            _focusedAt = Time.GetTicksMsec();
+    }
+
     /// <summary>
-    /// Whether a mouse button is passed over: in trek and a battle with mouse look, while the mouse isn't captured, the click
-    /// that brings the window back to the front, which would otherwise use what he stands by or start an attack. It captures
-    /// the mouse instead.
+    /// Whether a mouse button is passed over: in trek and a battle, the click that brings the window back to the front, which
+    /// would otherwise use what he stands by or start an attack, and with mouse look, any click while the mouse isn't captured.
+    /// It captures the mouse instead, where mouse look is on.
     /// </summary>
     private bool UncapturedClick(GameSession session, InputEvent e)
     {
         // A battle's held menu lets the mouse go on purpose, for the pointer to choose in it.
         if (e is not InputEventMouseButton || session.Mode is not (GameMode.Trek or GameMode.Combat) || _camera is not { Flying: false }
-            || !InputBindings.MouseLook(_settings.Controls) || Input.MouseMode == Input.MouseModeEnum.Captured || Battle?.Menu is not null)
+            || Battle?.Menu is not null)
+            return false;
+        // Windows can hand the game the click before it says the window is in front, so a click while it isn't counts too.
+        var focusing = !GetWindow().HasFocus() || Time.GetTicksMsec() - _focusedAt < FocusClickMsec;
+        var look = InputBindings.MouseLook(_settings.Controls);
+        if (!focusing && (!look || Input.MouseMode == Input.MouseModeEnum.Captured))
             return false;
         CaptureMouse();
         GetViewport().SetInputAsHandled();

@@ -21,6 +21,22 @@ public static class UiPointer
     /// </summary>
     public static Action<int>? MemberHost { get; set; }
 
+    /// <summary>
+    /// Whether the mouse is being used, so the menus show what only it needs, such as the arrows that step a list by a click:
+    /// from the mouse's moving or a button of it until a controller's button or stick is. The keyboard leaves it, since it's
+    /// played beside the mouse.
+    /// </summary>
+    public static bool InUse { get; set; }
+
+    /// <summary>Keeps <see cref="InUse"/> by an event, whatever takes it.</summary>
+    public static void Track(InputEvent e)
+    {
+        if (e is InputEventMouseMotion or InputEventMouseButton)
+            InUse = true;
+        else if (e is InputEventJoypadButton { Pressed: true } or InputEventJoypadMotion { AxisValue: > 0.5f or < -0.5f })
+            InUse = false;
+    }
+
     /// <summary>Whether an event is the left button going down.</summary>
     public static bool Clicked(InputEvent e) => e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left };
 
