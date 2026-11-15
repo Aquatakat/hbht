@@ -9,21 +9,42 @@ using HBHT.Plugins.Records;
 
 namespace HBHT.Core.Trek;
 
-/// <summary>One teleporter's arrival under both cameras, from <see cref="CameraCensus"/>, or why it wasn't traced.</summary>
-public sealed record CameraArrival(string Teleporter, string Into, bool Interior, CameraTraceResult? Original, CameraTraceResult? Enhanced,
-    string? Skipped);
+/// <summary>
+/// One run of an arrival (<see cref="CameraCensus"/>): the trace, and what the census asks of the arrival. <paramref name="SeenAtFirst"/>:
+/// his chest in the frame at the first tick; <paramref name="Frame"/>: how the enhanced camera framed it; <paramref name="WentIn"/>: he
+/// ended at least half a unit further along the way he arrived facing and didn't go back through a door; <paramref name="BackOut"/>:
+/// he went back through a door or ended behind where he started; <paramref name="RoundBy"/>: at 1.5 s the look within 45° of the way
+/// he faces with the way ahead in frame (or no way ahead to see); <paramref name="OutDuringSwing"/>: the share of the first 1.5 s
+/// his chest is out of the frame or hidden; <paramref name="Lifted"/>: the share of ticks the pivot is lifted more than half a unit
+/// over his head; <paramref name="PeakTurn"/>: the view's fastest turn over the first 2 s, °/s; <paramref name="Wander"/>: how far
+/// he strays to the side of his arrival line over the first 2 s.
+/// </summary>
+public sealed record ArrivalRun(CameraTraceResult Trace, bool SeenAtFirst, TrekArrival? Frame, bool WentIn, bool BackOut, bool RoundBy,
+    float OutDuringSwing, float Lifted, float PeakTurn, float Wander);
+
+/// <summary>One teleporter's arrival under both cameras and each way of pushing the stick, or why it wasn't traced.</summary>
+public sealed record CameraArrival(string Teleporter, string Into, bool Interior, IReadOnlyDictionary<(CameraStyle, CameraStick), ArrivalRun>? Runs,
+    string? Skipped)
+{
+    public ArrivalRun Of(CameraStyle style, CameraStick stick = CameraStick.Steer) => Runs![(style, stick)];
+}
 
 /// <summary>
-/// Every teleporter in the plugins arrived through, holding forward along the way he arrives facing for 3 seconds, under the
-/// original camera and the enhanced one (<see cref="CameraTrace"/>): whether the camera is ever past a wall, whether he's
-/// seen from the front after the first second, and how much of the time the view ahead is blocked close by. Arrivals where
-/// a camera object takes the camera are skipped and counted, as are those that can't be made.
+/// Every teleporter in the plugins arrived through, under the original camera and the enhanced one (<see cref="CameraTrace"/>),
+/// for 3 seconds with the stick pushed each of three ways (<see cref="CameraStick"/>): a player steering into the room along the
+/// way he arrived facing, the same after half a second at rest, and the stick held up (an informational row). Arrivals where a
+/// camera object takes the camera are skipped and counted, as are those that can't be made.
 /// </summary>
 public static class CameraCensus
 {
     public const int Ticks = 180;
 
-    public static IReadOnlyList<CameraArrival> Run(PluginSet plugins)
+    /// <summary>The tick by which the camera should be round behind him.</summary>
+    public const int RoundTick = 90;
+
+    public static readonly CameraStick[] Sticks = [CameraStick.Steer, CameraStick.RestThenSteer, CameraStick.Up];
+
+    public static IReadOnlyList<CameraArrival> Run(PluginSet plugins, TrekCameraTuning? tuning = null)
     {
         var doors = new List<(ChunkRecord From, TeleporterObject Door, TeleportArrival Arrival)>();
         foreach (var chunk in plugins.All<ChunkRecord>(RecordTypes.Chunk))
@@ -40,24 +61,85 @@ public static class CameraCensus
                 d.Arrival.Chunk.Id.ToString(), d.Arrival.Chunk.Name, [], Ticks, d.Door.Index);
             try
             {
-                var original = CameraTrace.Run(plugins, walk, CameraStyle.Original);
-                if (original.Held > 0)
-                {
-                    results.Add(new(name, d.Arrival.Chunk.Id.ToString(), interior, null, null, "a camera object"));
-                    return;
-                }
-                var enhanced = CameraTrace.Run(plugins, walk, CameraStyle.Enhanced);
-                results.Add(new(name, d.Arrival.Chunk.Id.ToString(), interior, original, enhanced, null));
+                var runs = new Dictionary<(CameraStyle, CameraStick), ArrivalRun>();
+                foreach (var style in new[] { CameraStyle.Original, CameraStyle.Enhanced })
+                    foreach (var stick in Sticks)
+                    {
+                        var run = Trace(plugins, walk, style, stick, tuning);
+                        if (run.Trace.Held > 0)
+                        {
+                            results.Add(new(name, d.Arrival.Chunk.Id.ToString(), interior, null, "a camera object"));
+                            return;
+                        }
+                        runs[(style, stick)] = run;
+                    }
+                results.Add(new(name, d.Arrival.Chunk.Id.ToString(), interior, runs, null));
             }
             catch (Exception e)
             {
-                results.Add(new(name, d.Arrival.Chunk.Id.ToString(), interior, null, null, e.Message));
+                results.Add(new(name, d.Arrival.Chunk.Id.ToString(), interior, null, e.Message));
             }
         });
         return [.. results.OrderBy(r => r.Teleporter, StringComparer.Ordinal)];
     }
 
-    /// <summary>The census's shares for each style, interiors and outdoors apart, and the ten worst arrivals under Enhanced.</summary>
+    /// <summary>One arrival's run, measured as <see cref="ArrivalRun"/> says.</summary>
+    public static ArrivalRun Trace(PluginSet plugins, CameraWalk walk, CameraStyle style, CameraStick stick, TrekCameraTuning? tuning = null)
+    {
+        var seenAtFirst = false;
+        TrekArrival? frame = null;
+        Vector3 start = default, last = default;
+        Vector2 heading = default;
+        bool jumped = false, round = false;
+        int out_ = 0, lifted = 0, ticks = 0;
+        float peak = 0, wander = 0;
+        Vector2? lastLook = null;
+        var trace = CameraTrace.Run(plugins, walk, style, (trek, tick) =>
+        {
+            var at = trek.Player.Sphere.Position;
+            var chest = at + new Vector3(0, 0.5f, 0);
+            var seen = CameraTrace.InFrame(trek, chest);
+            if (tick == 0)
+            {
+                start = last = at;
+                heading = trek.Player.Heading;
+                seenAtFirst = seen;
+                if (style == CameraStyle.Enhanced)
+                    frame = trek.EnhancedCamera.Arrival;
+            }
+            if (Vector3.Distance(at, last) > 2)
+                jumped = true;
+            last = at;
+            ticks++;
+            if (tick < RoundTick && !seen)
+                out_++;
+            if (style == CameraStyle.Enhanced && trek.EnhancedCamera.Pivot.Y > at.Y + trek.EnhancedCamera.Tuning.Height + 0.5f)
+                lifted++;
+            var look = trek.Camera.LookXZ;
+            if (tick < 120)
+            {
+                if (lastLook is { } before)
+                    peak = MathF.Max(peak, MathF.Acos(Math.Clamp(Vector2.Dot(before, look), -1, 1)) * 180 / MathF.PI * 60);
+                if (!jumped)
+                {
+                    var off = new Vector2(at.X - start.X, at.Z - start.Z);
+                    wander = MathF.Max(wander, MathF.Abs(off.X * heading.Y - off.Y * heading.X));
+                }
+            }
+            lastLook = look;
+            if (tick == RoundTick)
+            {
+                var faces = trek.Player.Heading;
+                round = Vector2.Dot(Vector2.Normalize(look), Vector2.Normalize(faces)) > MathF.Cos(MathF.PI / 4)
+                    && CameraTrace.AheadInFrame(trek) != false;
+            }
+        }, tuning, stick);
+        var along = Vector2.Dot(new Vector2(last.X - start.X, last.Z - start.Z), heading);
+        return new ArrivalRun(trace, seenAtFirst, frame, !jumped && along > 0.5f, jumped || along < -0.25f, round,
+            Math.Min(ticks, RoundTick) == 0 ? 0 : (float)out_ / Math.Min(ticks, RoundTick), ticks == 0 ? 0 : (float)lifted / ticks, peak, wander);
+    }
+
+    /// <summary>The census's shares for each style and stick, interiors and outdoors apart, the enhanced frames, and the worst arrivals.</summary>
     public static string Report(IReadOnlyList<CameraArrival> arrivals)
     {
         var text = new StringBuilder();
@@ -65,23 +147,43 @@ public static class CameraCensus
         text.AppendLine(CultureInfo.InvariantCulture, $"{arrivals.Count} arrivals: {traced.Count} traced, "
             + $"{arrivals.Count(a => a.Skipped == "a camera object")} taken by a camera object, "
             + $"{arrivals.Count(a => a.Skipped is not null and not "a camera object")} not made");
-        text.AppendLine($"{"",-9} {"style",-9} {"n",5} {"ever past",10} {"front>1s",9} {"blocked",8} {"ahead",7} {"ahead@0",8} {"hidden",7}");
+        text.AppendLine($"{"",-9} {"style",-9} {"stick",-14} {"n",4} {"seen@0",7} {"past",6} {"hidden",7} {"went in",8} {"back out",8} {"round@1.5",9} {"out<1.5",8} {"lifted",7} {"turn pk",8} {"turn pk95",9} {"wander95",8} {"ahead",6}");
         foreach (var (label, interior) in new[] { ("interior", true), ("outdoor", false) })
         {
             var group = traced.Where(a => a.Interior == interior).ToList();
+            if (group.Count == 0)
+                continue;
             foreach (var style in new[] { CameraStyle.Original, CameraStyle.Enhanced })
-            {
-                var r = group.Select(a => style == CameraStyle.Original ? a.Original! : a.Enhanced!).ToList();
-                if (r.Count == 0)
-                    continue;
-                text.AppendLine(string.Create(CultureInfo.InvariantCulture,
-                    $"{label,-9} {style,-9} {r.Count,5} {(float)r.Count(x => x.PastWall > 0) / r.Count,10:P1} {(float)r.Count(x => x.Front > 0) / r.Count,9:P1} {r.Average(x => x.Blocked),8:P1} {Mean(r.Select(x => x.AheadInFrame)),7:P1} {Share(r.Select(x => x.AheadAtFirst)),8:P1} {(float)r.Count(x => x.Hidden > 0) / r.Count,7:P1}"));
-            }
-        }
-        text.AppendLine("worst under Enhanced:");
-        foreach (var a in traced.OrderByDescending(a => Badness(a.Enhanced!)).Take(10))
+                foreach (var stick in Sticks)
+                {
+                    var r = group.Select(a => a.Of(style, stick)).ToList();
+                    float Of(Func<ArrivalRun, bool> f) => (float)r.Count(f) / r.Count;
+                    text.AppendLine(string.Create(CultureInfo.InvariantCulture,
+                        $"{label,-9} {style,-9} {stick,-14} {r.Count,4} {Of(x => x.SeenAtFirst),7:P1} {Of(x => x.Trace.PastWall > 0),6:P1} {Of(x => x.Trace.Hidden > 0),7:P1} {Of(x => x.WentIn),8:P1} {Of(x => x.BackOut),8:P1} {Of(x => x.RoundBy),9:P1} {r.Average(x => x.OutDuringSwing),8:P1} {r.Average(x => x.Lifted),7:P1} {r.Max(x => x.PeakTurn),8:F0} {Percentile(r.Select(x => x.PeakTurn), 0.95f),9:F0} {Percentile(r.Select(x => x.Wander), 0.95f),8:F2} {Mean(r.Select(x => x.Trace.AheadInFrame)),6:P1}"));
+                }
+            var frames = group.Select(a => a.Of(CameraStyle.Enhanced).Frame).OfType<TrekArrival>().ToList();
+            var kinds = string.Join(", ", Enum.GetValues<TrekArrivalKind>().Select(k =>
+                string.Create(CultureInfo.InvariantCulture, $"{k} {(float)frames.Count(f => f.Kind == k) / Math.Max(frames.Count, 1):P1}")));
             text.AppendLine(string.Create(CultureInfo.InvariantCulture,
-                $"  {a.Teleporter} -> {a.Into}: past {a.Enhanced!.PastWall:P0} front {a.Enhanced.Front:P0} blocked {a.Enhanced.Blocked:P0} (original {a.Original!.PastWall:P0} / {a.Original.Front:P0} / {a.Original.Blocked:P0})"));
+                $"{label} enhanced frames: reached the length {(float)frames.Count(f => f.Reached) / Math.Max(frames.Count, 1):P1}; {kinds}"));
+        }
+        text.AppendLine("ever hidden under Enhanced, steering:");
+        foreach (var a in traced.Where(a => a.Of(CameraStyle.Enhanced).Trace.Hidden > 0).Take(40))
+        {
+            var e = a.Of(CameraStyle.Enhanced);
+            text.AppendLine(string.Create(CultureInfo.InvariantCulture,
+                $"  {a.Teleporter} -> {a.Into}: hidden {e.Trace.Hidden:P0} frame {e.Frame?.Kind} {e.Frame?.Off:F0}° arm {e.Frame?.Arm:F1} lifted {e.Lifted:P0} (original hidden {a.Of(CameraStyle.Original).Trace.Hidden:P0})"));
+        }
+        text.AppendLine("not seen at the first tick under Enhanced:");
+        foreach (var a in traced.Where(a => !a.Of(CameraStyle.Enhanced).SeenAtFirst))
+        {
+            var e = a.Of(CameraStyle.Enhanced);
+            text.AppendLine(string.Create(CultureInfo.InvariantCulture,
+                $"  {a.Teleporter} -> {a.Into}: frame {e.Frame?.Kind} {e.Frame?.Off:F0}° arm {e.Frame?.Arm:F1} (original seen {a.Of(CameraStyle.Original).SeenAtFirst})"));
+        }
+        text.AppendLine("went back out under Enhanced, steering:");
+        foreach (var a in traced.Where(a => a.Of(CameraStyle.Enhanced).BackOut || a.Of(CameraStyle.Enhanced, CameraStick.RestThenSteer).BackOut))
+            text.AppendLine($"  {a.Teleporter} -> {a.Into}: frame {a.Of(CameraStyle.Enhanced).Frame?.Kind}");
         return text.ToString();
     }
 
@@ -95,6 +197,9 @@ public static class CameraCensus
         return given.Count == 0 ? float.NaN : (float)given.Count(a => a == true) / given.Count;
     }
 
-    /// <summary>How bad an arrival is: past a wall worst, then his front, then the view blocked.</summary>
-    public static float Badness(CameraTraceResult r) => r.PastWall * 4 + r.Front * 2 + r.Blocked;
+    public static float Percentile(IEnumerable<float> values, float share)
+    {
+        var sorted = values.Order().ToList();
+        return sorted.Count == 0 ? 0 : sorted[Math.Min(sorted.Count - 1, (int)(share * sorted.Count))];
+    }
 }

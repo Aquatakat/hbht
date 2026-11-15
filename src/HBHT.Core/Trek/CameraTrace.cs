@@ -40,6 +40,17 @@ public sealed record CameraWalk(string Name, int MapSet, string Chunk, Vector3 L
     ];
 }
 
+/// <summary>How the stick is pushed on a walk with no route (<see cref="CameraTrace.Run"/>).</summary>
+public enum CameraStick
+{
+    /// <summary>A player who steers correctly: each tick, whatever way of the camera's heads him along the way he arrived facing.</summary>
+    Steer,
+    /// <summary>At rest for half a second, then steering as <see cref="Steer"/>.</summary>
+    RestThenSteer,
+    /// <summary>Held up from the first tick, whatever the camera does: with a front view, back toward the door.</summary>
+    Up,
+}
+
 /// <summary>
 /// One walk's trace of trek's camera, as shares of ticks and the view's turning: the view ahead blocked close by (a level ray
 /// from the aim along the look, out to 3 past the player, crosses collision from either side or the drawn world), the camera
@@ -74,14 +85,15 @@ public static class CameraTrace
     private const int TicksPerSecond = 60;
 
     /// <summary>Trek started where <paramref name="walk"/> starts, on the ground, with the drawn world.</summary>
-    public static TrekLoop Start(PluginSet plugins, CameraWalk walk) => Start(plugins, walk, out _);
+    /// <param name="setDown">Whether he's set down on the ground under <see cref="CameraWalk.Local"/> rather than put there.</param>
+    public static TrekLoop Start(PluginSet plugins, CameraWalk walk, bool setDown = false) => Start(plugins, walk, out _, setDown);
 
-    private static TrekLoop Start(PluginSet plugins, CameraWalk walk, out Host host)
+    private static TrekLoop Start(PluginSet plugins, CameraWalk walk, out Host host, bool setDown = false)
     {
         var game = GameState.NewGame(plugins);
         var set = plugins.Get<MapSetRecord>(RecordId.Decimal(RecordTypes.MapSet, walk.MapSet));
         var streamer = new ChunkStreamer(plugins, game, new CollisionWorld(), set, new VisibleWorld());
-        var start = GameStart.OfNewGame(plugins) with { Set = set, Chunk = walk.Chunk, Local = walk.Local, Heading = walk.Heading, SetDown = false };
+        var start = GameStart.OfNewGame(plugins) with { Set = set, Chunk = walk.Chunk, Local = walk.Local, Heading = walk.Heading, SetDown = setDown };
         host = new Host();
         var session = GameSession.Start(game, host, new ZoneEngine(game, streamer), start);
         // The player's body plays the party leader's actor, as the runtime's does, which moves him by its root motion.
@@ -92,8 +104,9 @@ public static class CameraTrace
 
     /// <summary>Walks <paramref name="walk"/> under <paramref name="style"/> and measures the camera.</summary>
     /// <param name="each">Called after each tick traced, with the tick's number from the arrival.</param>
+    /// <param name="stick">How the stick is pushed on a walk with no route.</param>
     public static CameraTraceResult Run(PluginSet plugins, CameraWalk walk, CameraStyle style, Action<TrekLoop, int>? each = null,
-        TrekCameraTuning? tuning = null)
+        TrekCameraTuning? tuning = null, CameraStick stick = CameraStick.Steer)
     {
         var trek = Start(plugins, walk, out var host);
         trek.CameraStyle = style;
@@ -153,7 +166,11 @@ public static class CameraTrace
                 break;
             var way = holding ? facing : Vector2.Normalize(route[next] - flatAt);
             var look = trek.Camera.LookXZ;
-            trek.Tick(() => new PlayerInput(Pilot.StickFor(way, look)));
+            var push = !holding ? Pilot.StickFor(way, look)
+                : stick == CameraStick.Up ? Vector2.UnitY
+                : stick == CameraStick.RestThenSteer && ticks < RestTicks ? Vector2.Zero
+                : Pilot.StickFor(way, look);
+            trek.Tick(() => new PlayerInput(push));
             var camera = trek.Camera;
             Sum(camera.Position);
             Sum(camera.Aim);
@@ -222,6 +239,26 @@ public static class CameraTrace
             aheadCounted == 0 ? float.NaN : (float)aheadSeen / aheadCounted, aheadAtFirst);
     }
 
+    /// <summary>How long <see cref="CameraStick.RestThenSteer"/> leaves the stick at rest.</summary>
+    public const int RestTicks = 30;
+
+    /// <summary>Whether <paramref name="point"/> is inside the runtime's lens from trek's camera and not behind a wall from it.</summary>
+    public static bool InFrame(TrekLoop trek, Vector3 point)
+    {
+        var camera = trek.Camera;
+        var forward = Vector3.Normalize(camera.Aim - camera.Position);
+        var right = Vector3.Normalize(Vector3.Cross(forward, Vector3.UnitY));
+        var up = Vector3.Cross(right, forward);
+        var to = point - camera.Position;
+        var depth = Vector3.Dot(to, forward);
+        if (depth <= 0)
+            return false;
+        var tan = MathF.Tan(HalfHigh * MathF.PI / 180);
+        if (MathF.Abs(Vector3.Dot(to, up)) / depth > tan || MathF.Abs(Vector3.Dot(to, right)) / depth > tan * Aspect)
+            return false;
+        return !Crosses(trek.Chunks.World, trek.Chunks.Visible, camera.Position, point);
+    }
+
     /// <summary>How far ahead of him the way ahead is looked for, at head height.</summary>
     public const float AheadSight = 8;
 
@@ -243,17 +280,7 @@ public static class CameraTrace
         var point = head + new Vector3(faces.X, 0, faces.Y) * AheadSight;
         if (Crosses(world, visible, head, point))
             return null;
-        var forward = Vector3.Normalize(camera.Aim - camera.Position);
-        var right = Vector3.Normalize(Vector3.Cross(forward, Vector3.UnitY));
-        var up = Vector3.Cross(right, forward);
-        var to = point - camera.Position;
-        var depth = Vector3.Dot(to, forward);
-        if (depth <= 0)
-            return false;
-        var tan = MathF.Tan(HalfHigh * MathF.PI / 180);
-        if (MathF.Abs(Vector3.Dot(to, up)) / depth > tan || MathF.Abs(Vector3.Dot(to, right)) / depth > tan * Aspect)
-            return false;
-        return !Crosses(world, visible, camera.Position, point);
+        return InFrame(trek, point);
     }
 
     /// <summary>

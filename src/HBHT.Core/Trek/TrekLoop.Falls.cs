@@ -84,7 +84,7 @@ public sealed partial class TrekLoop
         Enter(here);
         Use.ClearCameras();
         Camera.Arrive(fell, at, motion.Heading, here is null ? Camera.Mode : FollowCamera.ModeFor(Game.Plugins, here), eye);
-        ArriveEnhanced(kept: false);
+        ArriveEnhanced(kept: false, door: false);
         _host.Arrived();
     }
 }

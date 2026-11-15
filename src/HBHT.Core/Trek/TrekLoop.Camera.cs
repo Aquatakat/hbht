@@ -62,15 +62,5 @@ public sealed partial class TrekLoop
         };
     }
 
-    /// <summary>
-    /// The way the stick steers him: the camera's look, but under the enhanced trek camera, while it has the camera, its
-    /// <see cref="EnhancedTrekCamera.SteerXZ"/>, the nudges taken out.
-    /// </summary>
-    private Vector2? SteerLook(FollowCamera camera) =>
-        _steerByEnhanced ? EnhancedCamera.SteerXZ : null;
-
-    /// <summary>Whether the enhanced camera stepped this tick, so its steering way is current.</summary>
-    private bool _steerByEnhanced;
-
     private static float Flat(Vector3 v) => new Vector2(v.X, v.Z).Length();
 }

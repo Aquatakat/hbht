@@ -380,7 +380,6 @@ public sealed partial class TrekLoop : IMapObjectHost
             Hud.Raise(false);
         var before = motion.Sphere.Position;
         _sneaking = input.Sneak;
-        _steerByEnhanced = Conversation is not { With: not null } && CameraStyle == CameraStyle.Enhanced && !Camera.Held;
         if (Conversation is { With: not null } framing)
             framing.Frame(Camera, world, Chunks.Visible, Wanderers.All);
         else if (CameraStyle == CameraStyle.Enhanced && !Camera.Held)
@@ -390,8 +389,7 @@ public sealed partial class TrekLoop : IMapObjectHost
             Camera.Step(world, motion.Sphere.Position, motion.Heading);
         Zone.Listen();
         var keys = Zone.Keys;
-        StepPlayer(world, motion, input, Camera, keys.Sounding(PlayerAnimation, _playerAudio, _playerSounds, motion.Sphere),
-            SteerLook(Camera));
+        StepPlayer(world, motion, input, Camera, keys.Sounding(PlayerAnimation, _playerAudio, _playerSounds, motion.Sphere));
         if (motion.FellOut)
         {
             Rescue();
@@ -459,8 +457,7 @@ public sealed partial class TrekLoop : IMapObjectHost
     /// orbiting it about him and otherwise following, and his standing still anchoring it; then he moves, up on the
     /// stick being the way the camera looks.
     /// </summary>
-    public static void StepPlayer(CollisionWorld world, PlayerMotion player, PlayerInput input, FollowCamera camera, IRootMotion animation,
-        Vector2? steer = null)
+    public static void StepPlayer(CollisionWorld world, PlayerMotion player, PlayerInput input, FollowCamera camera, IRootMotion animation)
     {
         if (input.Orbit)
             camera.Orbit(player.Sphere.Position, input.OrbitStick, moving: input.Free && input.Pushed);
@@ -468,7 +465,7 @@ public sealed partial class TrekLoop : IMapObjectHost
             camera.Follow();
         if (!input.Locked && !input.Pushed)
             camera.Anchor(player.Sphere.Position);
-        player.Step(world, input.Move, steer ?? camera.LookXZ, animation);
+        player.Step(world, input.Move, camera.LookXZ, animation);
     }
 
     /// <summary>
@@ -551,17 +548,16 @@ public sealed partial class TrekLoop : IMapObjectHost
     }
 
     /// <summary>
-    /// The enhanced trek camera arrives with the player, under <see cref="CameraStyle.Enhanced"/>: behind him, or from a
-    /// teleporter's own camera point, <paramref name="kept"/>, where the follow camera has just been put. A point is kept
-    /// whatever its side where a camera object takes the camera at the arrival, which moves on from it.
+    /// The enhanced trek camera arrives with the player, under <see cref="CameraStyle.Enhanced"/>: at the arrival frame
+    /// (<see cref="EnhancedTrekCamera.Arrive"/>), or from a teleporter's own camera point, <paramref name="kept"/>, where the
+    /// follow camera has just been put.
     /// </summary>
-    private void ArriveEnhanced(bool kept)
+    private void ArriveEnhanced(bool kept, bool door = true)
     {
         if (CameraStyle != CameraStyle.Enhanced)
             return;
         var at = Player.Sphere.Position;
-        var authored = kept && Chunks.MapAt(at) is { } map && Use.CameraReaches(map, at - map.Origin);
-        EnhancedCamera.Arrive(Camera, Chunks.World, Chunks.Visible, at, Player.Heading, Indoors, kept, authored);
+        EnhancedCamera.Arrive(Camera, Chunks.World, Chunks.Visible, at, Player.Heading, Indoors, kept, door);
     }
 
     /// <summary>B in trek: raises or lowers the portraits, but not through a fade, a popup or a conversation (<c>Actor::Move</c>). Whether it did.</summary>
@@ -986,6 +982,17 @@ public sealed partial class TrekLoop : IMapObjectHost
         {
             conversation.End(Wanderers, Camera);
             Conversation = null;
+            // The enhanced conversation camera's shots end in a cut back to the view trek had before the talk: a camera
+            // object that moves only its aim, left to track him from the last shot's place a unit over his shoulder, spun
+            // the view round him as he walked off, and the trek camera takes up again where it was.
+            if (conversation.Director is not null && _beforeTalk is var (position, aim))
+            {
+                Camera.PlaceAt(position);
+                Camera.AimAt(aim);
+                Camera.Orient();
+                Camera.Cut();
+            }
+            _beforeTalk = null;
             Box.Hide();
             Backdrop?.Close();
             if (conversation.RebuildsTrek)
@@ -1112,6 +1119,9 @@ public sealed partial class TrekLoop : IMapObjectHost
         Refresh();
     }
 
+    /// <summary>The camera's place and aim as the enhanced conversation camera took it, which it's given back at the end.</summary>
+    private (Vector3 Position, Vector3 Aim)? _beforeTalk;
+
     void IMapObjectHost.Talk(LoadedMap map, PartyObject party)
     {
         if (Conversation is not null || Wanderers.Of(map, party) is not { } wanderer)
@@ -1137,6 +1147,7 @@ public sealed partial class TrekLoop : IMapObjectHost
         Conversation = Conversation.TalkTo(Game, wanderer, _host, Player);
         if (DialogueCamera == CameraStyle.Enhanced && Conversation is not null)
         {
+            _beforeTalk = (Camera.Position, Camera.Aim);
             Conversation.Direct(DialogueTuning, _conversations++, _lastDirector?.Opening);
             _lastDirector = Conversation.Director ?? _lastDirector;
         }

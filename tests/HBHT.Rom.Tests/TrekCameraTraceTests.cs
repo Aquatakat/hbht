@@ -57,21 +57,22 @@ public sealed class TrekCameraTraceTests(Na10Import fixture, ITestOutputHelper o
         }
         foreach (var (o, e) in original.Zip(enhanced))
             Assert.True(e.AheadInFrame >= o.AheadInFrame, $"{e.Walk}: the way ahead is in frame less than under the original");
+        // M05's door is at his back: the arrival frame is beside him, and the swing behind as he sets off.
         var hallway = enhanced.Single(r => r.Walk.StartsWith('a'));
-        Assert.Equal(1, hallway.AheadInFrame);
+        Assert.True(hallway.AheadInFrame > 0.6f);
         Assert.Equal(0, hallway.Front);
-        Assert.Equal(0, hallway.Blocked);
         // After I07's authored shot lets go, the swing behind him is quick: he's seen from the front far less than under the original.
         Assert.True(enhanced.Single(r => r.Walk.StartsWith('b')).Front < original.Single(r => r.Walk.StartsWith('b')).Front * 0.6f);
     }
 
     /// <summary>
-    /// Every teleporter arrived through, held forward 3 s, under both cameras (<see cref="CameraCensus"/>): under Enhanced the
-    /// camera is almost never past a wall and his front is almost never seen after the first second, interiors and outdoors.
-    /// About ten seconds, the arrivals side by side.
+    /// Every teleporter arrived through, under both cameras and each way of pushing the stick (<see cref="CameraCensus"/>):
+    /// under Enhanced, with a player steering into the room, the camera is never past a wall, he's in the frame at the first
+    /// tick, he walks in and never back out, the camera is round behind him by 1.5 s with the way ahead in frame, its swing no
+    /// faster than the tight turn, and the arrival frame reaches the place's length nearly always. About twenty seconds.
     /// </summary>
     [Fact]
-    public void EveryArrivalUnderTheEnhancedCameraStaysInsideAndBehindHim()
+    public void EveryArrivalUnderTheEnhancedCameraFramesHimAndComesRound()
     {
         var arrivals = CameraCensus.Run(fixture.Data.Set);
         output.WriteLine(CameraCensus.Report(arrivals));
@@ -80,12 +81,23 @@ public sealed class TrekCameraTraceTests(Na10Import fixture, ITestOutputHelper o
         Assert.True(arrivals.Count(a => a.Skipped is not null and not "a camera object") < 10);
         foreach (var interior in new[] { true, false })
         {
-            var group = traced.Where(a => a.Interior == interior).Select(a => a.Enhanced!).ToList();
-            Assert.True(group.Count(r => r.PastWall > 0) <= 0.02f * group.Count, $"interior {interior}: too often past a wall");
-            Assert.True(group.Count(r => r.Front > 0) <= 0.01f * group.Count, $"interior {interior}: his front seen too often");
-            // The way ahead in frame: as he stands at the arrival, and over the 3 s.
-            Assert.True(CameraCensus.Share(group.Select(r => r.AheadAtFirst)) >= 0.95f, $"interior {interior}: the way ahead out of frame on arriving");
-            Assert.True(CameraCensus.Mean(group.Select(r => r.AheadInFrame)) >= 0.9f, $"interior {interior}: the way ahead out of frame");
+            var group = traced.Where(a => a.Interior == interior).ToList();
+            foreach (var stick in new[] { CameraStick.Steer, CameraStick.RestThenSteer })
+            {
+                var r = group.Select(a => a.Of(CameraStyle.Enhanced, stick)).ToList();
+                float Share(Func<ArrivalRun, bool> f) => (float)r.Count(f) / r.Count;
+                Assert.True(Share(x => x.Trace.PastWall > 0) <= 0.01f, $"interior {interior} {stick}: past a wall");
+                Assert.True(Share(x => x.SeenAtFirst) >= 0.97f, $"interior {interior} {stick}: not seen on arriving");
+                Assert.True(Share(x => x.WentIn) >= 0.9f, $"interior {interior} {stick}: didn't walk in");
+                Assert.True(Share(x => x.BackOut) <= 0.01f, $"interior {interior} {stick}: walked back out");
+                Assert.True(Share(x => x.Trace.Hidden > 0) <= 0.08f, $"interior {interior} {stick}: hidden too often");
+                Assert.True(r.Average(x => x.Lifted) <= 0.15f, $"interior {interior} {stick}: lifted too long");
+                Assert.True(r.Max(x => x.PeakTurn) <= TrekCameraTuning.Default.TightTurn + 5, $"interior {interior} {stick}: whipped round");
+            }
+            var steer = group.Select(a => a.Of(CameraStyle.Enhanced)).ToList();
+            Assert.True((float)steer.Count(x => x.RoundBy) / steer.Count >= 0.9f, $"interior {interior}: not round behind him by 1.5 s");
+            var frames = steer.Select(x => x.Frame).OfType<TrekArrival>().Where(f => f.Kind != TrekArrivalKind.Authored).ToList();
+            Assert.True((float)frames.Count(f => f.Reached) / frames.Count >= 0.9f, $"interior {interior}: the frame fell short");
         }
     }
 }

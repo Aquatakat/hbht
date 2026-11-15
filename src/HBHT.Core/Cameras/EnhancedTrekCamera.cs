@@ -18,11 +18,6 @@ public interface ITrekCameraLean
     /// </summary>
     float Lean(Vector3 player, Vector2 travel, float yaw);
 
-    /// <summary>
-    /// Whether the player steers by this lean: the path's bend, yes, so holding forward follows the path; a nudge, no, or
-    /// holding forward past a hunter would curve him into it (<see cref="EnhancedTrekCamera.SteerXZ"/>).
-    /// </summary>
-    bool Steers => true;
 }
 
 /// <summary>
@@ -102,22 +97,6 @@ public sealed partial class EnhancedTrekCamera
 
     private float _slope;
 
-    /// <summary>The part of the yaw's lean, in degrees, the player doesn't steer by: the nudges'.</summary>
-    private float _unsteered;
-
-    /// <summary>
-    /// The way the stick steers him, in X and Z: the look with the nudges' part of the lean taken out, so a nudge turns the
-    /// view and not his travel. Sneaking's framing and the bend's lean are steered by, as the view is.
-    /// </summary>
-    public Vector2 SteerXZ
-    {
-        get
-        {
-            var angle = _yaw + MathF.PI - _unsteered * Degree;
-            return new Vector2(MathF.Cos(angle), MathF.Sin(angle));
-        }
-    }
-
     /// <summary>What the boom turns about: above his head, lifted in close quarters.</summary>
     public Vector3 Pivot => _pivot;
 
@@ -141,14 +120,18 @@ public sealed partial class EnhancedTrekCamera
         interior ? (Tuning.InteriorLength, Tuning.InteriorPitch) : (Tuning.OutdoorLength, Tuning.OutdoorPitch);
 
     /// <summary>
-    /// The player arrived (a teleport, a fall's rescue): behind him, looking along <paramref name="heading"/>, the arm fitted,
-    /// at once; or, if the teleporter names a camera point that is already behind him (the view from it within 90° of his
-    /// heading), from where <paramref name="camera"/> was put there. A point in front of him, looking back at him, is passed
-    /// over for behind him, unless <paramref name="authored"/>: a camera object takes the camera there and moves on from
-    /// the point, so it's kept. The follow camera has arrived first (<see cref="FollowCamera.Arrive"/>).
+    /// The player arrived (a teleport, a fall's rescue). A teleporter's own camera point, <paramref name="kept"/>, is an
+    /// authored frame: taken up from where <paramref name="camera"/> was put there, the arm pulled in only if a wall is
+    /// nearer. Otherwise the arrival frame, the user's design of Nov 14, 2026: the place's own length at its pitch, from
+    /// behind him if the arm reaches it there, else the first angle round from behind, 20° at a time either way (the roomier
+    /// side first), where the arm reaches it (but for <see cref="TrekCameraTuning.ArrivalShortfall"/>) with him in sight; if
+    /// none, the angle with the longest arm; and if even that is shorter than <see cref="TrekCameraTuning.ArrivalShortest"/>
+    /// of the length (a closet), behind him lifted over his head. As a cut. The follow camera has arrived first
+    /// (<see cref="FollowCamera.Arrive"/>).
     /// </summary>
+    /// <param name="door">Through a door: false for a fall's rescue, which goes behind him as before, the way he was walking.</param>
     public void Arrive(FollowCamera camera, CollisionWorld world, VisibleWorld? visible, Vector3 player, Vector2 heading, bool interior, bool kept,
-        bool authored = false)
+        bool door = true)
     {
         (_length, _basePitch) = Place(interior);
         _userPitch = 0;
@@ -156,16 +139,112 @@ public sealed partial class EnhancedTrekCamera
         _travel = Vector2.Zero;
         _lastPlayer = player;
         _swingSide = 0;
-        var view = new Vector2(player.X - camera.Position.X, player.Z - camera.Position.Z);
-        if (kept && (authored || Vector2.Dot(view, heading) > 0))
+        _swingingBehind = false;
+        if (kept)
         {
             Adopt(camera);
-            return;
+            var free = Free(world, visible, Direction, _arm);
+            if (free < _arm)
+                _arm = free;
+            // Kept where it frames him: many points are only where the original's follow camera starts from, below his
+            // head or at his feet, and it leaves them the next tick.
+            if (Sees(world, visible, player) && Framed(player))
+            {
+                Arrival = new TrekArrival(TrekArrivalKind.Authored, 0, _arm, false);
+                Write(camera);
+                camera.Cut();
+                return;
+            }
+            (_length, _basePitch) = Place(interior);
         }
         _unchosen = true;
-        PlaceFitted(world, visible, player, heading);
+        if (door)
+        {
+            PlaceArrival(world, visible, player, heading);
+        }
+        else
+        {
+            PlaceFitted(world, visible, player, heading);
+            Arrival = new TrekArrival(TrekArrivalKind.Behind, 0, _arm, _arm >= _length * (1 - Tuning.ArrivalShortfall));
+        }
         Write(camera);
         camera.Cut();
+    }
+
+    /// <summary>How the last arrival was framed: the angle chosen off behind him, the arm, and whether it reached the length.</summary>
+    public TrekArrival Arrival { get; private set; }
+
+    private void PlaceArrival(CollisionWorld world, VisibleWorld? visible, Vector3 player, Vector2 heading)
+    {
+        var t = Tuning;
+        var ahead = heading.LengthSquared() > 1e-8f ? Vector2.Normalize(heading) : Vector2.UnitX;
+        var behind = MathF.Atan2(-ahead.Y, -ahead.X);
+        var want = _length * (1 - t.ArrivalShortfall);
+        (float Off, float Arm) best = (0, -1);
+        for (var off = 0f; off <= 180.5f; off += t.ArrivalStep)
+        {
+            var tried = new List<(float Off, float Arm, bool Seen)>();
+            foreach (var side in off is 0 or >= 180 ? [1f] : new[] { 1f, -1f })
+            {
+                // Judged by the arm from above his head, and seen from there as well as from the lifted place: a lift over a
+                // railing isn't room, and the pivot settles back as soon as he moves.
+                var arm = PlaceAtYaw(world, visible, player, behind + side * off * Degree);
+                var seen = Sees(world, visible, player);
+                var (pivot, placed) = (_pivot, _arm);
+                (_pivot, _arm) = (player + new Vector3(0, t.Height, 0), arm);
+                seen &= Sees(world, visible, player);
+                (_pivot, _arm) = (pivot, placed);
+                tried.Add((side * off, arm, seen));
+            }
+            foreach (var (o, arm, seen) in tried.OrderByDescending(x => x.Arm))
+            {
+                if (!seen)
+                    continue;
+                if (arm >= want)
+                {
+                    PlaceAtYaw(world, visible, player, behind + o * Degree);
+                    Arrival = new TrekArrival(TrekArrival.KindOf(o), o, arm, true);
+                    return;
+                }
+                if (arm > best.Arm)
+                    best = (o, arm);
+            }
+        }
+        if (best.Arm >= t.ArrivalShortest * _length)
+        {
+            PlaceAtYaw(world, visible, player, behind + best.Off * Degree);
+            Arrival = new TrekArrival(TrekArrival.KindOf(best.Off), best.Off, _arm, false);
+            return;
+        }
+        PlaceAtYaw(world, visible, player, behind);
+        Arrival = new TrekArrival(TrekArrivalKind.Lifted, 0, _arm, false);
+    }
+
+    /// <summary>Placed at once at <paramref name="yaw"/> about him, fitted as close quarters ask (<see cref="PlaceFitted"/>).</summary>
+    private float PlaceAtYaw(CollisionWorld world, VisibleWorld? visible, Vector3 player, float yaw) =>
+        PlaceFitted(world, visible, player, new Vector2(-MathF.Cos(yaw), -MathF.Sin(yaw)));
+
+    /// <summary>Whether his chest is well inside the lens from where the camera is now: within 15° of the look up and down, 30° across.</summary>
+    private bool Framed(Vector3 player)
+    {
+        var eye = _pivot + Direction * _arm;
+        var aim = _pivot - Direction * MathF.Max(0, 1 - _arm);
+        var forward = Vector3.Normalize(aim - eye);
+        var right = Vector3.Normalize(Vector3.Cross(forward, Vector3.UnitY));
+        var up = Vector3.Cross(right, forward);
+        var to = player + new Vector3(0, 0.5f, 0) - eye;
+        var depth = Vector3.Dot(to, forward);
+        return depth > 0.3f && MathF.Abs(Vector3.Dot(to, up)) / depth < MathF.Tan(15 * Degree)
+            && MathF.Abs(Vector3.Dot(to, right)) / depth < MathF.Tan(30 * Degree);
+    }
+
+    /// <summary>Whether the camera where it is now sees his chest: no collision, either side, nor drawn solid between.</summary>
+    private bool Sees(CollisionWorld world, VisibleWorld? visible, Vector3 player)
+    {
+        var eye = _pivot + Direction * _arm;
+        var chest = player + new Vector3(0, 0.5f, 0);
+        return SpherePhysics.SweepEitherSide(world, eye, chest, 0.01f, skipSeeThrough: true) is null
+            && visible?.RaycastSolid(eye, chest) is null;
     }
 
     /// <summary>
@@ -304,13 +383,16 @@ public sealed partial class EnhancedTrekCamera
     }
 
     /// <summary>Placed at once behind him: the arm fitted, then the pivot lifted and the pitch capped as close quarters ask, and fitted again.</summary>
-    private void PlaceFitted(CollisionWorld world, VisibleWorld? visible, Vector3 player, Vector2 heading)
+    /// <returns>The arm from above his head, before the lift: the room the place itself has.</returns>
+    private float PlaceFitted(CollisionWorld world, VisibleWorld? visible, Vector3 player, Vector2 heading)
     {
         PlaceBehind(player, heading);
         Fit(world, visible, at: true);
+        var unlifted = _arm;
         _pivot = PivotGoal(world, visible, player, Math.Clamp(1 - _freeLevel / MathF.Max(_length, 1e-3f), 0, 1));
         _pitch = MathF.Min(_pitch, SightCap(player, heading));
         Fit(world, visible, at: true);
+        return unlifted;
     }
 
     /// <summary>
@@ -334,21 +416,11 @@ public sealed partial class EnhancedTrekCamera
         var goal = _yaw;
         if (auto && _travel.Length() > t.MovingSpeed)
         {
-            float lean = 0, steering = 0;
+            float lean = 0;
             foreach (var l in Leans)
-            {
-                var one = Math.Clamp(l.Lean(player, _travel, Yaw), -l.Bound, l.Bound);
-                lean += one;
-                if (l.Steers)
-                    steering += one;
-            }
+                lean += Math.Clamp(l.Lean(player, _travel, Yaw), -l.Bound, l.Bound);
             lean = Math.Clamp(lean, -t.LeanBound, t.LeanBound);
-            _unsteered = lean - Math.Clamp(steering, -t.LeanBound, t.LeanBound);
             goal = MathF.Atan2(-_travel.Y, -_travel.X) + lean * Degree;
-        }
-        else
-        {
-            _unsteered = 0;
         }
         // Sneaking past a hunter: toward his far side from it, as quickly as its weight allows.
         var sneak = auto ? Sneak.Weight : 0;
@@ -364,11 +436,26 @@ public sealed partial class EnhancedTrekCamera
         {
             _swingingBehind = MathF.Abs(e) > t.UnchosenSwing * Degree;
             _unchosen = false;
+            if (_swingingBehind)
+                _swingSide = OpenWayRound(world, visible, e);
         }
         if (_swingingBehind && MathF.Abs(e) < 10 * Degree)
+        {
             _swingingBehind = false;
+            _swingSide = 0;
+        }
+        if (_swingingBehind && _swingSide != 0)
+        {
+            // An unchosen view's swing keeps the way round it chose, unless his travel has turned so far that way would
+            // take it more than 200° round: then the short way, so the view never wheels on past a half turn.
+            var kept = _swingSide > 0 && e < 0 ? e + 2 * MathF.PI : _swingSide < 0 && e > 0 ? e - 2 * MathF.PI : e;
+            if (MathF.Abs(kept) < 200 * Degree)
+                e = kept;
+            else
+                _swingSide = 0;
+        }
         // Walking at the lens, the way round is chosen once, by the way it's turning or else the side with more room, and kept.
-        if (MathF.Abs(e) > 150 * Degree)
+        else if (MathF.Abs(e) > 150 * Degree)
         {
             if (_swingSide == 0)
             {
@@ -401,9 +488,37 @@ public sealed partial class EnhancedTrekCamera
         var accel = (t.OpenTurnAccel + (t.TightTurnAccel - t.OpenTurnAccel) * tight) * Degree;
         most = MathF.Max(most, sneak * t.SneakTurn * Degree);
         accel = MathF.Max(accel, sneak * t.SneakTurnAccel * Degree);
+        // Enough to stop on the goal from the speed it has: the rate eases off as it comes round, and a swing braked only at
+        // the open rate's change ran on 30° to 50° past behind him.
+        if (MathF.Sign(_yawSpeed) == MathF.Sign(e) && MathF.Abs(e) > 1e-3f)
+            accel = MathF.Max(accel, MathF.Min(_yawSpeed * _yawSpeed / (2 * MathF.Abs(e)), t.TightTurnAccel * Degree));
         var yaw = _yaw;
         Channel(ref yaw, ref _yawSpeed, yaw + e, most, accel, t.TurnSettle + sneak * 4);
         _yaw = Wrap(yaw);
+    }
+
+    /// <summary>
+    /// The way round for an unchosen view's swing behind him, <paramref name="e"/> off: the shorter, unless the arm would
+    /// close up somewhere along it (a door's wall behind him) and the other way has more room all along.
+    /// </summary>
+    private int OpenWayRound(CollisionWorld world, VisibleWorld? visible, float e)
+    {
+        float Least(int side)
+        {
+            var span = side > 0 ? (e >= 0 ? e : e + 2 * MathF.PI) : (e <= 0 ? -e : 2 * MathF.PI - e);
+            var least = float.MaxValue;
+            var yaw = _yaw;
+            for (var k = 1; k <= 6; k++)
+            {
+                _yaw = yaw + side * span * k / 6;
+                least = MathF.Min(least, Free(world, visible, DirectionAt(_basePitch), _length));
+            }
+            _yaw = yaw;
+            return least;
+        }
+        var shorter = e >= 0 ? 1 : -1;
+        var (near, far) = (Least(shorter), Least(-shorter));
+        return near < Tuning.ArrivalShortest * _length && far > near + 0.5f ? -shorter : shorter;
     }
 
     /// <summary>
@@ -518,4 +633,33 @@ public sealed partial class EnhancedTrekCamera
         angle %= 2 * MathF.PI;
         return angle > MathF.PI ? angle - 2 * MathF.PI : angle < -MathF.PI ? angle + 2 * MathF.PI : angle;
     }
+}
+
+/// <summary>How an arrival was framed (<see cref="EnhancedTrekCamera.Arrival"/>).</summary>
+public enum TrekArrivalKind
+{
+    /// <summary>The teleporter's own camera point.</summary>
+    Authored,
+    /// <summary>Within 30° of behind him.</summary>
+    Behind,
+    /// <summary>From 30° to 120° round: beside him.</summary>
+    Side,
+    /// <summary>From 120° to 165° round.</summary>
+    FrontQuarter,
+    /// <summary>More than 165° round: in front of him, looking back.</summary>
+    Front,
+    /// <summary>No angle had room: behind him, lifted over his head.</summary>
+    Lifted,
+}
+
+/// <summary>An arrival's frame: its kind, the angle off behind him in degrees (signed), the arm, whether it reached the length.</summary>
+public readonly record struct TrekArrival(TrekArrivalKind Kind, float Off, float Arm, bool Reached)
+{
+    public static TrekArrivalKind KindOf(float off) => MathF.Abs(off) switch
+    {
+        < 30 => TrekArrivalKind.Behind,
+        < 120 => TrekArrivalKind.Side,
+        < 165 => TrekArrivalKind.FrontQuarter,
+        _ => TrekArrivalKind.Front,
+    };
 }
