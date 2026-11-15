@@ -46,8 +46,10 @@ namespace HBHT.Core.Cameras;
 /// <param name="StickPitch">Degrees a frame it pitches with the stick full up or down.</param>
 /// <param name="LowestPitch">The lowest pitch the player can turn it to.</param>
 /// <param name="HighestPitch">The highest pitch, the player's or close quarters'.</param>
-/// <param name="PivotRate">The share of the way the pivot closes on the player a tick.</param>
 /// <param name="PivotSpeed">The fastest it closes, units a second.</param>
+/// <param name="PivotTime">How long its smoothed approach takes to go 90% of the way.</param>
+/// <param name="PivotAccel">How fast its speed may change, units a second².</param>
+/// <param name="CloseEase">How long close quarters (the lift and the raised pitch) take to ease most of the way (63%) to the room about him.</param>
 /// <param name="UnchosenSwing">How far off behind his travel a view he didn't choose must be, as he sets off, to swing behind at the tight rate.</param>
 /// <param name="ArrivalShortfall">How far short of the place's length an arrival's arm may be and still count as reaching it.</param>
 /// <param name="ArrivalStep">How far round from behind him each angle an arrival tries is from the last.</param>
@@ -94,10 +96,10 @@ public sealed record TrekCameraTuning(
     float ArmOut = 1.5f,
     float ArmAccel = 3,
     float ArmEase = 1.5f,
-    float ArmIn = 10,
-    float ArmInAccel = 40,
+    float ArmIn = 12,
+    float ArmInAccel = 80,
     float ArmInTime = 0.4f,
-    float ArmLookahead = 0.7f,
+    float ArmLookahead = 1,
     float WhiskerSpread = 120,
     float WhiskerEase = 0.6f,
     float CloseLift = 1.6f,
@@ -123,8 +125,10 @@ public sealed record TrekCameraTuning(
     float StickPitch = 1.5f,
     float LowestPitch = -10,
     float HighestPitch = 70,
-    float PivotRate = 0.12f,
     float PivotSpeed = 8,
+    float PivotTime = 0.3f,
+    float PivotAccel = 30,
+    float CloseEase = 0.4f,
     float UnchosenSwing = 90,
     float ArrivalShortfall = 0.15f,
     float ArrivalStep = 20,

@@ -115,7 +115,7 @@ public static class CameraTrace
     /// <param name="each">Called after each tick traced, with the tick's number from the arrival.</param>
     /// <param name="stick">How the stick is pushed on a walk with no route.</param>
     public static CameraTraceResult Run(PluginSet plugins, CameraWalk walk, CameraStyle style, Action<TrekLoop, int>? each = null,
-        TrekCameraTuning? tuning = null, CameraStick stick = CameraStick.Steer, int standTicks = 0)
+        TrekCameraTuning? tuning = null, CameraStick stick = CameraStick.Steer, int standTicks = 0, bool tour = false)
     {
         var trek = Start(plugins, walk, out var host);
         trek.CameraStyle = style;
@@ -150,6 +150,18 @@ public static class CameraTrace
         var routeChunk = trek.Chunks.Find(walk.RouteChunk) ?? throw new InvalidOperationException($"{walk.Name}: no chunk {walk.RouteChunk}.");
         var origin = trek.Chunks.Origin(routeChunk);
         var route = walk.Route.Select(p => new Vector2(origin.X + p.X, origin.Z + p.Y)).ToArray();
+        // A tour of the place (CameraTour), with its stops.
+        var pauses = new int[route.Length];
+        if (tour)
+        {
+            var stops = CameraTour.Plan(trek);
+            route = [.. stops.Select(x => x.At)];
+            pauses = [.. stops.Select(x => x.Ticks)];
+        }
+        var paused = 0;
+        // On a tour, a waypoint he makes no headway toward for a second is passed over, as a player would find another way.
+        float nearest = float.MaxValue;
+        int since = 0, skipped = 0;
         // With no route, he holds the way he arrived facing.
         var holding = route.Length == 0;
         var facing = trek.Player.Heading;
@@ -166,19 +178,38 @@ public static class CameraTrace
         Vector3? lastSpin = null;
         var lastPlayer = trek.Player.Sphere.Position;
         var stuck = 0;
-        for (; ticks < walk.MostTicks && (holding || next < route.Length) && stuck < 60; ticks++)
+        for (; ticks < walk.MostTicks && (holding || next < route.Length || paused > 0) && stuck < 60; ticks++)
         {
             var at = trek.Player.Sphere.Position;
             var flatAt = new Vector2(at.X, at.Z);
-            while (next < route.Length && Vector2.Distance(flatAt, route[next]) < 0.6f)
+            while (paused == 0 && next < route.Length && Vector2.Distance(flatAt, route[next]) < 0.6f)
+            {
+                paused = pauses[next];
                 next++;
-            if (!holding && next >= route.Length)
+                nearest = float.MaxValue;
+                skipped = 0;
+            }
+            if (tour && paused == 0 && next < route.Length)
+            {
+                var d = Vector2.Distance(flatAt, route[next]);
+                if (d < nearest - 0.05f)
+                    (nearest, since) = (d, 0);
+                else if (++since > 60)
+                    (next, nearest, since, skipped) = (next + 1, float.MaxValue, 0, skipped + 1);
+                // Three passed over in a row: he's jammed in a pinch the floor's grid let through, and the tour ends.
+                if (skipped >= 3)
+                    break;
+            }
+            if (!holding && next >= route.Length && paused == 0)
                 break;
-            var way = !holding ? Vector2.Normalize(route[next] - flatAt)
+            if (paused > 0)
+                paused--;
+            var way = !holding ? (next < route.Length && route[next] != flatAt ? Vector2.Normalize(route[next] - flatAt) : facing)
                 : stick == CameraStick.Wander ? Turned(facing, 70 * (ticks / 120))
                 : facing;
             var look = trek.Camera.LookXZ;
-            var push = !holding ? Pilot.StickFor(way, look)
+            var push = paused > 0 ? Vector2.Zero
+                : !holding ? Pilot.StickFor(way, look)
                 : stick == CameraStick.Up ? Vector2.UnitY
                 : stick == CameraStick.Still ? Vector2.Zero
                 : stick == CameraStick.Down ? (ticks < RestTicks ? Vector2.Zero : Pilot.StickFor(towardLens ??= LensWay(trek), look))
@@ -224,7 +255,7 @@ public static class CameraTrace
                 hidden++;
             var travel = player - lastPlayer;
             travel.Y = 0;
-            stuck = travel.Length() < 0.002f && ticks > 120 ? stuck + 1 : 0;
+            stuck = travel.Length() < 0.002f && ticks > 120 && push != Vector2.Zero ? stuck + 1 : 0;
             if (ticks >= TicksPerSecond)
             {
                 late++;
