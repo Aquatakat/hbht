@@ -198,19 +198,92 @@ public partial class PartyTabView : Control
         QueueRedraw();
     }
 
+    /// <summary>
+    /// The mouse (ADR 0040): hovering a row puts the cursor on it; the wheel scrolls the list under it, or the one the window
+    /// works in, and the cursor goes to the row then under the pointer; a click on a row, a question's choice or a message
+    /// takes it as A would (<see cref="UiPointer"/>). A click on nothing does nothing.
+    /// </summary>
     public override void _GuiInput(InputEvent @event)
     {
-        // Hovering a row puts the cursor on it, and the wheel moves it.
-        if (@event is InputEventMouseMotion motion && Hover(motion.Position))
+        if (@event is InputEventMouseMotion motion)
         {
+            if (!Hover(motion.Position))
+                return;
         }
-        else if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelUp or MouseButton.WheelDown } wheel)
-            Window.MoveCursor(wheel.ButtonIndex == MouseButton.WheelUp ? -1 : 1);
+        else if (UiPointer.Wheel(@event) is var turn and not 0 && @event is InputEventMouseButton wheel)
+        {
+            // A question's choices don't scroll: the wheel steps them, as the stick does.
+            if (Window.Overlay.Choice is not null || Window is BarterMenu { Confirm: not null })
+                Window.MoveCursor(turn);
+            else if (ListUnder(wheel.Position - (Vector2)_origin)?.ScrollBy(turn) == true)
+                Hover(wheel.Position);
+        }
+        else if (UiPointer.Clicked(@event) && @event is InputEventMouseButton click)
+        {
+            if (!Click(click.Position))
+                return;
+        }
         else
             return;
         QueueRedraw();
         AcceptEvent();
     }
+
+    /// <summary>
+    /// A click: on a popup's choice, the choice taken; on a message or the help, closing it; on a row, the row taken. Each puts
+    /// the cursor there and presses A. Whether it was on something.
+    /// </summary>
+    private bool Click(Vector2 point)
+    {
+        var overlay = Window.Overlay;
+        if (Window is BarterMenu { Confirm: { } confirm })
+        {
+            if (ConfirmAt(confirm, point) is not { } option)
+                return false;
+            confirm.Options.Point(option);
+        }
+        else if (overlay.Choice is { } choice)
+        {
+            if (_ui.ChoiceAt((Vector2I)Size, choice, point) is not { } picked)
+                return false;
+            choice.Choices.Point(picked);
+        }
+        else if (overlay.Message is null && overlay.Help is null && !Hover(point))
+            return false;
+        UiPointer.Accept();
+        return true;
+    }
+
+    /// <summary>The list under a point in the frame, or else the one the window works in, which the wheel scrolls.</summary>
+    private IScrollingList? ListUnder(Vector2 at)
+    {
+        switch (Window)
+        {
+            case BarterMenu barter:
+                if (BarterMenu.PileLayout.RowAt(barter.Pile, at.X, at.Y) is not null)
+                    return barter.Pile;
+                if (PartyMenu.Layout(PartyList.Inventory).RowAt(Menu.Inventory, at.X, at.Y) is not null)
+                    return Menu.Inventory;
+                return barter.OnPile ? barter.Pile : Menu.Inventory;
+            case TrainingMenu training:
+                return training.OnSpells ? training.Spells : training.Skills;
+            case PartyMenu menu:
+                return TabList(menu);
+            case PostBattleMenu postBattle:
+                return TabList(postBattle.Party);
+            default:
+                return null;
+        }
+    }
+
+    /// <summary>The tab's list showing, or its crafting popup's while it's open.</summary>
+    private static IScrollingList TabList(PartyMenu menu) => menu.Crafting is { } crafting ? crafting.Rows : menu.List switch
+    {
+        PartyList.Inventory => menu.Inventory,
+        PartyList.Stats => menu.Stats,
+        PartyList.Skills => menu.Skills,
+        _ => menu.Spells,
+    };
 
     /// <summary>
     /// Puts the window's cursor on the row under a point, as hovering does: the pile's or the party's list in the barter

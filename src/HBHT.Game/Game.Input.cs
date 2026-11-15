@@ -140,6 +140,78 @@ public partial class Game
     }
 
     /// <summary>
+    /// A press from the pointer (<see cref="Views.UiPointer"/>): a view put the cursor on what was clicked and presses A, which
+    /// goes to the session as a key's press would, unless the Controls page's prompt is waiting.
+    /// </summary>
+    private void PointerPress(MenuAction action)
+    {
+        if (_session is not { } session || session.Mode is not (GameMode.Menu or GameMode.Title or GameMode.Conversation or GameMode.Popup
+            or GameMode.Backdrop or GameMode.CutScene))
+            return;
+        var system = session.Mode == GameMode.Title ? session.Title!.Menu : session.Menu.System;
+        if (system?.Options?.Prompt is not null)
+            return;
+        if (session.Press(action) != PressOutcome.Ignored)
+            ShowPressed(session);
+    }
+
+    /// <summary>
+    /// The mouse in a conversation, a cut-scene's box, trek's popups and a backdrop's page, which draw on screens of their own
+    /// that don't take it (ADR 0040): hovering a choice puts the cursor on it and a click takes it; where there are no choices,
+    /// a click anywhere is A, continuing the line or closing the message. A click while choices are up but on none of them does
+    /// nothing. Whether it took the event.
+    /// </summary>
+    private bool TalkPointer(GameSession session, InputEvent e)
+    {
+        var click = Views.UiPointer.Clicked(e);
+        if (e is not InputEventMouse mouse || !click && e is not InputEventMouseMotion)
+            return false;
+        int? choice = null;
+        switch (session.Mode)
+        {
+            case GameMode.Conversation or GameMode.CutScene when _box is { Visible: true, Box: { Shown: true, Layout: { } layout } } box:
+                if (layout.Choices.Count == 0)
+                    break;
+                choice = Views.UiPointer.BlockAt(layout.Choices, _trekScreen.ToCanvas(mouse.Position));
+                if (choice is { } said)
+                    box.Point(said);
+                else
+                    return click;
+                break;
+            case GameMode.Popup when _popupView?.Popup is { } popup:
+                if (popup.Question is not { } question)
+                    break;
+                choice = _popupView.ChoiceAt(_trekScreen.ToCanvas(mouse.Position));
+                if (choice is { } picked)
+                    question.Choices.Point(picked);
+                else
+                    return click;
+                break;
+            case GameMode.Backdrop when _backdrop?.Page is { Layout: { } page } backdrop:
+                if (page.Choices.Count == 0)
+                    break;
+                var screen = _backdrop.Screen;
+                var frame = (screen.CanvasSize - new Vector2I(320, 240)) / 2;
+                choice = Views.UiPointer.BlockAt(page.Choices, screen.ToCanvas(mouse.Position) - frame);
+                if (choice is { } row)
+                    backdrop.MoveCursor(row - backdrop.Highlight);
+                else
+                    return click;
+                break;
+            default:
+                return false;
+        }
+        if (click)
+            PointerPress(MenuAction.Accept);
+        else if (choice is null)
+            return false;
+        else
+            ShowPressed(session);
+        GetViewport().SetInputAsHandled();
+        return true;
+    }
+
+    /// <summary>
     /// Whether a mouse button is passed over: in trek and a battle with mouse look, while the mouse isn't captured, the click
     /// that brings the window back to the front, which would otherwise use what he stands by or start an attack. It captures
     /// the mouse instead.

@@ -10,7 +10,7 @@ namespace HBHT.Core.Ui;
 /// A list made without a count shows every row. The cursor pulses between the rows' colour
 /// and <see cref="PartyMenu.HighlightColor"/>, as the conversation box's choices do.
 /// </remarks>
-public sealed class MenuList<TRow>
+public sealed class MenuList<TRow> : IScrollingList
 {
     private IReadOnlyList<TRow> _rows = [];
     private int _visible;
@@ -77,6 +77,19 @@ public sealed class MenuList<TRow>
     }
 
     /// <summary>
+    /// Scrolls the view by rows, as the mouse's wheel does (ADR 0040), leaving the cursor where it is, even out of view; the next
+    /// move of the cursor brings the view back to it. Whether the view moved.
+    /// </summary>
+    public bool ScrollBy(int rows)
+    {
+        var first = Math.Clamp(First + rows, 0, Math.Max(0, _rows.Count - _visible));
+        if (first == First)
+            return false;
+        First = first;
+        return true;
+    }
+
+    /// <summary>
     /// Replaces the rows, keeping the cursor and the scroll as a member change does: past the end, the
     /// cursor goes to the last row, or with <paramref name="resetPastEnd"/>, back to the top.
     /// </summary>
@@ -95,4 +108,11 @@ public sealed class MenuList<TRow>
             First = Cursor - _visible + 1;
         First = Math.Clamp(First, 0, Math.Max(0, _rows.Count - _visible));
     }
+}
+
+/// <summary>A list whose view the mouse's wheel scrolls, whatever its rows are (<see cref="MenuList{TRow}.ScrollBy"/>).</summary>
+public interface IScrollingList
+{
+    /// <summary>Scrolls the view by rows, leaving the cursor. Whether it moved.</summary>
+    bool ScrollBy(int rows);
 }

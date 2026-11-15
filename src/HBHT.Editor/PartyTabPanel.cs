@@ -26,7 +26,7 @@ public partial class PartyTabPanel : MenuWindowPanel
     {
         _menu = menu;
         Describe($"{(game is { IsNewGame: false } ? $"{game.Name}'s party" : "A new game's party")} in the pause menu's Party tab. "
-            + "Hover a row or scroll to move the cursor, and A to use it: equip, take off, drink, read, or a skill's popup. "
+            + "Hover a row to point at it, click it or press A to use it (equip, take off, drink, read, or a skill's popup), and the wheel scrolls the list. "
             + "Load a checkpoint or a save on a flag page to show its party.");
         AddButton("◀ Member", "C-left: the next member.", () => Press(MenuAction.MemberLeft));
         AddButton("Member ▶", "C-right: the member before.", () => Press(MenuAction.MemberRight));

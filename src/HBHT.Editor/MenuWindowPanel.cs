@@ -27,6 +27,8 @@ public abstract partial class MenuWindowPanel : VBoxContainer
         AddThemeConstantOverride("separation", 6);
         View = new PartyTabView(plugins, window);
         _screen.Canvas.AddChild(View);
+        // The window's clicks press it here (ADR 0040): whichever panel the mouse is over takes them.
+        _screen.MouseEntered += () => UiPointer.Host = Press;
     }
 
     /// <summary>The runtime's view of the window.</summary>

@@ -20,11 +20,10 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 ### Left over from finished work
 
-- **The mouse and keyboard** ([ADR 0040](adr/0040-the-mouse-comes-first-on-the-keyboard.md)). Done: mouse look by default, the left button A in trek and a battle, the right B everywhere, and Invert Mouse Y and Invert Camera Y. Left, in slices:
-  - **Clicks in the menus:** each window says what's clickable in its frame and the core takes the click as what it chooses. Rows, popups and their choices, conversations (a click anywhere continues a line), the title, the System tab's pages (a value's left or right half steps it; the Controls prompt mustn't bind the click that opened it), the World tab's Camp and Journal, the save screens. The wheel scrolls a scrolling view and a click chooses in it ([pause menu](systems/pause-menu.md)).
+- **The mouse and keyboard** ([ADR 0040](adr/0040-the-mouse-comes-first-on-the-keyboard.md)). Done: mouse look by default, the left button A in trek and a battle, the right B everywhere, Invert Mouse Y and Invert Camera Y, and clicks in the menus, conversations, popups, books and the title, with the wheel scrolling the view ([ui](systems/ui.md#input)). Left, in slices:
   - **The Party tab's own:** a small portrait shows that member in one change, the portraits' tween carrying each from its place to its new one (a port addition: the original steps one at a time); the list's title, its left or right half stepping the list, with arrows beside it on hover; and changing tab by clicking a neighbour's visible part on a wide screen, or the red arrows (Party's both ways, World's left, System's right).
   - **Combat:** aiming steps the target order by the mouse's sideways motion and the wheel, a click confirming; the free cursor of a thrown weapon or flask follows the mouse; the held menus scroll with the wheel and a click chooses.
-  - **The keyboard:** typing Alaron's name, and 1 to 4 showing that member on the Party windows.
+  - **The keyboard:** 1 to 4 showing that member on the Party windows. Typing Alaron's name already works (`Game.TypeName`).
 
   The user ruled out the wheel in trek and a marker on what Use reaches. The menus' motion is otherwise 1.0's: their slides, fades and scroll, a battle's pause on a wide screen and the details' edge.
 - **Content still in code:** the [hardcoded content](hardcoded-content.md) log, planned in [Phase 5](#phase-5-mod-system-and-tools). Among it, a mod's own skills, stats and weapon skills load and validate, but the core holds the original's 24 skill slots and 7 stats, so a mod's isn't played (ADR 0032).

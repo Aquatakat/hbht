@@ -21,7 +21,5 @@ public partial class WorldTabView : IPauseTab<WorldMenu>
 {
     WorldMenu IPauseTab<WorldMenu>.Model { set => Menu = value; }
 
-    void IPauseTab.Activate(bool showing)
-    {
-    }
+    void IPauseTab.Activate(bool showing) => MouseFilter = showing ? MouseFilterEnum.Pass : MouseFilterEnum.Ignore;
 }

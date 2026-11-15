@@ -87,32 +87,164 @@ public partial class SystemTabView : Control
     /// <summary>Where the frame's corner is on the screen: the frame is centred.</summary>
     private Vector2I Origin() => new(((int)Size.X - FrameWidth) / 2, ((int)Size.Y - FrameHeight) / 2);
 
+    /// <summary>
+    /// The mouse (ADR 0040): hovering a row, a choice or a key puts the cursor on it; the wheel scrolls a page that scrolls, steps a
+    /// question's choices and turns the saves; a click takes what's under it as A would (<see cref="UiPointer"/>), a click on a
+    /// value's left half stepping it back, on a volume's bar setting it there and on a save's arrow turning that way. A click on
+    /// nothing does nothing, and a message closes to a click anywhere.
+    /// </summary>
     public override void _GuiInput(InputEvent @event)
     {
         // The Controls page's prompt binds the wheel and the buttons too (Game.BindPrompted), so they go by.
         if (Menu.Options?.Prompt is not null)
             return;
-        if (Menu.Quitting is { } quitting)
+        var handled = @event switch
         {
-            // The quit box takes the mouse as the stick: hovering points at a choice.
-            if (@event is InputEventMouseMotion over && _ui.ChoiceAt(new Vector2I((int)Size.X, (int)Size.Y), quitting, over.Position) is { } choice)
-                Menu.PointQuit(choice);
-            else if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelUp or MouseButton.WheelDown } scroll)
-                Menu.MoveCursor(scroll.ButtonIndex == MouseButton.WheelUp ? -1 : 1);
-            else
-                return;
-            QueueRedraw();
-            AcceptEvent();
-            return;
-        }
-        if (@event is InputEventMouseMotion motion && RowAt(motion.Position - _origin) is { } row)
-            Menu.Point(row);
-        else if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelUp or MouseButton.WheelDown } wheel)
-            Menu.MoveCursor(wheel.ButtonIndex == MouseButton.WheelUp ? -1 : 1);
-        else
+            InputEventMouseMotion motion => Hover(motion.Position),
+            InputEventMouseButton button when UiPointer.Wheel(button) is var turn and not 0 => Wheel(turn, button.Position),
+            InputEventMouseButton button when UiPointer.Clicked(button) => Click(button.Position),
+            _ => false,
+        };
+        if (!handled)
             return;
         QueueRedraw();
         AcceptEvent();
+    }
+
+    /// <summary>The question up over the page, if any: the quit box, the menu's own, or the saves'.</summary>
+    private MenuChoice? Question => Menu.Quitting ?? Menu.Overlay.Choice ?? Menu.Saves?.Choice;
+
+    /// <summary>Whether a message is up over the page, which a click anywhere closes.</summary>
+    private bool MessageUp => Menu.Overlay.Message is not null || Menu.Saves?.Overlay.Message is not null;
+
+    /// <summary>Puts the cursor on what's under a point: a question's choice, a key of the name entry, or a row. Whether there was one.</summary>
+    private bool Hover(Vector2 point)
+    {
+        if (Question is { } question)
+        {
+            if (_ui.ChoiceAt(new Vector2I((int)Size.X, (int)Size.Y), question, point) is not { } choice)
+                return false;
+            if (Menu.Quitting is not null)
+                Menu.PointQuit(choice);
+            else
+                question.Choices.Point(choice);
+            return true;
+        }
+        if (MessageUp)
+            return false;
+        var at = point - _origin;
+        if (Menu.Page == SystemPage.Rename && Menu.Rename is { } entry)
+        {
+            if (KeyAt(at) is not { } key)
+                return false;
+            entry.Point(key);
+            return true;
+        }
+        if (RowAt(at) is not { } row)
+            return false;
+        Menu.Point(row);
+        return true;
+    }
+
+    /// <summary>
+    /// The wheel: a question's choices step, the saves turn, and the Video, Enhancements and Controls pages scroll, the cursor
+    /// going to the row then under the pointer.
+    /// </summary>
+    private bool Wheel(int turn, Vector2 point)
+    {
+        if (Question is not null)
+        {
+            Menu.MoveCursor(turn);
+            return true;
+        }
+        if (MessageUp)
+            return false;
+        if (Menu.Page == SystemPage.Saves)
+        {
+            Menu.Sideways(turn);
+            return true;
+        }
+        if (Menu.Page != SystemPage.Options || Menu.Options is not { } options)
+            return false;
+        int first, last;
+        if (options.Page == OptionsPage.Controls)
+            (_, _, _, _, first, last) = ControlPlaces(options);
+        else if (ChoicesScroll(options))
+            (first, last) = (FirstChoice(options), LastFirstChoice(options));
+        else
+            return false;
+        options.ScrollTo(Math.Clamp(first + turn, 0, last));
+        Hover(point);
+        return true;
+    }
+
+    /// <summary>A click: what's under the pointer, put the cursor on and taken. Whether it was on something.</summary>
+    private bool Click(Vector2 point)
+    {
+        if (MessageUp && Question is null)
+        {
+            UiPointer.Accept();
+            return true;
+        }
+        var at = point - _origin;
+        if (Question is null && Menu.Page == SystemPage.Saves && Menu.Saves is { Sliding: false } saves && SlotArrowSide(saves, at) is { } side)
+        {
+            UiPointer.Press(side < 0 ? MenuAction.Left : MenuAction.Right);
+            return true;
+        }
+        if (!Hover(point))
+            return false;
+        if (Question is null && Menu.Page == SystemPage.Options && Menu.Options is { Rows.Current: { } row } options)
+        {
+            at -= OptionsShift(options);
+            switch (row.Kind)
+            {
+                case OptionKind.Volume:
+                    // On the bar, the volume goes to where it was clicked; on the label, nothing.
+                    var bar = _ui.Size(MenuImages.VolumeBar);
+                    var top = OptionRows(options)[options.Rows.Cursor].Top + _ui.Main.LineHeight;
+                    if (at.Y < top || bar.X <= 0)
+                        return true;
+                    var value = (int)Math.Round(Math.Clamp((at.X - OptionsLeft) / bar.X, 0, 1) * Core.Settings.MaxVolume);
+                    options.Change(value - row.Value);
+                    return true;
+                case OptionKind.Choice when ValueLeft(options) is { } left:
+                    // The value's left half steps it back; anywhere else on the row, on, as A does.
+                    var width = _ui.Main.Width(row.ValueName ?? "");
+                    UiPointer.Press(at.X >= left && at.X < left + width / 2f ? MenuAction.Left : MenuAction.Accept);
+                    return true;
+            }
+        }
+        UiPointer.Accept();
+        return true;
+    }
+
+    /// <summary>Where an options page's values start, on the pages that print them beside their labels.</summary>
+    private static int? ValueLeft(OptionsMenu options) => options.Page switch
+    {
+        OptionsPage.Controls => ControlsValue,
+        OptionsPage.Video or OptionsPage.Enhancements => ChoiceValue,
+        _ => null,
+    };
+
+    /// <summary>The key of the name entry under a point in the frame.</summary>
+    private static int? KeyAt(Vector2 at)
+    {
+        var cell = (at - Grid) / KeySize;
+        if (cell.X < 0 || cell.Y < 0 || cell.X >= NameEntry.Columns)
+            return null;
+        var key = (int)cell.Y * NameEntry.Columns + (int)cell.X;
+        return key < NameEntry.Keys.Length ? key : null;
+    }
+
+    /// <summary>Which half of a save's arrow is under a point, −1 or 1, where the arrow points that way.</summary>
+    private int? SlotArrowSide(SaveMenu saves, Vector2 at)
+    {
+        var size = _ui.Size(MenuImages.SliderBoth);
+        if (at.X < SlotArrow.X || at.X >= SlotArrow.X + size.X || at.Y < SlotArrow.Y - 2 || at.Y >= SlotArrow.Y + size.Y + 2)
+            return null;
+        var side = at.X < SlotArrow.X + size.X / 2f ? -1 : 1;
+        return side < 0 ? saves.MoreLeft ? -1 : null : saves.MoreRight ? 1 : null;
     }
 
     /// <summary>The row of the list or options page under a point in the frame.</summary>
@@ -326,7 +458,10 @@ public partial class SystemTabView : Control
 
     /// <summary>The first of the Video or Enhancements page's rows in view: the list scrolls to keep the cursor's row in the middle, as far as it can.</summary>
     private static int FirstChoice(OptionsMenu options) =>
-        Math.Clamp(options.Rows.Cursor - ChoiceLines / 2, 0, Math.Max(0, options.Rows.Rows.Count - ChoiceLines));
+        Math.Clamp(options.ViewFirst ?? options.Rows.Cursor - ChoiceLines / 2, 0, LastFirstChoice(options));
+
+    /// <summary>The furthest the Video or Enhancements page scrolls: its last rows in view.</summary>
+    private static int LastFirstChoice(OptionsMenu options) => Math.Max(0, options.Rows.Rows.Count - ChoiceLines);
 
     /// <summary>Whether the Video or Enhancements page has more rows than show at once.</summary>
     private static bool ChoicesScroll(OptionsMenu options) => HasChoices(options) && options.Rows.Rows.Count > ChoiceLines;

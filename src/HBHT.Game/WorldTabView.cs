@@ -76,6 +76,46 @@ public partial class WorldTabView : Control
             QueueRedraw();
     }
 
+    /// <summary>
+    /// The mouse (ADR 0040): hovering Camp or Journal puts the cursor on it, and a click takes it as A would; a message closes to
+    /// a click anywhere. The journal's view takes the mouse while it's open.
+    /// </summary>
+    public override void _GuiInput(InputEvent @event)
+    {
+        if (Menu.Journal is not null || @event is not InputEventMouse mouse)
+            return;
+        var click = UiPointer.Clicked(@event);
+        if (Menu.Message is not null)
+        {
+            if (!click)
+                return;
+        }
+        else if (@event is InputEventMouseMotion || click)
+        {
+            var size = new Vector2I((int)Size.X, (int)Size.Y);
+            var at = mouse.Position - (Vector2)((size - new Vector2I(FrameWidth, FrameHeight)) / 2);
+            if (ChoiceAt(at) is not { } choice)
+                return;
+            Menu.MoveCursor(choice == WorldChoice.Camp ? -1 : 1);
+        }
+        else
+            return;
+        if (click)
+            UiPointer.Accept();
+        QueueRedraw();
+        AcceptEvent();
+    }
+
+    /// <summary>Camp or Journal, whichever's title is under a point in the frame.</summary>
+    private WorldChoice? ChoiceAt(Vector2 at)
+    {
+        if (new Rect2(Camp, _ui.Size(MenuImages.CampTitle)).HasPoint(at))
+            return WorldChoice.Camp;
+        if (new Rect2(Journal, _ui.Size(MenuImages.JournalTitle)).HasPoint(at))
+            return WorldChoice.Journal;
+        return null;
+    }
+
     public override void _Draw()
     {
         var size = new Vector2I((int)Size.X, (int)Size.Y);

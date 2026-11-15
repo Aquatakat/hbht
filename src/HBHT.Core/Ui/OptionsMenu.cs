@@ -155,9 +155,20 @@ public sealed partial class OptionsMenu
 
     public void MoveCursor(int by)
     {
-        if (Prompt is null)
-            Rows.Move(by);
+        if (Prompt is not null)
+            return;
+        Rows.Move(by);
+        ViewFirst = null;
     }
+
+    /// <summary>
+    /// The first line in view where the mouse's wheel scrolled the page to (ADR 0040), or null while the page keeps the cursor's
+    /// row in the middle. Hovering keeps it; the stick or the keys moving the cursor, or another page, let it go.
+    /// </summary>
+    public int? ViewFirst { get; private set; }
+
+    /// <summary>Scrolls the page's view to a first line, which the view has clamped to its lines.</summary>
+    public void ScrollTo(int first) => ViewFirst = first;
 
     /// <summary>A copy on the same page with the cursor on the same row, which the page fading out draws as it was.</summary>
     public OptionsMenu Copy()
@@ -277,6 +288,7 @@ public sealed partial class OptionsMenu
             _ => MainRows(),
         };
         Rows.Point(0);
+        ViewFirst = null;
         Pulse.Reset();
     }
 

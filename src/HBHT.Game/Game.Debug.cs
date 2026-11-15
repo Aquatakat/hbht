@@ -130,6 +130,14 @@ public partial class Game
         var at = 0.5;
         foreach (var token in presses.Split(','))
         {
+            // The mouse at a point of the 320 × 240 frame, centred on the UI screen in front: click@160_120, hover@, wheel@, wheelup@.
+            if (token.Split('@') is [var gesture, var point] && point.Split('_') is [var px, var py])
+            {
+                var frame = new Vector2(float.Parse(px, CultureInfo.InvariantCulture), float.Parse(py, CultureInfo.InvariantCulture));
+                GetTree().CreateTimer(at).Timeout += () => Mouse(gesture, frame);
+                at += 0.2;
+                continue;
+            }
             // A binding (Key:P, Joy:Y, Axis:LeftX-) is pressed and let go as the device's own events, as the Controls page's prompt reads them.
             if (InputBindings.Event(token) is { } raw)
             {
@@ -163,6 +171,32 @@ public partial class Game
             at += (overlap ? 0 : held ?? 0) + 0.2;
         }
         return at;
+    }
+
+    /// <summary>
+    /// The mouse at a point of the frame on the UI screen in front (the title's, the pause menu's, a backdrop's or trek's): moved
+    /// there, and clicked, or the wheel turned, as <c>--press click@160_120</c> asks.
+    /// </summary>
+    private void Mouse(string gesture, Vector2 frame)
+    {
+        var screen = _titleLayer is { Visible: true } title ? title.Screen
+            : _menu is { IsOpen: true } menu ? menu.Screen
+            : _backdrop is { Page: not null } backdrop ? backdrop.Screen
+            : _trekScreen;
+        var canvas = frame + (Vector2)((screen.CanvasSize - new Vector2I(320, 240)) / 2);
+        var window = screen.ToWindow(canvas);
+        Input.ParseInputEvent(new InputEventMouseMotion { Position = window, GlobalPosition = window });
+        var button = gesture switch
+        {
+            "click" => MouseButton.Left,
+            "wheel" => MouseButton.WheelDown,
+            "wheelup" => MouseButton.WheelUp,
+            _ => MouseButton.None,
+        };
+        if (button == MouseButton.None)
+            return;
+        Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = button, Pressed = true, Position = window, GlobalPosition = window });
+        Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = button, Pressed = false, Position = window, GlobalPosition = window });
     }
 
     /// <summary>A key, button or axis pressed and let go, as the device's own events.</summary>

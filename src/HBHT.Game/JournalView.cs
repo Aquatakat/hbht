@@ -34,8 +34,32 @@ public partial class JournalView : Control
         MouseFilter = MouseFilterEnum.Ignore;
     }
 
-    /// <summary>The journal showing, or null.</summary>
-    public JournalMenu? Journal { get; set; }
+    /// <summary>The journal showing, or null. The view takes the mouse only while it shows, so the tabs under it have it otherwise.</summary>
+    public JournalMenu? Journal
+    {
+        get => _journal;
+        set
+        {
+            _journal = value;
+            MouseFilter = value is { Closing: false } ? MouseFilterEnum.Pass : MouseFilterEnum.Ignore;
+        }
+    }
+
+    private JournalMenu? _journal;
+
+    /// <summary>The mouse (ADR 0040): the wheel scrolls the entries as up and down do, and a click anywhere closes the book, as A does.</summary>
+    public override void _GuiInput(InputEvent @event)
+    {
+        if (_journal is not { Closing: false })
+            return;
+        if (UiPointer.Wheel(@event) is var turn and not 0)
+            UiPointer.Press(turn < 0 ? MenuAction.Up : MenuAction.Down);
+        else if (UiPointer.Clicked(@event))
+            UiPointer.Accept();
+        else
+            return;
+        AcceptEvent();
+    }
 
     /// <summary>How far the book has faded in, from 0 to 1.</summary>
     public float Shown => Journal is { } journal ? journal.Alpha / 255f : 0;

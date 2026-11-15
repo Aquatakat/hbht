@@ -64,21 +64,39 @@ public partial class PartyTabView
     /// </summary>
     private void Confirm(BarterConfirm confirm, Rgba cursor)
     {
+        var (left, right, optionsTop) = ConfirmLayout(confirm);
         var font = _ui.Main;
-        var screen = (Vector2I)Size;
-        var left = (screen.X - BarterConfirm.Width) / 2;
-        var right = left + BarterConfirm.Width;
         var textHeight = font.Layout.Height(confirm.Text, left, right);
         var rows = confirm.Options.Rows;
+        var top = optionsTop - textHeight - BarterConfirm.Gap;
         var height = textHeight + rows.Count * font.LineHeight + BarterConfirm.Gap;
-        var top = (screen.Y - height) / 2;
         _ui.Images.DrawPanel(_canvas, _ui.Images.Around(new ScreenRect(left, top - 4, right, top + height + 4)));
         _ui.Text(_canvas, font, confirm.Text, left, top, new ScreenRect(left, top, right, top + textHeight), BarterConfirm.TextColor);
-        var optionsTop = top + textHeight + BarterConfirm.Gap;
         for (var i = 0; i < rows.Count; i++)
         {
             _ui.Text(_canvas, font, rows[i].Text, left, optionsTop + i * font.LineHeight, new ScreenRect(left, optionsTop, right, top + height),
                 i == confirm.Options.Cursor ? cursor : BarterConfirm.OptionColor);
         }
+    }
+
+    /// <summary>The option of the drop's question under a point on the screen, as <see cref="Confirm"/> draws it.</summary>
+    private int? ConfirmAt(BarterConfirm confirm, Vector2 at)
+    {
+        var (left, right, optionsTop) = ConfirmLayout(confirm);
+        var row = (int)Math.Floor((at.Y - optionsTop) / _ui.Main.LineHeight);
+        return at.X >= left && at.X < right && row >= 0 && row < confirm.Options.Rows.Count ? row : null;
+    }
+
+    /// <summary>The drop's question's sides and its options' top, centred on the screen.</summary>
+    private (int Left, int Right, int OptionsTop) ConfirmLayout(BarterConfirm confirm)
+    {
+        var font = _ui.Main;
+        var screen = (Vector2I)Size;
+        var left = (screen.X - BarterConfirm.Width) / 2;
+        var right = left + BarterConfirm.Width;
+        var textHeight = font.Layout.Height(confirm.Text, left, right);
+        var height = textHeight + confirm.Options.Rows.Count * font.LineHeight + BarterConfirm.Gap;
+        var top = (screen.Y - height) / 2;
+        return (left, right, top + textHeight + BarterConfirm.Gap);
     }
 }

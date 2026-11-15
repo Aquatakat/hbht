@@ -103,12 +103,24 @@ public partial class TitleLayer : CanvasLayer
         /// <summary>Where the frame's corner is on the screen.</summary>
         public Vector2I Origin => new(((int)Size.X - FrameWidth) / 2, ((int)Size.Y - FrameHeight) / 2);
 
-        public override void _Ready() => MouseFilter = MouseFilterEnum.Ignore;
+        public override void _Ready() => MouseFilter = MouseFilterEnum.Pass;
 
         public override void _Notification(int what)
         {
             if (what == NotificationResized)
                 QueueRedraw();
+        }
+
+        /// <summary>
+        /// A click on a card or on PRESS START is A (ADR 0040), which skips a card as it can be skipped and brings the list up; the
+        /// list's own view, over this one, takes the clicks once it's up.
+        /// </summary>
+        public override void _GuiInput(InputEvent @event)
+        {
+            if (!UiPointer.Clicked(@event) || Title is not { Menu: null })
+                return;
+            UiPointer.Accept();
+            AcceptEvent();
         }
 
         public override void _Draw()

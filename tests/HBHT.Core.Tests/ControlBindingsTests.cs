@@ -312,6 +312,20 @@ public class ControlBindingsTests : IDisposable
         Assert.Equal(["Invert Camera Y", "Reset to Defaults"], options.Rows.Rows.TakeLast(2).Select(r => r.Label));
     }
 
+    /// <summary>The wheel's scroll of a page holds while the pointer points at rows, and the keys moving the cursor let it go.</summary>
+    [Fact]
+    public void TheWheelsScrollHoldsUntilTheCursorMovesByKey()
+    {
+        var options = ControlsPage(new Settings());
+        Assert.Null(options.ViewFirst);
+
+        options.ScrollTo(5);
+        options.Point(12);
+        Assert.Equal(5, options.ViewFirst);
+        options.MoveCursor(1);
+        Assert.Null(options.ViewFirst);
+    }
+
     [Fact]
     public void ThePromptBindsTheNextInputOfItsDevice()
     {

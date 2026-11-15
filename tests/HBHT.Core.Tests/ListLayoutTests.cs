@@ -102,6 +102,34 @@ public class ListLayoutTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         Assert.Equal(CraftingMenu.TitleTop + CraftingMenu.TextRow, crafting.Layout.Bounds.Top);
     }
 
+    /// <summary>
+    /// The wheel scrolls the view and leaves the cursor (ADR 0040), as far as the last rows and the first; the next move of the
+    /// cursor brings the view back to it.
+    /// </summary>
+    [Fact]
+    public void TheWheelScrollsTheViewAndLeavesTheCursor()
+    {
+        var layout = PartyMenu.Layout(PartyList.Inventory);
+        var list = layout.List(Enumerable.Range(0, 12).ToList());
+
+        Assert.True(list.ScrollBy(3));
+        Assert.Equal((0, 3), (list.Cursor, list.First));
+        // A point is the row under it in the view as scrolled.
+        Assert.Equal(3, layout.RowAt(list, layout.Bounds.Left, layout.Bounds.Top));
+        Assert.True(list.ScrollBy(10));
+        Assert.Equal(4, list.First);
+        Assert.False(list.ScrollBy(1));
+        Assert.True(list.ScrollBy(-10));
+        Assert.Equal(0, list.First);
+        Assert.False(list.ScrollBy(-1));
+
+        list.ScrollBy(4);
+        list.Move(1);
+        Assert.Equal((1, 1), (list.Cursor, list.First));
+        // A list that shows every row doesn't scroll.
+        Assert.False(layout.List(Enumerable.Range(0, 3).ToList()).ScrollBy(1));
+    }
+
     /// <summary>A point in the bounds is the row it falls in, counted from the first in view, and nothing past the rows or outside.</summary>
     [Fact]
     public void AMousePointIsTheRowUnderItCountedFromTheFirstInView()

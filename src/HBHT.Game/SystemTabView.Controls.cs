@@ -18,7 +18,8 @@ public partial class SystemTabView
     /// Where the Controls page's rows and headings are: each row's top and bottom, off the page for one scrolled out of view, and
     /// each heading in view with its top. The list scrolls to keep the cursor's row in the middle, as far as it can.
     /// </summary>
-    private (List<(int Top, int Bottom)> Rows, List<(string Text, int Top)> Headings, bool Above, bool Below) ControlPlaces(OptionsMenu options)
+    private (List<(int Top, int Bottom)> Rows, List<(string Text, int Top)> Headings, bool Above, bool Below, int First, int Last) ControlPlaces(
+        OptionsMenu options)
     {
         var rows = options.Rows.Rows;
         // The list's lines: a heading's (row −1) and each row's, after the Device row.
@@ -32,7 +33,10 @@ public partial class SystemTabView
             lines.Add((i, null));
         }
         var cursor = lines.FindIndex(l => l.Row == options.Rows.Cursor);
-        var first = cursor < 0 ? 0 : Math.Clamp(cursor - ControlsLines / 2, 0, Math.Max(0, lines.Count - ControlsLines));
+        var last = Math.Max(0, lines.Count - ControlsLines);
+        // Where the wheel left it, or the cursor's line in the middle.
+        var first = options.ViewFirst is { } scrolled ? Math.Clamp(scrolled, 0, last)
+            : cursor < 0 ? 0 : Math.Clamp(cursor - ControlsLines / 2, 0, last);
         var places = Enumerable.Repeat((-1000, -1000), rows.Count).ToList();
         places[0] = (ControlsTop, ControlsTop + _ui.Main.LineHeight);
         var headings = new List<(string, int)>();
@@ -44,7 +48,7 @@ public partial class SystemTabView
             else if (lines[l].Heading is { } text)
                 headings.Add((text, top));
         }
-        return (places, headings, first > 0, first + ControlsLines < lines.Count);
+        return (places, headings, first > 0, first + ControlsLines < lines.Count, first, last);
     }
 
     /// <summary>
@@ -54,7 +58,7 @@ public partial class SystemTabView
     /// </summary>
     private void Controls(OptionsMenu options)
     {
-        var (places, headings, above, below) = ControlPlaces(options);
+        var (places, headings, above, below, _, _) = ControlPlaces(options);
         var cursor = options.Pulse.Now(Style.Text, Style.OptionsCursor);
         for (var i = 0; i < places.Count; i++)
         {

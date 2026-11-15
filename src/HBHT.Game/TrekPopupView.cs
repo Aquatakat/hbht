@@ -99,4 +99,7 @@ public partial class TrekPopupView : Control
 
     // WidgetChoiceDia::Update.
     private void Choice(Vector2I screen, TrekPopup popup) => _ui.Choice(this, screen, popup.Question!, popup.Highlight);
+
+    /// <summary>The choice of the popup's question under a point on the screen, as it's drawn.</summary>
+    public int? ChoiceAt(Vector2 at) => Popup?.Question is { } question ? _ui.ChoiceAt((Vector2I)Size, question, at) : null;
 }

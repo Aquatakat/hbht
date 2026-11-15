@@ -177,6 +177,21 @@ public partial class UiScreen : Control
             AcceptEvent();
     }
 
+    /// <summary>A point in the window, as a mouse event gives it, in the screen's own pixels.</summary>
+    public Vector2 ToCanvas(Vector2 windowPoint)
+    {
+        var local = GetGlobalTransformWithCanvas().AffineInverse() * windowPoint;
+        var rect = ScreenRect;
+        return rect.Size.X <= 0 || rect.Size.Y <= 0 ? Vector2.Zero : (local - rect.Position) / rect.Size * (Vector2)CanvasSize;
+    }
+
+    /// <summary>A point in the screen's own pixels as a point in the window, where a mouse event there would be.</summary>
+    public Vector2 ToWindow(Vector2 canvasPoint)
+    {
+        var rect = ScreenRect;
+        return GetGlobalTransformWithCanvas() * (rect.Position + canvasPoint / (Vector2)CanvasSize * rect.Size);
+    }
+
     /// <summary>The screen as it's drawn, in its own pixels, before it's scaled up.</summary>
     public Image Capture() => _viewport.GetTexture().GetImage();
 
