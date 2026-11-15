@@ -1,6 +1,6 @@
 # Aidyn Chronicles Reimplementation: Roadmap
 
-Sep 26, 2026 · Updated Nov 13, 2026
+Sep 26, 2026 · Updated Nov 15, 2026
 
 ## Summary
 
@@ -18,7 +18,7 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 **M4: the prologue** is done: the user played it side by side with the emulator, what differed is fixed, and the user has played the fixes. Next, by the phases' order, is **Phase 4: content parity**, starting with [the playthrough bot](#the-playthrough-bot), which plays the game headless to a goal so one tester can check a full game.
 
-Beside it, **Camera: Enhanced** now covers trek and conversations as well as battles, built Nov 14, 2026 as the user asked: [the enhanced trek camera](systems/cameras.md#the-enhanced-trek-camera-camera-enhanced) (the boom with its spring arm, arriving behind him, close quarters, the path's bend, slopes, nudges and sneaking) and [the enhanced conversation camera](systems/cameras.md#the-enhanced-conversation-camera-camera-enhanced), which chooses its shots from the script. Both are measured headless (the camera trace, the arrival census and the shot census) and await the user's play ([user-checks](user-checks.md)); each section's **Left** has what's open.
+Beside it, **Camera: Enhanced** now covers trek and conversations as well as battles, built Nov 14, 2026 as the user asked: [the enhanced trek camera](systems/cameras.md#the-enhanced-trek-camera-camera-enhanced) (the boom with its spring arm, arriving behind him, close quarters, the path's bend, slopes, nudges and sneaking) and [the enhanced conversation camera](systems/cameras.md#the-enhanced-conversation-camera-camera-enhanced), which chooses its shots from the script. Both are measured headless (the camera trace, the arrival census and the shot census), and the user has played them in every situation the check named; each section's **Left** has what's open.
 
 ### Left over from finished work
 
