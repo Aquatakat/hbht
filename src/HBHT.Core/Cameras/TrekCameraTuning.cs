@@ -16,6 +16,12 @@ namespace HBHT.Core.Cameras;
 /// <param name="Margin">How far short of a wall the arm stops, past the sphere.</param>
 /// <param name="ArmOut">The fastest the arm grows back once the wall is gone. It comes in at once.</param>
 /// <param name="ArmAccel">How fast that may change.</param>
+/// <param name="ArmIn">The fastest the arm comes in ahead of a wall it sees coming; the backstop for one it doesn't is at once.</param>
+/// <param name="ArmInAccel">How fast that may change.</param>
+/// <param name="ArmInTime">How long coming in takes to go 90% of the way.</param>
+/// <param name="ArmLookahead">How far ahead the arm looks for the room it will need, seconds of the yaw's turn and his travel.</param>
+/// <param name="WhiskerSpread">How far round either side of the yaw's goal its whiskers sample the room; 0 turns them off.</param>
+/// <param name="WhiskerEase">How long the whiskers' push takes to ease most of the way (63%) to a new value.</param>
 /// <param name="ArmEase">How long the arm's easing out takes to go 90% of the way.</param>
 /// <param name="CloseLift">How far the pivot rises above his head with the arm at nothing, in proportion as it's shortened.</param>
 /// <param name="ClosePitch">How much the pitch rises with the arm at nothing, in proportion, no higher than the way ahead allows.</param>
@@ -88,6 +94,12 @@ public sealed record TrekCameraTuning(
     float ArmOut = 1.5f,
     float ArmAccel = 3,
     float ArmEase = 1.5f,
+    float ArmIn = 10,
+    float ArmInAccel = 40,
+    float ArmInTime = 0.4f,
+    float ArmLookahead = 0.7f,
+    float WhiskerSpread = 120,
+    float WhiskerEase = 0.6f,
     float CloseLift = 1.6f,
     float ClosePitch = 25,
     float AheadSight = 8,

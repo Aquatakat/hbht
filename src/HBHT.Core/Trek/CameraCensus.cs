@@ -20,7 +20,7 @@ namespace HBHT.Core.Trek;
 /// he strays to the side of his arrival line over the first 2 s.
 /// </summary>
 public sealed record ArrivalRun(CameraTraceResult Trace, bool SeenAtFirst, TrekArrival? Frame, bool WentIn, bool BackOut, bool RoundBy,
-    float OutDuringSwing, float Lifted, float PeakTurn, float Wander, bool RoundBy3 = false);
+    float OutDuringSwing, float Lifted, float PeakTurn, float Wander, bool RoundBy3 = false, float TotalTurn = 0, CameraFeel? Feel = null);
 
 /// <summary>One teleporter's arrival under both cameras and each way of pushing the stick, or why it wasn't traced.</summary>
 public sealed record CameraArrival(string Teleporter, string Into, bool Interior, IReadOnlyDictionary<(CameraStyle, CameraStick), ArrivalRun>? Runs,
@@ -42,7 +42,7 @@ public static class CameraCensus
     /// <summary>The tick by which the camera should be round behind him.</summary>
     public const int RoundTick = 90;
 
-    public static readonly CameraStick[] Sticks = [CameraStick.Steer, CameraStick.RestThenSteer, CameraStick.Up];
+    public static readonly CameraStick[] Sticks = [CameraStick.Steer, CameraStick.RestThenSteer, CameraStick.Up, CameraStick.Still];
 
     public static IReadOnlyList<CameraArrival> Run(PluginSet plugins, TrekCameraTuning? tuning = null)
     {
@@ -92,10 +92,12 @@ public static class CameraCensus
         Vector2 heading = default;
         bool jumped = false, round = false, round3 = false;
         int out_ = 0, lifted = 0, ticks = 0;
-        float peak = 0, wander = 0;
+        float peak = 0, wander = 0, total = 0;
         Vector2? lastLook = null;
+        var feel = new CameraFeel();
         var trace = CameraTrace.Run(plugins, walk, style, (trek, tick) =>
         {
+            feel.Tick(trek);
             var at = trek.Player.Sphere.Position;
             var chest = at + new Vector3(0, 0.5f, 0);
             var seen = CameraTrace.InFrame(trek, chest);
@@ -116,10 +118,12 @@ public static class CameraCensus
             if (style == CameraStyle.Enhanced && trek.EnhancedCamera.Pivot.Y > at.Y + trek.EnhancedCamera.Tuning.Height + 0.5f)
                 lifted++;
             var look = trek.Camera.LookXZ;
+            if (lastLook is { } was)
+                total += Between(was, look);
             if (tick < 120)
             {
                 if (lastLook is { } before)
-                    peak = MathF.Max(peak, MathF.Acos(Math.Clamp(Vector2.Dot(before, look), -1, 1)) * 180 / MathF.PI * 60);
+                    peak = MathF.Max(peak, Between(before, look) * 60);
                 if (!jumped)
                 {
                     var off = new Vector2(at.X - start.X, at.Z - start.Z);
@@ -140,7 +144,7 @@ public static class CameraCensus
         }, tuning, stick);
         var along = Vector2.Dot(new Vector2(last.X - start.X, last.Z - start.Z), heading);
         return new ArrivalRun(trace, seenAtFirst, frame, !jumped && along > 0.5f, jumped || along < -0.25f, round,
-            Math.Min(ticks, RoundTick) == 0 ? 0 : (float)out_ / Math.Min(ticks, RoundTick), ticks == 0 ? 0 : (float)lifted / ticks, peak, wander, round3);
+            Math.Min(ticks, RoundTick) == 0 ? 0 : (float)out_ / Math.Min(ticks, RoundTick), ticks == 0 ? 0 : (float)lifted / ticks, peak, wander, round3, total, feel);
     }
 
     /// <summary>The census's shares for each style and stick, interiors and outdoors apart, the enhanced frames, and the worst arrivals.</summary>
@@ -181,6 +185,14 @@ public static class CameraCensus
             text.AppendLine(string.Create(CultureInfo.InvariantCulture,
                 $"{label} swing to behind him: mean {offs.DefaultIfEmpty().Average():F0}°, median {Percentile(offs, 0.5f):F0}°, 75% {Percentile(offs, 0.75f):F0}°, 90% {Percentile(offs, 0.9f):F0}°; none (under 30°) {(float)offs.Count(o => o < 30) / Math.Max(offs.Count, 1):P1}, over 110° {(float)offs.Count(o => o > 110) / Math.Max(offs.Count, 1):P1}"));
         }
+        foreach (var style in new[] { CameraStyle.Original, CameraStyle.Enhanced })
+            foreach (var stick in Sticks)
+            {
+                var feels = traced.Select(a => a.Of(style, stick).Feel!).ToList();
+                var ticks = feels.Sum(f => f.Ticks);
+                text.AppendLine(string.Create(CultureInfo.InvariantCulture,
+                    $"feel {style,-9} {stick,-14}: cuts {feels.Sum(f => f.Cuts) * 3600f / Math.Max(ticks, 1),5:F1}/min, accel peak {feels.Max(f => f.AccelPeak),6:F0} 95% {Percentile(feels.Select(f => f.Accel95), 0.95f),5:F0}, standing bad {(float)feels.Sum(f => f.StandingBad) / Math.Max(feels.Sum(f => f.Standing), 1):P1} of {feels.Sum(f => f.Standing)}"));
+            }
         text.AppendLine("ever hidden under Enhanced, steering:");
         foreach (var a in traced.Where(a => a.Of(CameraStyle.Enhanced).Trace.Hidden > 0).Take(40))
         {
@@ -200,6 +212,9 @@ public static class CameraCensus
             text.AppendLine($"  {a.Teleporter} -> {a.Into}: frame {a.Of(CameraStyle.Enhanced).Frame?.Kind}");
         return text.ToString();
     }
+
+    /// <summary>The angle between two directions in degrees, by their cross and dot (an arccosine near 1 is all rounding).</summary>
+    public static float Between(Vector2 a, Vector2 b) => MathF.Abs(MathF.Atan2(a.X * b.Y - a.Y * b.X, Vector2.Dot(a, b))) * 180 / MathF.PI;
 
     /// <summary>The mean of the values that are numbers.</summary>
     public static float Mean(IEnumerable<float> values) => values.Where(v => !float.IsNaN(v)).DefaultIfEmpty(float.NaN).Average();
