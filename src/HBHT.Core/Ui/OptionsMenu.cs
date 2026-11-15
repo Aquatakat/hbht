@@ -380,7 +380,9 @@ public sealed partial class OptionsMenu
         var s = Settings;
         return
         [
-            Choice("Draw Distance", ["Original", "Extended"], () => s.ExtendedDrawDistance ? 1 : 0, v => s.ExtendedDrawDistance = v == 1),
+            PresetRow(),
+            Choice("Draw Distance", ["Original", "Extended"], () => s.ExtendedDrawDistance ? 1 : 0, v => s.ExtendedDrawDistance = v == 1)
+                with { GapBefore = true },
             Choice("Object Distance", ["Original", "2x", "3x"], () => NearestIndex(ObjectDistances, s.ObjectDistance),
                 v => s.ObjectDistance = ObjectDistances[v]),
             Choice("Model Detail", ["Original", "Highest"], () => s.NearestDetail ? 1 : 0, v => s.NearestDetail = v == 1),
@@ -402,6 +404,28 @@ public sealed partial class OptionsMenu
                 : Choice("Camera", ["Original", "Enhanced"], () => (int)s.Camera, v => s.Camera = (Cameras.CameraStyle)v),
         ];
     }
+
+    /// <summary>
+    /// The Preset row, which shows which set the settings below match (<see cref="Enhancements.Preset"/>) and sets them all to one. It
+    /// steps through Original, Enhanced and Custom, the player's own mix as they last had it, which it keeps as it steps off Custom;
+    /// before there's one, it steps between the first two.
+    /// </summary>
+    private OptionRow PresetRow()
+    {
+        var s = Settings;
+        var preset = Enhancements.From(s).Preset;
+        var custom = preset == EnhancementPreset.Custom || s.CustomEnhancements is { Preset: EnhancementPreset.Custom };
+        return Choice(PresetLabel, custom ? ["Original", "Enhanced", "Custom"] : ["Original", "Enhanced"],
+            () => (int)Enhancements.From(s).Preset, v =>
+        {
+            if (preset == EnhancementPreset.Custom)
+                s.CustomEnhancements = Enhancements.From(s);
+            (Enhancements.Of((EnhancementPreset)v) ?? s.CustomEnhancements)?.ApplyTo(s);
+        });
+    }
+
+    /// <summary>The Enhancements page's first row, which sets the rest together.</summary>
+    public const string PresetLabel = "Preset";
 
     private static OptionRow Choice(string label, IReadOnlyList<string> values, Func<int> get, Action<int> set) =>
         new(label, OptionKind.Choice, get, set, values);

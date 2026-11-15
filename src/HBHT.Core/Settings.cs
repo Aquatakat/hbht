@@ -133,6 +133,12 @@ public sealed class Settings
     /// </summary>
     public Cameras.CameraStyle Camera { get; set; }
 
+    /// <summary>
+    /// The Enhancements page's settings as the player last had them under Custom, kept as the Preset row steps off Custom so it can step
+    /// back to them; null until then.
+    /// </summary>
+    public Enhancements? CustomEnhancements { get; set; }
+
     /// <summary>A setting changed.</summary>
     public event Action? Changed;
 

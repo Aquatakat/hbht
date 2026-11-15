@@ -350,7 +350,8 @@ public partial class SystemTabView : Control
                 rows.Add((-1000, -1000));
                 continue;
             }
-            if (row.GapBefore)
+            // No gap above the first row in view, as the Enhancements page scrolls past its Preset.
+            if (row.GapBefore && i > first)
                 y += OptionsMenu.Gap;
             var volume = row.Kind == OptionKind.Volume;
             rows.Add((y, y + _ui.Main.LineHeight + (volume ? _ui.Size(MenuImages.VolumeBar).Y : 0)));

@@ -84,12 +84,125 @@ public class SystemMenuTests(BarterPlugins fixture) : IClassFixture<BarterPlugin
         options.Back();
         options.Point(2);
         options.Accept();
-        Assert.Equal(["Draw Distance", "Object Distance", "Model Detail", "Rain and Snow", "Menu Size", "Menu Filter", "Pace", "Movement",
-                "Status Auras", "Combat Turns", "Camera"],
+        Assert.Equal(["Preset", "Draw Distance", "Object Distance", "Model Detail", "Rain and Snow", "Menu Size", "Menu Filter", "Pace",
+                "Movement", "Status Auras", "Combat Turns", "Camera"],
             options.Rows.Rows.Select(r => r.Label));
         // A new player's are the original's, and the original's video out.
-        Assert.Equal(["Original", "Original", "Original", "Original", "Original", "Video Out", "Original", "Original", "Original", "Original", "Original"],
+        Assert.Equal(["Original", "Original", "Original", "Original", "Original", "Original", "Video Out", "Original", "Original", "Original",
+                "Original", "Original"],
             options.Rows.Rows.Select(r => r.ValueName));
+    }
+
+    private static OptionsMenu EnhancementsPage(Settings settings)
+    {
+        var options = new OptionsMenu(settings, inGame: true);
+        options.Point(2);
+        options.Accept();
+        return options;
+    }
+
+    private static string? ValueOf(OptionsMenu options, string label) => options.Rows.Rows.Single(r => r.Label == label).ValueName;
+
+    private static void ChangeRow(OptionsMenu options, string label, int by)
+    {
+        options.Point(options.Rows.Rows.ToList().FindIndex(r => r.Label == label));
+        options.Change(by);
+    }
+
+    [Fact]
+    public void ThePresetSetsTheEnhancementsTogether()
+    {
+        var settings = new Settings();
+        var options = EnhancementsPage(settings);
+        // Before there's a Custom mix of the player's, the preset steps between Original and Enhanced.
+        Assert.Equal(["Original", "Enhanced"], options.Rows.Rows[0].Values);
+        ChangeRow(options, OptionsMenu.PresetLabel, 1);
+        Assert.True(options.Changed);
+        Assert.Equal(["Enhanced", "Extended", "3x", "Highest", "8x", "Smaller", "Video Out", "Brisk", "Smoother", "More Often", "Start Early",
+                "Enhanced"],
+            options.Rows.Rows.Select(r => r.ValueName));
+        ChangeRow(options, OptionsMenu.PresetLabel, 1);
+        Assert.Equal(Enhancements.Original, Enhancements.From(settings));
+    }
+
+    [Fact]
+    public void ChangingARowTurnsThePresetToCustomAndBack()
+    {
+        var settings = new Settings();
+        Enhancements.Enhanced.ApplyTo(settings);
+        var options = EnhancementsPage(settings);
+        Assert.Equal("Enhanced", ValueOf(options, OptionsMenu.PresetLabel));
+        ChangeRow(options, "Rain and Snow", -1);
+        Assert.Equal("Custom", ValueOf(options, OptionsMenu.PresetLabel));
+        ChangeRow(options, "Rain and Snow", 1);
+        Assert.Equal("Enhanced", ValueOf(options, OptionsMenu.PresetLabel));
+
+        // Every row back to the original's, one at a time, makes it Original; the Menu Filter is the video out's under both.
+        ChangeRow(options, "Draw Distance", 1);
+        ChangeRow(options, "Object Distance", 1);
+        ChangeRow(options, "Model Detail", 1);
+        ChangeRow(options, "Rain and Snow", 1);
+        ChangeRow(options, "Menu Size", -1);
+        ChangeRow(options, "Pace", 1);
+        ChangeRow(options, "Movement", 1);
+        ChangeRow(options, "Status Auras", 1);
+        Assert.Equal("Custom", ValueOf(options, OptionsMenu.PresetLabel));
+        ChangeRow(options, "Combat Turns", 1);
+        // Under Start Early the camera was Enhanced, which it's kept as: one row left.
+        Assert.Equal("Custom", ValueOf(options, OptionsMenu.PresetLabel));
+        ChangeRow(options, "Camera", 1);
+        Assert.Equal("Original", ValueOf(options, OptionsMenu.PresetLabel));
+        Assert.Equal(Enhancements.Original, Enhancements.From(settings));
+    }
+
+    [Fact]
+    public void ThePresetCountsTheCameraAsStartEarlyShowsIt()
+    {
+        var settings = new Settings();
+        Enhancements.Enhanced.ApplyTo(settings);
+        // The Camera setting kept as Original for when Combat Turns is Original again: the row shows Enhanced, so the preset is too.
+        settings.Camera = HBHT.Core.Cameras.CameraStyle.Original;
+        Assert.Equal(EnhancementPreset.Enhanced, Enhancements.From(settings).Preset);
+    }
+
+    [Fact]
+    public void ThePresetStepsBackToThePlayersCustomMix()
+    {
+        var settings = new Settings();
+        var options = EnhancementsPage(settings);
+        ChangeRow(options, "Pace", 1);
+        ChangeRow(options, "Movement", 1);
+        var mix = Enhancements.From(settings);
+        Assert.Equal(["Original", "Enhanced", "Custom"], options.Rows.Rows[0].Values);
+        Assert.Equal("Custom", ValueOf(options, OptionsMenu.PresetLabel));
+
+        // Off Custom to Original, then Enhanced, then back round to the mix as it was.
+        ChangeRow(options, OptionsMenu.PresetLabel, 1);
+        Assert.Equal("Original", ValueOf(options, OptionsMenu.PresetLabel));
+        Assert.Equal(mix, settings.CustomEnhancements);
+        ChangeRow(options, OptionsMenu.PresetLabel, 1);
+        Assert.Equal("Enhanced", ValueOf(options, OptionsMenu.PresetLabel));
+        ChangeRow(options, OptionsMenu.PresetLabel, 1);
+        Assert.Equal("Custom", ValueOf(options, OptionsMenu.PresetLabel));
+        Assert.Equal(mix, Enhancements.From(settings));
+    }
+
+    [Fact]
+    public void ThePlayersCustomMixIsKeptInTheSettingsFile()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "hbht-preset-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var path = Path.Combine(folder, "settings.json");
+            var settings = new Settings { CustomEnhancements = Enhancements.Original with { BriskPace = true, UiFilter = UiFilter.Smooth } };
+            settings.Save(path);
+            Assert.Equal(settings.CustomEnhancements, Settings.Load(path).CustomEnhancements);
+        }
+        finally
+        {
+            if (Directory.Exists(folder))
+                Directory.Delete(folder, recursive: true);
+        }
     }
 
     [Fact]
