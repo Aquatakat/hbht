@@ -41,8 +41,11 @@ Examples of some fixed bugs:
   their targets.
 
 The type of things not fixed:
-- Rain and splash density stays pretty low by default.
 - Debuffing an enemy's stats makes them immobile.
+- The Ring of Healing restoring 1 HP per frame outside of combat. No other
+  lingering spell effect works this way - the code path used for this seems
+  meant to be used solely for combat rounds. It works like the original, for
+  now, but if anyone has any input on this I'd appreciate it.
 
 Differences from the original:
 - Weather, animated textures, and camera movement are tied to frame rate in the
@@ -56,12 +59,6 @@ Differences from the original:
   rather than four. It causes smooth 45 degree slants top left to bottom right.
   I didn't mimic this because Aidyn's artwork doesn't seem to take advantage of
   it artistically. Cut out edges like trees look a little rounder.
-
-Something that may or may not be a bug?:
-- The Ring of Healing restoring 1 HP per frame outside of combat. No other
-  lingering spell effect works this way - the code path used for this seems
-  meant to be used solely for combat rounds. It works like the original, for
-  now, but if anyone has any input on this I'd appreciate it.
 
 ## Enhancements
 
