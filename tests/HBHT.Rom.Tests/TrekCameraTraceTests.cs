@@ -55,7 +55,10 @@ public sealed class TrekCameraTraceTests(Na10Import fixture, ITestOutputHelper o
             if (!e.Walk.StartsWith('b'))
                 Assert.True(e.Accel95 <= o.Accel95, $"{e.Walk}: the view's turn changes more sharply than the original's");
         }
+        foreach (var (o, e) in original.Zip(enhanced))
+            Assert.True(e.AheadInFrame >= o.AheadInFrame, $"{e.Walk}: the way ahead is in frame less than under the original");
         var hallway = enhanced.Single(r => r.Walk.StartsWith('a'));
+        Assert.Equal(1, hallway.AheadInFrame);
         Assert.Equal(0, hallway.Front);
         Assert.Equal(0, hallway.Blocked);
         // After I07's authored shot lets go, the swing behind him is quick: he's seen from the front far less than under the original.
@@ -80,6 +83,9 @@ public sealed class TrekCameraTraceTests(Na10Import fixture, ITestOutputHelper o
             var group = traced.Where(a => a.Interior == interior).Select(a => a.Enhanced!).ToList();
             Assert.True(group.Count(r => r.PastWall > 0) <= 0.02f * group.Count, $"interior {interior}: too often past a wall");
             Assert.True(group.Count(r => r.Front > 0) <= 0.01f * group.Count, $"interior {interior}: his front seen too often");
+            // The way ahead in frame: as he stands at the arrival, and over the 3 s.
+            Assert.True(CameraCensus.Share(group.Select(r => r.AheadAtFirst)) >= 0.95f, $"interior {interior}: the way ahead out of frame on arriving");
+            Assert.True(CameraCensus.Mean(group.Select(r => r.AheadInFrame)) >= 0.9f, $"interior {interior}: the way ahead out of frame");
         }
     }
 }

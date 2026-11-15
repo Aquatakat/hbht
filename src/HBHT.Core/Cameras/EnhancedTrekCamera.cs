@@ -85,6 +85,9 @@ public sealed class EnhancedTrekCamera
     /// <summary>What leans the yaw's goal as he travels, summed (slices 2 and 3 add theirs). None yet.</summary>
     public List<ITrekCameraLean> Leans { get; } = [];
 
+    /// <summary>What the boom turns about: above his head, lifted in close quarters.</summary>
+    public Vector3 Pivot => _pivot;
+
     /// <summary>The arm's length now.</summary>
     public float Arm => _arm;
 
@@ -127,8 +130,7 @@ public sealed class EnhancedTrekCamera
             return;
         }
         _unchosen = true;
-        PlaceBehind(player, heading);
-        Fit(world, visible, at: true);
+        PlaceFitted(world, visible, player, heading);
         Write(camera);
         camera.Cut();
     }
@@ -147,8 +149,7 @@ public sealed class EnhancedTrekCamera
             (_length, _basePitch) = Place(interior);
             _lastPlayer = player;
             _sinceInput = t.InputWait;
-            PlaceBehind(player, heading);
-            Fit(world, visible, at: true);
+            PlaceFitted(world, visible, player, heading);
         }
         else if (camera.Position != _wrotePosition || camera.Aim != _wroteAim)
         {
@@ -191,10 +192,12 @@ public sealed class EnhancedTrekCamera
         // Close quarters go by the walls about him, the arm's room at the place's own pitch: a ceiling over a raised boom
         // would otherwise raise it further.
         var shortened = Math.Clamp(1 - _freeLevel / MathF.Max(_length, 1e-3f), 0, 1);
-        StepPivot(visible, player, shortened);
+        StepPivot(world, visible, player, shortened);
         Room = JudgeRoom(world, visible);
         StepYaw(world, visible, player, heading, auto);
-        var pitchGoal = _basePitch + _userPitch + t.ClosePitch * shortened;
+        // Close quarters part him from the lens by height, not by pitching down: the pitch is capped so a point
+        // AheadSight ahead of him at head height stays inside the lens's top, and the lift does the rest.
+        var pitchGoal = MathF.Min(_basePitch + t.ClosePitch * shortened, SightCap(player, heading)) + _userPitch;
         // A ceiling over the raised boom, nearer than the walls: it comes down to the place's pitch instead.
         if (_free < _freeLevel - 0.1f && _pitch > _basePitch + _userPitch)
             pitchGoal = _basePitch + _userPitch;
@@ -205,8 +208,49 @@ public sealed class EnhancedTrekCamera
         Write(camera);
     }
 
+    /// <summary>
+    /// The highest pitch at which the point <see cref="TrekCameraTuning.AheadSight"/> ahead of him, at head height, stays
+    /// <see cref="TrekCameraTuning.SightMargin"/> inside the top of a lens <see cref="TrekCameraTuning.LensHeight"/> high,
+    /// from where the camera is now.
+    /// </summary>
+    private float SightCap(Vector3 player, Vector2 heading)
+    {
+        var t = Tuning;
+        var head = player + new Vector3(0, t.Height, 0);
+        var eye = _pivot + Direction * _arm;
+        var ahead = heading.LengthSquared() > 1e-8f ? Vector2.Normalize(heading) : Vector2.Zero;
+        var point = head + new Vector3(ahead.X, 0, ahead.Y) * t.AheadSight;
+        var flat = new Vector2(point.X - eye.X, point.Z - eye.Z).Length();
+        var below = MathF.Atan2(eye.Y - point.Y, MathF.Max(flat, 0.1f)) / Degree;
+        return below + t.LensHeight / 2 - t.SightMargin;
+    }
+
+    /// <summary>
+    /// How much of the player's model at <paramref name="player"/> (his sphere's centre) is drawn, 0 to 1, by how near a camera at
+    /// <paramref name="eye"/> is to his head: whole from <see cref="TrekCameraTuning.FadeFrom"/> out, gone by
+    /// <see cref="TrekCameraTuning.FadeGone"/>.
+    /// </summary>
+    public float Fade(Vector3 eye, Vector3 player)
+    {
+        var t = Tuning;
+        var near = Vector3.Distance(eye, player + new Vector3(0, t.Height, 0));
+        return Math.Clamp((near - t.FadeGone) / MathF.Max(t.FadeFrom - t.FadeGone, 1e-3f), 0, 1);
+    }
+
     /// <summary>The pivot closes on its place above him, lifted as the arm shortens, but kept under the drawn ceiling.</summary>
-    private void StepPivot(VisibleWorld? visible, Vector3 player, float shortened)
+    private void StepPivot(CollisionWorld world, VisibleWorld? visible, Vector3 player, float shortened)
+    {
+        var t = Tuning;
+        var goal = PivotGoal(world, visible, player, shortened);
+        var step = (goal - _pivot) * t.PivotRate;
+        var most = t.PivotSpeed * Tick;
+        if (step.Length() > most)
+            step *= most / step.Length();
+        _pivot += step;
+    }
+
+    /// <summary>The pivot's place: above his head, lifted as the arm shortens, under the drawn ceiling and the collision's.</summary>
+    private Vector3 PivotGoal(CollisionWorld world, VisibleWorld? visible, Vector3 player, float shortened)
     {
         var t = Tuning;
         var head = player + new Vector3(0, t.Height, 0);
@@ -214,11 +258,21 @@ public sealed class EnhancedTrekCamera
         var top = goal + new Vector3(0, t.Radius, 0);
         if (goal.Y > head.Y && visible?.RaycastSolid(head, top) is { } ceiling)
             goal.Y = MathF.Max(head.Y, head.Y + (top.Y - head.Y) * ceiling.Share - t.Radius);
-        var step = (goal - _pivot) * t.PivotRate;
-        var most = t.PivotSpeed * Tick;
-        if (step.Length() > most)
-            step *= most / step.Length();
-        _pivot += step;
+        // And under the collision's, where it has one: a sloped roof, a beam.
+        top = goal + new Vector3(0, t.Radius, 0);
+        if (goal.Y > head.Y && SpherePhysics.SweepEitherSide(world, head, top, 0.01f, skipSeeThrough: true) is { } roof)
+            goal.Y = MathF.Max(head.Y, head.Y + (top.Y - head.Y) * roof - t.Radius);
+        return goal;
+    }
+
+    /// <summary>Placed at once behind him: the arm fitted, then the pivot lifted and the pitch capped as close quarters ask, and fitted again.</summary>
+    private void PlaceFitted(CollisionWorld world, VisibleWorld? visible, Vector3 player, Vector2 heading)
+    {
+        PlaceBehind(player, heading);
+        Fit(world, visible, at: true);
+        _pivot = PivotGoal(world, visible, player, Math.Clamp(1 - _freeLevel / MathF.Max(_length, 1e-3f), 0, 1));
+        _pitch = MathF.Min(_pitch, SightCap(player, heading));
+        Fit(world, visible, at: true);
     }
 
     /// <summary>
@@ -335,7 +389,7 @@ public sealed class EnhancedTrekCamera
             var slant = MathF.Max(MathF.Abs(Vector3.Dot(way, drawn.Normal)), 0.25f);
             free = MathF.Min(free, drawn.Share * reach - (t.Radius + t.Margin) / slant);
         }
-        return MathF.Max(free, 0.05f);
+        return MathF.Max(free, 0);
     }
 
     /// <summary>The way from the pivot to the camera.</summary>
@@ -384,7 +438,8 @@ public sealed class EnhancedTrekCamera
     private void Write(FollowCamera camera)
     {
         camera.PlaceAt(_pivot + Direction * _arm);
-        camera.AimAt(_pivot);
+        // With the arm short or at nothing, the aim is kept a unit ahead of the eye along the boom, so the look stays the boom's.
+        camera.AimAt(_pivot - Direction * MathF.Max(0, 1 - _arm));
         camera.Orient();
         _wrotePosition = camera.Position;
         _wroteAim = camera.Aim;
