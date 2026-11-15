@@ -129,6 +129,7 @@ public sealed partial class TrekLoop : IMapObjectHost
         // Each chunk's wanderers load before its sounds and lights.
         zone.Loaded += (_, map) => Wanderers.Load(map, Chunks.MapSet.CellSize, Chunks.World, Game.Memory, Game.Random.Wander);
         zone.Unloading += (_, map) => Wanderers.Unload(map);
+        WireEnhancedCamera();
     }
 
     public GameState Game { get; }
@@ -374,6 +375,8 @@ public sealed partial class TrekLoop : IMapObjectHost
         if (!input.Locked && input.Pushed)
             Hud.Raise(false);
         var before = motion.Sphere.Position;
+        _sneaking = input.Sneak;
+        _steerByEnhanced = Conversation is not { With: not null } && CameraStyle == CameraStyle.Enhanced && !Camera.Held;
         if (Conversation is { With: not null } framing)
             framing.Frame(Camera, world, Chunks.Visible, Wanderers.All);
         else if (CameraStyle == CameraStyle.Enhanced && !Camera.Held)
@@ -383,7 +386,8 @@ public sealed partial class TrekLoop : IMapObjectHost
             Camera.Step(world, motion.Sphere.Position, motion.Heading);
         Zone.Listen();
         var keys = Zone.Keys;
-        StepPlayer(world, motion, input, Camera, keys.Sounding(PlayerAnimation, _playerAudio, _playerSounds, motion.Sphere));
+        StepPlayer(world, motion, input, Camera, keys.Sounding(PlayerAnimation, _playerAudio, _playerSounds, motion.Sphere),
+            SteerLook(Camera));
         if (motion.FellOut)
         {
             Rescue();
@@ -451,7 +455,8 @@ public sealed partial class TrekLoop : IMapObjectHost
     /// orbiting it about him and otherwise following, and his standing still anchoring it; then he moves, up on the
     /// stick being the way the camera looks.
     /// </summary>
-    public static void StepPlayer(CollisionWorld world, PlayerMotion player, PlayerInput input, FollowCamera camera, IRootMotion animation)
+    public static void StepPlayer(CollisionWorld world, PlayerMotion player, PlayerInput input, FollowCamera camera, IRootMotion animation,
+        Vector2? steer = null)
     {
         if (input.Orbit)
             camera.Orbit(player.Sphere.Position, input.OrbitStick, moving: input.Free && input.Pushed);
@@ -459,7 +464,7 @@ public sealed partial class TrekLoop : IMapObjectHost
             camera.Follow();
         if (!input.Locked && !input.Pushed)
             camera.Anchor(player.Sphere.Position);
-        player.Step(world, input.Move, camera.LookXZ, animation);
+        player.Step(world, input.Move, steer ?? camera.LookXZ, animation);
     }
 
     /// <summary>
