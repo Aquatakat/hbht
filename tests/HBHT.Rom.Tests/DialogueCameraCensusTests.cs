@@ -75,7 +75,11 @@ public sealed class DialogueCameraCensusTests(Na10Import fixture, ITestOutputHel
             var plan = DialoguePlanner.Plan(phelan, talk, seed: seed);
             openings.Add(plan[0]);
             for (var p = 1; p < talk.Count; p++)
+            {
                 Assert.True(plan[p].Shows(talk[p].Speaker), $"{seed}: {p} {plan[p]}");
+                // A single by chance never twice running (seed 2's lines 4 to 6 were three).
+                Assert.False(plan[p].Kind == DialogueShotKind.Single && plan[p - 1].Kind == DialogueShotKind.Single, $"{seed}: {p}");
+            }
         }
         Assert.Equal(3, openings.Count);
     }

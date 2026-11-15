@@ -120,6 +120,9 @@ public sealed partial class DialoguePlanner(ScriptRecord script, DialogueTuning?
 
     private int _pageCount, _holds;
 
+    /// <summary>Whether the last ordinary line took the single by chance.</summary>
+    private bool _chanceSingle;
+
     private List<DialogueOpening> MakeOpenings()
     {
         var turns = _tuning.AcrossYaws.Take(3).ToList();
@@ -346,8 +349,13 @@ public sealed partial class DialoguePlanner(ScriptRecord script, DialogueTuning?
                 held = true;
                 return both;
             }
-            if (_pages.Chance(shortLine ? _tuning.ShortSingleChance : _tuning.SingleChance))
+            // A single by chance never twice running.
+            if (!_chanceSingle && _pages.Chance(shortLine ? _tuning.ShortSingleChance : _tuning.SingleChance))
+            {
+                _chanceSingle = true;
                 return new DialogueShot(DialogueShotKind.Single, speaker);
+            }
+            _chanceSingle = false;
         }
         return new DialogueShot(DialogueShotKind.OverShoulder, speaker);
     }

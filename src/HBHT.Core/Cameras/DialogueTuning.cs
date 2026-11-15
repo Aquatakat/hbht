@@ -127,7 +127,7 @@ namespace HBHT.Core.Cameras;
     /// </summary>
     public float OpenTwoShotWeight { get; init; } = 5;
     public float OpenShoulderWeight { get; init; } = 3;
-    public float OpenWideWeight { get; init; } = 2;
+    public float OpenWideWeight { get; init; } = 1;
     public int OpenWideLines { get; init; } = 8;
 
     /// <summary>The chance a two-shot or a wide tries a placing 20° round the line first (either way, evenly), rather than straight across.</summary>
