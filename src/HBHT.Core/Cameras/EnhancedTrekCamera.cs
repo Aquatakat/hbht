@@ -63,7 +63,7 @@ public sealed partial class EnhancedTrekCamera
     private Vector3 _pivot;
     private float _yaw, _yawSpeed;
     private float _pitch, _pitchSpeed;
-    private float _arm, _free, _freeLevel;
+    private float _arm, _armSpeed, _free, _freeLevel;
     private float _length, _basePitch;
     private float _userPitch;
     private float _sinceInput;
@@ -75,6 +75,9 @@ public sealed partial class EnhancedTrekCamera
 
     /// <summary>The swing behind of an unchosen view is under way.</summary>
     private bool _swingingBehind;
+
+    /// <summary>Where his travel last put the yaw's goal, which it settles on once he stands; none since the view was last set.</summary>
+    private float? _restGoal;
     private int _swingSide;
     private Vector2 _travel;
     private Vector3 _lastPlayer;
@@ -109,6 +112,9 @@ public sealed partial class EnhancedTrekCamera
     /// <summary>The boom's yaw in degrees: the way from the pivot to the camera, from +X toward +Z.</summary>
     public float Yaw => _yaw / Degree;
 
+    /// <summary>How far the yaw was off its goal last tick, in degrees.</summary>
+    public float YawOff { get; private set; }
+
     /// <summary>Its pitch in degrees above level.</summary>
     public float Pitch => _pitch;
 
@@ -140,6 +146,7 @@ public sealed partial class EnhancedTrekCamera
         _lastPlayer = player;
         _swingSide = 0;
         _swingingBehind = false;
+        _restGoal = null;
         if (kept)
         {
             Adopt(camera);
@@ -180,40 +187,55 @@ public sealed partial class EnhancedTrekCamera
         var ahead = heading.LengthSquared() > 1e-8f ? Vector2.Normalize(heading) : Vector2.UnitX;
         var behind = MathF.Atan2(-ahead.Y, -ahead.X);
         var want = _length * (1 - t.ArrivalShortfall);
-        (float Off, float Arm) best = (0, -1);
-        for (var off = 0f; off <= 180.5f; off += t.ArrivalStep)
+        var tried = new Dictionary<float, (float Arm, bool Seen, bool Framed)>();
+        (float Arm, bool Seen, bool Framed) Try(float off)
         {
-            var tried = new List<(float Off, float Arm, bool Seen)>();
-            foreach (var side in off is 0 or >= 180 ? [1f] : new[] { 1f, -1f })
+            if (tried.TryGetValue(off, out var known))
+                return known;
+            // Judged by the arm from above his head, and seen from there as well as from the lifted place: a lift over a
+            // railing isn't room, and the pivot settles back as soon as he moves.
+            var arm = PlaceAtYaw(world, visible, player, behind + off * Degree);
+            var seen = Sees(world, visible, player);
+            var framed = Framed(player);
+            var (pivot, placed) = (_pivot, _arm);
+            (_pivot, _arm) = (player + new Vector3(0, t.Height, 0), arm);
+            seen &= Sees(world, visible, player);
+            (_pivot, _arm) = (pivot, placed);
+            return tried[off] = (arm, seen, framed);
+        }
+        // In bands round from behind him (rear, side, front), each tried at the place's length and then close, against the
+        // wall, before the next: within a band nearest behind first, and of the two sides the longer.
+        (float From, float To)[] bands = [(-1, t.RearBand), (t.RearBand, t.SideBand), (t.SideBand, 180.5f)];
+        foreach (var (from, to) in bands)
+        {
+            foreach (var close in new[] { false, true })
             {
-                // Judged by the arm from above his head, and seen from there as well as from the lifted place: a lift over a
-                // railing isn't room, and the pivot settles back as soon as he moves.
-                var arm = PlaceAtYaw(world, visible, player, behind + side * off * Degree);
-                var seen = Sees(world, visible, player);
-                var (pivot, placed) = (_pivot, _arm);
-                (_pivot, _arm) = (player + new Vector3(0, t.Height, 0), arm);
-                seen &= Sees(world, visible, player);
-                (_pivot, _arm) = (pivot, placed);
-                tried.Add((side * off, arm, seen));
-            }
-            foreach (var (o, arm, seen) in tried.OrderByDescending(x => x.Arm))
-            {
-                if (!seen)
-                    continue;
-                if (arm >= want)
+                for (var off = 0f; off <= 180.5f; off += t.ArrivalStep)
                 {
-                    PlaceAtYaw(world, visible, player, behind + o * Degree);
-                    Arrival = new TrekArrival(TrekArrival.KindOf(o), o, arm, true);
-                    return;
+                    if (off <= from || off > to)
+                        continue;
+                    (float Off, float Arm)? pick = null;
+                    foreach (var side in off is 0 or >= 180 ? [1f] : new[] { 1f, -1f })
+                    {
+                        var (arm, seen, framed) = Try(side * off);
+                        var fits = seen && (close ? arm >= t.CloseFloor && framed : arm >= want);
+                        if (fits && (pick is not { } p || arm > p.Arm))
+                            pick = (side * off, arm);
+                    }
+                    if (pick is { } chosen)
+                    {
+                        PlaceAtYaw(world, visible, player, behind + chosen.Off * Degree);
+                        Arrival = new TrekArrival(TrekArrival.KindOf(chosen.Off), chosen.Off, chosen.Arm, !close, close);
+                        return;
+                    }
                 }
-                if (arm > best.Arm)
-                    best = (o, arm);
             }
         }
+        var best = tried.Where(x => x.Value.Seen).Select(x => (Off: x.Key, x.Value.Arm)).DefaultIfEmpty((Off: 0f, Arm: -1f)).OrderByDescending(x => x.Arm).First();
         if (best.Arm >= t.ArrivalShortest * _length)
         {
             PlaceAtYaw(world, visible, player, behind + best.Off * Degree);
-            Arrival = new TrekArrival(TrekArrival.KindOf(best.Off), best.Off, _arm, false);
+            Arrival = new TrekArrival(TrekArrival.KindOf(best.Off), best.Off, _arm, false, true);
             return;
         }
         PlaceAtYaw(world, visible, player, behind);
@@ -308,7 +330,7 @@ public sealed partial class EnhancedTrekCamera
 
         // Close quarters go by the walls about him, the arm's room at the place's own pitch: a ceiling over a raised boom
         // would otherwise raise it further.
-        var shortened = Math.Clamp(1 - _freeLevel / MathF.Max(_length, 1e-3f), 0, 1);
+        var shortened = Shortened;
         StepPivot(world, visible, player, shortened);
         Room = JudgeRoom(world, visible);
         StepYaw(world, visible, player, heading, auto);
@@ -354,6 +376,12 @@ public sealed partial class EnhancedTrekCamera
         return Math.Clamp((near - t.FadeGone) / MathF.Max(t.FadeFrom - t.FadeGone, 1e-3f), 0, 1);
     }
 
+    /// <summary>
+    /// How far into close quarters it is, 0 to 1: the walls' room about him at the place's pitch against the shorter of the
+    /// boom and <see cref="TrekCameraTuning.CloseFloor"/>, so a frame at the close floor against a wall isn't lifted.
+    /// </summary>
+    private float Shortened => Math.Clamp(1 - _freeLevel / MathF.Max(MathF.Min(_length, Tuning.CloseFloor), 1e-3f), 0, 1);
+
     /// <summary>The pivot closes on its place above him, lifted as the arm shortens, but kept under the drawn ceiling.</summary>
     private void StepPivot(CollisionWorld world, VisibleWorld? visible, Vector3 player, float shortened)
     {
@@ -389,7 +417,7 @@ public sealed partial class EnhancedTrekCamera
         PlaceBehind(player, heading);
         Fit(world, visible, at: true);
         var unlifted = _arm;
-        _pivot = PivotGoal(world, visible, player, Math.Clamp(1 - _freeLevel / MathF.Max(_length, 1e-3f), 0, 1));
+        _pivot = PivotGoal(world, visible, player, Shortened);
         _pitch = MathF.Min(_pitch, SightCap(player, heading));
         Fit(world, visible, at: true);
         return unlifted;
@@ -413,7 +441,9 @@ public sealed partial class EnhancedTrekCamera
     private void StepYaw(CollisionWorld world, VisibleWorld? visible, Vector3 player, Vector2 heading, bool auto)
     {
         var t = Tuning;
-        var goal = _yaw;
+        // Standing, the goal stays where his travel last put it, so the view comes to rest behind him rather than stopping
+        // where it was; it holds only where it hasn't been given one since the view was last set (an arrival, his turn).
+        var goal = auto && _restGoal is { } rest ? rest : _yaw;
         if (auto && _travel.Length() > t.MovingSpeed)
         {
             float lean = 0;
@@ -421,16 +451,19 @@ public sealed partial class EnhancedTrekCamera
                 lean += Math.Clamp(l.Lean(player, _travel, Yaw), -l.Bound, l.Bound);
             lean = Math.Clamp(lean, -t.LeanBound, t.LeanBound);
             goal = MathF.Atan2(-_travel.Y, -_travel.X) + lean * Degree;
+            _restGoal = goal;
         }
         // Sneaking past a hunter: toward his far side from it, as quickly as its weight allows.
         var sneak = auto ? Sneak.Weight : 0;
         if (sneak > 0)
             goal += sneak * Wrap(Sneak.Yaw(player) - goal);
         var e = Wrap(goal - _yaw);
+        YawOff = MathF.Abs(e) / Degree;
         if (!auto)
         {
             // The player turned it: the view is his.
             _unchosen = _swingingBehind = false;
+            _restGoal = null;
         }
         else if (_unchosen && _travel.Length() > t.MovingSpeed)
         {
@@ -480,21 +513,42 @@ public sealed partial class EnhancedTrekCamera
             _swingSide = 0;
         }
         // How tight it turns: by the room it lacks, and only as far as it has far round to go (from 20° to 90° off), so
-        // trailing him round a bend stays calm and only walking at the lens swings quickly.
+        // trailing him round a bend stays calm and only walking at the lens swings; an unchosen view's swing, whatever the room.
         var tight = (1 - Room) * Math.Clamp((MathF.Abs(e) / Degree - 20) / 70, 0, 1);
         if (_swingingBehind)
             tight = MathF.Max(tight, Math.Clamp((MathF.Abs(e) / Degree - 10) / 30, 0, 1));
+        // One smoothed approach, critically damped, its rate and its change capped: the follow's slow settle, and the swing's
+        // quicker one, blended by how tight it is.
+        // Walking it follows at FollowTime; as he stops it eases over to the slower SettleTime, a long tail onto its goal.
+        var walking = Math.Clamp((_travel.Length() - t.MovingSpeed) / MathF.Max(t.MovingSpeed, 1e-3f), 0, 1);
+        var follow = Lerp(SettleRate(t.SettleTime), SettleRate(t.FollowTime), walking);
+        var rate = Lerp(follow, SettleRate(t.SwingTime), tight);
         var most = (t.OpenTurn + (t.TightTurn - t.OpenTurn) * tight) * Degree;
         var accel = (t.OpenTurnAccel + (t.TightTurnAccel - t.OpenTurnAccel) * tight) * Degree;
+        rate = MathF.Max(rate, sneak * SettleRate(t.SneakTime));
         most = MathF.Max(most, sneak * t.SneakTurn * Degree);
         accel = MathF.Max(accel, sneak * t.SneakTurnAccel * Degree);
-        // Enough to stop on the goal from the speed it has: the rate eases off as it comes round, and a swing braked only at
-        // the open rate's change ran on 30° to 50° past behind him.
-        if (MathF.Sign(_yawSpeed) == MathF.Sign(e) && MathF.Abs(e) > 1e-3f)
-            accel = MathF.Max(accel, MathF.Min(_yawSpeed * _yawSpeed / (2 * MathF.Abs(e)), t.TightTurnAccel * Degree));
         var yaw = _yaw;
-        Channel(ref yaw, ref _yawSpeed, yaw + e, most, accel, t.TurnSettle + sneak * 4);
+        Approach(ref yaw, ref _yawSpeed, yaw + e, rate, most, accel);
         _yaw = Wrap(yaw);
+    }
+
+    /// <summary>The rate of a critically damped approach that's 90% of the way, from rest, in <paramref name="seconds"/>.</summary>
+    private static float SettleRate(float seconds) => 3.89f / MathF.Max(seconds, 0.05f);
+
+    private static float Lerp(float a, float b, float t) => a + (b - a) * t;
+
+    /// <summary>
+    /// A tick of a critically damped approach of <paramref name="x"/> to <paramref name="goal"/> at <paramref name="rate"/> (its
+    /// natural frequency, a second's): its change in speed no more than <paramref name="accel"/> a second, its speed no more than
+    /// <paramref name="most"/>. The speed never jumps, and the end is a long tail rather than a stop.
+    /// </summary>
+    private static void Approach(ref float x, ref float v, float goal, float rate, float most, float accel)
+    {
+        var a = rate * rate * (goal - x) - 2 * rate * v;
+        v += Math.Clamp(a, -accel, accel) * Tick;
+        v = Math.Clamp(v, -most, most);
+        x += v * Tick;
     }
 
     /// <summary>
@@ -533,13 +587,15 @@ public sealed partial class EnhancedTrekCamera
         _free = MathF.Min(free, _length);
         _freeLevel = Free(world, visible, DirectionAt(_basePitch + _userPitch), _length);
         if (at || free < MathF.Min(_arm, reach - 1e-3f))
+        {
             // A wall nearer than the camera: in at once.
             _arm = at ? _free : free;
-        else if (_free < _arm)
-            // Longer than the boom with no wall in the way: in gently.
-            _arm = MathF.Max(_free, _arm - Tuning.ArmOut * Tick);
+            _armSpeed = 0;
+        }
         else
-            _arm = MathF.Min(_free, _arm + Tuning.ArmOut * Tick);
+            // Out as room opens, or in gently when longer than the boom with no wall in the way: eased, its speed never
+            // jumping, at most ArmOut a second.
+            Approach(ref _arm, ref _armSpeed, _free, SettleRate(Tuning.ArmEase), Tuning.ArmOut, Tuning.ArmAccel);
     }
 
     /// <summary>How far the camera's sphere can go from the pivot along <paramref name="way"/>, up to <paramref name="length"/>.</summary>
@@ -602,6 +658,7 @@ public sealed partial class EnhancedTrekCamera
         _free = _freeLevel = _length;
         // A view taken up from elsewhere is one the player didn't choose.
         _unchosen = true;
+        _restGoal = null;
         _swingingBehind = false;
     }
 
@@ -652,8 +709,8 @@ public enum TrekArrivalKind
     Lifted,
 }
 
-/// <summary>An arrival's frame: its kind, the angle off behind him in degrees (signed), the arm, whether it reached the length.</summary>
-public readonly record struct TrekArrival(TrekArrivalKind Kind, float Off, float Arm, bool Reached)
+/// <summary>An arrival's frame: its kind, the angle off behind him in degrees (signed), the arm, whether it reached the length, and whether it's a close frame against a wall.</summary>
+public readonly record struct TrekArrival(TrekArrivalKind Kind, float Off, float Arm, bool Reached, bool Close = false)
 {
     public static TrekArrivalKind KindOf(float off) => MathF.Abs(off) switch
     {

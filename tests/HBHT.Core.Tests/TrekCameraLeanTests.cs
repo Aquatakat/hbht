@@ -144,9 +144,11 @@ public class TrekCameraLeanTests
             lastPosition = camera.Position;
             arm = enhanced.Arm;
         }
-        Assert.Equal(-90, enhanced.Yaw, 3f);
+        // Its settle is a long tail: within a few degrees by now.
+        Assert.Equal(-90, enhanced.Yaw, 6f);
         Assert.True(camera.Position.Z < -4);
-        Assert.True(arm > Tuning.OutdoorLength + 0.5f);
+        // The arm lets out eased, so part of the way in a second and a half.
+        Assert.True(arm > Tuning.OutdoorLength + 0.25f, $"arm {arm}");
         Assert.True(enhanced.Pitch > Tuning.OutdoorPitch + 3);
     }
 

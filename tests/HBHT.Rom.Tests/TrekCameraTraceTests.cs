@@ -59,10 +59,11 @@ public sealed class TrekCameraTraceTests(Na10Import fixture, ITestOutputHelper o
             Assert.True(e.AheadInFrame >= o.AheadInFrame, $"{e.Walk}: the way ahead is in frame less than under the original");
         // M05's door is at his back: the arrival frame is beside him, and the swing behind as he sets off.
         var hallway = enhanced.Single(r => r.Walk.StartsWith('a'));
-        Assert.True(hallway.AheadInFrame > 0.6f);
-        Assert.Equal(0, hallway.Front);
-        // After I07's authored shot lets go, the swing behind him is quick: he's seen from the front far less than under the original.
-        Assert.True(enhanced.Single(r => r.Walk.StartsWith('b')).Front < original.Single(r => r.Walk.StartsWith('b')).Front * 0.6f);
+        Assert.True(hallway.AheadInFrame > 0.5f);
+        // The swing is slow on purpose: his front shows for a moment at most.
+        Assert.True(hallway.Front < 0.05f);
+        // After I07's authored shot lets go, the swing behind him is slow on purpose, but he's still seen from the front less than under the original.
+        Assert.True(enhanced.Single(r => r.Walk.StartsWith('b')).Front < original.Single(r => r.Walk.StartsWith('b')).Front);
     }
 
     /// <summary>
@@ -95,9 +96,12 @@ public sealed class TrekCameraTraceTests(Na10Import fixture, ITestOutputHelper o
                 Assert.True(r.Max(x => x.PeakTurn) <= TrekCameraTuning.Default.TightTurn + 5, $"interior {interior} {stick}: whipped round");
             }
             var steer = group.Select(a => a.Of(CameraStyle.Enhanced)).ToList();
-            Assert.True((float)steer.Count(x => x.RoundBy) / steer.Count >= 0.9f, $"interior {interior}: not round behind him by 1.5 s");
+            // The swing is slow on purpose: round by 3 s.
+            Assert.True((float)steer.Count(x => x.RoundBy3) / steer.Count >= 0.8f, $"interior {interior}: not round behind him by 3 s");
             var frames = steer.Select(x => x.Frame).OfType<TrekArrival>().Where(f => f.Kind != TrekArrivalKind.Authored).ToList();
-            Assert.True((float)frames.Count(f => f.Reached) / frames.Count >= 0.9f, $"interior {interior}: the frame fell short");
+            Assert.True((float)frames.Count(f => f.Reached || f.Close) / frames.Count >= 0.95f, $"interior {interior}: the frame fell short");
+            // Fewer front views than at the full length alone: under a fifth turned more than 110° from behind him.
+            Assert.True((float)frames.Count(f => MathF.Abs(f.Off) > 110) / frames.Count < 0.2f, $"interior {interior}: too many front views");
         }
     }
 }

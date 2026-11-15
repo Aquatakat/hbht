@@ -51,9 +51,10 @@ public class EnhancedTrekCameraTests
         var (enhanced, camera) = Arrived(world, new Vector2(headingX, 0));
         var t = TrekCameraTuning.Default;
         Assert.True(MathF.Abs(camera.Position.X) < MathF.Abs(wallX) - t.Radius, $"the camera at {camera.Position} is past the wall at {wallX}");
-        // Behind him the arm can't reach the length, so the arrival frame is round to one side where it does.
-        Assert.NotEqual(TrekArrivalKind.Behind, enhanced.Arrival.Kind);
-        Assert.True(enhanced.Arrival.Reached);
+        // Behind him the arm can't reach the length nor the close floor; round in the rear band it takes a close frame against
+        // the wall rather than going round to his side.
+        Assert.True(enhanced.Arrival.Close && MathF.Abs(enhanced.Arrival.Off) is > 0 and <= 60, $"{enhanced.Arrival}");
+        Assert.True(enhanced.Arm >= t.CloseFloor);
         // Stepping on, standing, it stays inside.
         for (var i = 0; i < 120; i++)
         {
