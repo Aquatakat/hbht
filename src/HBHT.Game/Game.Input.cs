@@ -11,6 +11,15 @@ public partial class Game
     /// <summary>Mouse drag in pixels to stick units at Mouse Sensitivity 1x: about 0.3° of orbit, and 0.02 of height, a pixel.</summary>
     private static readonly Vector2 DragToStick = new(0.2f, 0.4f);
 
+    /// <summary>The mouse's movement in pixels to a free cursor's frames of the stick's step at Mouse Sensitivity 1x: 40 pixels a unit of the arena.</summary>
+    private const float AimPerPixel = 1 / 32f;
+
+    /// <summary>Mouse movement across, in pixels at Mouse Sensitivity 1x, that steps an aim's target once.</summary>
+    private const float PixelsPerTarget = 80;
+
+    /// <summary>The sideways movement gathered toward the next step of an aim's target.</summary>
+    private float _targetDrag;
+
     /// <summary>The bindings' version the input actions were last made from (<see cref="ControlBindings.Version"/>).</summary>
     private int? _controlsApplied;
 
@@ -111,7 +120,14 @@ public partial class Game
             orbitStick += new System.Numerics.Vector2(steer.X, -steer.Y);
         }
         var drag = _camera!.TakeDrag();
-        if (_camera.MouseSteers)
+        // A thrown weapon's or an area spell's free cursor takes the mouse instead of the camera, which the battle holds as it aims.
+        var aim = Vector2.Zero;
+        if (_camera.MouseSteers && Battle?.State is Core.Combat.CombatState.TargetThrown or Core.Combat.CombatState.PlaceArea
+            && _session is { Mode: GameMode.Combat })
+        {
+            aim = new Vector2(drag.X, -drag.Y) * AimPerPixel * _settings.MouseSensitivity;
+        }
+        else if (_camera.MouseSteers)
         {
             orbit = true;
             var scale = DragToStick * _settings.MouseSensitivity * (_settings.InvertMouseY ? new Vector2(1, -1) : Vector2.One);
@@ -119,7 +135,8 @@ public partial class Game
         }
         // He stands still only while what would move him steers, as with R; a source of Move's alone still walks him.
         var free = !(hold && shared != Vector2.Zero) || own != Vector2.Zero;
-        return new PlayerInput(stick, Input.IsActionPressed(Action(GameControls.Sneak)), orbit, orbitStick, Free: free);
+        return new PlayerInput(stick, Input.IsActionPressed(Action(GameControls.Sneak)), orbit, orbitStick, Free: free,
+            Aim: new System.Numerics.Vector2(aim.X, aim.Y));
 
         // Up, down, left and right as Godot's vector: up is negative y.
         static Vector2 Vector(string[] actions) => Input.GetVector(Action(actions[2]), Action(actions[3]), Action(actions[0]), Action(actions[1]));
@@ -131,8 +148,9 @@ public partial class Game
     /// </summary>
     private void CaptureMouse()
     {
+        // A battle's held menus let it go, so the pointer chooses in them.
         var look = InputBindings.MouseLook(_settings.Controls) && _session is { Mode: GameMode.Trek or GameMode.Combat }
-            && _camera is { Flying: false } && GetWindow().HasFocus();
+            && Battle?.Menu is null && _camera is { Flying: false } && GetWindow().HasFocus();
         var mode = look ? Input.MouseModeEnum.Captured : Input.MouseModeEnum.Visible;
         if (Input.MouseMode != mode)
             Input.MouseMode = mode;
@@ -212,14 +230,80 @@ public partial class Game
     }
 
     /// <summary>
+    /// The mouse in a battle (ADR 0040). A held menu lets the mouse go: hovering a row puts the cursor on it, the wheel scrolls the
+    /// list, and a click chooses the row, as letting the menu's button go would. Aiming an attack or a spell (states 9 and 10),
+    /// moving the mouse across steps the target as the stick's left and right do, every <see cref="PixelsPerTarget"/> pixels,
+    /// and the wheel steps it too; a bow's or thrown weapon's (state 18) steps by the wheel as C-left and C-right do, and its
+    /// cursor follows the mouse (<see cref="ReadInput"/>). The buttons are the bindings': the left is Attack, which confirms,
+    /// and the right Cancel. Whether it took the event.
+    /// </summary>
+    private bool CombatPointer(GameSession session, InputEvent e)
+    {
+        if (session.Mode != GameMode.Combat || Battle is not { } battle || e is not InputEventMouse mouse)
+            return false;
+        var turn = Views.UiPointer.Wheel(e);
+        if (battle.Menu is { Empty: null } menu)
+        {
+            var frame = _trekScreen.ToCanvas(mouse.Position) - (Vector2)((_trekScreen.CanvasSize - new Vector2I(320, 240)) / 2);
+            var row = menu.RowAt(frame.X, frame.Y);
+            if (turn != 0)
+            {
+                menu.ScrollBy(turn);
+                return Handled();
+            }
+            if (row is not { } at)
+                return false;
+            menu.Point(at);
+            if (Views.UiPointer.Clicked(e) && session.Press(menu.Items ? MenuAction.AppraiseRelease : MenuAction.DetailsRelease) != PressOutcome.Ignored)
+                ShowPressed(session);
+            return Handled();
+        }
+        if (!InputBindings.MouseLook(_settings.Controls))
+            return false;
+        var thrown = battle.State == Core.Combat.CombatState.TargetThrown;
+        if (battle.State is not (Core.Combat.CombatState.TargetAttack or Core.Combat.CombatState.TargetSpell) && !thrown)
+        {
+            _targetDrag = 0;
+            return false;
+        }
+        var step = 0;
+        if (turn != 0)
+            step = turn;
+        else if (e is InputEventMouseMotion motion && !thrown)
+        {
+            _targetDrag += motion.Relative.X * _settings.MouseSensitivity;
+            if (Math.Abs(_targetDrag) >= PixelsPerTarget)
+            {
+                step = Math.Sign(_targetDrag);
+                _targetDrag = 0;
+            }
+        }
+        if (step == 0)
+            return false;
+        // Right is the stick's right, which steps back through the order by angle; C-right likewise for a thrown weapon.
+        var action = thrown ? step > 0 ? MenuAction.MemberRight : MenuAction.MemberLeft : step > 0 ? MenuAction.Right : MenuAction.Left;
+        if (session.Press(action) != PressOutcome.Ignored)
+            ShowPressed(session);
+        return Handled();
+
+        bool Handled()
+        {
+            _battleScreen?.QueueRedraw();
+            GetViewport().SetInputAsHandled();
+            return true;
+        }
+    }
+
+    /// <summary>
     /// Whether a mouse button is passed over: in trek and a battle with mouse look, while the mouse isn't captured, the click
     /// that brings the window back to the front, which would otherwise use what he stands by or start an attack. It captures
     /// the mouse instead.
     /// </summary>
     private bool UncapturedClick(GameSession session, InputEvent e)
     {
+        // A battle's held menu lets the mouse go on purpose, for the pointer to choose in it.
         if (e is not InputEventMouseButton || session.Mode is not (GameMode.Trek or GameMode.Combat) || _camera is not { Flying: false }
-            || !InputBindings.MouseLook(_settings.Controls) || Input.MouseMode == Input.MouseModeEnum.Captured)
+            || !InputBindings.MouseLook(_settings.Controls) || Input.MouseMode == Input.MouseModeEnum.Captured || Battle?.Menu is not null)
             return false;
         CaptureMouse();
         GetViewport().SetInputAsHandled();

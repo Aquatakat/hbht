@@ -988,7 +988,8 @@ public partial class Game : Node3D, ITrekHost, IPauseMenuHost, ICombatHost
     {
         _stick.Situation = _session is { } playing ? Core.Controls.Situations.Of(playing.Mode) : Core.Controls.Situation.Trek;
         _stick.Track(e);
-        if (_session is not { } session || BindPrompted(session, e) || UncapturedClick(session, e) || TalkPointer(session, e))
+        if (_session is not { } session || BindPrompted(session, e) || UncapturedClick(session, e) || TalkPointer(session, e)
+            || CombatPointer(session, e))
             return;
         var names = session.Title is { NameEntryOpen: true } title ? title.Menu : session.Menu.NameEntryOpen ? session.Menu.System : null;
         if (names is not null && e is InputEventKey { Pressed: true } typed && TypeName(names, typed))

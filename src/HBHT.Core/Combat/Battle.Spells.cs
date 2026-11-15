@@ -410,17 +410,15 @@ public sealed partial class Battle
 
     /// <summary>
     /// A tick of state 11's stick (<c>Combat.InputAreaTarget</c>, <c>0x80084964</c>): the centre moves with it, turned by the camera,
-    /// <see cref="AreaStep"/> a frame, kept on the grid and within the spell's range times its level of the caster's body; and set B is
+    /// <see cref="AreaStep"/> a frame (or with the mouse, as far as it went: <see cref="PlayerInput.CursorMove"/>), kept on the grid and within the spell's range times its level of the caster's body; and set B is
     /// built again about it.
     /// </summary>
     private void MoveArea(PlayerInput input)
     {
-        if (Current is not { } c || input.Stick == Vector2.Zero || c.CurrentSpell(this) is not { } source)
+        if (Current is not { } c || input.CursorMove(Camera.LookXZ, AreaStep) is var move && move == Vector2.Zero
+            || c.CurrentSpell(this) is not { } source)
             return;
-        var look = Camera.LookXZ;
-        var way = Facing.Rotate(new Vector2(-input.Stick.X, input.Stick.Y), look.X, look.Y);
-        way = SafeNormalize.Of(way);
-        var centre = AreaAim + way * (AreaStep / Cadence.AimFrameTicks);
+        var centre = AreaAim + move;
         centre = Vector2.Clamp(centre, Vector2.Zero, new Vector2(Grid.Width, Grid.Depth));
         if (centre == AreaAim)
             return;

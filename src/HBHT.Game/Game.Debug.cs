@@ -175,10 +175,17 @@ public partial class Game
 
     /// <summary>
     /// The mouse at a point of the frame on the UI screen in front (the title's, the pause menu's, a backdrop's or trek's): moved
-    /// there, and clicked, or the wheel turned, as <c>--press click@160_120</c> asks.
+    /// there, and clicked, or the wheel turned, as <c>--press click@160_120</c> asks; or with <c>drag@80_0</c>, moved so many pixels
+    /// where it is, as a captured mouse is.
     /// </summary>
     private void Mouse(string gesture, Vector2 frame)
     {
+        // drag@80_0 moves a captured mouse so many pixels, as mouse look and aiming read it.
+        if (gesture == "drag")
+        {
+            Input.ParseInputEvent(new InputEventMouseMotion { Relative = frame, ScreenRelative = frame });
+            return;
+        }
         var screen = _titleLayer is { Visible: true } title ? title.Screen
             : _menu is { IsOpen: true } menu ? menu.Screen
             : _backdrop is { Page: not null } backdrop ? backdrop.Screen

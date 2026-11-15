@@ -47,6 +47,38 @@ public sealed class CombatMenuTests
         Assert.Equal((0, 255), (Run(menu, heights, 1).UpArrow, menu.DownArrowAlpha));
     }
 
+    /// <summary>
+    /// The wheel scrolls the list a row at a time and holds it there (ADR 0040), the cursor kept among the rows in view, as letting the
+    /// button go chooses it; a point is the row under it as the list is scrolled, and the stick moving the cursor lets the list follow it again.
+    /// </summary>
+    [Fact]
+    public void TheWheelScrollsTheListAndAPointIsTheRowUnderIt()
+    {
+        var menu = Menu(items: false, rows: 10);
+        var heights = Enumerable.Repeat(11, 10).ToList();
+        Run(menu, heights, 1);
+
+        menu.ScrollBy(2);
+        var layout = Run(menu, heights, 5);
+        Assert.Equal(28, layout.Scroll);
+        Assert.Equal(2, menu.Cursor);
+        // The list's top shows the third row, 14 a row.
+        Assert.Equal(2, menu.RowAt(CombatMenu.ListLeft, layout.List.Top));
+        Assert.Equal(3, menu.RowAt(CombatMenu.ListLeft + 50, layout.List.Top + 14));
+        Assert.Null(menu.RowAt(CombatMenu.ListLeft - 1, layout.List.Top));
+        menu.Point(4);
+        Assert.Equal(28, Run(menu, heights, 5).Scroll);
+
+        // As far as the last row's foot, 10 × 14 − 3 less the 95 shown.
+        menu.ScrollBy(10);
+        Assert.Equal(42, Run(menu, heights, 5).Scroll);
+        menu.Move(-1);
+        menu.Move(-1);
+        menu.Move(-1);
+        menu.Move(-1);
+        Assert.Equal(0, Run(menu, heights, 10).Scroll);
+    }
+
     [Fact]
     public void CUpsRowsAreNineteenApartAndFiveFillTheList()
     {

@@ -20,8 +20,7 @@ This is the one list of what's open. A task's status is in its phase's table bel
 
 ### Left over from finished work
 
-- **The mouse and keyboard** ([ADR 0040](adr/0040-the-mouse-comes-first-on-the-keyboard.md)). Done: mouse look by default, the left button A in trek and a battle, the right B everywhere, Invert Mouse Y and Invert Camera Y, clicks in the menus, conversations, popups, books and the title, with the wheel scrolling the view ([ui](systems/ui.md#input)), and the Party tab's portraits, list titles and changing tab by clicking ([pause menu](systems/pause-menu.md)). Left, in slices:
-  - **Combat:** aiming steps the target order by the mouse's sideways motion and the wheel, a click confirming; the free cursor of a thrown weapon or flask follows the mouse; the held menus scroll with the wheel and a click chooses.
+- **The mouse and keyboard** ([ADR 0040](adr/0040-the-mouse-comes-first-on-the-keyboard.md)). Done: mouse look by default, the left button A in trek and a battle, the right B everywhere, Invert Mouse Y and Invert Camera Y, clicks in the menus, conversations, popups, books and the title, with the wheel scrolling the view ([ui](systems/ui.md#input)), the Party tab's portraits, list titles and changing tab by clicking ([pause menu](systems/pause-menu.md)), and a battle's aiming and held menus ([ui](systems/ui.md#the-held-menus)). Left, in slices:
   - **The keyboard:** 1 to 4 showing that member on the Party windows. Typing Alaron's name already works (`Game.TypeName`).
 
   The user ruled out the wheel in trek and a marker on what Use reaches. The menus' motion is otherwise 1.0's: their slides, fades and scroll, a battle's pause on a wide screen and the details' edge.

@@ -340,17 +340,14 @@ public sealed partial class Battle
 
     /// <summary>
     /// A tick of state 18's free cursor (<c>Combat.MoveAreaCursor</c>, <c>0x8008465C</c>), the stick turned by the camera moving
-    /// <see cref="ThrownAim"/>, kept on the grid and within the weapon's range of the attacker; then set A selects the candidate whose body is
+    /// <see cref="ThrownAim"/> (or the mouse, as far as it went: <see cref="PlayerInput.CursorMove"/>), kept on the grid and within the weapon's range of the attacker; then set A selects the candidate whose body is
     /// nearest it, within a unit, or none (<c>0x80084A24</c>).
     /// </summary>
     private void MoveAimCursor(PlayerInput input)
     {
-        if (Current is not { } c || input.Stick == Vector2.Zero)
+        if (Current is not { } c || input.CursorMove(Camera.LookXZ, AimStep) is var move && move == Vector2.Zero)
             return;
-        var look = Camera.LookXZ;
-        var way = Facing.Rotate(new Vector2(-input.Stick.X, input.Stick.Y), look.X, look.Y);
-        way = SafeNormalize.Of(way);
-        var focus = ThrownAim + way * (AimStep / Cadence.AimFrameTicks);
+        var focus = ThrownAim + move;
         focus = Vector2.Clamp(focus, Vector2.Zero, new Vector2(Grid.Width, Grid.Depth));
         // Combatant.WeaponReach: a flask's is 400, the grid alone.
         var reach = c.HoldsFlask ? FlaskReach : WeaponOf(c)?.Range ?? 0;

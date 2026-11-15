@@ -151,6 +151,54 @@ public sealed class CombatMenu
         if (Rows.Count == 0 || by == 0)
             return;
         Cursor = ((Cursor + Math.Sign(by)) % Rows.Count + Rows.Count) % Rows.Count;
+        _held = false;
+    }
+
+    /// <summary>Whether the wheel has scrolled the list (ADR 0040), which then stays where it was put until the stick moves the cursor.</summary>
+    private bool _held;
+
+    // The last layout's rows' tops and heights, and its list's top, which a point is found among.
+    private IReadOnlyList<int> _tops = [], _heights = [];
+    private int _listTop;
+
+    /// <summary>Puts the cursor on a row, as the pointer over it does, leaving the list where the wheel put it.</summary>
+    public void Point(int row)
+    {
+        if (row >= 0 && row < Rows.Count)
+            Cursor = row;
+    }
+
+    /// <summary>
+    /// The wheel: scrolls the list a row up or down, as far as its first row's top or its last row's foot, and holds it there until
+    /// the stick moves the cursor (ADR 0040). The cursor stays where it was but kept among the rows in view, as letting the menu's
+    /// button go chooses it.
+    /// </summary>
+    public void ScrollBy(int rows)
+    {
+        if (_tops.Count == 0 || rows == 0)
+            return;
+        var first = _tops.Count(t => t < _scrollGoal);
+        var to = Math.Clamp(first + rows, 0, _tops.Count - 1);
+        _scrollGoal = Math.Clamp(_tops[to], 0, Math.Max(0, _lastFoot - _shown));
+        _held = true;
+        // Letting the button go chooses the cursor's row, so it stays among the rows in view.
+        var firstShown = Enumerable.Range(0, _tops.Count).Where(i => _tops[i] >= _scrollGoal).DefaultIfEmpty(_tops.Count - 1).First();
+        var lastShown = Enumerable.Range(0, _tops.Count).Last(i => i == firstShown || _tops[i] + _heights[i] <= _scrollGoal + _shown);
+        Cursor = Math.Clamp(Cursor, firstShown, lastShown);
+    }
+
+    /// <summary>The row under a point in the frame, as the last layout placed the rows and the list is scrolled, or null.</summary>
+    public int? RowAt(float x, float y)
+    {
+        if (x < ListLeft || x >= PanelRight || y < _listTop || y >= _listTop + _shown)
+            return null;
+        for (var i = 0; i < _tops.Count; i++)
+        {
+            var top = _listTop + _tops[i] - Scroll;
+            if (y >= top && y < top + _heights[i] + Gap)
+                return i;
+        }
+        return null;
     }
 
     /// <summary>A tick (<c>CombatMenu.Step</c>, <c>WidgetPulseMenu.Step</c>): the pulse steps, and the scroll follows its goal.</summary>
@@ -194,7 +242,7 @@ public sealed class CombatMenu
         }
         var height = Math.Min(content, MostHeight);
         var top = CentreY - height / 2;
-        if (Rows.Count > 0)
+        if (Rows.Count > 0 && !_held)
         {
             var cursorTop = tops[Cursor];
             var cursorBottom = cursorTop + heights[Cursor];
@@ -210,6 +258,7 @@ public sealed class CombatMenu
         }
         _shown = height;
         _lastFoot = Rows.Count > 0 ? tops[^1] + heights[^1] : 0;
+        (_tops, _heights, _listTop) = (tops, [.. heights], top);
         return new CombatMenuLayout(new ScreenRect(ListLeft, top, ListLeft + Width, top + height), tops, Scroll,
             UpArrow: UpArrowAlpha, DownArrow: DownArrowAlpha,
             Panel: new ScreenRect(PanelLeft, top, PanelRight + 1, top + height),

@@ -170,6 +170,8 @@ Of the entities that carry a weapon, only Zaratas has no locators, so draws noth
 
 The classes are in [combat](combat.md#the-port)'s table: `Battle.Attack.cs`, `Battle.Strikes.cs`, `TargetSet`, `ArenaGrid`, `MissileFlight`, `CombatNumbers`, `TargetMarks` and `BodyTint` for an attack; `Battle.Spells.cs`, `Combatant.Spells.cs`, `Battle.Skills.cs`, `Battle.Magic.cs` and `Ui.CombatMenu` for spells, potions and skills; `SpellFx` for the visuals; `Combatant.Action.cs` for what the bodies hold.
 
+- **The mouse** ([ADR 0040](../adr/0040-the-mouse-comes-first-on-the-keyboard.md)), a port addition. Aiming an attack or a spell (states 9 and 10), moving the mouse across steps the target as the stick's left and right do, every 80 pixels at Mouse Sensitivity 1x, and the wheel steps it too; a bow's or thrown weapon's (state 18) steps by the wheel as C-left and C-right do. The free cursors, state 18's and an area spell's centre (state 11), follow the mouse as far as it went, turned by the camera as the stick is, rather than at the stick's fixed step a frame (`PlayerInput.Aim`, `CursorMove`): 32 pixels a frame's step, 0.8 of the arena. The left button is Attack, which confirms, and the right Cancel (`Game.CombatPointer`).
+
 ### Traps
 
 - **The blow lands at the strike**, not the swing's end: `AtStrike` before each body steps, `AfterBodies` letting `Body.Playing` (`+0x18`) go there, the share `Battle.StrikeShare`'s: the entity's `strike`, or for requests 14 and 15 its own share for the request in `strikes` (`EntityBody.StrikeFor`), 0.4 unless a mod sets it. The missile leaves at the same check.
