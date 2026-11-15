@@ -51,7 +51,9 @@ public class EnhancedTrekCameraTests
         var (enhanced, camera) = Arrived(world, new Vector2(headingX, 0));
         var t = TrekCameraTuning.Default;
         Assert.True(MathF.Abs(camera.Position.X) < MathF.Abs(wallX) - t.Radius, $"the camera at {camera.Position} is past the wall at {wallX}");
-        Assert.True(enhanced.Arm < t.OutdoorLength - 1);
+        // Behind him the arm can't reach the length, so the arrival frame is round to one side where it does.
+        Assert.NotEqual(TrekArrivalKind.Behind, enhanced.Arrival.Kind);
+        Assert.True(enhanced.Arrival.Reached);
         // Stepping on, standing, it stays inside.
         for (var i = 0; i < 120; i++)
         {
@@ -127,22 +129,23 @@ public class EnhancedTrekCameraTests
     }
 
     [Theory]
-    // A point in front of him, looking back at him, is passed over for behind him.
-    [InlineData(6f, false)]
-    // A point behind him is kept.
-    [InlineData(-6f, true)]
-    public void ATeleportersCameraPointIsKeptOnlyBehindHim(float pointX, bool kept)
+    // In front of him, looking back at him, and behind him: an authored frame either way.
+    [InlineData(6f)]
+    [InlineData(-6f)]
+    public void ATeleportersCameraPointIsKeptWhereItFramesHim(float pointX)
     {
         var camera = new FollowCamera(Player, Vector2.UnitX);
         camera.PlaceAt(new Vector3(pointX, 3, 1));
         var enhanced = new EnhancedTrekCamera();
         enhanced.Arrive(camera, Worlds.Flat(), null, Player, Vector2.UnitX, interior: false, kept: true);
-        Assert.Equal(kept, camera.Position.X == pointX);
-        Assert.True(camera.Position.X < 0);
-        // A camera object taking the camera there keeps it whatever its side.
-        camera.PlaceAt(new Vector3(6, 3, 1));
-        enhanced.Arrive(camera, Worlds.Flat(), null, Player, Vector2.UnitX, interior: false, kept: true, authored: true);
-        Assert.Equal(6, camera.Position.X);
+        Assert.Equal(pointX, camera.Position.X, 3);
+        Assert.Equal(TrekArrivalKind.Authored, enhanced.Arrival.Kind);
+        // One looking away from him is only where the original's camera starts: the arrival frame instead.
+        camera.PlaceAt(new Vector3(pointX, 3, 1));
+        camera.AimAt(new Vector3(pointX, 3, 20));
+        enhanced.Arrive(camera, Worlds.Flat(), null, Player, Vector2.UnitX, interior: false, kept: true);
+        Assert.Equal(TrekArrivalKind.Behind, enhanced.Arrival.Kind);
+        Assert.True(camera.Position.X < -4);
     }
 
     [Fact]
@@ -176,24 +179,49 @@ public class EnhancedTrekCameraTests
     }
 
     [Fact]
-    public void BackedAgainstAWallItRisesOverHisHeadAndKeepsTheWayAheadInFrame()
+    public void BackedAgainstADoorItFramesHimFromTheSideAndSwingsBehindTheOpenWay()
     {
         // A wall 0.6 behind him, as at the door he came through, with a drawn ceiling 4.8 up.
         var world = FlatWith(Worlds.Wall(-0.6f, 10));
         var visible = new VisibleWorld();
         visible.Add(Worlds.Chunk(1), Worlds.Floor(4.8f, -50, 60, -50, 60).Drawn(), Vector3.Zero);
         var (enhanced, camera) = Arrived(world, Vector2.UnitX, visible, interior: true);
+        Assert.Equal(TrekArrivalKind.Side, enhanced.Arrival.Kind);
+        Assert.True(enhanced.Arrival.Reached);
+        Assert.True(camera.Position.X > -0.6f + 0.25f, $"the camera at {camera.Position} is past the wall");
+        // Walking off, it comes round behind him without going through the wall's side, where the arm would close up.
+        var player = Player;
+        var lifted = 0;
+        for (var i = 0; i < 120; i++)
+        {
+            player += new Vector3(0.06f, 0, 0);
+            enhanced.Step(camera, world, visible, player, Vector2.UnitX, interior: true, Vector2.Zero);
+            Assert.True(camera.Position.X > -0.6f + 0.25f, $"the camera at {camera.Position} is past the wall");
+            if (enhanced.Pivot.Y > player.Y + 1.05f + 0.5f)
+                lifted++;
+        }
+        Assert.Equal(180, MathF.Abs(enhanced.Yaw), 10f);
+        Assert.True(lifted < 10, $"lifted over his head for {lifted} ticks of the swing");
+    }
+
+    [Fact]
+    public void InAClosetItRisesOverHisHead()
+    {
+        // Walls 0.6 from him on every side, with a drawn ceiling 4.8 up: no angle has room.
+        var world = Worlds.Flat();
+        var across = Worlds.Wall(-0.6f, 10).Concat(Worlds.Wall(0.6f, 10)).ToList();
+        world.Add(Worlds.Chunk(1), across.Concat(across.Select(t => t with { A = Swap(t.A), B = Swap(t.B), C = Swap(t.C) })), Vector3.Zero);
+        var visible = new VisibleWorld();
+        visible.Add(Worlds.Chunk(1), Worlds.Floor(4.8f, -50, 60, -50, 60).Drawn(), Vector3.Zero);
+        var (enhanced, camera) = Arrived(world, Vector2.UnitX, visible, interior: true);
+        Assert.True(enhanced.Arrival.Kind == TrekArrivalKind.Lifted, $"{enhanced.Arrival}");
         for (var i = 0; i < 60; i++)
             enhanced.Step(camera, world, visible, Player, Vector2.UnitX, interior: true, Vector2.Zero);
         var head = Player + new Vector3(0, 1.05f, 0);
-        Assert.True(camera.Position.X > -0.6f + 0.25f, $"the camera at {camera.Position} is past the wall");
         Assert.True(camera.Position.Y - head.Y > 1, $"the camera at {camera.Position} isn't over his head");
         Assert.True(camera.Position.Y < 4.8f - 0.25f);
-        // The point 8 ahead at head height is inside the lens's 22.5° half-height.
-        var look = Vector3.Normalize(camera.Aim - camera.Position);
-        var to = Vector3.Normalize(head + new Vector3(8, 0, 0) - camera.Position);
-        Assert.True(MathF.Acos(Vector3.Dot(look, to)) * 180 / MathF.PI < 22.5f);
-        Assert.Equal(1, enhanced.Fade(camera.Position, Player), 3);
+
+        static Vector3 Swap(Vector3 v) => new(v.Z, v.Y, v.X);
     }
 
     [Fact]

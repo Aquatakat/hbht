@@ -38,6 +38,9 @@ namespace HBHT.Core.Cameras;
 /// <param name="PivotRate">The share of the way the pivot closes on the player a tick.</param>
 /// <param name="PivotSpeed">The fastest it closes, units a second.</param>
 /// <param name="UnchosenSwing">How far off behind his travel a view he didn't choose must be, as he sets off, to swing behind at the tight rate.</param>
+/// <param name="ArrivalShortfall">How far short of the place's length an arrival's arm may be and still count as reaching it.</param>
+/// <param name="ArrivalStep">How far round from behind him each angle an arrival tries is from the last.</param>
+/// <param name="ArrivalShortest">The share of the length below which no angle will do and the arrival is lifted behind him; also how short the arm along an unchosen swing's shorter way must close for it to go the other way.</param>
 /// <param name="LeanBound">The most all the yaw's leans together add to its goal (slices 2 and 3: the path's bend, the nudges).</param>
 /// <param name="BendRays">How many level sweeps the path's bend fans ahead of his travel (<see cref="PathBendLean"/>).</param>
 /// <param name="BendSpread">How far either side of his travel the fan reaches.</param>
@@ -84,8 +87,8 @@ public sealed record TrekCameraTuning(
     float FadeGone = 0.5f,
     float OpenTurn = 40,
     float OpenTurnAccel = 90,
-    float TightTurn = 270,
-    float TightTurnAccel = 1080,
+    float TightTurn = 180,
+    float TightTurnAccel = 720,
     float TurnSettle = 2,
     float PitchSpeed = 30,
     float PitchAccel = 120,
@@ -98,6 +101,9 @@ public sealed record TrekCameraTuning(
     float PivotRate = 0.12f,
     float PivotSpeed = 8,
     float UnchosenSwing = 90,
+    float ArrivalShortfall = 0.15f,
+    float ArrivalStep = 20,
+    float ArrivalShortest = 0.35f,
     float LeanBound = 40,
     float BendRays = 13,
     float BendSpread = 75,

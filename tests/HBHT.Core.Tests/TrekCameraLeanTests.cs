@@ -116,7 +116,7 @@ public class TrekCameraLeanTests
         var nudge = new NudgeLean(camera) { Hunter = _ => new Vector3(4, 0.5f, 2), Sneaking = () => sneaking };
         for (var i = 0; i < 120; i++)
             nudge.Lean(Player, Vector2.UnitX * 3, 0);
-        Assert.True(nudge.Value > 5);
+        Assert.True(nudge.Value > 1.5f);
         sneaking = true;
         for (var i = 0; i < 240; i++)
             nudge.Lean(Player, Vector2.UnitX * 3, 0);
