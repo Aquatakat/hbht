@@ -19,16 +19,30 @@ public static class DialogueCensus
     public sealed record Placing(string MapSet, string Chunk, int Index, int Way, bool Interior, int Side, bool ShoulderAtNpc, bool ShoulderAtPlayer,
         bool SingleOfNpc, bool SingleOfPlayer, bool TwoShot, bool Wide)
     {
+        /// <summary>Which over-the-shoulder placing at the npc fitted (0 roomy, 1 tight, 2 and 3 nearer), or −1.</summary>
+        public int ShoulderPlacing { get; init; } = -1;
+
+        /// <summary>The share of the frame's width Alaron covers over the shoulder at the npc, and in the single of the npc, where they fit.</summary>
+        public float? ShoulderCover { get; init; }
+        public float? SingleCover { get; init; }
+
+        /// <summary>Whether a single of the npc, wanted, fell to the over-the-shoulder.</summary>
+        public bool SingleFellToShoulder { get; init; }
+
         public bool OriginalOnly => !(ShoulderAtNpc || ShoulderAtPlayer || SingleOfNpc || SingleOfPlayer || TwoShot || Wide);
 
         /// <summary>How many of the six fit.</summary>
         public int Fitting => new[] { ShoulderAtNpc, ShoulderAtPlayer, SingleOfNpc, SingleOfPlayer, TwoShot, Wide }.Count(f => f);
     }
 
-    /// <summary>Alaron's sphere, and the gap he talks at beyond the npc's.</summary>
-    private const float PlayerRadius = PlayerMotion.Radius, Gap = 0.5f;
+    /// <summary>Alaron's sphere.</summary>
+    private const float PlayerRadius = PlayerMotion.Radius;
 
-    public static List<Placing> Run(PluginSet plugins, DialogueTuning tuning)
+    /// <summary>The gaps between the spheres the census stands them at: touching, as a player runs up and presses A, and the furthest A reaches (<c>Wanderers.Reaches</c>, 0.5).</summary>
+    public const float Touching = 0.05f, Furthest = 0.5f;
+
+    /// <param name="gap">How far apart their spheres are: <see cref="Touching"/> or <see cref="Furthest"/>.</param>
+    public static List<Placing> Run(PluginSet plugins, DialogueTuning tuning, float gap = Furthest)
     {
         var alaron = plugins.TryGet<EntityRecord>(GameState.Alaron)?.Body;
         var placings = new List<Placing>();
@@ -49,6 +63,7 @@ public static class DialogueCensus
                 var world = streamer.World;
                 var interior = plugins.TryGet<TerrainRecord>(chunk.Terrain) is { SkyDrawn: false };
                 var look = plugins.TryGet<EntityRecord>(npc.Entity)?.Body;
+                var wants = DialoguePlanner.WantsOf(plugins.Get<ScriptRecord>(npc.Script), tuning);
                 var npcRadius = 0.5f * (look?.Scale ?? 1);
                 if (Ground(world, at) is not { } npcGround)
                     continue;
@@ -57,7 +72,7 @@ public static class DialogueCensus
                 {
                     var (s, c) = MathF.SinCos(way * MathF.PI / 4);
                     var dir = new Vector2(c, s);
-                    var reach = npcRadius + PlayerRadius + Gap;
+                    var reach = npcRadius + PlayerRadius + gap;
                     var stand = npcCentre + new Vector3(dir.X, 0, dir.Y) * reach;
                     if (Ground(world, stand) is not { } ground || MathF.Abs(ground - npcGround) > 1)
                         continue;
@@ -71,12 +86,21 @@ public static class DialogueCensus
                     // The follow camera behind Alaron, a little round: the side is chosen mostly by the room.
                     var (bs, bc) = MathF.SinCos(MathF.PI / 9);
                     var back = new Vector2(dir.X * bc - dir.Y * bs, dir.X * bs + dir.Y * bc);
-                    var side = DialogueCamera.ChooseSide(scene, playerCentre + new Vector3(back.X, 0, back.Y) * 5 + Vector3.UnitY, tuning);
+                    var side = DialogueCamera.ChooseSide(scene, playerCentre + new Vector3(back.X, 0, back.Y) * 5 + Vector3.UnitY, tuning, wants);
                     bool Fits(DialogueShotKind kind, Talker who) => DialogueCamera.TryPlace(scene, side, new DialogueShot(kind, who), tuning, out _);
                     placings.Add(new Placing(set.Label ?? set.Id.ToString(), chunk.Name, npc.Index, way, interior, side,
                         Fits(DialogueShotKind.OverShoulder, Talker.Npc), Fits(DialogueShotKind.OverShoulder, Talker.Player),
                         Fits(DialogueShotKind.Single, Talker.Npc), Fits(DialogueShotKind.Single, Talker.Player),
-                        Fits(DialogueShotKind.TwoShot, Talker.None), Fits(DialogueShotKind.Wide, Talker.None)));
+                        Fits(DialogueShotKind.TwoShot, Talker.None), Fits(DialogueShotKind.Wide, Talker.None))
+                    {
+                        ShoulderPlacing = DialogueCamera.TryPlace(scene, side, new DialogueShot(DialogueShotKind.OverShoulder, Talker.Npc), tuning,
+                            out var shoulder, out var placing) ? placing : -1,
+                        ShoulderCover = shoulder.Distance > 0 ? DialogueCamera.ListenerCover(scene, shoulder, Talker.Player, tuning) : null,
+                        SingleCover = DialogueCamera.TryPlace(scene, side, new DialogueShot(DialogueShotKind.Single, Talker.Npc), tuning, out var single)
+                            ? DialogueCamera.ListenerCover(scene, single, Talker.Player, tuning) : null,
+                        SingleFellToShoulder = DialogueCamera.Fit(scene, side, new DialogueShot(DialogueShotKind.Single, Talker.Npc), tuning).Shown.Kind
+                            == DialogueShotKind.OverShoulder,
+                    });
                 }
             }
         }
@@ -108,6 +132,18 @@ public static class DialogueCensus
         Line("all", placings);
         Line("interior", placings.Where(p => p.Interior).ToList());
         Line("outdoor", placings.Where(p => !p.Interior).ToList());
+        static string Spread(IEnumerable<float?> covers)
+        {
+            var c = covers.OfType<float>().Order().ToList();
+            return c.Count == 0 ? "none" : $"median {c[c.Count / 2]:P0}, 90th {c[(int)(c.Count * 0.9)]:P0} ({c.Count})";
+        }
+        var shoulders = placings.Where(p => p.ShoulderPlacing >= 0).ToList();
+        output.WriteLine($"Alaron's width in the frame: over the shoulder {Spread(placings.Select(p => p.ShoulderCover))}, "
+            + $"the single {Spread(placings.Select(p => p.SingleCover))}");
+        output.WriteLine($"Over the shoulder placed roomy {shoulders.Count(p => p.ShoulderPlacing == 0) / (double)Math.Max(shoulders.Count, 1):P0}, "
+            + $"tight {shoulders.Count(p => p.ShoulderPlacing == 1) / (double)Math.Max(shoulders.Count, 1):P0}, "
+            + $"nearer {shoulders.Count(p => p.ShoulderPlacing >= 2) / (double)Math.Max(shoulders.Count, 1):P0}; "
+            + $"a wanted single fell to the over-the-shoulder {placings.Count(p => p.SingleFellToShoulder) / (double)Math.Max(placings.Count, 1):P0}");
         output.WriteLine("The ten worst placed (mean shots fitting of six, over the ways Alaron could stand):");
         foreach (var g in placings.GroupBy(p => (p.MapSet, p.Chunk, p.Index)).OrderBy(g => g.Average(p => p.Fitting)).ThenBy(g => g.Key.Chunk).Take(10))
             output.WriteLine($"  {g.Key.MapSet} {g.Key.Chunk} #{g.Key.Index}: {g.Average(p => p.Fitting):0.0} over {g.Count()} ways, "

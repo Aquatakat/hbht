@@ -95,6 +95,17 @@ public class DialoguePlannerTests
     }
 
     [Fact]
+    public void WhatAScriptWillWantIsReadFromItAlone()
+    {
+        DialogueShotKind[] plain = [DialogueShotKind.TwoShot, DialogueShotKind.OverShoulder];
+        Assert.Equal(plain, DialoguePlanner.WantsOf(Lines((Npc, "Hello."), (Alaron, "Hi."))));
+        Assert.Equal([.. plain, DialogueShotKind.Single], DialoguePlanner.WantsOf(Lines((Npc, "Hello."), (Alaron, "GET OUT!"))));
+        Assert.Equal([.. plain, DialogueShotKind.Wide], DialoguePlanner.WantsOf(Make(Line(0, "Die.", 1, Npc), Line(1, "", null, null, new ScriptOp.BattleStart()))));
+        var tale = Lines(Enumerable.Range(0, 6).Select(i => ((RecordId?)Npc, $"Line {i}.")).ToArray());
+        Assert.Equal([.. plain, DialogueShotKind.Wide, DialogueShotKind.Single], DialoguePlanner.WantsOf(tale));
+    }
+
+    [Fact]
     public void TheTuningIsSetByName()
     {
         var t = DialogueTuning.Default.Parse("singledistance=3.5,RunPattern=SOWL,AcrossYaws=0;30,MinShotTicks=60");
@@ -189,6 +200,20 @@ public class DialogueFittingTests
     }
 
     [Fact]
+    public void TheSideIsTheOneWhereMoreOfTheShotsTheScriptWantsFit()
+    {
+        // A wall 4.6 off on the camera's side (not so near the room alone would leave it): the two-shot and the shoulders fit both sides, the wide only the other.
+        var scene = Scene(With(4.6f));
+        var camera = new Vector3(1, 3, 2);
+        DialogueShotKind[] plain = [DialogueShotKind.TwoShot, DialogueShotKind.OverShoulder];
+        Assert.Equal(DialogueCamera.Fitting(scene, 1, T, plain), DialogueCamera.Fitting(scene, -1, T, plain));
+        // On a tie the room decides, which here would leave the camera's side only for a margin wider than its own.
+        var t = T with { SideMargin = 10 };
+        Assert.Equal(1, DialogueCamera.ChooseSide(scene, camera, t, plain));
+        Assert.Equal(-1, DialogueCamera.ChooseSide(scene, camera, t, [.. plain, DialogueShotKind.Wide]));
+    }
+
+    [Fact]
     public void EveryShotFitsInTheOpenOnItsSideAndNeverCrossesTheLine()
     {
         var scene = Scene(Worlds.Flat());
@@ -199,6 +224,12 @@ public class DialogueFittingTests
             {
                 var (shown, at) = DialogueCamera.Fit(scene, side, shot, T);
                 Assert.Equal(shot, shown);
+                // A single is clean: the listener at most a sliver at the edge. Over the shoulder, the listener in a third or so.
+                if (shot.Subject != Talker.None)
+                {
+                    var cover = DialogueCamera.ListenerCover(scene, at!.Value, shot.Subject == Talker.Npc ? Talker.Player : Talker.Npc, T);
+                    Assert.True(shot.Kind == DialogueShotKind.OverShoulder ? cover is > 0.1f and < 0.4f : cover <= T.SingleSliver, $"{shot}: {cover}");
+                }
                 Assert.Equal(side, MathF.Sign(at!.Value.Eye.Z));
                 // A medium shot: the face is under a quarter of the frame's height.
                 var frame = 2 * Vector3.Distance(at.Value.Eye, at.Value.Aim) * MathF.Tan(T.FieldOfView * MathF.PI / 360);
@@ -212,6 +243,10 @@ public class DialogueFittingTests
     {
         Assert.Equal([new(DialogueShotKind.OverShoulder, Talker.Npc), new(DialogueShotKind.Single, Talker.Npc), DialogueShot.TwoShot, DialogueShot.Wide],
             DialogueCamera.Ladder(new DialogueShot(DialogueShotKind.OverShoulder, Talker.Npc)));
+        // A single that can't be clean is an over-the-shoulder; a wide falls to the two-shot.
+        Assert.Equal([new(DialogueShotKind.Punch, Talker.Npc), new(DialogueShotKind.Single, Talker.Npc), new(DialogueShotKind.OverShoulder, Talker.Npc),
+            DialogueShot.TwoShot, DialogueShot.Wide], DialogueCamera.Ladder(new DialogueShot(DialogueShotKind.Punch, Talker.Npc)));
+        Assert.Equal([DialogueShot.Wide, DialogueShot.TwoShot], DialogueCamera.Ladder(DialogueShot.Wide));
         // A corridor 1.8 wide: nothing fits beside the line.
         var (shown, at) = DialogueCamera.Fit(Scene(With(0.9f, -0.9f)), 1, new DialogueShot(DialogueShotKind.OverShoulder, Talker.Npc), T);
         Assert.Equal(DialogueShotKind.Original, shown.Kind);
