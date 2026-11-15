@@ -77,21 +77,33 @@ namespace HBHT.Core.Cameras;
     public float TightShoulderRise { get; init; } = 0.15f;
 
     /// <summary>
-    /// A single: this far from the subject's eyes, turned these ways (tried in order) toward the camera's side from the line to the
-    /// listener, and up this much. It must be clean: the listener covering no more than <see cref="SingleSliver"/> of the frame's width.
+    /// A single, the inside single: the camera this far ahead of the listener toward the subject (negative, behind the listener) and
+    /// this far out on the camera's side of the line, tried in order, each ahead with every out; up this much. A placing further round
+    /// than <see cref="SingleAngleMost"/> from the line (a profile), or nearer the subject's eyes than <see cref="SingleNearest"/> or
+    /// further than <see cref="SingleFurthest"/>, isn't tried. It must be clean: the listener covering no more than
+    /// <see cref="SingleSliver"/> of the widest frame's width (<see cref="CleanAspect"/>). Where none is, the over-the-shoulder is shot.
     /// </summary>
-    public float SingleDistance { get; init; } = 2.4f;
-    public float[] SingleAngles { get; init; } = [70, 60, 80, 90, 100, 50];
+    public float[] SingleAheads { get; init; } = [0, 0.2f, -0.2f, 0.4f];
+    public float[] SingleOuts { get; init; } = [1.0f, 0.8f, 1.2f, 1.4f, 0.65f];
+    public float SingleAngleMost { get; init; } = 58;
+    public float SingleNearest { get; init; } = 1.1f;
+    public float SingleFurthest { get; init; } = 2.6f;
     public float SingleRise { get; init; } = 0.1f;
 
-    /// <summary>How far a single's view may be turned from its subject, away from the listener, as shares of the half-width, tried in order.</summary>
-    public float[] SingleLeads { get; init; } = [0, 0.35f, 0.5f, 0.6f];
+    /// <summary>How far a single's view may be turned toward the listener, as shares of the half-width, tried in order: the room in front of the subject's face. Never away.</summary>
+    public float[] SingleLeads { get; init; } = [0, 0.15f, 0.3f];
 
     /// <summary>The share of the frame's width the listener may cover in a single: a sliver at the edge.</summary>
     public float SingleSliver { get; init; } = 0.05f;
 
-    /// <summary>A shouted line's punch-in: the single's axis, this near. A face stays under a quarter of the frame's height (about 1.7).</summary>
-    public float PunchDistance { get; init; } = 2.0f;
+    /// <summary>
+    /// The widest frame a single's cleanness is tested in, width over height: the runtime keeps its 45° high and widens the view with
+    /// the window (Godot's Camera3D, <c>KeepAspect</c> height), so a listener out of a 4:3 frame can be in a 16:9 one.
+    /// </summary>
+    public float CleanAspect { get; init; } = 16f / 9;
+
+    /// <summary>A shouted line's punch-in: the single's placings, this much further ahead toward the subject.</summary>
+    public float PunchAhead { get; init; } = 0.3f;
 
     /// <summary>How fast a shot drifts in toward its aim, units a second, and how far at most: slow enough to feel rather than see.</summary>
     public float DriftSpeed { get; init; } = 0.06f;
@@ -170,7 +182,7 @@ namespace HBHT.Core.Cameras;
     public Lens Lens => new(FieldOfView, 4f / 3, Margin) { Floor = Floor };
 
     /// <summary>
-    /// These numbers with some set by name, as <c>--dialogue-camera enhanced,SingleDistance=3,RunPattern=SSOOWL</c>: any above, its
+    /// These numbers with some set by name, as <c>--dialogue-camera enhanced,SingleAngleMost=50,RunPattern=SSOOWL</c>: any above, its
     /// name's case ignored; <see cref="AcrossYaws"/> takes values joined with <c>;</c>.
     /// </summary>
     public DialogueTuning Parse(string settings)

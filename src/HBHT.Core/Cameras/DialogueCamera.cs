@@ -263,7 +263,7 @@ public sealed class DialogueCamera(DialoguePlanner planner, DialogueTuning? tuni
         foreach (var (candidate, shows, foreground) in Placings(scene, side, shot, t, style))
         {
             if (Fits(scene, side, candidate, shows, foreground, t)
-                && (shot.Kind is not (DialogueShotKind.Single or DialogueShotKind.Punch) || ListenerCover(scene, candidate, Other(shot.Subject), t) <= t.SingleSliver))
+                && (shot.Kind is not (DialogueShotKind.Single or DialogueShotKind.Punch) || ListenerCover(scene, candidate, Other(shot.Subject), t, t.CleanAspect) <= t.SingleSliver))
             {
                 at = candidate;
                 return true;
@@ -279,10 +279,11 @@ public sealed class DialogueCamera(DialoguePlanner planner, DialogueTuning? tuni
     /// (<see cref="DialogueTuning.ShoulderPadOut"/>) projected across the screen (the
     /// whole lens, not its margins), their union clipped to the frame. 0 when it's out of the frame or behind the eye.
     /// </summary>
-    public static float ListenerCover(DialogueScene scene, Shot shot, Talker who, DialogueTuning t)
+    /// <param name="aspect">The frame's width over its height: 4:3, the shots' safe area, unless given.</param>
+    public static float ListenerCover(DialogueScene scene, Shot shot, Talker who, DialogueTuning t, float aspect = 4f / 3)
     {
         var body = scene.Of(who);
-        var lens = new Lens(t.FieldOfView, 4f / 3, 1);
+        var lens = new Lens(t.FieldOfView, aspect, 1);
         var spans = new List<(float From, float To)>();
         // The head, the chest, and a shoulder each side reaching past the body's sphere, as a pauldron or a cloak's shoulder does: the
         // talkers face each other, so their shoulders lie along the line's perpendicular.
@@ -319,6 +320,25 @@ public sealed class DialogueCamera(DialoguePlanner planner, DialogueTuning? tuni
                 end = MathF.Max(end, to);
         }
         return (covered + end - start) / 2;
+    }
+
+    /// <summary>
+    /// How a single or a punch-in looks at its subject: how far round from the line to the listener the camera stands, in degrees (0
+    /// behind the listener, 90 a profile); where the subject's eyes sit across the frame, as a share of the half-width, signed toward
+    /// the listener's side (above 0, his nose toward the near edge, the room behind him); and the listener's cover in the widest frame
+    /// drawn (<see cref="DialogueTuning.CleanAspect"/>).
+    /// </summary>
+    public static (float Angle, float Toward, float Cover) Measure(DialogueScene scene, DialogueShot shot, Shot at, DialogueTuning t)
+    {
+        var (x, l) = (scene.Of(shot.Subject), scene.Of(Other(shot.Subject)));
+        var (toCamera, toListener) = (Flat(at.Eye - x.Eyes), Flat(l.Eyes - x.Eyes));
+        var angle = toCamera.LengthSquared() < 1e-6f || toListener.LengthSquared() < 1e-6f ? 0
+            : MathF.Acos(Math.Clamp(Vector3.Dot(Vector3.Normalize(toCamera), Vector3.Normalize(toListener)), -1, 1)) * 180 / MathF.PI;
+        var lens = new Lens(t.FieldOfView, t.CleanAspect, 1);
+        var v = x.Eyes - at.Eye;
+        var across = Vector3.Dot(v, at.Right) / (Vector3.Dot(v, at.Forward) * lens.TanH);
+        var listenerSide = MathF.Sign(Vector3.Dot(l.Eyes - at.Eye, at.Right));
+        return (angle, across * listenerSide, ListenerCover(scene, at, Other(shot.Subject), t, t.CleanAspect));
     }
 
     /// <summary>Where a shot may stand, best first: the talkers it must show, and the one whose shoulder is in front, if any.</summary>
@@ -376,17 +396,25 @@ public sealed class DialogueCamera(DialoguePlanner planner, DialogueTuning? tuni
                 var (x, l) = (scene.Of(shot.Subject), scene.Of(Other(shot.Subject)));
                 var toL = Way(x.Eyes, l.Eyes, n);
                 var aim = x.Eyes - up * t.AimDrop;
-                var near = shot.Kind == DialogueShotKind.Punch ? t.PunchDistance : t.SingleDistance;
-                // Round toward across the line, so the listener leaves the frame; the view turned away from the listener by up to a
-                // share of the half-width, which sets the subject off-centre on the listener's side and the listener past the edge.
-                foreach (var angle in t.SingleAngles)
-                foreach (var scale in new[] { 1f, 0.85f })
-                foreach (var lead in t.SingleLeads)
+                // The inside single: the camera beside the listener, or a little ahead of them toward the subject, out on the camera's
+                // side of the line, so the listener is beside or behind the lens and the subject is seen from the front three-quarter,
+                // no further round than SingleAngleMost. The view may turn toward the listener, giving the room in front of the
+                // subject's face; never away. A punch-in stands nearer the subject.
+                var gap = Vector3.Distance(Flat(x.Eyes), Flat(l.Eyes));
+                var nearer = shot.Kind == DialogueShotKind.Punch ? t.PunchAhead : 0;
+                foreach (var ahead in t.SingleAheads)
+                foreach (var outward in t.SingleOuts)
                 {
-                    var (s, c) = MathF.SinCos(Degrees.ToRadians(angle));
-                    var way = Vector3.Normalize(toL * c + n * s);
-                    var eye = x.Eyes + way * near * scale + up * t.SingleRise;
-                    yield return (Lead(Shot.Of(eye, aim), aim, l.Eyes, lead, t), [shot.Subject], Talker.None);
+                    var along = gap - ahead - nearer;
+                    if (along <= 0.1f)
+                        continue;
+                    var angle = MathF.Atan2(outward, along) * 180 / MathF.PI;
+                    var distance = MathF.Sqrt(along * along + outward * outward);
+                    if (angle > t.SingleAngleMost || distance < t.SingleNearest || distance > t.SingleFurthest)
+                        continue;
+                    var eye = x.Eyes + toL * along + n * outward + up * t.SingleRise;
+                    foreach (var lead in t.SingleLeads)
+                        yield return (Lead(Shot.Of(eye, aim), aim, l.Eyes, -MathF.Abs(lead), t), [shot.Subject], Talker.None);
                 }
                 break;
             }
